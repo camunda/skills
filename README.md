@@ -8,6 +8,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 
 | Skill | Description |
 |-------|-------------|
+| **camunda-c8ctl** | Install and configure c8ctl, set up a local cluster, manage profiles and plugins |
 | **camunda-bpmn** | Create and edit BPMN 2.0 processes for Camunda 8/Zeebe |
 | **camunda-feel** | Write and debug FEEL expressions |
 | **camunda-forms** | Create Camunda Form JSON schemas for user tasks |
@@ -41,10 +42,13 @@ Clone this repository and copy the `skills/` directory into your project's `.age
 
 ## Quick Start
 
-1. Set up your Camunda cluster and configure c8ctl:
+1. Install c8ctl and start a local cluster:
    ```bash
-   c8 add profile
+   npm install -g @camunda8/cli
+   c8 cluster start          # downloads c8run on first run
    ```
+
+   For SaaS or Self-Managed clusters, run `c8 add profile` instead — see the **camunda-c8ctl** skill.
 
 2. Ask your AI agent:
    > "Create an invoice approval process with a user task for review and an HTTP connector to notify the accounting system"

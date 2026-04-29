@@ -6,6 +6,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 
 | Skill | Use When |
 |-------|----------|
+| **camunda-c8ctl** | Installing and configuring c8ctl, picking/setting up a cluster (incl. local c8run), managing profiles, plugins |
 | **camunda-bpmn** | Creating or editing BPMN 2.0 processes (elements, flows, gateways, events, subprocesses) |
 | **camunda-feel** | Writing FEEL expressions (gateway conditions, input/output mappings, timer definitions) |
 | **camunda-forms** | Creating Camunda Form JSON schemas for user tasks |
@@ -15,17 +16,15 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 
 ## c8ctl Setup (required)
 
-All cluster interaction and skill tooling uses [c8ctl](https://github.com/camunda/c8ctl). It is a **hard prerequisite** for these skills.
+All cluster interaction and skill tooling uses [c8ctl](https://github.com/camunda/c8ctl). It is a **hard prerequisite** for the other skills. The dedicated **camunda-c8ctl** skill walks through installation, picking a cluster (incl. starting a local one via `c8 cluster start`), profile setup, and plugin management.
+
+Quick start:
 
 ```bash
 npm install -g @camunda8/cli
-c8 add profile
-```
-
-Use JSON output mode for structured responses:
-
-```bash
-c8 output json
+c8 cluster start         # spin up a local cluster (downloads c8run on first run)
+c8 get topology          # confirm it's alive
+c8 output json           # switch to structured output for scripting/AI use
 ```
 
 ## Tooling

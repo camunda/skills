@@ -10,7 +10,7 @@
     {
       "name": "camunda-skills",
       "source": "./",
-      "description": "Camunda 8 development skills — BPMN modeling, FEEL expressions, forms, connectors, deployment, and operations",
+      "description": "Camunda 8 development skills — c8ctl CLI setup, BPMN modeling, FEEL expressions, forms, connectors, deployment, and operations",
       "version": "1.0.0"
     }
   ]
