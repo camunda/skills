@@ -1,0 +1,38 @@
+{
+  "skill_name": "camunda-connectors",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add an HTTP REST connector to my process that fetches user data from https://api.example.com/users/{userId}. The userId comes from a process variable.",
+      "expected_output": "BPMN with HTTP connector applied via element-templates-cli, configured with GET method and dynamic URL",
+      "expectations": [
+        "Runs the extract-templates.js script or references cached templates",
+        "Uses npx element-templates-cli to apply the http-json-connector template",
+        "Configures input mappings with method=GET and a FEEL expression for the URL",
+        "Sets resultVariable or resultExpression for the response",
+        "Uses proper XML encoding for FEEL expressions in attributes"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "What connectors are available for sending messages or notifications?",
+      "expected_output": "List of messaging-related connectors from the element templates",
+      "expectations": [
+        "Lists available templates from ~/.camunda/element-templates/",
+        "Identifies messaging connectors like Slack, SendGrid, email, RabbitMQ, Kafka",
+        "Provides brief description of what each connector does"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have a service task Task_SendSlack in my process. Configure it to send a Slack message to the #alerts channel with the incident details.",
+      "expected_output": "Applies Slack connector template and configures channel and message properties",
+      "expectations": [
+        "Uses element-templates-cli to apply the Slack outbound connector template",
+        "Reads the template JSON to understand required properties",
+        "Configures channel and message input mappings",
+        "Uses secrets reference for the Slack token"
+      ]
+    }
+  ]
+}

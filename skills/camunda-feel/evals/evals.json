@@ -1,0 +1,52 @@
+{
+  "skill_name": "camunda-feel",
+  "evals": [
+    {
+      "id": "basic-expression",
+      "prompt": "Write a FEEL expression to calculate a 15% discount on orders over 1000. The input variable is orderAmount. Return the final price after discount.",
+      "expected_output": "A FEEL expression using if-then-else to check orderAmount > 1000, apply 15% discount, and return the final price",
+      "expectations": [
+        "Use if-then-else with an else branch (every if requires else)",
+        "Check orderAmount > 1000 as the condition",
+        "Apply 0.15 or 15/100 as the discount rate",
+        "Return the discounted amount for qualifying orders and the original amount otherwise",
+        "Expression is valid FEEL syntax"
+      ]
+    },
+    {
+      "id": "date-calculation",
+      "prompt": "Write a FEEL expression that calculates a due date 30 business days from today. Assume no holidays, only skip weekends.",
+      "expected_output": "A FEEL expression using a for loop or multi-entry context to iterate calendar days, skip weekends using day of week(), and count until 30 business days are reached",
+      "expectations": [
+        "Use today() or a date variable as the starting point",
+        "Use day of week() to identify weekends (Saturday and Sunday)",
+        "Skip non-business days in the calculation",
+        "Accumulate exactly 30 business days",
+        "Return a date value, not a number or string"
+      ]
+    },
+    {
+      "id": "list-filtering",
+      "prompt": "Given a list of employees where each employee has name, department, and salary fields, write a FEEL expression to filter for employees in the Engineering department with salary above 80000. Return their names.",
+      "expected_output": "A FEEL expression using list filtering with multiple conditions and projection to extract names",
+      "expectations": [
+        "Filter employees list with department = \"Engineering\" condition",
+        "Include salary > 80000 condition",
+        "Use projection (.name) to extract employee names from the filtered list",
+        "Expression is valid FEEL syntax with correct list filter notation"
+      ]
+    },
+    {
+      "id": "evaluate-debug",
+      "prompt": "Fix this broken FEEL expression. It should calculate the total price with tax but returns null:\n\n```feel\n{\n  subtotal: sum(items.price)\n  taxRate: 0.19,\n  tax: subtotal * taxRate\n  total: subtotal + tax\n}.total\n```\n\nThe input variable items is a list of contexts each with a price field.",
+      "expected_output": "Identify the missing commas between context entries and provide the corrected expression",
+      "expectations": [
+        "Identify the syntax error: missing commas after subtotal and tax entries",
+        "Provide the corrected expression with commas separating all context entries",
+        "Preserve the multi-entry context pattern structure",
+        "Explain why the expression returned null or failed to parse",
+        "Validate the fix produces the correct result using the evaluation API or explain the expected output"
+      ]
+    }
+  ]
+}

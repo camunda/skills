@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "camunda-docs": {
+      "url": "https://camunda-docs.mcp.kapa.ai"
+    }
+  }
+}
