@@ -31,7 +31,6 @@
       "expectations": [
         "Discovers the Slack template via c8 element-template search 'slack' (does not guess the template ID from memory)",
         "Uses c8 element-template apply to apply the discovered Slack outbound connector template",
-        "Inspects template properties (e.g., via c8 element-template list-properties) to understand required properties",
         "Configures channel and message input mappings",
         "Uses secrets reference for the Slack OAuth token (e.g., {{secrets.SLACK_OAUTH_TOKEN}})"
       ]

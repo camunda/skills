@@ -41,7 +41,7 @@ c8 element-template search "kafka"         # find Kafka connectors
 c8 element-template search ""              # list all OOTB templates
 ```
 
-Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), and version. Pick the ID that matches your use case and pass it to `list-properties` and `apply` in the next steps.
+Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), and version. Pick the ID that matches your use case and pass it to `apply` (and to `list-properties` if the connector's properties aren't obvious).
 
 To refresh the local OOTB cache (rarely needed — done automatically):
 
@@ -50,18 +50,20 @@ c8 element-template sync             # fetch latest catalog
 c8 element-template sync --prune     # also drop entries that no longer exist upstream
 ```
 
-### Inspecting a Template's Properties
+### Inspecting a Template's Properties (when needed)
 
-Before applying, inspect what properties the template exposes — which are required, which support FEEL, and which are conditional:
+`list-properties` is a tool, not a step — only run it when you actually need the schema. Skip it when the user's request maps cleanly to obvious properties (e.g., HTTP REST: `method`, `url`, `authentication.type`; Slack: `method`, `data.channel`, `data.text`, `token`) and you can apply with `--set` directly.
+
+Run it when:
+- The connector is unfamiliar and you're not sure which property names exist
+- An `apply --set` call fails with an unknown-property or ambiguous-binding error
+- You need to understand which properties are required, conditional, or FEEL-only before composing the `--set` flags
 
 ```bash
 c8 element-template list-properties io.camunda.connectors.HttpJson.v2
 ```
 
-This shows the same structured information as reading the raw JSON, but filtered to settable properties (skipping `Hidden` ones). Look for:
-- **Required** — properties whose values must be set (`constraints.notEmpty: true`)
-- **Conditions** — properties that are only active when a parent property has a specific value
-- **FEEL support** — `required` (always FEEL), `optional` (FEEL or static), or `static` (no FEEL)
+The output shows settable properties (skipping `Hidden` ones) with their type, FEEL support, conditions, and constraints.
 
 ### Applying a Template to a BPMN Element
 
@@ -100,9 +102,9 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 ### Configuration Workflow
 
 1. **Search first** — `c8 element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
-2. **Inspect** — `c8 element-template list-properties <id>` to understand its properties
-3. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions
-4. **Apply with values** — `c8 element-template apply <id> <element-id> <bpmn> --in-place --set key=value ...`
+2. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions
+3. **Apply with values** — `c8 element-template apply <id> <element-id> <bpmn> --in-place --set key=value ...`
+4. **Inspect properties only if needed** — run `c8 element-template list-properties <id>` when the connector is unfamiliar or apply fails with an unknown/ambiguous property. Skip otherwise.
 5. **Skip inactive properties** — do not set values for properties whose conditions are not met
 6. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`)
 7. **Use secrets** for credentials: `{{secrets.API_KEY}}`
@@ -115,10 +117,7 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 c8 element-template search "REST"
 # → io.camunda.connectors.HttpJson.v2 (REST Outbound Connector)
 
-# 2. Inspect settable properties
-c8 element-template list-properties io.camunda.connectors.HttpJson.v2
-
-# 3. Apply with values
+# 2. Apply with values (no list-properties needed — HTTP REST property names are obvious)
 c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place \
   --set authentication.type=bearer \
   --set authentication.token='{{secrets.API_TOKEN}}' \
@@ -183,7 +182,7 @@ When the actual value is not yet known:
 ### Best Practices
 
 1. **Use `c8 element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes
-2. **Inspect with `list-properties` first** — understand the property tree (parent dropdowns → conditional children) before applying
+2. **Use `list-properties` only when needed** — for unfamiliar connectors or when an apply call fails with an unknown/ambiguous property. Don't run it as a default step.
 3. **Set values via `--set`** when applying — saves a second editing pass
 4. **Only set active properties** — respect conditions; inactive properties should not appear in XML
 5. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix
