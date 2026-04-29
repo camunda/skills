@@ -115,7 +115,7 @@ c8 search pd --iname="MyProcess"
 
 ### Troubleshooting
 
-**Deployment fails**: Check for BPMN validation errors — run `npx -y bpmnlint@11 process.bpmn` first.
+**Deployment fails**: Check for BPMN validation errors — run `c8 bpmn lint process.bpmn` first.
 
 **Process won't start**: Verify the process ID matches (`c8 list pd`). Check if required variables are provided.
 

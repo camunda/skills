@@ -9,7 +9,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 ## Prerequisites
 
-- Node.js 18+ (for element-templates-cli and template extraction via npx)
+- c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 element-template` commands
 
 ## Cross-References
 
@@ -30,87 +30,138 @@ Element templates are JSON files that encapsulate connector configuration. Each 
 
 Read `references/element-template-schema.md` for a comprehensive guide to interpreting template JSON, understanding binding types, conditions, constraints, FEEL support, and how each property maps to BPMN XML.
 
-### Extracting Templates
+### Discovering Connectors via Search
 
-Before browsing or applying templates, extract them locally:
-
-```bash
-node scripts/extract-templates.js
-```
-
-This downloads `@camunda/connectors-element-templates` from npm and extracts the latest version of each template to `~/.camunda/element-templates/`. Cached — subsequent runs are fast.
-
-### Browsing Available Connectors
+**Always discover the template ID via `c8 element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command always reflects what's actually available in the local OOTB catalog.
 
 ```bash
-ls ~/.camunda/element-templates/
+c8 element-template search "REST"          # find HTTP/REST connectors
+c8 element-template search "slack"         # find Slack connectors
+c8 element-template search "kafka"         # find Kafka connectors
+c8 element-template search ""              # list all OOTB templates
 ```
 
-Common templates:
-- `http-json-connector.json` — REST API calls (GET, POST, PUT, DELETE)
-- `slack-outbound-connector.json` — Send Slack messages
-- `kafka-outbound-connector.json` — Publish to Kafka topics
-- `sendgrid-connector.json` — Send emails via SendGrid
-- `aws-s3-connector.json` — AWS S3 operations
-- `aws-lambda-connector.json` — Invoke AWS Lambda functions
-- `rabbitmq-outbound-connector.json` — Publish to RabbitMQ
-- `agenticai-aiagent-job-worker.json` — AI Agent connector
+Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), and version. Pick the ID that matches your use case and pass it to `list-properties` and `apply` in the next steps.
 
-To understand what a connector requires, read its template JSON and inspect the `properties` array. Focus on properties with `constraints.notEmpty: true` (required) and check `condition` fields to understand which properties are active for a given configuration.
-
-### Applying Templates to BPMN Elements
-
-Apply a template using `element-templates-cli`:
+To refresh the local OOTB cache (rarely needed — done automatically):
 
 ```bash
-npx -y element-templates-cli@0.5 \
-  --diagram process.bpmn \
-  --template ~/.camunda/element-templates/http-json-connector.json \
-  --element Activity_FetchData \
-  --output process.bpmn
+c8 element-template sync             # fetch latest catalog
+c8 element-template sync --prune     # also drop entries that no longer exist upstream
 ```
 
-The CLI sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskDefinition`, default input mappings, and task headers. Ignore stderr warnings about document imports.
+### Inspecting a Template's Properties
 
-**After applying, configure the template properties** by editing the BPMN XML — see the configuration workflow below.
+Before applying, inspect what properties the template exposes — which are required, which support FEEL, and which are conditional:
+
+```bash
+c8 element-template list-properties io.camunda.connectors.HttpJson.v2
+```
+
+This shows the same structured information as reading the raw JSON, but filtered to settable properties (skipping `Hidden` ones). Look for:
+- **Required** — properties whose values must be set (`constraints.notEmpty: true`)
+- **Conditions** — properties that are only active when a parent property has a specific value
+- **FEEL support** — `required` (always FEEL), `optional` (FEEL or static), or `static` (no FEEL)
+
+### Applying a Template to a BPMN Element
+
+Apply a template to a service task (or other supported element):
+
+```bash
+c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place
+```
+
+The `<template>` argument can be:
+- An OOTB template ID (with optional `@<version>`, e.g., `io.camunda.connectors.HttpJson.v2@12`)
+- A local file path (e.g., `./my-custom-template.json`)
+- An https:// URL
+
+`--in-place` modifies the BPMN file directly. Without it, the modified XML is printed to stdout.
+
+This sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskDefinition`, default input mappings, and task headers.
+
+### Setting Property Values at Apply Time
+
+Set values inline using repeated `--set key=value` flags:
+
+```bash
+c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place \
+  --set method=GET \
+  --set url='="https://api.example.com/users/" + string(userId)' \
+  --set authentication.type=bearer \
+  --set authentication.token='{{secrets.API_TOKEN}}' \
+  --set resultExpression='={user: response.body}'
+```
+
+This is the preferred way to configure straightforward properties — it's faster and less error-prone than editing XML by hand.
+
+For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) you may still edit the BPMN XML manually after applying. See "Manual XML configuration" below.
 
 ### Configuration Workflow
 
-1. **Read the template JSON** — understand the property groups and identify required fields
-2. **Start with "parent" dropdown properties** — authentication type, method, etc. These determine which child properties become active via conditions
-3. **Set required active properties** — those with `constraints.notEmpty: true` whose conditions are met
-4. **Set optional properties** as needed
+1. **Search first** — `c8 element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
+2. **Inspect** — `c8 element-template list-properties <id>` to understand its properties
+3. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions
+4. **Apply with values** — `c8 element-template apply <id> <element-id> <bpmn> --in-place --set key=value ...`
 5. **Skip inactive properties** — do not set values for properties whose conditions are not met
-6. **Use FEEL expressions** for dynamic values (prefix with `=` for `feel: "optional"`, always for `feel: "required"`)
+6. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`)
 7. **Use secrets** for credentials: `{{secrets.API_KEY}}`
-8. **Validate** with `npx -y bpmnlint@11 process.bpmn`
+8. **Validate** with `c8 bpmn lint process.bpmn`
 
 ### HTTP REST Connector Example
 
 ```bash
-# 1. Apply template
-npx -y element-templates-cli@0.5 \
-  --diagram process.bpmn \
-  --template ~/.camunda/element-templates/http-json-connector.json \
-  --element Task_FetchUser \
-  --output process.bpmn
+# 1. Discover the template
+c8 element-template search "REST"
+# → io.camunda.connectors.HttpJson.v2 (REST Outbound Connector)
+
+# 2. Inspect settable properties
+c8 element-template list-properties io.camunda.connectors.HttpJson.v2
+
+# 3. Apply with values
+c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place \
+  --set authentication.type=bearer \
+  --set authentication.token='{{secrets.API_TOKEN}}' \
+  --set method=GET \
+  --set url='="https://api.example.com/users/" + string(userId)' \
+  --set resultVariable=apiResponse \
+  --set resultExpression='={user: response.body}' \
+  --set errorExpression='=if response.statusCode >= 400 then bpmnError("HTTP_ERROR", string(response.statusCode)) else null'
 ```
 
+The resulting BPMN XML:
+
 ```xml
-<!-- 2. Configure: GET request with bearer token auth -->
-<zeebe:ioMapping>
-  <zeebe:input source="bearer" target="authentication.type" />
-  <zeebe:input source="{{secrets.API_TOKEN}}" target="authentication.token" />
-  <zeebe:input source="GET" target="method" />
-  <zeebe:input source="=&quot;https://api.example.com/users/&quot; + string(userId)" target="url" />
-  <zeebe:input source="20" target="connectionTimeoutInSeconds" />
-  <zeebe:input source="20" target="readTimeoutInSeconds" />
-</zeebe:ioMapping>
-<zeebe:taskHeaders>
-  <zeebe:header key="resultVariable" value="apiResponse" />
-  <zeebe:header key="resultExpression" value="={user: response.body}" />
-  <zeebe:header key="errorExpression" value="=if response.statusCode &gt;= 400 then bpmnError(&quot;HTTP_ERROR&quot;, string(response.statusCode)) else null" />
-</zeebe:taskHeaders>
+<bpmn:serviceTask id="Task_FetchUser" name="Fetch user data"
+  zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2"
+  zeebe:modelerTemplateVersion="12">
+  <bpmn:extensionElements>
+    <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
+    <zeebe:ioMapping>
+      <zeebe:input source="bearer" target="authentication.type" />
+      <zeebe:input source="{{secrets.API_TOKEN}}" target="authentication.token" />
+      <zeebe:input source="GET" target="method" />
+      <zeebe:input source="=&quot;https://api.example.com/users/&quot; + string(userId)" target="url" />
+    </zeebe:ioMapping>
+    <zeebe:taskHeaders>
+      <zeebe:header key="resultVariable" value="apiResponse" />
+      <zeebe:header key="resultExpression" value="={user: response.body}" />
+      <zeebe:header key="errorExpression" value="=if response.statusCode &gt;= 400 then bpmnError(&quot;HTTP_ERROR&quot;, string(response.statusCode)) else null" />
+    </zeebe:taskHeaders>
+  </bpmn:extensionElements>
+</bpmn:serviceTask>
+```
+
+### Manual XML Configuration (fallback)
+
+For complex multi-line FEEL expressions or post-apply tweaks, edit the BPMN XML directly. The bindings to write are described in `references/element-template-schema.md`. Examples:
+
+```xml
+<!-- zeebe:input binding -->
+<zeebe:input source="{{secrets.API_KEY}}" target="authentication.token" />
+
+<!-- zeebe:taskHeader binding (note: feel:required values must start with =) -->
+<zeebe:header key="resultExpression" value="={user: response.body, ts: now()}" />
 ```
 
 ### Secrets
@@ -131,13 +182,14 @@ When the actual value is not yet known:
 
 ### Best Practices
 
-1. **Always use the CLI** to apply templates — never manually set `zeebe:modelerTemplate` attributes
-2. **Read the template JSON first** — understand the property tree (parent dropdowns → conditional children)
-3. **Only set active properties** — respect conditions; inactive properties should not appear in XML
-4. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix
-5. **Use secrets for credentials** — `{{secrets.MY_SECRET}}`
-6. **Validate after configuration** — `npx -y bpmnlint@11 process.bpmn`
-7. **Avoid reading full BPMN XML after template application** — template icons are large base64 strings; use Grep for targeted reads
+1. **Use `c8 element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes
+2. **Inspect with `list-properties` first** — understand the property tree (parent dropdowns → conditional children) before applying
+3. **Set values via `--set`** when applying — saves a second editing pass
+4. **Only set active properties** — respect conditions; inactive properties should not appear in XML
+5. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix
+6. **Use secrets for credentials** — `{{secrets.MY_SECRET}}`
+7. **Validate after configuration** — `c8 bpmn lint process.bpmn`
+8. **Avoid reading full BPMN XML after template application** — template icons are large base64 strings; use Grep for targeted reads
 
 ## References
 

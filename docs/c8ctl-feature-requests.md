@@ -2,83 +2,66 @@
 
 Missing c8ctl features identified during skills development. These would improve the AI-assisted development experience.
 
----
-
-## 1. Element Templates: List
-
-**Command**: `c8 element-templates list [--type outbound|inbound] [--search <query>]`
-
-**Description**: List available element templates from the Camunda connector catalog. Support filtering by connector type (outbound/inbound) and text search.
-
-**Why**: AI agents need to browse available connectors to suggest appropriate integrations. Currently requires extracting from an npm package or querying the marketplace API manually.
-
-**Expected output**:
-```
-NAME                              TYPE       DESCRIPTION
-http-json-connector               outbound   REST API calls (GET, POST, PUT, DELETE)
-slack-outbound-connector          outbound   Send Slack messages
-kafka-outbound-connector          outbound   Publish to Kafka topics
-sendgrid-connector                outbound   Send emails via SendGrid
-```
-
-**Sources**: `@camunda/connectors-element-templates` npm package or `https://marketplace.cloud.camunda.io/api/v1/ootb-connectors`
+Status legend: ✅ DONE — implemented and in use; 📋 OPEN — not yet implemented.
 
 ---
 
-## 2. Element Templates: Get
+## 1. ✅ Element Templates: List/Search — DONE
 
-**Command**: `c8 element-templates get <template-name> [--output <file>]`
+**Implemented as**: `c8 element-template search [<query>]`
 
-**Description**: Download a specific element template JSON by name. Outputs the template JSON to stdout or a file.
+Lists OOTB element templates by name. Empty query returns all entries. Each result shows the template name, ID, and version. The local catalog is populated/refreshed by `c8 element-template sync`.
 
-**Why**: AI agents need to read template definitions to understand required properties and configure connectors correctly.
-
-**Expected output**: Complete element template JSON (single object, latest version).
+The skills now use this in the `camunda-connectors` workflow as the first step — discover the template ID via search rather than guessing or hardcoding it.
 
 ---
 
-## 3. Element Templates: Apply
+## 2. ✅ Element Templates: Get/Inspect — DONE
 
-**Command**: `c8 element-templates apply --diagram <bpmn-file> --element <element-id> --template <template-name> [--output <file>]`
+**Implemented as**: `c8 element-template list-properties <template-id>` (alias: `props`)
 
-**Description**: Apply an element template to a BPMN element. This is what `element-templates-cli` does today, but integrated into c8ctl for a unified experience.
+Shows the settable properties of a template (skipping `Hidden` ones), including type, FEEL support, conditions, and constraints. This is the more useful form for AI agents than dumping raw JSON, because the icon field (large base64 blob) is filtered out.
 
-**Why**: Applying element templates is a critical step in connector configuration. Having it in c8ctl means one tool for everything instead of requiring a separate npm package.
-
-**Reference implementation**: `element-templates-cli` npm package (v0.5)
+If raw JSON is needed, the OOTB cache populated by `c8 element-template sync` contains the full template files locally.
 
 ---
 
-## 4. FEEL Expression Evaluation
+## 3. ✅ Element Templates: Apply — DONE
 
-**Command**: `c8 evaluate expression '<expression>' [--variables '<json>']`
+**Implemented as**: `c8 element-template apply <template> <element-id> <bpmn-file>`
 
-**Description**: Evaluate a FEEL expression against a set of variables using the cluster's expression evaluation endpoint.
+Where `<template>` is a local path, https:// URL, or OOTB template ID (with optional `@<version>`).
 
-**Why**: AI agents need to validate and debug FEEL expressions during process development. The REST API endpoint exists (`POST /v2/expressions/evaluation`) but there's no c8ctl command for it.
+Key flags:
+- `--in-place` — modify the BPMN file directly (otherwise prints to stdout)
+- `--set key=value` (repeatable) — set property values inline at apply time
 
-**Expected output**:
-```json
-{"result": 1150}
-```
-
-**REST API**: `POST /v2/expressions/evaluation` with body `{"expression": "=amount * 1.15", "variables": {"amount": 1000}}`
+This eliminates the need for the `element-templates-cli` npm package and avoids npm cache permission issues that previously blocked the sandbox.
 
 ---
 
-## 5. BPMN Validation
+## 4. ✅ FEEL Expression Evaluation — DONE
 
-**Command**: `c8 bpmn validate <file> [--config <bpmnlintrc>]`
+**Implemented as**: `c8 feel eval '<expression>'`
 
-**Description**: Validate a BPMN file for Camunda 8 compatibility. Could integrate bpmnlint with camunda-compat rules.
+Key flags:
+- `--var key=value` (repeatable; supports JSON values and dot-path nesting like `customer.name=Alice`)
+- `--vars '{"a":1,"b":2}'` — bulk variables as a single JSON object
+- `--engine local` — offline evaluation via the `feelin` JS engine
 
-**Why**: Validation before deployment catches errors early. Currently requires `npx bpmnlint` with separate configuration.
-
-**Alternative**: Could be a c8ctl plugin wrapping bpmnlint, rather than a core feature.
+**Engine semantics**: Default is cluster evaluation against the Scala FEEL engine — the same engine Zeebe runs in production. `--engine local` uses `feelin`, which behaves DIFFERENTLY from the Scala engine in subtle ways (type coercion, function support, date/time). Skills must default to cluster mode and only fall back to `--engine local` when the user explicitly asks for offline evaluation, or when no cluster is available AND the user has confirmed the fallback. Never silently fall back.
 
 ---
 
-## 6. Dry Run for Deployment
+## 5. ✅ BPMN Validation — DONE
+
+**Implemented as**: `c8 bpmn lint <file>` (also accepts BPMN via stdin)
+
+Auto-detects the Camunda execution platform version from the BPMN file. Uses `.bpmnlintrc` if present in the project; otherwise applies sensible Camunda defaults. No npm cache dependency — the original sandbox blocker for `npx bpmnlint` is gone.
+
+---
+
+## 6. 📋 Dry Run for Deployment — OPEN
 
 **Command**: `c8 deploy <file> --dry-run`
 

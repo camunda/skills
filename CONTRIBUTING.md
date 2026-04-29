@@ -29,7 +29,7 @@ The body follows the template in the plan. Key rules:
 - **Body under 5000 words** — move detailed catalogs to `references/`
 - **References one level deep** — no chains (SKILL.md -> ref1.md -> ref2.md)
 - **Cross-reference other skills** by name when relevant
-- **Tools use `npx` with version pinning** (e.g., `npx -y bpmnlint@11`)
+- **Tooling routes through c8ctl plugin commands** (e.g., `c8 bpmn lint`, `c8 element-template apply`, `c8 feel eval`) — c8ctl is a hard prerequisite for these skills
 
 ## Progressive Discovery
 

@@ -4,21 +4,22 @@
     {
       "id": 1,
       "prompt": "Add an HTTP REST connector to my process that fetches user data from https://api.example.com/users/{userId}. The userId comes from a process variable.",
-      "expected_output": "BPMN with HTTP connector applied via element-templates-cli, configured with GET method and dynamic URL",
+      "expected_output": "BPMN with HTTP connector applied via c8 element-template apply, configured with GET method and dynamic URL",
       "expectations": [
-        "Runs the extract-templates.js script or references cached templates",
-        "Uses npx element-templates-cli to apply the http-json-connector template",
-        "Configures input mappings with method=GET and a FEEL expression for the URL",
+        "Discovers the HTTP/REST template via c8 element-template search (does not guess the template ID from memory)",
+        "Uses c8 element-template apply with the HTTP REST template (e.g., io.camunda.connectors.HttpJson.v2)",
+        "Targets the process by file path and uses --in-place (or equivalent) to modify the BPMN",
+        "Configures method=GET and a FEEL expression for the URL (with the userId variable)",
         "Sets resultVariable or resultExpression for the response",
-        "Uses proper XML encoding for FEEL expressions in attributes"
+        "Uses proper XML encoding for FEEL expressions in attributes (when manual edits are made)"
       ]
     },
     {
       "id": 2,
       "prompt": "What connectors are available for sending messages or notifications?",
-      "expected_output": "List of messaging-related connectors from the element templates",
+      "expected_output": "List of messaging-related connectors discovered via c8 element-template search",
       "expectations": [
-        "Lists available templates from ~/.camunda/element-templates/",
+        "Uses c8 element-template search to discover relevant templates (e.g., search for 'slack', 'email', 'kafka', etc.)",
         "Identifies messaging connectors like Slack, SendGrid, email, RabbitMQ, Kafka",
         "Provides brief description of what each connector does"
       ]
@@ -26,12 +27,13 @@
     {
       "id": 3,
       "prompt": "I have a service task Task_SendSlack in my process. Configure it to send a Slack message to the #alerts channel with the incident details.",
-      "expected_output": "Applies Slack connector template and configures channel and message properties",
+      "expected_output": "Applies Slack connector template via c8 element-template apply and configures channel and message properties",
       "expectations": [
-        "Uses element-templates-cli to apply the Slack outbound connector template",
-        "Reads the template JSON to understand required properties",
+        "Discovers the Slack template via c8 element-template search 'slack' (does not guess the template ID from memory)",
+        "Uses c8 element-template apply to apply the discovered Slack outbound connector template",
+        "Inspects template properties (e.g., via c8 element-template list-properties) to understand required properties",
         "Configures channel and message input mappings",
-        "Uses secrets reference for the Slack token"
+        "Uses secrets reference for the Slack OAuth token (e.g., {{secrets.SLACK_OAUTH_TOKEN}})"
       ]
     }
   ]

@@ -12,7 +12,7 @@
         "Condition expressions use FEEL syntax with = prefix",
         "The user task has zeebe:userTask and zeebe:formDefinition elements",
         "Includes bpmndi:BPMNDiagram section with coordinates for all elements",
-        "Passes bpmnlint validation without errors"
+        "Passes c8 bpmn lint validation without errors"
       ]
     },
     {
@@ -55,10 +55,10 @@
     {
       "id": 5,
       "prompt": "Validate this BPMN file and fix any issues: examples/invoice-approval.bpmn",
-      "expected_output": "Runs bpmnlint, identifies any issues, and fixes them",
+      "expected_output": "Runs c8 bpmn lint, identifies any issues, and fixes them",
       "files": ["examples/invoice-approval.bpmn"],
       "expectations": [
-        "Runs npx bpmnlint to validate the file",
+        "Runs c8 bpmn lint to validate the file",
         "Reports validation results clearly",
         "If errors exist, fixes them and re-validates",
         "Final validation passes without errors or warnings"

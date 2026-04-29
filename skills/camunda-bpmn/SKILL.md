@@ -10,7 +10,8 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 ## Prerequisites
 
 - Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed)
-- Node.js 18+ (for bpmnlint via npx)
+- c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 bpmn lint`
+- Node.js 18+ (only needed for the optional auto-layout script in `scripts/`)
 
 ## Cross-References
 
@@ -75,7 +76,7 @@ Always encode special characters in XML attribute values:
 - **Exclusive (XOR)**: Exactly one path taken. Set `default` attribute for the fallback flow. Label condition flows.
 - **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
 - **Inclusive (OR)**: One or more paths. Also requires a matching join.
-- Always fix fake-join warnings from bpmnlint — join gateways must match their fork type.
+- Always fix fake-join warnings from `c8 bpmn lint` — join gateways must match their fork type.
 
 **Sequence Flows:**
 - Conditions use FEEL expressions with `=` prefix:
@@ -117,7 +118,13 @@ BPMN files can be large. Follow these rules:
 After generating or editing BPMN XML, always validate:
 
 ```bash
-npx -y bpmnlint@11 path/to/process.bpmn
+c8 bpmn lint path/to/process.bpmn
+```
+
+`c8 bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. You can also pipe BPMN via stdin:
+
+```bash
+cat process.bpmn | c8 bpmn lint
 ```
 
 Fix ALL errors and warnings, especially:

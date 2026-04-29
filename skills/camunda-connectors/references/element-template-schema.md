@@ -298,7 +298,15 @@ To configure a connector after applying a template:
 
 ## Configuring Properties in BPMN XML
 
-After the CLI tool applies the template, it creates default `zeebe:ioMapping` entries and `zeebe:taskHeaders`. To configure, edit these in the BPMN XML.
+After `c8 element-template apply` applies the template, it creates default `zeebe:ioMapping` entries and `zeebe:taskHeaders`. Use `--set key=value` flags at apply time for straightforward configuration, or edit the BPMN XML manually for complex cases.
+
+To inspect what properties are settable on a given template, run:
+
+```bash
+c8 element-template list-properties <template-id>
+```
+
+This shows the same structured information as reading the raw JSON, but skips `Hidden` properties.
 
 ### Mapping from template property to BPMN XML
 
@@ -311,7 +319,7 @@ After the CLI tool applies the template, it creates default `zeebe:ioMapping` en
 
 ### Example: Configuring an HTTP Connector
 
-Template defines these key properties:
+Apply with values inline using `c8 element-template apply ... --set ...`. The template defines these key properties:
 
 ```
 authentication.type  → zeebe:input, name="authentication.type"  (Dropdown: noAuth, basic, bearer, apiKey, oauth)

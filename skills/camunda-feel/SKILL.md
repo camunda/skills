@@ -9,7 +9,8 @@ Write, debug, and evaluate FEEL expressions used in Camunda 8 BPMN processes, DM
 
 ## Prerequisites
 
-- Camunda 8.8+ cluster for expression evaluation via REST API
+- c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 feel eval`
+- Camunda 8.8+ cluster (default evaluation runs against the cluster's Scala FEEL engine)
 
 ## Cross-References
 
@@ -34,25 +35,44 @@ All FEEL expressions in BPMN XML must be prefixed with `=`:
 
 ### Expression Evaluation
 
-To validate and debug FEEL expressions, use the Camunda REST API via c8ctl:
+To validate and debug FEEL expressions, use `c8 feel eval`. By default this runs against the configured cluster's Scala FEEL engine — the same engine that Zeebe uses at runtime, so results match production behavior exactly.
 
 ```bash
-c8 evaluate expression '=amount * 1.15' --variables '{"amount": 100}'
-```
+# Simple expression
+c8 feel eval '1 + 2'
 
-If c8ctl does not support expression evaluation directly, use the REST API:
+# Expression with individual variables (leading = optional)
+c8 feel eval '=amount * 1.15' --var amount=100
 
-```bash
-curl -X POST http://localhost:8080/v2/expressions/evaluation \
-  -H 'Content-Type: application/json' \
-  -d '{"expression": "=amount * 1.15", "variables": {"amount": 100}}'
+# Multiple variables
+c8 feel eval 'a + b' --var a=1 --var b=2
+
+# JSON values for complex types
+c8 feel eval 'sum(items)' --var 'items=[1,2,3]'
+
+# Bulk variables as a single JSON object
+c8 feel eval 'orderTotal > 1000 and customer.tier = "premium"' \
+  --vars '{"orderTotal": 1500, "customer": {"tier": "premium"}}'
+
+# Dot-path nesting on the CLI
+c8 feel eval 'customer.name' --var customer.name=Alice
 ```
 
 **Debugging workflow:**
 1. Write the expression
 2. Identify the expected variable context
-3. Evaluate via API to validate
+3. Evaluate via `c8 feel eval` to validate against the cluster engine
 4. If evaluation fails, fix based on error message and retry
+
+#### Offline evaluation (`--engine local`)
+
+`c8 feel eval --engine local` evaluates expressions locally using the `feelin` JavaScript engine — useful when no cluster is available. **Use only when explicitly requested or when no cluster is reachable AND the user has confirmed the fallback.** Never silently fall back.
+
+`feelin` behaves DIFFERENTLY from the Scala FEEL engine that Zeebe runs in production. Subtle differences in type coercion, function support, and date/time handling can cause an expression that passes locally to fail in the cluster (and vice versa). Always re-validate against the cluster before relying on a result obtained with `--engine local`.
+
+```bash
+c8 feel eval '=amount * 1.15' --var amount=100 --engine local
+```
 
 ### Core Syntax
 

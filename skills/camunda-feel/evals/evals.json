@@ -45,7 +45,7 @@
         "Provide the corrected expression with commas separating all context entries",
         "Preserve the multi-entry context pattern structure",
         "Explain why the expression returned null or failed to parse",
-        "Validate the fix produces the correct result using the evaluation API or explain the expected output"
+        "Validates the fix using c8 feel eval (with --var or --vars to provide the items list); does not silently fall back to --engine local without user confirmation"
       ]
     }
   ]

@@ -13,9 +13,9 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-deploy** | Deploying BPMN/DMN/form resources to a Camunda 8 cluster via c8ctl |
 | **camunda-operate** | Monitoring process instances, resolving incidents, completing user tasks via c8ctl |
 
-## c8ctl Setup
+## c8ctl Setup (required)
 
-All cluster interaction uses [c8ctl](https://github.com/camunda/c8ctl). Configure a profile:
+All cluster interaction and skill tooling uses [c8ctl](https://github.com/camunda/c8ctl). It is a **hard prerequisite** for these skills.
 
 ```bash
 npm install -g @camunda8/cli
@@ -30,10 +30,15 @@ c8 output json
 
 ## Tooling
 
-Skills use `npx` for tooling (auto-downloads, no install needed):
+All skill tooling is unified under c8ctl plugin commands:
 
-- **BPMN validation**: `npx -y bpmnlint@11 process.bpmn`
-- **Element templates**: `npx -y element-templates-cli@0.5 --diagram in.bpmn --template template.json --element TaskId --output out.bpmn`
+- **BPMN validation**: `c8 bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
+- **Element templates**:
+  - `c8 element-template search "<query>"` — discover OOTB connector templates
+  - `c8 element-template list-properties <id>` — inspect a template's settable properties
+  - `c8 element-template apply <template> <element-id> <bpmn> --in-place [--set key=value ...]` — apply a template
+  - `c8 element-template sync [--prune]` — refresh the local OOTB cache
+- **FEEL evaluation**: `c8 feel eval '<expression>' [--var key=value | --vars '<json>']` — defaults to cluster evaluation (Scala FEEL engine). `--engine local` uses the `feelin` JS engine, which behaves DIFFERENTLY from the cluster engine — only use it when explicitly requested or the cluster is unreachable AND the user has confirmed.
 
 ## Conventions
 
