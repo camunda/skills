@@ -68,3 +68,13 @@ Auto-detects the Camunda execution platform version from the BPMN file. Uses `.b
 **Description**: Validate a deployment without actually deploying. Returns what would be deployed and any validation errors.
 
 **Why**: Allows AI agents to preview deployment effects safely. Supports the plan-validate-execute pattern recommended for AI agent tooling.
+
+---
+
+## 7. 📋 Per-invocation Output Mode — OPEN
+
+**Command**: `c8 <any> --json` (or `--output json`) and/or env var `C8CTL_OUTPUT_MODE=json`
+
+**Description**: Allow setting the output mode (json/text) for a single invocation, without persisting it to `session.json`. Today, switching mode requires `c8 output json && c8 <cmd> && c8 output text`, which (a) is awkward for scripting, (b) mutates persistent session state, and (c) fails entirely under sandboxed agents that can't write to `~/Library/Application Support/c8ctl/session.json` (`C8CTL_DATA_DIR` works around this but adds setup overhead).
+
+**Why**: Aligns with common CLI conventions (`gh --json`, `kubectl -o json`, `aws --output json` / `AWS_OUTPUT_FORMAT`). Makes c8ctl scriptable from CI pipelines and AI agents without state side effects.
