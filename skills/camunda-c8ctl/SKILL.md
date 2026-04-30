@@ -14,8 +14,8 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 ## Cross-References
 
 - **camunda-bpmn**: Uses `c8 bpmn lint` (ships in c8ctl by default)
-- **camunda-connectors**: Uses `c8 element-template search/list-properties/apply`
-- **camunda-feel**: Uses `c8 feel eval`
+- **camunda-connectors**: Uses `c8 element-template search/info/get-properties/apply`
+- **camunda-feel**: Uses `c8 feel evaluate`
 - **camunda-deploy**: Uses `c8 deploy`, `c8 run`, `c8 watch`
 - **camunda-operate**: Uses `c8 list pi`, `c8 search inc`, `c8 complete ut`, `c8 resolve inc`, etc.
 

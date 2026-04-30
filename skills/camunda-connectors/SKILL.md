@@ -38,10 +38,9 @@ Read `references/element-template-schema.md` for a comprehensive guide to interp
 c8 element-template search "REST"          # find HTTP/REST connectors
 c8 element-template search "slack"         # find Slack connectors
 c8 element-template search "kafka"         # find Kafka connectors
-c8 element-template search ""              # list all OOTB templates
 ```
 
-Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), and version. Pick the ID that matches your use case and pass it to `apply` (and to `list-properties` if the connector's properties aren't obvious).
+Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), version, applies-to, engine constraint, and description. Pick the ID that matches your use case.
 
 To refresh the local OOTB cache (rarely needed — done automatically):
 
@@ -50,35 +49,50 @@ c8 element-template sync             # fetch latest catalog
 c8 element-template sync --prune     # also drop entries that no longer exist upstream
 ```
 
-### Inspecting a Template's Properties (when needed)
+### Inspecting a Template
 
-`list-properties` is a tool, not a step — only run it when you actually need the schema. Skip it when the user's request maps cleanly to obvious properties (e.g., HTTP REST: `method`, `url`, `authentication.type`; Slack: `method`, `data.channel`, `data.text`, `token`) and you can apply with `--set` directly.
+Two complementary commands cover the questions you'll ask before applying:
 
-Run it when:
-- The connector is unfamiliar and you're not sure which property names exist
-- An `apply --set` call fails with an unknown-property or ambiguous-binding error
-- You need to understand which properties are required, conditional, or FEEL-only before composing the `--set` flags
+**`info`** — metadata card. *What is this thing?* (applies-to, engine constraint, description, docs link). Optional; useful when the connector is unfamiliar or you want to confirm it fits the target element type.
 
 ```bash
-c8 element-template list-properties io.camunda.connectors.HttpJson.v2
+c8 element-template info io.camunda.connectors.HttpJson.v2
 ```
 
-The output shows settable properties (skipping `Hidden` ones) with their type, FEEL support, conditions, and constraints.
+**`get-properties`** — settable properties. *What knobs can I turn?* The default is a cheap condensed view: name + description, grouped. Filter with positional names (shell-style globs supported, quote them) or `--group <id>` for narrower output.
+
+```bash
+c8 element-template get-properties io.camunda.connectors.HttpJson.v2          # all settable properties
+c8 element-template get-properties io.camunda.connectors.HttpJson.v2 url method  # named properties only
+c8 element-template get-properties io.camunda.connectors.HttpJson.v2 'auth*'   # glob filter
+c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --group endpoint
+```
+
+Add `--detailed` for full per-property cards showing **Required**, **FEEL** support, **Active when** (the conditional expression), **Pattern** constraint, **Default**, and **Choices**. Use this when you need to know whether to set a value, prefix it with `=` for FEEL, or which parent property unlocks the property:
+
+```bash
+c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --detailed authentication.token url
+```
+
+**When to use which:**
+- For connectors documented in this skill (HTTP REST, Slack), apply directly — property names are obvious.
+- For unfamiliar connectors, run `get-properties` (condensed) to scan names + descriptions before applying.
+- Use `--detailed <name>` when you need to know whether a property is required, FEEL-supported, or has a condition — or when an `apply --set` call fails.
 
 ### Applying a Template to a BPMN Element
 
 Apply a template to a service task (or other supported element):
 
 ```bash
-c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place
+c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn
 ```
 
 The `<template>` argument can be:
-- An OOTB template ID (with optional `@<version>`, e.g., `io.camunda.connectors.HttpJson.v2@12`)
+- An OOTB template ID (with optional `@<version>`, e.g., `io.camunda.connectors.HttpJson.v2@13`). Without `@<version>`, the highest version compatible with the BPMN's `executionPlatformVersion` is auto-resolved.
 - A local file path (e.g., `./my-custom-template.json`)
-- An https:// URL
+- An `https://` URL (GitHub blob URLs are auto-rewritten to raw content)
 
-`--in-place` modifies the BPMN file directly. Without `--in-place`, the modified XML is printed to stdout — useful for previews, redirected output, or composing with other tooling:
+`-i` modifies the BPMN file directly. Without `-i`, the modified XML is printed to stdout — useful for previews, redirected output, or composing with other tooling:
 
 ```bash
 c8 element-template apply <id> <element> process.bpmn | diff process.bpmn -    # preview the diff
@@ -86,7 +100,7 @@ c8 element-template apply <id> <element> process.bpmn > new-process.bpmn       #
 c8 element-template apply <id> <element> process.bpmn | c8 bpmn lint           # apply and lint in one pipeline
 ```
 
-Use `--in-place` for the common "apply and persist" case. Use the pipeable form for previews, dry-runs, or chaining into other tooling.
+Use `-i` for the common "apply and persist" case. Use the pipeable form for previews, dry-runs, or chaining into other tooling.
 
 Apply sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskDefinition`, default input mappings, and task headers on the target element.
 
@@ -95,7 +109,7 @@ Apply sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskD
 Set values inline using repeated `--set key=value` flags:
 
 ```bash
-c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place \
+c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn \
   --set method=GET \
   --set url='="https://api.example.com/users/" + string(userId)' \
   --set authentication.type=bearer \
@@ -103,20 +117,27 @@ c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser proce
   --set resultExpression='={user: response.body}'
 ```
 
-This is the preferred way to configure straightforward properties — it's faster and less error-prone than editing XML by hand.
+`key` matches the template's property binding names — discover them with `get-properties`. When the same name appears on multiple binding types, prefix with `input:`, `output:`, `header:`, `property:`, or `taskDefinition:`:
+
+```bash
+--set input:correlationKey='=order.id'
+--set header:correlationKey=staticHeaderValue
+```
+
+`apply` errors with a helpful list of valid names if you pass an unknown property, and with the qualified-name list if a bare key is ambiguous.
 
 For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) you may still edit the BPMN XML manually after applying. See "Manual XML configuration" below.
 
 ### Configuration Workflow
 
 1. **Search first** — `c8 element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
-2. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions
-3. **Apply with values** — `c8 element-template apply <id> <element-id> <bpmn> --in-place --set key=value ...`
-4. **Inspect properties only if needed** — run `c8 element-template list-properties <id>` when the connector is unfamiliar or apply fails with an unknown/ambiguous property. Skip otherwise.
-5. **Skip inactive properties** — do not set values for properties whose conditions are not met
-6. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`)
-7. **Use secrets** for credentials: `{{secrets.API_KEY}}`
-8. **Validate** with `c8 bpmn lint process.bpmn`
+2. **Inspect when unfamiliar** — for connectors not documented in this skill, run `c8 element-template get-properties <id>` to scan available properties + descriptions. Add `--detailed <name>` when you need required/FEEL/condition details.
+3. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions.
+4. **Apply with values** — `c8 element-template apply -i <id> <element-id> <bpmn> --set key=value ...`
+5. **Skip inactive properties** — do not set values for properties whose conditions are not met (a warning surfaces if you do).
+6. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`).
+7. **Use secrets** for credentials: `{{secrets.API_KEY}}`.
+8. **Validate** with `c8 bpmn lint process.bpmn`.
 
 ### HTTP REST Connector Example
 
@@ -125,8 +146,8 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 c8 element-template search "REST"
 # → io.camunda.connectors.HttpJson.v2 (REST Outbound Connector)
 
-# 2. Apply with values (no list-properties needed — HTTP REST property names are obvious)
-c8 element-template apply io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn --in-place \
+# 2. Apply with values (no inspection needed — HTTP REST property names are obvious)
+c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn \
   --set authentication.type=bearer \
   --set authentication.token='{{secrets.API_TOKEN}}' \
   --set method=GET \
@@ -141,7 +162,7 @@ The resulting BPMN XML:
 ```xml
 <bpmn:serviceTask id="Task_FetchUser" name="Fetch user data"
   zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2"
-  zeebe:modelerTemplateVersion="12">
+  zeebe:modelerTemplateVersion="13">
   <bpmn:extensionElements>
     <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
     <zeebe:ioMapping>
@@ -189,14 +210,14 @@ When the actual value is not yet known:
 
 ### Best Practices
 
-1. **Use `c8 element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes
-2. **Use `list-properties` only when needed** — for unfamiliar connectors or when an apply call fails with an unknown/ambiguous property. Don't run it as a default step.
-3. **Set values via `--set`** when applying — saves a second editing pass
-4. **Only set active properties** — respect conditions; inactive properties should not appear in XML
-5. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix
-6. **Use secrets for credentials** — `{{secrets.MY_SECRET}}`
-7. **Validate after configuration** — `c8 bpmn lint process.bpmn`
-8. **Avoid reading full BPMN XML after template application** — template icons are large base64 strings; use Grep for targeted reads
+1. **Use `c8 element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes.
+2. **Prefer `get-properties` (condensed) for unfamiliar connectors** — it's cheap, just name + description per property. Reach for `--detailed <name>` when you need required/FEEL/condition details.
+3. **Set values via `--set`** when applying — saves a second editing pass.
+4. **Only set active properties** — respect conditions; inactive properties surface a warning and are skipped.
+5. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix.
+6. **Use secrets for credentials** — `{{secrets.MY_SECRET}}`.
+7. **Validate after configuration** — `c8 bpmn lint process.bpmn`.
+8. **Avoid reading full BPMN XML after template application** — template icons are large base64 strings; use Grep for targeted reads.
 
 ## References
 

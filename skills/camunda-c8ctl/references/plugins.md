@@ -10,8 +10,8 @@ c8ctl ships with these plugins pre-loaded — no install step needed:
 |--------|----------|
 | `cluster` | `c8 cluster start/stop/status/logs/list/install/...` (local c8run management) |
 | `bpmn` | `c8 bpmn lint` |
-| `feel` | `c8 feel eval` |
-| `element-template` | `c8 element-template search/list-properties/apply/sync` |
+| `feel` | `c8 feel evaluate` |
+| `element-template` | `c8 element-template search/info/get-properties/apply/get/sync` |
 
 ## Plugin Commands
 

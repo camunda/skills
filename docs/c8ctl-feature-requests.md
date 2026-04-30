@@ -16,13 +16,12 @@ The skills now use this in the `camunda-connectors` workflow as the first step �
 
 ---
 
-## 2. ✅ Element Templates: Get/Inspect — DONE
+## 2. ✅ Element Templates: Inspect — DONE
 
-**Implemented as**: `c8 element-template list-properties <template-id>` (alias: `props`)
-
-Shows the settable properties of a template (skipping `Hidden` ones), including type, FEEL support, conditions, and constraints. This is the more useful form for AI agents than dumping raw JSON, because the icon field (large base64 blob) is filtered out.
-
-If raw JSON is needed, the OOTB cache populated by `c8 element-template sync` contains the full template files locally.
+**Implemented as**:
+- `c8 element-template info <template-id>` — metadata card (id, version, applies-to, engines, description, docs link).
+- `c8 element-template get-properties <template-id> [<name>...]` — settable properties. Condensed by default (name + description, grouped). Add `--detailed` for full per-property cards with Required, FEEL, Active when, Pattern, Default, Choices. Positional names support shell-style globs; `--group <id>` filters by template group.
+- `c8 element-template get <template-id>` — raw template JSON to stdout (pipe-friendly).
 
 ---
 
@@ -30,11 +29,11 @@ If raw JSON is needed, the OOTB cache populated by `c8 element-template sync` co
 
 **Implemented as**: `c8 element-template apply <template> <element-id> <bpmn-file>`
 
-Where `<template>` is a local path, https:// URL, or OOTB template ID (with optional `@<version>`).
+Where `<template>` is a local path, https:// URL, or OOTB template ID (with optional `@<version>`; without it, the highest version compatible with the BPMN's `executionPlatformVersion` is auto-resolved).
 
 Key flags:
-- `--in-place` — modify the BPMN file directly (otherwise prints to stdout)
-- `--set key=value` (repeatable) — set property values inline at apply time
+- `-i` — modify the BPMN file directly (otherwise prints to stdout, pipeable)
+- `--set key=value` (repeatable) — set property values inline at apply time. Supports binding-type prefixes (`input:`, `header:`, `output:`, `property:`, `taskDefinition:`) when bare keys are ambiguous.
 
 This eliminates the need for the `element-templates-cli` npm package and avoids npm cache permission issues that previously blocked the sandbox.
 
@@ -42,12 +41,13 @@ This eliminates the need for the `element-templates-cli` npm package and avoids 
 
 ## 4. ✅ FEEL Expression Evaluation — DONE
 
-**Implemented as**: `c8 feel eval '<expression>'`
+**Implemented as**: `c8 feel evaluate '<expression>'`
 
 Key flags:
 - `--var key=value` (repeatable; supports JSON values and dot-path nesting like `customer.name=Alice`)
 - `--vars '{"a":1,"b":2}'` — bulk variables as a single JSON object
 - `--engine local` — offline evaluation via the `feelin` JS engine
+- `--tenant <id>` — tenant-scoped cluster variables
 
 **Engine semantics**: Default is cluster evaluation against the Scala FEEL engine — the same engine Zeebe runs in production. `--engine local` uses `feelin`, which behaves DIFFERENTLY from the Scala engine in subtle ways (type coercion, function support, date/time). Skills must default to cluster mode and only fall back to `--engine local` when the user explicitly asks for offline evaluation, or when no cluster is available AND the user has confirmed the fallback. Never silently fall back.
 

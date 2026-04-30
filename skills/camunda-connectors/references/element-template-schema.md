@@ -303,10 +303,11 @@ After `c8 element-template apply` applies the template, it creates default `zeeb
 To inspect what properties are settable on a given template, run:
 
 ```bash
-c8 element-template list-properties <template-id>
+c8 element-template get-properties <template-id>             # condensed: name + description per property, grouped
+c8 element-template get-properties <template-id> --detailed  # full cards: Required, FEEL, Active when, Pattern, Default, Choices
 ```
 
-This shows the same structured information as reading the raw JSON, but skips `Hidden` properties.
+The condensed default skips `Hidden` properties. `--detailed` is the full per-property card with everything `--set` needs to pick a value.
 
 ### Mapping from template property to BPMN XML
 
