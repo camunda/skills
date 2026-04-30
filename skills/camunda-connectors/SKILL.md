@@ -78,9 +78,17 @@ The `<template>` argument can be:
 - A local file path (e.g., `./my-custom-template.json`)
 - An https:// URL
 
-`--in-place` modifies the BPMN file directly. Without it, the modified XML is printed to stdout.
+`--in-place` modifies the BPMN file directly. Without `--in-place`, the modified XML is printed to stdout — useful for previews, redirected output, or composing with other tooling:
 
-This sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskDefinition`, default input mappings, and task headers.
+```bash
+c8 element-template apply <id> <element> process.bpmn | diff process.bpmn -    # preview the diff
+c8 element-template apply <id> <element> process.bpmn > new-process.bpmn       # write to a different file
+c8 element-template apply <id> <element> process.bpmn | c8 bpmn lint           # apply and lint in one pipeline
+```
+
+Use `--in-place` for the common "apply and persist" case. Use the pipeable form for previews, dry-runs, or chaining into other tooling.
+
+Apply sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskDefinition`, default input mappings, and task headers on the target element.
 
 ### Setting Property Values at Apply Time
 
