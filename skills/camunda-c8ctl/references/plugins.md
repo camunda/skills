@@ -1,6 +1,6 @@
 # Plugin Lifecycle
 
-Reference for managing c8ctl plugins — the extension mechanism that ships the `cluster`, `bpmn`, `feel`, `element-template`, and `hello-world` default plugins, and that lets you install third-party or custom commands.
+Reference for managing c8ctl plugins — the extension mechanism that ships the `cluster`, `bpmn`, `feel`, and `element-template` default plugins, and that lets you install third-party or custom commands.
 
 ## Default Plugins (Already Installed)
 
@@ -12,7 +12,6 @@ c8ctl ships with these plugins pre-loaded — no install step needed:
 | `bpmn` | `c8 bpmn lint` |
 | `feel` | `c8 feel eval` |
 | `element-template` | `c8 element-template search/list-properties/apply/sync` |
-| `hello-world` | `c8 hello` (smoke test / template plugin) |
 
 ## Plugin Commands
 
