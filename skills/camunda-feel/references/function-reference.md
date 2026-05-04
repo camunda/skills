@@ -119,3 +119,5 @@ Complete list of built-in functions available in Camunda FEEL expressions, organ
 - `date(string)` - Parse string to date
 - `time(string)` - Parse string to time
 - `duration(string)` - Parse string to duration
+
+These are **required, not optional**, when combining values across types — FEEL does not auto-coerce in arithmetic. `"user-" + userId` (number) silently evaluates to `null` with a `Can't add 'N' to 'Y'` warning. See `common-patterns.md` § Type Coercion Pitfalls.

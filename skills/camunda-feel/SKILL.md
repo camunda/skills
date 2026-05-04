@@ -118,6 +118,8 @@ some x in items satisfies x.status = "urgent"
 ="https://api.example.com/users/" + string(userId)
 ```
 
+The `string()` wrapper is required, not stylistic. FEEL does not auto-coerce types in arithmetic — `"prefix-" + userId` (where `userId` is a number) silently evaluates to `null` with a `Can't add 'N' to '"prefix-"'` warning, not an error. See `references/common-patterns.md` § Type Coercion Pitfalls for the full rule and debugging tip.
+
 **Result expression (extract from API response)**:
 ```feel
 ={user: response.body, status: response.statusCode}

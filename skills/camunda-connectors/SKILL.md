@@ -136,6 +136,8 @@ c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser pr
   --set resultExpression='={user: response.body}'
 ```
 
+Note the `string(userId)` wrapper — `userId` is a number and FEEL does not auto-coerce in arithmetic. Without `string()`, the expression silently evaluates to `null` (the connector then issues a request to `null`). See `camunda-feel` skill, `references/common-patterns.md` § Type Coercion Pitfalls.
+
 `key` matches the template's property binding names — discover them with `get-properties`. When the same name appears on multiple binding types, prefix with `input:`, `output:`, `header:`, `property:`, or `taskDefinition:`:
 
 ```bash

@@ -135,6 +135,46 @@ Chain null-safe checks:
 if customer != null and customer.address != null then customer.address.city else "N/A"
 ```
 
+## Type Coercion Pitfalls
+
+FEEL does **not** auto-coerce between types in arithmetic. Operating on mismatched types produces `null` plus a warning — not an error. The expression "succeeds" silently with a null result, which deploys cleanly but breaks downstream when a worker or condition sees null where it expected a value.
+
+```feel
+"hello " + 42                 // → null   (warning: Can't add '42' to '"hello "')
+"user-" + userId              // → null   when userId is a number
+1 + true                      // → null   (warning: Can't add 'true' to '1')
+[1, 2] + 3                    // → null   (warning: Can't add '3' to '[1, 2]')
+```
+
+**Fix: wrap with the explicit converter.**
+
+```feel
+"hello " + string(42)         // → "hello 42"
+"user-" + string(userId)      // → "user-42"
+"PT" + string(delayHours) + "H"   // → "PT12H"  (timer duration pattern)
+```
+
+| Coerce to | Function |
+|---|---|
+| String | `string(value)` |
+| Number | `number(text)` |
+| Boolean | `boolean(value)` |
+| Date / time / duration | `date(...)`, `time(...)`, `duration(...)` |
+
+**Debugging tip.** When a process variable comes out null unexpectedly, run the suspect expression through `c8 feel evaluate` and read the warnings:
+
+```bash
+c8 feel evaluate '"user-" + userId' --var userId=42
+# null
+#
+# ⚠ 1 warning:
+#   Can't add '42' to '"user-"'
+```
+
+`Can't add 'X' to 'Y'` is the smoking gun: the operand quoting style hints at the type (unquoted = number, double-quoted = string), and the fix is `string()` (or `number()` etc.) on whichever side is the wrong type.
+
+`--engine local` adds an explicit diagnostic type in parentheses — `(INVALID_TYPE)` for coercion failures, `(NO_VARIABLE_FOUND)` for missing vars, etc. The cluster engine omits the type tag (the `message` is the only diagnostic). In JSON mode, local-engine warnings additionally carry `type` and `position` fields; cluster-engine warnings carry only `message`. Treat those extra fields as engine-conditional when scripting.
+
 ## fromAi() Function
 
 The `fromAi()` function is a Camunda extension for AI Agent connector tool definitions. Tag parameters as AI-generated so the LLM knows to fill them in.
