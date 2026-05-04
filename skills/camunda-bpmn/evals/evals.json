@@ -2,7 +2,7 @@
   "skill_name": "camunda-bpmn",
   "evals": [
     {
-      "id": 1,
+      "id": "simple-approval-process",
       "prompt": "Create a simple approval process: a start event, a user task to review the request, an exclusive gateway that checks if it's approved, and two end events (approved and rejected).",
       "expected_output": "Valid BPMN XML with start event, user task, exclusive gateway with conditions, two end events, and proper DI coordinates",
       "expectations": [
@@ -16,7 +16,7 @@
       ]
     },
     {
-      "id": 2,
+      "id": "parallel-gateway",
       "prompt": "Create a process with a parallel gateway that forks into two service tasks (Check Inventory and Check Credit) that both must complete before a final notification task.",
       "expected_output": "Valid BPMN XML with parallel fork and join gateways, two parallel service tasks, and a notification task",
       "expectations": [
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "id": 3,
+      "id": "service-task-error-boundary",
       "prompt": "Create a process with a service task that calls an external API and has a boundary error event. If the API call fails, route to an error handling task.",
       "expected_output": "Valid BPMN XML with service task, boundary error event, and error handling path",
       "expectations": [
@@ -40,10 +40,12 @@
       ]
     },
     {
-      "id": 4,
+      "id": "add-timer-boundary",
       "prompt": "Here is my BPMN process (examples/invoice-approval.bpmn). Add a timer boundary event to the Review invoice task that triggers after 4 hours and sends a reminder notification.",
       "expected_output": "Modified BPMN with timer boundary event added to the review task",
-      "files": ["examples/invoice-approval.bpmn"],
+      "files": [
+        "examples/invoice-approval.bpmn"
+      ],
       "expectations": [
         "Uses Grep to find the target task before editing",
         "Uses Edit tool for precise modification",
@@ -53,10 +55,12 @@
       ]
     },
     {
-      "id": 5,
+      "id": "validate-and-fix",
       "prompt": "Validate this BPMN file and fix any issues: examples/invoice-approval.bpmn",
       "expected_output": "Runs c8 bpmn lint, identifies any issues, and fixes them",
-      "files": ["examples/invoice-approval.bpmn"],
+      "files": [
+        "examples/invoice-approval.bpmn"
+      ],
       "expectations": [
         "Runs c8 bpmn lint to validate the file",
         "Reports validation results clearly",

@@ -2,7 +2,7 @@
   "skill_name": "camunda-operate",
   "evals": [
     {
-      "id": 1,
+      "id": "list-running-instances",
       "prompt": "Show me all running process instances.",
       "expected_output": "Lists active process instances using c8ctl",
       "expectations": [
@@ -11,7 +11,7 @@
       ]
     },
     {
-      "id": 2,
+      "id": "resolve-incident",
       "prompt": "My process has an incident. Help me find and fix it.",
       "expected_output": "Investigates incidents, identifies root cause, and resolves",
       "expectations": [
@@ -23,7 +23,7 @@
       ]
     },
     {
-      "id": 3,
+      "id": "complete-user-task",
       "prompt": "Complete the pending user task for the approval step with approved=true and comments='Looks good'.",
       "expected_output": "Completes the user task with the specified variables",
       "expectations": [

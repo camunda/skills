@@ -2,7 +2,7 @@
   "skill_name": "camunda-deploy",
   "evals": [
     {
-      "id": 1,
+      "id": "deploy-bpmn",
       "prompt": "Deploy the invoice-approval.bpmn file to my Camunda cluster.",
       "expected_output": "Runs c8 deploy command for the BPMN file",
       "expectations": [
@@ -11,7 +11,7 @@
       ]
     },
     {
-      "id": 2,
+      "id": "deploy-and-start-instance",
       "prompt": "Deploy my process and start an instance with orderId=ORD-456 and amount=2500.",
       "expected_output": "Deploys the process and creates an instance with the specified variables",
       "expectations": [
@@ -21,7 +21,7 @@
       ]
     },
     {
-      "id": 3,
+      "id": "check-deployment-status",
       "prompt": "Check if my latest deployment of the InvoiceApproval process succeeded and what version it is.",
       "expected_output": "Lists process definitions and finds the latest version",
       "expectations": [
