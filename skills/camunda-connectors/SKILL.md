@@ -35,12 +35,13 @@ Read `references/element-template-schema.md` for a comprehensive guide to interp
 **Always discover the template ID via `c8 element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command always reflects what's actually available in the local OOTB catalog.
 
 ```bash
-c8 element-template search "REST"          # find HTTP/REST connectors
-c8 element-template search "slack"         # find Slack connectors
-c8 element-template search "kafka"         # find Kafka connectors
+c8 element-template search "REST"             # find HTTP/REST connectors
+c8 element-template search "slack"            # find Slack connectors
+c8 element-template search "kafka"            # find Kafka connectors
+c8 element-template search "connector" --limit 5   # cap results (default 20)
 ```
 
-Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), version, applies-to, engine constraint, and description. Pick the ID that matches your use case.
+Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), version, applies-to, engine constraint, and description. The header reads `Showing N of M matches for '<query>'` — if `M > N`, narrow the query or raise `--limit`. Pick the ID that matches your use case.
 
 To refresh the local OOTB cache (rarely needed — done automatically):
 

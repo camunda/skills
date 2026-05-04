@@ -33,7 +33,7 @@ All skill tooling is unified under c8ctl plugin commands:
 
 - **BPMN validation**: `c8 bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
 - **Element templates**:
-  - `c8 element-template search "<query>"` — discover OOTB connector templates
+  - `c8 element-template search "<query>" [--limit N]` — discover OOTB connector templates (default limit 20)
   - `c8 element-template info <id>` — show metadata card (applies-to, engines, docs link)
   - `c8 element-template get-properties <id> [<name>...]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern)
   - `c8 element-template apply -i <template> <element-id> <bpmn> [--set key=value ...]` — apply a template (omit `-i` to print to stdout)
