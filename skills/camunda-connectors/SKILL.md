@@ -68,6 +68,15 @@ c8 element-template get-properties io.camunda.connectors.HttpJson.v2 'auth*'   #
 c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --group endpoint
 ```
 
+When a property's internal id differs from its binding name (the name `--set` matches), the condensed view annotates the divergence on a continuation line, e.g.:
+
+```
+retries                              Number of retries
+    [id: retryCount]
+```
+
+Here `retries` is the binding name (use this with `--set`); `retryCount` is the template's internal id. `--detailed` shows both explicitly via the `Id` field.
+
 Add `--detailed` for full per-property cards showing **Required**, **FEEL** support, **Active when** (the conditional expression), **Pattern** constraint, **Default**, and **Choices**. Use this when you need to know whether to set a value, prefix it with `=` for FEEL, or which parent property unlocks the property:
 
 ```bash
