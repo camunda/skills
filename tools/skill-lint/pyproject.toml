@@ -1,0 +1,15 @@
+[project]
+name = "skill-lint"
+version = "0.1.0"
+description = "Tier-0 lint for camunda/skills: structural, schema, and Camunda-specific rules"
+requires-python = ">=3.11"
+dependencies = [
+    "skills-ref @ git+https://github.com/agentskills/agentskills.git@2d3e01f590f68bee2cb76a3200823e93b2cc9eaa#subdirectory=skills-ref",
+    "jsonschema>=4.21",
+    "click>=8.1",
+]
+
+# Invocation:
+#   uv run --project tools/skill-lint check.py check [--skill NAME] [--format text|json]
+# Or via PEP 723 inline metadata on check.py:
+#   uv run tools/skill-lint/check.py check
