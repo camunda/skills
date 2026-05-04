@@ -28,3 +28,5 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 .venv/
+# uv: tools pin deps via PEP 723 + pyproject; lockfiles are not committed
+tools/*/uv.lock

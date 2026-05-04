@@ -1,0 +1,18 @@
+[project]
+name = "eval-runner"
+version = "0.1.0"
+description = "Tier-1/2 eval harness for camunda/skills (skill-creator wrapper)"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1",
+    "jsonschema>=4.21",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+]
+
+# Invocation:
+#   uv run --project tools/eval-runner cli.py <subcommand>
+#   uv run tools/eval-runner/cli.py <subcommand>     # via PEP 723 inline metadata
