@@ -1,6 +1,6 @@
 ---
 name: camunda-connectors
-description: Browses, configures, and applies pre-built Camunda connectors (REST, Slack, Kafka, AWS, etc.) via element templates. This skill should be used when adding connector integrations to BPMN service tasks, browsing available connectors, configuring connector properties, or understanding element template schemas.
+description: Browses, configures, and applies pre-built Camunda connectors (REST, Slack, Kafka, AWS, etc.) via element templates (also known as connector templates — the terms are used interchangeably). This skill should be used when adding connector integrations to BPMN service tasks, browsing available connectors, configuring connector properties, or understanding element / connector template schemas.
 ---
 
 # Camunda Connectors
@@ -21,7 +21,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 ### Element Templates
 
-Element templates are JSON files that encapsulate connector configuration. Each template defines:
+Element templates (also called **connector templates** — the terms are used interchangeably in Camunda's docs and tooling) are JSON files that encapsulate connector configuration. Each template defines:
 - The **task type** identifying which connector runtime handles the job
 - **Properties** with bindings that map to BPMN XML (input mappings, task headers, etc.)
 - **Conditions** controlling which properties are active based on user choices
@@ -78,6 +78,16 @@ c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --detailed 
 - For connectors documented in this skill (HTTP REST, Slack), apply directly — property names are obvious.
 - For unfamiliar connectors, run `get-properties` (condensed) to scan names + descriptions before applying.
 - Use `--detailed <name>` when you need to know whether a property is required, FEEL-supported, or has a condition — or when an `apply --set` call fails.
+
+#### Falling back to raw JSON (last resort)
+
+`info` + `get-properties --detailed` cover essentially every configuration question. **Only reach for raw JSON when c8ctl commands genuinely don't surface what you need** — e.g., inspecting hidden (non-settable) properties, studying schema fields the CLI doesn't render, or authoring a custom template:
+
+```bash
+c8 element-template get <id> --no-icon    # raw template JSON, base64 icon stripped
+```
+
+**Always pass `--no-icon` when reading the raw JSON.** Without it, the embedded base64 icon dominates the output and wastes context. Use the c8ctl commands above first; treat raw JSON as the escape hatch, not the default.
 
 ### Applying a Template to a BPMN Element
 
@@ -211,7 +221,7 @@ When the actual value is not yet known:
 ### Best Practices
 
 1. **Use `c8 element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes.
-2. **Prefer `get-properties` (condensed) for unfamiliar connectors** — it's cheap, just name + description per property. Reach for `--detailed <name>` when you need required/FEEL/condition details.
+2. **Inspect via c8ctl, not raw JSON.** Use `info` for metadata and `get-properties` (condensed by default; add `--detailed <name>` for required/FEEL/condition cards). Only fall back to `c8 element-template get --no-icon` if c8ctl commands don't surface what you need.
 3. **Set values via `--set`** when applying — saves a second editing pass.
 4. **Only set active properties** — respect conditions; inactive properties surface a warning and are skipped.
 5. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix.
