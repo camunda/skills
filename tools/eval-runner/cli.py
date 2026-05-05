@@ -4,6 +4,8 @@
 # dependencies = [
 #     "click>=8.1",
 #     "jsonschema>=4.21",
+#     "claude-agent-sdk>=0.1.73",
+#     "anyio>=4.0",
 # ]
 # ///
 """Eval-runner CLI: run / triggers / quality / compare / promote subcommands.
@@ -21,6 +23,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -101,34 +104,74 @@ def main(ctx: click.Context, repo_root_opt: Path | None, max_usd: float | None) 
 @main.command()
 @click.option("--skill", required=True, help="Skill directory name, e.g. camunda-feel.")
 @click.option("--runs", "trials", default=3, help="Trials per case.")
+@click.option("--harness-model", default=quality_eval.DEFAULT_HARNESS_MODEL)
+@click.option("--judge-model", default=quality_eval.DEFAULT_JUDGE_MODEL)
+@click.option("--concurrency", default=4)
+@click.option("--arm-max-usd", "arm_budget", type=float, default=1.0)
+@click.option("--grader-max-usd", "grader_budget", type=float, default=0.5)
+@click.option("--workers", default=5, help="Trigger-eval parallel workers.")
+@click.option("--timeout", default=30, help="Trigger-eval per-query timeout seconds.")
+@click.option("--skip-triggers", is_flag=True, help="Skip Tier-1 trigger eval.")
+@click.option("--skip-quality", is_flag=True, help="Skip Tier-2 quality eval.")
 @click.option("--dry-run", is_flag=True, help="Scaffold without calling any model.")
 @click.pass_context
-def run(ctx: click.Context, skill: str, trials: int, dry_run: bool) -> None:
+def run(
+    ctx: click.Context, skill: str, trials: int,
+    harness_model: str, judge_model: str, concurrency: int,
+    arm_budget: float, grader_budget: float,
+    workers: int, timeout: int,
+    skip_triggers: bool, skip_quality: bool, dry_run: bool,
+) -> None:
     """Run trigger + quality evals for SKILL and write iteration data."""
     repo_root: Path = ctx.obj["repo_root"]
     iteration_dir = _next_iteration_dir(repo_root, skill)
+
+    summary: dict[str, Any] = {
+        "skill": skill,
+        "iteration": iteration_dir.name,
+        "trials_per_case": trials,
+        "verifiers_registered": sorted(discover_verifiers().keys()),
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "git_head": _git_head(repo_root),
+    }
+
     if dry_run:
         trigger_eval.run_dry(repo_root, skill, iteration_dir, trials)
         quality_eval.run_dry(repo_root, skill, iteration_dir, trials)
-        summary = {
-            "skill": skill,
-            "iteration": iteration_dir.name,
-            "trials_per_case": trials,
-            "status": "dry-run",
-            "verifiers_registered": sorted(discover_verifiers().keys()),
-            "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-            "git_head": _git_head(repo_root),
-        }
-        (iteration_dir / "summary.json").write_text(
-            json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-        )
-        report_mod.render_iteration(iteration_dir, repo_root)
-        report_mod.render_index(iteration_dir.parent)
-        click.echo(f"[dry-run] scaffolded {iteration_dir.relative_to(repo_root)}")
-        return
-    raise click.ClickException(
-        "live run not implemented yet (Issues #6/#7); use --dry-run for now."
+        summary["status"] = "dry-run"
+    else:
+        if not skip_triggers:
+            t_summary = trigger_eval.run_live(
+                repo_root, skill, iteration_dir,
+                runs=trials, workers=workers, timeout=timeout, model=harness_model,
+            )
+            summary["triggers"] = {
+                k: v for k, v in t_summary.items()
+                if k in ("f1", "precision", "recall",
+                         "positive_cases", "negative_cases")
+            }
+        if not skip_quality:
+            q_summary = quality_eval.run_live(
+                repo_root=repo_root, skill=skill, iteration_dir=iteration_dir,
+                trials=trials, harness_model=harness_model,
+                judge_model=judge_model, arm_max_budget_usd=arm_budget,
+                grader_max_budget_usd=grader_budget, concurrency=concurrency,
+            )
+            summary["quality"] = q_summary["quality"]
+            summary["model"] = q_summary["model"]
+            summary["trials"] = q_summary["trials"]
+        summary["status"] = "ok"
+
+    (iteration_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
+    report_mod.render_iteration(iteration_dir, repo_root)
+    report_mod.render_index(iteration_dir.parent)
+    rel = iteration_dir.relative_to(repo_root)
+    if dry_run:
+        click.echo(f"[dry-run] scaffolded {rel}")
+    else:
+        click.echo(f"wrote {rel}/summary.json (open {rel}/report.html)")
 
 
 @main.command()
@@ -169,17 +212,51 @@ def triggers(
 @main.command()
 @click.option("--skill", required=True)
 @click.option("--runs", "trials", default=3)
+@click.option("--harness-model", default=quality_eval.DEFAULT_HARNESS_MODEL)
+@click.option("--judge-model", default=quality_eval.DEFAULT_JUDGE_MODEL)
+@click.option("--concurrency", default=4, help="Max concurrent trials in flight.")
+@click.option("--arm-max-usd", "arm_budget", type=float, default=1.0,
+              help="Per-arm-run budget cap (USD).")
+@click.option("--grader-max-usd", "grader_budget", type=float, default=0.5,
+              help="Per-grader-run budget cap (USD).")
 @click.option("--dry-run", is_flag=True)
 @click.pass_context
-def quality(ctx: click.Context, skill: str, trials: int, dry_run: bool) -> None:
+def quality(
+    ctx: click.Context, skill: str, trials: int,
+    harness_model: str, judge_model: str, concurrency: int,
+    arm_budget: float, grader_budget: float, dry_run: bool,
+) -> None:
     """Run quality eval (Tier 2) only."""
     repo_root: Path = ctx.obj["repo_root"]
     iteration_dir = _next_iteration_dir(repo_root, skill)
     if dry_run:
         quality_eval.run_dry(repo_root, skill, iteration_dir, trials)
+        report_mod.render_iteration(iteration_dir, repo_root)
+        report_mod.render_index(iteration_dir.parent)
         click.echo(f"[dry-run] {iteration_dir.relative_to(repo_root)}")
         return
-    raise click.ClickException("live quality eval not implemented yet (Issue #7).")
+    summary = quality_eval.run_live(
+        repo_root=repo_root, skill=skill, iteration_dir=iteration_dir,
+        trials=trials, harness_model=harness_model, judge_model=judge_model,
+        arm_max_budget_usd=arm_budget, grader_max_budget_usd=grader_budget,
+        concurrency=concurrency,
+    )
+    summary["status"] = "ok"
+    summary["generated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    summary["git_head"] = _git_head(repo_root)
+    (iteration_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    report_mod.render_iteration(iteration_dir, repo_root)
+    report_mod.render_index(iteration_dir.parent)
+    q = summary["quality"]
+    click.echo(
+        f"quality: with={q['with_skill']['pass_rate']:.2f} "
+        f"without={q['without_skill']['pass_rate']:.2f} "
+        f"delta={q['delta_pp']:+.1f}pp "
+        f"(cost ~${q['estimated_cost_usd']:.2f}); "
+        f"report: {(iteration_dir / 'report.html').relative_to(repo_root)}"
+    )
 
 
 @main.command()

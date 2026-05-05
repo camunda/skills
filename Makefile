@@ -94,7 +94,7 @@ promote:
 
 .PHONY: test
 test:
-	$(UV) --with pytest --project tools/eval-runner pytest tools/eval-runner/tests -q
+	$(UV) --with pytest --with pytest-asyncio --project tools/eval-runner pytest tools/eval-runner/tests -q
 
 # Clone or refresh the anthropics/skills repo at the SHA pinned in
 # tools/eval-runner/.skill-creator-sha. Idempotent: re-running checks out the
