@@ -43,26 +43,48 @@ Keep SKILL.md lean. If a section exceeds ~500 words of reference material, move 
 
 ## Evals
 
-Every skill must have `evals/evals.json` with 3-5 eval cases:
+Every skill must have:
+
+- `evals/evals.json` — quality cases (Tier 2). 3-5 entries with prose
+  expectations and optional deterministic verifiers.
+- `evals/triggers.json` — discovery probes (Tier 1). ~10 positive +
+  ~10 negative cases the description should/shouldn't grab.
+- `evals/baseline.json` — committed comparison point. Established by
+  `make promote SKILL=<name>` after the first good iteration; re-bumped
+  in dedicated PRs when the skill genuinely improves.
+
+`evals.json` shape:
 
 ```json
 {
   "skill_name": "camunda-<name>",
   "evals": [
     {
-      "id": 1,
-      "prompt": "User prompt that triggers the skill",
-      "expected_output": "Description of expected result",
-      "expectations": [
-        "The output includes X",
-        "The output is valid Y"
+      "id": "discount-calculation",
+      "prompt": "Write a FEEL expression... Write your final FEEL expression to outputs/answer.feel.",
+      "expected_output": "Description for the LLM judge",
+      "expectations": ["Use if-then-else", "Apply 0.15 as the discount rate"],
+      "verifiers": [
+        {"type": "feel-evaluate", "context": {"orderAmount": 1500}, "expected": 1275}
       ]
     }
   ]
 }
 ```
 
-Run evals using the skill-creator eval framework.
+Run locally:
+
+```bash
+make lint SKILL=camunda-<name>             # Tier 0
+make eval SKILL=camunda-<name> RUNS=1      # cheap rehearsal
+make eval SKILL=camunda-<name>             # full run (3 trials)
+make compare SKILL=camunda-<name>          # diff vs committed baseline
+make promote SKILL=camunda-<name>          # promote a clean iteration
+```
+
+For the full reference on tiers, artefacts, the runtime flow, the verifier
+contract, and the lifecycle (bootstrap → iterate → promote → regress),
+see [`docs/evals.md`](docs/evals.md).
 
 ## Scripts
 

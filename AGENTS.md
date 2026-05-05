@@ -58,42 +58,45 @@ The sections below are for developers maintaining this skills repository.
 
 ```
 skills/           - Skill definitions (each skill = SKILL.md + references/ + evals/)
-tools/            - Maintainer tooling (eval-viewer)
+tools/
+  skill-lint/     - Tier-0 structural + schema lint
+  eval-runner/    - Tier-1/2 harness (subprocess to anthropics/skills' run_eval.py
+                    for triggers; claude-agent-sdk + grader.md for quality;
+                    pluggable verifiers)
+  external/       - SHA-pinned upstream clones (gitignored, recreated by
+                    `make setup-skill-creator`)
 examples/         - Reference BPMN/form files
-docs/             - c8ctl feature requests, design docs
-evals/            - Eval workspace output (gitignored)
+docs/             - Reference docs and design notes
+  evals.md          ← read this first for the eval framework
+evals/            - Per-run iteration outputs (gitignored)
 ```
 
 ### Running Evals
 
-Each skill has `evals/evals.json` with test prompts and assertions. Use the skill-creator eval framework (`/skill-creator`) to run evals:
-
-1. Run eval prompts as subagent tasks (with-skill vs baseline)
-2. Grade outputs against assertions
-3. Review results in the eval viewer
-
-Eval workspaces are written to `evals/<skill-name>/iteration-N/` (gitignored).
-
-### Eval Viewer
-
-Renders eval results with side-by-side BPMN diagrams and grading data:
-
 ```bash
-cd tools/eval-viewer && npm install
-node serve.js
+make lint                           # Tier 0, all skills
+make lint SKILL=camunda-feel        # Tier 0, one skill
+make setup-skill-creator            # one-time: clone the SHA-pinned upstream
+make eval SKILL=camunda-feel RUNS=1 # cheap rehearsal
+make eval SKILL=camunda-feel        # full run (3 trials)
+make compare SKILL=camunda-feel     # diff vs committed baseline (markdown via --format markdown)
+make promote SKILL=camunda-feel     # write the new baseline.json
 ```
 
-Opens at http://localhost:3334. Auto-discovers all skills and iterations in `evals/`. Browse with the skill/iteration selectors at the top. Features:
-- Side-by-side rendered BPMN/Form outputs (with_skill vs baseline)
-- Pass/fail assertions with evidence
-- Timing and token usage comparison
-- Navigation across skills and iterations without restart
+Per-run iterations land at `evals/<skill>/iteration-N/`. Each one ships
+with a self-contained `report.html` (open via `file://`) and an
+`index.html` at `evals/<skill>/` that lists all iterations with their
+headline metrics.
+
+For the full picture — three-tier model, verifiers, the
+bootstrap/iterate/promote/regress lifecycle, cost discipline, and how
+to add evals for a new skill — see [`docs/evals.md`](docs/evals.md).
+Harness internals (SDK contract, SHA-pin update procedure) are in
+[`tools/eval-runner/AGENTS.md`](tools/eval-runner/AGENTS.md).
 
 ### Adding a New Skill
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide. In brief:
-
-1. Create `skills/camunda-<name>/SKILL.md` with frontmatter (name, description)
-2. Add `references/` for detailed docs, `scripts/` for tooling
-3. Add `evals/evals.json` with 3-5 test cases
-4. Run evals and iterate until quality is solid
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the high-level checklist and
+[`docs/evals.md`](docs/evals.md) for the eval-side recipe (lint →
+triggers.json → evals.json with verifiers → cheap rehearsal →
+promote).
