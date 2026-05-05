@@ -177,8 +177,23 @@ async def run_arm(
     outputs_dir.mkdir(parents=True, exist_ok=True)
     transcript_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # cwd is the per-trial dir so a prompt like "write your FEEL to
+    # outputs/answer.feel" resolves to <case_dir>/outputs/answer.feel — not
+    # the repo root. Skill discovery still works because Claude Code's
+    # project setting source walks UP from cwd looking for .claude/, which
+    # finds repo_root/.claude/ (where ensure_skills_bridged installed the
+    # symlinks).
+    #
+    # add_dirs is deliberately scoped to the per-trial outputs/ dir only.
+    # We do NOT grant the agent read/write into the repo root: a wide grant
+    # caused stray writes ("outputs/answer.feel" leaking to repo root) and
+    # would let the agent edit committed source. Skill content loads
+    # through the Skill tool (SDK-managed); the agent does not need direct
+    # Read access to SKILL.md to use a loaded skill.
+    case_cwd = outputs_dir.parent  # i.e. <iteration>/<arm>/<case-id>/trial-N/
+
     options = ClaudeAgentOptions(
-        cwd=str(repo_root),
+        cwd=str(case_cwd),
         add_dirs=[str(outputs_dir)],
         skills=available,
         setting_sources=["project"],

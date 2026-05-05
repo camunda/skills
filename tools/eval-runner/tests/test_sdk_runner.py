@@ -156,6 +156,9 @@ async def test_run_arm_filters_target_in_without_arm(tmp_path, monkeypatch):
 
     async def fake_query(prompt: str, options):
         captured["skills"] = options.skills
+        captured["cwd"] = options.cwd
+        captured["add_dirs"] = list(options.add_dirs)
+        captured["env"] = options.env
         yield ResultMessage(
             subtype="success", duration_ms=1, duration_api_ms=1, is_error=False,
             num_turns=0, session_id="x", total_cost_usd=0.0,
@@ -174,6 +177,14 @@ async def test_run_arm_filters_target_in_without_arm(tmp_path, monkeypatch):
         transcript_path=case_dir / "transcript.jsonl",
     )
     assert captured["skills"] == ["sibling"]
+    # cwd is the per-trial dir, not the repo root, so prompts like
+    # "write to outputs/answer.feel" land under the trial's outputs/.
+    assert captured["cwd"] == str(case_dir)
+    # add_dirs is scoped to the trial's outputs/ only — not the repo root.
+    # Granting wider scope let stray writes leak into committed source.
+    assert captured["add_dirs"] == [str(case_dir / "outputs")]
+    # IS_SANDBOX=1 so claude -p runs under root in CI sandboxes.
+    assert captured["env"] == {"IS_SANDBOX": "1"}
 
 
 @pytest.mark.asyncio
