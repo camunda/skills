@@ -25,9 +25,13 @@ both arm and grader runs since the harness is, by construction, sandboxed.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import shutil
+import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -143,6 +147,47 @@ def all_skill_names(repo_root: Path) -> list[str]:
     )
 
 
+@contextlib.contextmanager
+def isolated_workdir(repo_root: Path, allowed_skills: list[str]) -> Iterator[Path]:
+    """Yield a temp dir that the agent runs in.
+
+    Bridges ``<temp>/.claude/skills/<name>`` -> ``<repo>/skills/<name>`` for
+    every name in ``allowed_skills`` so Claude Code's project setting source
+    discovers them, but writes the agent makes (even with absolute paths or
+    bypassPermissions) land in /tmp rather than the repo tree. The caller
+    is responsible for copying interesting files back into the per-trial
+    directory before the dir is cleaned up.
+
+    Why this is needed: with ``permission_mode="bypassPermissions"`` the
+    agent can ignore add_dirs and write absolute paths anywhere on the
+    filesystem. Setting cwd to a temp dir under /tmp confines the blast
+    radius for stray writes; an over-eager agent that does ``Write
+    /home/user/skills/outputs/answer.feel`` cannot reach committed source.
+    """
+    with tempfile.TemporaryDirectory(prefix="eval-trial-") as tmp:
+        tmp_path = Path(tmp)
+        bridge = tmp_path / ".claude" / "skills"
+        bridge.mkdir(parents=True)
+        for name in allowed_skills:
+            src = repo_root / "skills" / name
+            if src.is_dir():
+                (bridge / name).symlink_to(src.resolve())
+        (tmp_path / "outputs").mkdir()
+        yield tmp_path
+
+
+def _copy_outputs(src: Path, dst: Path) -> None:
+    """Copy any files the agent wrote into the temp workdir back to the trial dir."""
+    if not src.is_dir():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    for entry in src.iterdir():
+        if entry.is_dir():
+            shutil.copytree(entry, dst / entry.name, dirs_exist_ok=True)
+        else:
+            shutil.copy2(entry, dst / entry.name)
+
+
 # --- Arm execution ----------------------------------------------------------
 
 
@@ -169,40 +214,12 @@ async def run_arm(
     if arm not in ("with_skill", "without_skill"):
         raise ValueError(f"arm must be 'with_skill' or 'without_skill', got {arm!r}")
 
-    ensure_skills_bridged(repo_root)
     available = all_skill_names(repo_root)
     if arm == "without_skill":
         available = [s for s in available if s != target_skill]
 
     outputs_dir.mkdir(parents=True, exist_ok=True)
     transcript_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # cwd is the per-trial dir so a prompt like "write your FEEL to
-    # outputs/answer.feel" resolves to <case_dir>/outputs/answer.feel — not
-    # the repo root. Skill discovery still works because Claude Code's
-    # project setting source walks UP from cwd looking for .claude/, which
-    # finds repo_root/.claude/ (where ensure_skills_bridged installed the
-    # symlinks).
-    #
-    # add_dirs is deliberately scoped to the per-trial outputs/ dir only.
-    # We do NOT grant the agent read/write into the repo root: a wide grant
-    # caused stray writes ("outputs/answer.feel" leaking to repo root) and
-    # would let the agent edit committed source. Skill content loads
-    # through the Skill tool (SDK-managed); the agent does not need direct
-    # Read access to SKILL.md to use a loaded skill.
-    case_cwd = outputs_dir.parent  # i.e. <iteration>/<arm>/<case-id>/trial-N/
-
-    options = ClaudeAgentOptions(
-        cwd=str(case_cwd),
-        add_dirs=[str(outputs_dir)],
-        skills=available,
-        setting_sources=["project"],
-        permission_mode="bypassPermissions",
-        env=_HARNESS_ENV,
-        model=model,
-        max_turns=max_turns,
-        max_budget_usd=max_budget_usd,
-    )
 
     blocks: list[dict[str, Any]] = []
     via_skill: list[str] = []
@@ -211,29 +228,49 @@ async def run_arm(
     result_msg: ResultMessage | None = None
 
     started = time.monotonic()
-    with transcript_path.open("w", encoding="utf-8") as transcript_fh:
-        async for msg in query(prompt=prompt, options=options):
-            transcript_fh.write(_serialize_message(msg) + "\n")
-            if isinstance(msg, AssistantMessage):
-                for b in msg.content:
-                    if isinstance(b, ToolUseBlock):
-                        _record_tool_use(blocks, b)
-                        if b.name == "Skill":
-                            s = b.input.get("skill") if isinstance(b.input, dict) else None
-                            if s:
-                                via_skill.append(s)
-                        elif b.name == "Read":
-                            fp = (
-                                b.input.get("file_path", "")
-                                if isinstance(b.input, dict) else ""
-                            )
-                            name = _skill_name_from_read_path(fp)
-                            if name:
-                                via_read.append(name)
-                    elif isinstance(b, TextBlock):
-                        raw_text_parts.append(b.text)
-            elif isinstance(msg, ResultMessage):
-                result_msg = msg
+    # Run the agent inside a fresh /tmp dir with skills symlinked in. This
+    # confines stray writes (the agent may use absolute paths under
+    # bypassPermissions) and prevents leaks into the committed repo tree.
+    with isolated_workdir(repo_root, available) as workdir:
+        options = ClaudeAgentOptions(
+            cwd=str(workdir),
+            add_dirs=[str(workdir)],
+            skills=available,
+            setting_sources=["project"],
+            permission_mode="bypassPermissions",
+            env=_HARNESS_ENV,
+            model=model,
+            max_turns=max_turns,
+            max_budget_usd=max_budget_usd,
+        )
+
+        with transcript_path.open("w", encoding="utf-8") as transcript_fh:
+            async for msg in query(prompt=prompt, options=options):
+                transcript_fh.write(_serialize_message(msg) + "\n")
+                if isinstance(msg, AssistantMessage):
+                    for b in msg.content:
+                        if isinstance(b, ToolUseBlock):
+                            _record_tool_use(blocks, b)
+                            if b.name == "Skill":
+                                s = b.input.get("skill") if isinstance(b.input, dict) else None
+                                if s:
+                                    via_skill.append(s)
+                            elif b.name == "Read":
+                                fp = (
+                                    b.input.get("file_path", "")
+                                    if isinstance(b.input, dict) else ""
+                                )
+                                name = _skill_name_from_read_path(fp)
+                                if name:
+                                    via_read.append(name)
+                        elif isinstance(b, TextBlock):
+                            raw_text_parts.append(b.text)
+                elif isinstance(msg, ResultMessage):
+                    result_msg = msg
+
+        # Copy any files the agent wrote under workdir/outputs/ back into the
+        # trial's persistent outputs/ dir before the temp dir is removed.
+        _copy_outputs(workdir / "outputs", outputs_dir)
     elapsed_ms = int((time.monotonic() - started) * 1000)
 
     return ArmResult(

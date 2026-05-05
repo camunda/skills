@@ -177,14 +177,64 @@ async def test_run_arm_filters_target_in_without_arm(tmp_path, monkeypatch):
         transcript_path=case_dir / "transcript.jsonl",
     )
     assert captured["skills"] == ["sibling"]
-    # cwd is the per-trial dir, not the repo root, so prompts like
-    # "write to outputs/answer.feel" land under the trial's outputs/.
-    assert captured["cwd"] == str(case_dir)
-    # add_dirs is scoped to the trial's outputs/ only — not the repo root.
-    # Granting wider scope let stray writes leak into committed source.
-    assert captured["add_dirs"] == [str(case_dir / "outputs")]
+    # cwd is an isolated /tmp/eval-trial-* dir, not the repo or the trial
+    # dir under it. This confines stray absolute-path writes to /tmp.
+    assert "/tmp/" in captured["cwd"] or "eval-trial-" in captured["cwd"]
+    assert str(tmp_path) not in captured["cwd"], (
+        "isolated workdir must be outside the repo root"
+    )
+    # add_dirs scopes the agent to that same isolated workdir.
+    assert captured["add_dirs"] == [captured["cwd"]]
     # IS_SANDBOX=1 so claude -p runs under root in CI sandboxes.
     assert captured["env"] == {"IS_SANDBOX": "1"}
+
+
+def test_isolated_workdir_creates_skills_bridge(tmp_path):
+    skills = tmp_path / "skills"
+    for name in ("alpha", "beta"):
+        d = skills / name
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"---\nname: {name}\ndescription: x\n---\n")
+
+    with sdk_runner.isolated_workdir(tmp_path, ["alpha", "beta"]) as workdir:
+        bridge = workdir / ".claude" / "skills"
+        assert (bridge / "alpha").is_symlink()
+        assert (bridge / "beta").is_symlink()
+        assert (bridge / "alpha").resolve() == (skills / "alpha").resolve()
+        # Outputs dir pre-created so the agent doesn't need to mkdir.
+        assert (workdir / "outputs").is_dir()
+        # workdir is in /tmp, not under the repo.
+        assert str(tmp_path) not in str(workdir)
+
+
+def test_isolated_workdir_filters_to_allowed(tmp_path):
+    for name in ("alpha", "beta", "gamma"):
+        d = tmp_path / "skills" / name
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"---\nname: {name}\ndescription: x\n---\n")
+    with sdk_runner.isolated_workdir(tmp_path, ["alpha"]) as workdir:
+        bridge = workdir / ".claude" / "skills"
+        assert (bridge / "alpha").is_symlink()
+        assert not (bridge / "beta").exists()
+        assert not (bridge / "gamma").exists()
+
+
+def test_copy_outputs_round_trip(tmp_path):
+    src = tmp_path / "src"
+    dst = tmp_path / "dst"
+    src.mkdir()
+    (src / "answer.feel").write_text("1 + 1")
+    (src / "subdir").mkdir()
+    (src / "subdir" / "nested.txt").write_text("hi")
+    sdk_runner._copy_outputs(src, dst)
+    assert (dst / "answer.feel").read_text() == "1 + 1"
+    assert (dst / "subdir" / "nested.txt").read_text() == "hi"
+
+
+def test_copy_outputs_handles_missing_src(tmp_path):
+    dst = tmp_path / "dst"
+    sdk_runner._copy_outputs(tmp_path / "does-not-exist", dst)
+    assert not dst.exists()
 
 
 @pytest.mark.asyncio
