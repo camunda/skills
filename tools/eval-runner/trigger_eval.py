@@ -152,6 +152,7 @@ def invoke_run_eval(
     """
     _ensure_upstream(repo_root)
     script = _run_eval_py_path(repo_root)
+    skill_creator_dir = script.parent.parent  # .../skill-creator/
     skill_path = repo_root / "skills" / skill
 
     with tempfile.NamedTemporaryFile(
@@ -160,9 +161,13 @@ def invoke_run_eval(
         json.dump(eval_set, tf)
         eval_set_path = tf.name
 
+    # run_eval.py does `from scripts.utils import parse_skill_md`, so it must
+    # be invoked as a package module with the skill-creator directory on
+    # PYTHONPATH. Running it as a script (`python /abs/path/run_eval.py`)
+    # fails with ModuleNotFoundError. Use `-m` form instead.
     cmd: list[str] = [
         sys.executable,
-        str(script),
+        "-m", "scripts.run_eval",
         "--eval-set", eval_set_path,
         "--skill-path", str(skill_path),
         "--runs-per-query", str(runs),
@@ -171,14 +176,14 @@ def invoke_run_eval(
     ]
     if model:
         cmd += ["--model", model]
-    # run_eval.py's find_project_root() walks up looking for .claude/. Run from
-    # the repo root so it finds ours rather than its own clone's (which would
-    # cause it to write the temp slash-command into the upstream tree and miss
-    # our skills/ layout).
+    env = {**os.environ, "PYTHONPATH": str(skill_creator_dir)}
+    # Run from the repo root so find_project_root() in run_eval.py walks up
+    # to our .claude/ rather than the upstream clone's tree.
     try:
         proc = subprocess.run(
             cmd,
             cwd=str(repo_root),
+            env=env,
             capture_output=True,
             text=True,
             check=False,
