@@ -134,9 +134,20 @@ def run(ctx: click.Context, skill: str, trials: int, dry_run: bool) -> None:
 @main.command()
 @click.option("--skill", required=True)
 @click.option("--runs", "trials", default=3)
+@click.option("--workers", default=5, help="Parallel workers passed to run_eval.py.")
+@click.option("--timeout", default=30, help="Per-query timeout seconds (passed through).")
+@click.option("--model", default=None, help="Harness model id; default is the user's configured default.")
 @click.option("--dry-run", is_flag=True)
 @click.pass_context
-def triggers(ctx: click.Context, skill: str, trials: int, dry_run: bool) -> None:
+def triggers(
+    ctx: click.Context,
+    skill: str,
+    trials: int,
+    workers: int,
+    timeout: int,
+    model: str | None,
+    dry_run: bool,
+) -> None:
     """Run trigger eval (Tier 1) only."""
     repo_root: Path = ctx.obj["repo_root"]
     iteration_dir = _next_iteration_dir(repo_root, skill)
@@ -144,7 +155,15 @@ def triggers(ctx: click.Context, skill: str, trials: int, dry_run: bool) -> None
         trigger_eval.run_dry(repo_root, skill, iteration_dir, trials)
         click.echo(f"[dry-run] {iteration_dir.relative_to(repo_root)}/triggers/")
         return
-    raise click.ClickException("live trigger eval not implemented yet (Issue #6).")
+    summary = trigger_eval.run_live(
+        repo_root, skill, iteration_dir,
+        runs=trials, workers=workers, timeout=timeout, model=model,
+    )
+    click.echo(
+        f"triggers: F1={summary['f1']:.2f} "
+        f"precision={summary['precision']:.2f} recall={summary['recall']:.2f} "
+        f"({summary['positive_cases']} positive + {summary['negative_cases']} negative)"
+    )
 
 
 @main.command()
