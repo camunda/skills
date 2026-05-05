@@ -15,6 +15,10 @@ UV = uv run
 LINT = $(UV) --project tools/skill-lint tools/skill-lint/check.py
 RUNNER = $(UV) --project tools/eval-runner tools/eval-runner/cli.py
 
+SKILL_CREATOR_DIR = tools/external/anthropics-skills
+SKILL_CREATOR_SHA_FILE = tools/eval-runner/.skill-creator-sha
+SKILL_CREATOR_REPO = https://github.com/anthropics/skills.git
+
 SKILL_FLAG_LINT =
 ifneq ($(strip $(SKILL)),)
 SKILL_FLAG_LINT = --skill $(SKILL)
@@ -34,6 +38,8 @@ help:
 	@echo "  compare         Diff latest iteration against committed baseline."
 	@echo "  promote         Snapshot iteration into skills/<skill>/evals/baseline.json."
 	@echo "  test            Unit tests for tools/."
+	@echo "  setup-skill-creator   Clone anthropics/skills@<pinned SHA> for run_eval.py + grader.md."
+	@echo "  verify-skill-creator  Confirm the pinned upstream is checked out and reachable."
 	@echo ""
 	@echo "Reports are emitted as self-contained HTML next to each iteration:"
 	@echo "  evals/<skill>/iteration-N/report.html  (open with file://)"
@@ -89,3 +95,37 @@ promote:
 .PHONY: test
 test:
 	$(UV) --with pytest --project tools/eval-runner pytest tools/eval-runner/tests -q
+
+# Clone or refresh the anthropics/skills repo at the SHA pinned in
+# tools/eval-runner/.skill-creator-sha. Idempotent: re-running checks out the
+# current pin in an existing clone instead of recloning.
+.PHONY: setup-skill-creator
+setup-skill-creator:
+	@SHA=$$(cat $(SKILL_CREATOR_SHA_FILE) | tr -d '[:space:]'); \
+	if [ -z "$$SHA" ]; then \
+		echo "error: $(SKILL_CREATOR_SHA_FILE) is empty"; exit 2; \
+	fi; \
+	if [ ! -d $(SKILL_CREATOR_DIR)/.git ]; then \
+		mkdir -p $(SKILL_CREATOR_DIR); \
+		git clone --filter=blob:none $(SKILL_CREATOR_REPO) $(SKILL_CREATOR_DIR); \
+	else \
+		git -C $(SKILL_CREATOR_DIR) fetch origin --quiet; \
+	fi; \
+	git -C $(SKILL_CREATOR_DIR) checkout --quiet $$SHA; \
+	echo "anthropics/skills checked out at $$SHA"
+
+.PHONY: verify-skill-creator
+verify-skill-creator:
+	@PINNED=$$(cat $(SKILL_CREATOR_SHA_FILE) | tr -d '[:space:]'); \
+	if [ ! -d $(SKILL_CREATOR_DIR)/.git ]; then \
+		echo "error: $(SKILL_CREATOR_DIR) not present. Run: make setup-skill-creator"; exit 2; \
+	fi; \
+	HEAD=$$(git -C $(SKILL_CREATOR_DIR) rev-parse HEAD); \
+	if [ "$$HEAD" != "$$PINNED" ]; then \
+		echo "error: $(SKILL_CREATOR_DIR) is at $$HEAD, pinned to $$PINNED. Run: make setup-skill-creator"; exit 2; \
+	fi; \
+	test -f $(SKILL_CREATOR_DIR)/skills/skill-creator/scripts/run_eval.py || \
+		(echo "error: run_eval.py missing from upstream clone"; exit 2); \
+	test -f $(SKILL_CREATOR_DIR)/skills/skill-creator/agents/grader.md || \
+		(echo "error: agents/grader.md missing from upstream clone"; exit 2); \
+	echo "ok: $(SKILL_CREATOR_DIR) at pinned $$PINNED"
