@@ -16,11 +16,17 @@ The SDK is used here because both flows benefit from typed tool-use events
 grader prompt is designed as a tool-using agent (it reads transcript files
 and writes grading.json). Both flows ultimately shell out to the same
 ``claude -p`` headless CLI under the hood, just with different option sets.
+
+Environment override: when the harness is running as root (CI containers
+typically are), the underlying ``claude -p`` refuses ``--dangerously-skip-
+permissions`` unless ``IS_SANDBOX=1`` is in the env. We always set it for
+both arm and grader runs since the harness is, by construction, sandboxed.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +43,8 @@ from claude_agent_sdk import (
     UserMessage,
     query,
 )
+
+_HARNESS_ENV: dict[str, str] = {"IS_SANDBOX": "1"}
 
 
 # --- Result shapes ----------------------------------------------------------
@@ -175,6 +183,7 @@ async def run_arm(
         skills=available,
         setting_sources=["project"],
         permission_mode="bypassPermissions",
+        env=_HARNESS_ENV,
         model=model,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
@@ -304,6 +313,7 @@ async def run_grader(
         allowed_tools=["Read", "Write"],
         setting_sources=[],  # isolation: grader gets ONLY the prompt above
         permission_mode="bypassPermissions",
+        env=_HARNESS_ENV,
         model=judge_model,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
