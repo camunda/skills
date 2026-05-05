@@ -153,9 +153,47 @@ def test_compare_records_actual_in_details(outputs_dir, repo_root):
     assert r.details["actual_stdout"] == "2"
 
 
-def test_subprocess_command_omits_engine_local(outputs_dir, repo_root):
-    """Engine policy: never invoke --engine local, no matter what."""
+def test_subprocess_command_omits_engine_local_by_default(outputs_dir, repo_root, monkeypatch):
+    """Engine policy default: never invoke --engine local."""
     (outputs_dir / "answer.feel").write_text("1+1")
+    monkeypatch.delenv("EVAL_FEEL_ENGINE", raising=False)
+    captured = {}
+    def capture(cmd, **kw):
+        captured["cmd"] = cmd
+        return CompletedProcess(args=cmd, returncode=0, stdout="2", stderr="")
+    with patch.object(fe.shutil, "which", return_value="/usr/bin/c8"), \
+         patch.object(fe.subprocess, "run", side_effect=capture):
+        r = fe.run(
+            _verifier(context={"x": 1}, expected=2),
+            {"id": "x"}, outputs_dir, repo_root,
+        )
+    assert "--engine" not in captured["cmd"], captured["cmd"]
+    assert "local" not in captured["cmd"], captured["cmd"]
+    assert r.details["engine"] == "cluster"
+
+
+def test_eval_feel_engine_local_passes_flag(outputs_dir, repo_root, monkeypatch):
+    """EVAL_FEEL_ENGINE=local opt-in adds --engine local to the command."""
+    (outputs_dir / "answer.feel").write_text("1+1")
+    monkeypatch.setenv("EVAL_FEEL_ENGINE", "local")
+    captured = {}
+    def capture(cmd, **kw):
+        captured["cmd"] = cmd
+        return CompletedProcess(args=cmd, returncode=0, stdout="2", stderr="")
+    with patch.object(fe.shutil, "which", return_value="/usr/bin/c8"), \
+         patch.object(fe.subprocess, "run", side_effect=capture):
+        r = fe.run(
+            _verifier(context={"x": 1}, expected=2),
+            {"id": "x"}, outputs_dir, repo_root,
+        )
+    assert captured["cmd"][-2:] == ["--engine", "local"]
+    assert r.details["engine"] == "local"
+
+
+def test_eval_feel_engine_cluster_explicit_no_flag(outputs_dir, repo_root, monkeypatch):
+    """EVAL_FEEL_ENGINE=cluster is equivalent to default; no --engine flag."""
+    (outputs_dir / "answer.feel").write_text("1+1")
+    monkeypatch.setenv("EVAL_FEEL_ENGINE", "cluster")
     captured = {}
     def capture(cmd, **kw):
         captured["cmd"] = cmd
@@ -166,8 +204,20 @@ def test_subprocess_command_omits_engine_local(outputs_dir, repo_root):
             _verifier(context={"x": 1}, expected=2),
             {"id": "x"}, outputs_dir, repo_root,
         )
-    assert "--engine" not in captured["cmd"], captured["cmd"]
-    assert "local" not in captured["cmd"], captured["cmd"]
+    assert "--engine" not in captured["cmd"]
+
+
+def test_eval_feel_engine_unrecognized_value_fails_loudly(outputs_dir, repo_root, monkeypatch):
+    """Typos like EVAL_FEEL_ENGINE=loca should not silently fall back to cluster."""
+    (outputs_dir / "answer.feel").write_text("1+1")
+    monkeypatch.setenv("EVAL_FEEL_ENGINE", "loca")
+    with patch.object(fe.shutil, "which", return_value="/usr/bin/c8"):
+        r = fe.run(
+            _verifier(context={"x": 1}, expected=2),
+            {"id": "x"}, outputs_dir, repo_root,
+        )
+    assert r.passed is False
+    assert "unrecognized" in r.message.lower()
 
 
 # --- Registry / dispatch ---------------------------------------------------

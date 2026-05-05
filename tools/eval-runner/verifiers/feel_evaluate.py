@@ -15,10 +15,24 @@ Verifier entry shape (in evals.json):
       "answer_file": "answer.feel"        # optional, default "answer.feel"
     }
 
-Engine policy: cluster only. We never invoke ``--engine local``; if the
-cluster is unreachable, the verifier skips with ``skip_reason="no-cluster"``.
-``c8`` not on PATH skips with ``skip_reason="no-cli"``. Skipped verifiers
-do NOT fail the case.
+Engine policy: cluster by default. We never silently fall back to
+``--engine local``; if the cluster is unreachable, the verifier skips
+with ``skip_reason="no-cluster"``. ``c8`` not on PATH skips with
+``skip_reason="no-cli"``. Skipped verifiers do NOT fail the case.
+
+**Dev/integration escape hatch**: setting the env var
+``EVAL_FEEL_ENGINE=local`` switches to the JS-based ``feelin`` engine that
+ships with c8ctl. For pure FEEL semantics on supported expressions the
+local engine is interchangeable with the cluster engine: valid
+expressions return the same result, parse errors fail with exit 1 in
+both, and unknown-variable lookups warn-then-return-null with exit 0 in
+both. Real differences: cluster-only features (``--tenant``, transport
+failure modes), and warning payload shape (local includes ``type`` +
+``position``; cluster has only ``message``). Use the local engine for
+offline integration tests where no cluster is reachable; the eval
+summary records ``engine: "local"`` so the report makes the mode
+visible to reviewers. Baselines are still expected to run against the
+cluster engine to catch tenant- and infrastructure-level regressions.
 
 Comparison semantics: ``c8 feel evaluate`` writes the result to stdout. We
 trim it and compare against ``expected``:
@@ -39,6 +53,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -47,6 +62,7 @@ from typing import Any
 from . import Result
 
 VERIFIER_TYPE = "feel-evaluate"
+_ENGINE_ENV = "EVAL_FEEL_ENGINE"
 
 # Heuristic substrings that signal a connectivity issue rather than a real
 # evaluation failure. Conservative: when in doubt we treat the verifier as
@@ -176,7 +192,17 @@ def run(
     cmd = ["c8", "feel", "evaluate", expression]
     if context:
         cmd += ["--vars", json.dumps(context)]
-    # Engine policy: cluster only. Never pass --engine local (default is cluster).
+    # Engine policy: cluster by default. The EVAL_FEEL_ENGINE=local escape
+    # hatch is a dev/integration affordance only — see module docstring.
+    engine_override = os.environ.get(_ENGINE_ENV, "").strip().lower()
+    if engine_override == "local":
+        cmd += ["--engine", "local"]
+    elif engine_override and engine_override != "cluster":
+        return Result(
+            type=VERIFIER_TYPE, passed=False,
+            message=f"unrecognized {_ENGINE_ENV}={engine_override!r}; "
+                    f"valid values: cluster, local",
+        )
 
     try:
         proc = subprocess.run(
@@ -212,6 +238,7 @@ def run(
         )
 
     passed, msg = _compare(stdout, expected)
+    engine = engine_override or "cluster"
     return Result(
         type=VERIFIER_TYPE,
         passed=passed,
@@ -221,5 +248,6 @@ def run(
             "context": context,
             "expected": expected,
             "actual_stdout": stdout.strip(),
+            "engine": engine,
         },
     )
