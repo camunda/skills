@@ -33,6 +33,33 @@
       "verifiers": []
     },
     {
+      "id": "type-coercion-string-build",
+      "prompt": "I have two process variables: `prefix` (a string, e.g. \"https://api.example.com/users/\") and `userId` (a number, e.g. 42). Write a FEEL expression that builds an API URL by concatenating them — the result must be a single string like \"https://api.example.com/users/42\". The expression must work in Camunda 8's strict-typing FEEL engine; do NOT rely on auto type coercion. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
+      "expected_output": "A FEEL expression that wraps the numeric userId in string() before concatenation: prefix + string(userId)",
+      "expectations": [
+        "Wrap userId in string() (or the equivalent number-to-string conversion) before adding it to prefix",
+        "Acknowledge that FEEL does NOT auto-coerce types — `prefix + userId` would silently return null with a 'Can't add N to S' warning",
+        "Result is a single concatenated string"
+      ],
+      "verifiers": [
+        {
+          "type": "feel-evaluate",
+          "context": {"prefix": "https://api.example.com/users/", "userId": 42},
+          "expected": "https://api.example.com/users/42"
+        },
+        {
+          "type": "feel-evaluate",
+          "context": {"prefix": "user-", "userId": 1},
+          "expected": "user-1"
+        },
+        {
+          "type": "feel-evaluate",
+          "context": {"prefix": "", "userId": 999},
+          "expected": "999"
+        }
+      ]
+    },
+    {
       "id": "list-filtering",
       "prompt": "Given a list of employees where each employee has name, department, and salary fields, write a FEEL expression to filter for employees in the Engineering department with salary above 80000. Return their names. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
       "expected_output": "A FEEL expression using list filtering with multiple conditions and projection to extract names",
