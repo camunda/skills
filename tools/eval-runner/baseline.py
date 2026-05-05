@@ -135,3 +135,108 @@ def diff(baseline: Baseline, candidate: dict[str, Any]) -> Diff:
         candidate_summary=candidate,
         baseline_summary=baseline.data,
     )
+
+
+# --- Markdown rendering for PR comments ------------------------------------
+
+
+def _arrow(delta_pp: float) -> str:
+    """Unicode arrow indicating direction. Positive = improvement vs baseline."""
+    if delta_pp > 0.05:
+        return "▲"
+    if delta_pp < -0.05:
+        return "▼"
+    return "≈"
+
+
+def _format_pp(value: float) -> str:
+    return f"{value:+.1f}pp"
+
+
+def render_markdown(diff_obj: Diff) -> str:
+    """Render a Diff as markdown suitable for posting in a PR comment.
+
+    Example output:
+
+        ## camunda-feel — eval delta
+
+        | metric | baseline | candidate | Δ |
+        |---|---:|---:|---:|
+        | trigger F1 | 0.91 | 0.86 | ▼ -5.0pp |
+        | with_skill pass rate | 0.88 | 0.82 | ▼ -6.0pp |
+        | without_skill pass rate | 0.42 | 0.40 | ≈ -2.0pp |
+        | with−without delta | 46.0pp | 42.0pp | — |
+
+        **Status: regression** — `with_skill_pass_rate` dropped 6.0pp (limit 5.0pp).
+
+        Noise floor: ±2.5pp. Drops smaller than this are within trial noise.
+    """
+    base_q = diff_obj.baseline_summary["quality"]
+    base_t = diff_obj.baseline_summary["triggers"]
+    cand_q = diff_obj.candidate_summary.get("quality", {})
+    cand_t = diff_obj.candidate_summary.get("triggers", {})
+
+    base_with = float(base_q["with_skill"]["pass_rate"])
+    base_without = float(base_q["without_skill"]["pass_rate"])
+    base_f1 = float(base_t["f1"])
+    cand_with = float(cand_q.get("with_skill", {}).get("pass_rate", base_with))
+    cand_without = float(cand_q.get("without_skill", {}).get("pass_rate", base_without))
+    cand_f1 = float(cand_t.get("f1", base_f1))
+
+    f1_delta = (cand_f1 - base_f1) * 100.0
+    with_delta = (cand_with - base_with) * 100.0
+    without_delta = (cand_without - base_without) * 100.0
+
+    base_delta_q = (base_with - base_without) * 100.0
+    cand_delta_q = (cand_with - cand_without) * 100.0
+
+    if diff_obj.regression:
+        status = "**Status: regression** 🚨"
+        rationale_bits: list[str] = []
+        if diff_obj.with_skill_pass_rate_drop_pp > 5.0:
+            rationale_bits.append(
+                f"`with_skill` dropped {diff_obj.with_skill_pass_rate_drop_pp:.1f}pp "
+                f"(limit 5.0pp)"
+            )
+        if diff_obj.trigger_f1_drop_pp > 5.0:
+            rationale_bits.append(
+                f"trigger F1 dropped {diff_obj.trigger_f1_drop_pp:.1f}pp "
+                f"(limit 5.0pp)"
+            )
+        rationale = "; ".join(rationale_bits) or "see metrics table"
+    elif diff_obj.warning:
+        status = "**Status: warn** ⚠️"
+        rationale = "drops above 2pp but below 5pp regression threshold"
+    else:
+        status = "**Status: ok** ✅"
+        rationale = "all metrics within thresholds"
+
+    rows = [
+        ("trigger F1", base_f1, cand_f1, f1_delta),
+        ("with_skill pass rate", base_with, cand_with, with_delta),
+        ("without_skill pass rate", base_without, cand_without, without_delta),
+    ]
+    table_lines = [
+        "| metric | baseline | candidate | Δ |",
+        "|---|---:|---:|---:|",
+    ]
+    for label, b, c, d in rows:
+        table_lines.append(
+            f"| {label} | {b:.2f} | {c:.2f} | {_arrow(d)} {_format_pp(d)} |"
+        )
+    table_lines.append(
+        f"| with−without delta | {base_delta_q:.1f}pp | {cand_delta_q:.1f}pp | "
+        f"{_arrow(cand_delta_q - base_delta_q)} {_format_pp(cand_delta_q - base_delta_q)} |"
+    )
+
+    body = [
+        f"## {diff_obj.skill} — eval delta",
+        "",
+        *table_lines,
+        "",
+        f"{status} — {rationale}.",
+        "",
+        f"_Noise floor: ±{diff_obj.noise_floor_pp:.1f}pp. "
+        f"Drops smaller than this are within trial noise._",
+    ]
+    return "\n".join(body)

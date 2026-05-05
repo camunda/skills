@@ -29,7 +29,7 @@ import click
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from baseline import Baseline, diff, load as load_baseline  # noqa: E402
+from baseline import Baseline, diff, load as load_baseline, render_markdown  # noqa: E402
 import quality_eval  # noqa: E402
 import report as report_mod  # noqa: E402
 import trigger_eval  # noqa: E402
@@ -267,13 +267,29 @@ def quality(
     default=None,
     help="Iteration directory to compare. Defaults to the latest under evals/<skill>/.",
 )
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["json", "markdown"]),
+    default="json",
+    help="Output format. Use markdown to post into a PR comment.",
+)
 @click.pass_context
-def compare(ctx: click.Context, skill: str, iteration_arg: str | None) -> None:
+def compare(
+    ctx: click.Context, skill: str, iteration_arg: str | None, fmt: str,
+) -> None:
     """Diff a candidate iteration against the committed baseline."""
     repo_root: Path = ctx.obj["repo_root"]
     base = load_baseline(repo_root, skill)
     if base is None:
-        click.echo(json.dumps({"skill": skill, "status": "bootstrap"}, indent=2))
+        if fmt == "markdown":
+            click.echo(
+                f"## {skill} — eval delta\n\n"
+                f"_No baseline committed yet (`status: bootstrap`); "
+                f"the first run on this skill establishes one._"
+            )
+        else:
+            click.echo(json.dumps({"skill": skill, "status": "bootstrap"}, indent=2))
         sys.exit(0)
     iteration_dir = _resolve_iteration(repo_root, skill, iteration_arg)
     candidate_path = iteration_dir / "summary.json"
@@ -281,16 +297,19 @@ def compare(ctx: click.Context, skill: str, iteration_arg: str | None) -> None:
         raise click.ClickException(f"no summary.json under {iteration_dir}")
     candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
     d = diff(base, candidate)
-    out = {
-        "skill": skill,
-        "iteration": iteration_dir.name,
-        "with_skill_pass_rate_drop_pp": round(d.with_skill_pass_rate_drop_pp, 2),
-        "trigger_f1_drop_pp": round(d.trigger_f1_drop_pp, 2),
-        "delta_quality_pp": round(d.delta_quality_pp, 2),
-        "noise_floor_pp": round(d.noise_floor_pp, 2),
-        "status": "regression" if d.regression else ("warn" if d.warning else "ok"),
-    }
-    click.echo(json.dumps(out, indent=2))
+    if fmt == "markdown":
+        click.echo(render_markdown(d))
+    else:
+        out = {
+            "skill": skill,
+            "iteration": iteration_dir.name,
+            "with_skill_pass_rate_drop_pp": round(d.with_skill_pass_rate_drop_pp, 2),
+            "trigger_f1_drop_pp": round(d.trigger_f1_drop_pp, 2),
+            "delta_quality_pp": round(d.delta_quality_pp, 2),
+            "noise_floor_pp": round(d.noise_floor_pp, 2),
+            "status": "regression" if d.regression else ("warn" if d.warning else "ok"),
+        }
+        click.echo(json.dumps(out, indent=2))
     sys.exit(2 if d.regression else 0)
 
 
