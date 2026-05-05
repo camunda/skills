@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from baseline import Baseline, diff, load as load_baseline  # noqa: E402
 import quality_eval  # noqa: E402
+import report as report_mod  # noqa: E402
 import trigger_eval  # noqa: E402
 from paths import relativize_grading  # noqa: E402
 from verifiers import discover as discover_verifiers  # noqa: E402
@@ -121,6 +122,8 @@ def run(ctx: click.Context, skill: str, trials: int, dry_run: bool) -> None:
         (iteration_dir / "summary.json").write_text(
             json.dumps(summary, indent=2) + "\n", encoding="utf-8"
         )
+        report_mod.render_iteration(iteration_dir, repo_root)
+        report_mod.render_index(iteration_dir.parent)
         click.echo(f"[dry-run] scaffolded {iteration_dir.relative_to(repo_root)}")
         return
     raise click.ClickException(
