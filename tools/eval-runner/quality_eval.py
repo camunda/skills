@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import sdk_runner
+import verifiers
 
 QUALITY_PASS_THRESHOLD = 0.5
 DEFAULT_HARNESS_MODEL = "claude-opus-4-7"
@@ -40,6 +41,7 @@ class TrialOutcome:
     duration_ms: int
     skill_loads_via_tool: list[str]
     skill_loads_via_read: list[str]
+    verifier_results: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -141,16 +143,28 @@ async def _run_one_trial(
     except Exception as e:  # noqa: BLE001 - surface but don't crash the run
         (cdir / "grading_error.txt").write_text(str(e), encoding="utf-8")
 
+    # Deterministic verifiers (Layer 2/3). A non-skipped failure makes the
+    # trial fail regardless of grader prose verdict; skipped verifiers do not.
+    verifier_results = verifiers.run_all(case, outputs, repo_root)
+    serialized = [r.to_dict() for r in verifier_results]
+    (cdir / "verifier_results.json").write_text(
+        json.dumps(serialized, indent=2), encoding="utf-8"
+    )
+    grader_passed = grading_pass_rate >= QUALITY_PASS_THRESHOLD
+    verifier_blocked = any(not r.passed and not r.skipped for r in verifier_results)
+    trial_passed = grader_passed and not verifier_blocked
+
     return TrialOutcome(
         arm=arm,
         case_id=case["id"],
         trial=trial,
-        passed=grading_pass_rate >= QUALITY_PASS_THRESHOLD,
+        passed=trial_passed,
         grading_pass_rate=grading_pass_rate,
         cost_usd=arm_result.cost_usd,
         duration_ms=arm_result.duration_ms,
         skill_loads_via_tool=arm_result.skill_loads_via_tool,
         skill_loads_via_read=arm_result.skill_loads_via_read,
+        verifier_results=serialized,
     )
 
 
@@ -316,6 +330,7 @@ def run_live(
                     "via_skill_tool": t.skill_loads_via_tool,
                     "via_read": t.skill_loads_via_read,
                 },
+                "verifiers": t.verifier_results,
             }
             for t in trial_outcomes
         ],

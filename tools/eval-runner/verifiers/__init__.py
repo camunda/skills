@@ -4,20 +4,34 @@ A verifier module exposes:
 
     VERIFIER_TYPE: str   # e.g. "feel-evaluate"
 
-    def run(case: dict, agent_outputs_dir: Path, repo_root: Path) -> Result: ...
+    def run(verifier: dict, case: dict, outputs_dir: Path, repo_root: Path) -> Result:
+        ...
 
-The runner dispatches each entry of a case's ``verifiers[]`` array (in
-evals.json) to the module whose ``VERIFIER_TYPE`` matches ``verifiers[i].type``.
+Where:
 
-This file holds the registry only. Real verifier implementations land in
-sibling modules (feel_evaluate.py, bpmn_lint.py, etc.) under separate issues.
+  - ``verifier`` is the single entry being checked from
+    ``evals.json[].verifiers[i]`` (e.g. ``{"type": "feel-evaluate",
+    "context": {...}, "expected": ...}``).
+  - ``case`` is the full case dict for context (id, prompt, expectations).
+  - ``outputs_dir`` is the per-trial agent outputs directory containing
+    files such as ``answer.feel`` or ``process.bpmn``.
+  - ``repo_root`` is the repo root, useful for resolving the c8ctl CLI or
+    other tooling paths.
+
+The orchestrator iterates ``case.verifiers[]``, dispatches each entry to the
+module whose ``VERIFIER_TYPE`` matches, and aggregates the Results.
+
+Result.skipped=True signals "could not run the check" (e.g. ``c8`` CLI not
+installed, cluster unreachable). Skipped verifiers do NOT fail the case —
+they are reported in summary.json so reviewers can see what wasn't
+checked.
 """
 
 from __future__ import annotations
 
 import importlib
 import pkgutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
@@ -27,13 +41,28 @@ class Result:
     type: str
     passed: bool
     message: str
-    details: dict[str, Any] | None = None
-    skipped: bool = False  # True when prerequisite (e.g. cluster) is unavailable
+    details: dict[str, Any] = field(default_factory=dict)
+    skipped: bool = False
+    skip_reason: str | None = None  # e.g. "no-cli", "no-cluster", "no-output-file"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.type,
+            "passed": self.passed,
+            "skipped": self.skipped,
+            "skip_reason": self.skip_reason,
+            "message": self.message,
+            "details": self.details,
+        }
 
 
 class VerifierFn(Protocol):
     def __call__(
-        self, case: dict, agent_outputs_dir: Path, repo_root: Path
+        self,
+        verifier: dict[str, Any],
+        case: dict[str, Any],
+        outputs_dir: Path,
+        repo_root: Path,
     ) -> Result: ...
 
 
@@ -57,4 +86,39 @@ def discover() -> dict[str, VerifierFn]:
     return registry
 
 
-__all__ = ["Result", "VerifierFn", "discover"]
+def run_all(
+    case: dict[str, Any],
+    outputs_dir: Path,
+    repo_root: Path,
+    registry: dict[str, VerifierFn] | None = None,
+) -> list[Result]:
+    """Dispatch every ``case.verifiers[i]`` to the matching module."""
+    if registry is None:
+        registry = discover()
+    out: list[Result] = []
+    for v in case.get("verifiers", []) or []:
+        vtype = v.get("type")
+        fn = registry.get(vtype)
+        if fn is None:
+            out.append(
+                Result(
+                    type=str(vtype),
+                    passed=False,
+                    message=f"unknown verifier type {vtype!r}",
+                )
+            )
+            continue
+        try:
+            out.append(fn(v, case, outputs_dir, repo_root))
+        except Exception as e:  # noqa: BLE001
+            out.append(
+                Result(
+                    type=str(vtype),
+                    passed=False,
+                    message=f"verifier raised: {e!r}",
+                )
+            )
+    return out
+
+
+__all__ = ["Result", "VerifierFn", "discover", "run_all"]
