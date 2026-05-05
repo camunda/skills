@@ -34,7 +34,10 @@ help:
 	@echo "  compare         Diff latest iteration against committed baseline."
 	@echo "  promote         Snapshot iteration into skills/<skill>/evals/baseline.json."
 	@echo "  test            Unit tests for tools/."
-	@echo "  viewer          Serve eval-viewer at http://localhost:3334."
+	@echo ""
+	@echo "Reports are emitted as self-contained HTML next to each iteration:"
+	@echo "  evals/<skill>/iteration-N/report.html  (open with file://)"
+	@echo "  evals/<skill>/index.html               (cross-iteration index)"
 	@echo ""
 	@echo "Variables:"
 	@echo "  SKILL      Skill name (e.g. camunda-feel). Empty = all where applicable."
@@ -86,8 +89,3 @@ promote:
 .PHONY: test
 test:
 	$(UV) --with pytest --project tools/eval-runner pytest tools/eval-runner/tests -q
-
-.PHONY: viewer
-viewer:
-	@cd tools/eval-viewer && [ -d node_modules ] || npm install --silent
-	@cd tools/eval-viewer && node serve.js
