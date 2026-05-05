@@ -34,7 +34,7 @@
     },
     {
       "id": "type-coercion-string-build",
-      "prompt": "I have two process variables: `prefix` (a string, e.g. \"https://api.example.com/users/\") and `userId` (a number, e.g. 42). Write a FEEL expression that builds an API URL by concatenating them — the result must be a single string like \"https://api.example.com/users/42\". The expression must work in Camunda 8's strict-typing FEEL engine; do NOT rely on auto type coercion. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
+      "prompt": "I have two process variables: `prefix` (a string, e.g. \"https://api.example.com/users/\") and `userId` (a number, e.g. 42). Write a FEEL expression for a Connector input mapping that combines them into the URL the connector will fetch. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
       "expected_output": "A FEEL expression that wraps the numeric userId in string() before concatenation: prefix + string(userId)",
       "expectations": [
         "Wrap userId in string() (or the equivalent number-to-string conversion) before adding it to prefix",
