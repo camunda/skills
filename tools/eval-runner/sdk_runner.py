@@ -151,12 +151,24 @@ def all_skill_names(repo_root: Path) -> list[str]:
 def isolated_workdir(repo_root: Path, allowed_skills: list[str]) -> Iterator[Path]:
     """Yield a temp dir that the agent runs in.
 
-    Bridges ``<temp>/.claude/skills/<name>`` -> ``<repo>/skills/<name>`` for
-    every name in ``allowed_skills`` so Claude Code's project setting source
-    discovers them, but writes the agent makes (even with absolute paths or
-    bypassPermissions) land in /tmp rather than the repo tree. The caller
-    is responsible for copying interesting files back into the per-trial
-    directory before the dir is cleaned up.
+    Bridges:
+      - ``<temp>/.claude/skills/<name>`` -> ``<repo>/skills/<name>`` for
+        every name in ``allowed_skills`` so Claude Code's project setting
+        source discovers them.
+      - ``<temp>/examples`` -> ``<repo>/examples`` (read-only — symlink
+        target is the repo's source-of-truth) so eval prompts that
+        reference relative paths like ``examples/invoice-approval.bpmn``
+        resolve correctly. Agents are expected to copy files INTO
+        ``outputs/`` before editing; if an agent overwrites a symlinked
+        file in place it would be writing into the symlink target — but
+        the harness ``isolated_workdir`` runs as the same uid as the
+        repo, so this is bounded by what the calling user can already
+        change. Live runs we've observed always copy first.
+
+    Writes the agent makes (even with absolute paths under
+    ``bypassPermissions``) land in /tmp rather than the repo tree. The
+    caller copies anything interesting from ``<temp>/outputs/`` back
+    into the per-trial directory before the temp dir is cleaned up.
 
     Why this is needed: with ``permission_mode="bypassPermissions"`` the
     agent can ignore add_dirs and write absolute paths anywhere on the
@@ -172,6 +184,9 @@ def isolated_workdir(repo_root: Path, allowed_skills: list[str]) -> Iterator[Pat
             src = repo_root / "skills" / name
             if src.is_dir():
                 (bridge / name).symlink_to(src.resolve())
+        examples = repo_root / "examples"
+        if examples.is_dir():
+            (tmp_path / "examples").symlink_to(examples.resolve())
         (tmp_path / "outputs").mkdir()
         yield tmp_path
 

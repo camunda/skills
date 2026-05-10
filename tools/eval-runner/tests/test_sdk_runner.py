@@ -219,6 +219,25 @@ def test_isolated_workdir_filters_to_allowed(tmp_path):
         assert not (bridge / "gamma").exists()
 
 
+def test_isolated_workdir_bridges_examples_when_present(tmp_path):
+    (tmp_path / "examples").mkdir()
+    (tmp_path / "examples" / "demo.bpmn").write_text("<bpmn:definitions/>")
+    (tmp_path / "skills" / "alpha").mkdir(parents=True)
+    (tmp_path / "skills" / "alpha" / "SKILL.md").write_text("---\nname: alpha\ndescription: x\n---\n")
+    with sdk_runner.isolated_workdir(tmp_path, ["alpha"]) as workdir:
+        assert (workdir / "examples").is_symlink()
+        # Eval prompts reference paths like "examples/foo.bpmn" relative to cwd.
+        assert (workdir / "examples" / "demo.bpmn").read_text() == "<bpmn:definitions/>"
+
+
+def test_isolated_workdir_skips_examples_when_absent(tmp_path):
+    (tmp_path / "skills" / "alpha").mkdir(parents=True)
+    (tmp_path / "skills" / "alpha" / "SKILL.md").write_text("---\nname: alpha\ndescription: x\n---\n")
+    with sdk_runner.isolated_workdir(tmp_path, ["alpha"]) as workdir:
+        # No examples/ in repo -> none bridged. Doesn't crash.
+        assert not (workdir / "examples").exists()
+
+
 def test_copy_outputs_round_trip(tmp_path):
     src = tmp_path / "src"
     dst = tmp_path / "dst"

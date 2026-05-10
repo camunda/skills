@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": "simple-approval-process",
-      "prompt": "Create a simple approval process: a start event, a user task to review the request, an exclusive gateway that checks if it's approved, and two end events (approved and rejected).",
+      "prompt": "Create a simple approval process: a start event, a user task to review the request, an exclusive gateway that checks if it's approved, and two end events (approved and rejected). Write the complete BPMN 2.0 XML — and only the XML, no fences, no commentary — to outputs/process.bpmn. The file must pass `c8 bpmn lint --quiet` (no errors).",
       "expected_output": "Valid BPMN XML with start event, user task, exclusive gateway with conditions, two end events, and proper DI coordinates",
       "expectations": [
         "The output is valid BPMN 2.0 XML with zeebe namespace",
@@ -13,11 +13,14 @@
         "The user task has zeebe:userTask and zeebe:formDefinition elements",
         "Includes bpmndi:BPMNDiagram section with coordinates for all elements",
         "Passes c8 bpmn lint validation without errors"
+      ],
+      "verifiers": [
+        {"type": "bpmn-lint"}
       ]
     },
     {
       "id": "parallel-gateway",
-      "prompt": "Create a process with a parallel gateway that forks into two service tasks (Check Inventory and Check Credit) that both must complete before a final notification task.",
+      "prompt": "Create a process with a parallel gateway that forks into two service tasks (Check Inventory and Check Credit) that both must complete before a final notification task. Write the complete BPMN 2.0 XML — and only the XML, no fences, no commentary — to outputs/process.bpmn. The file must pass `c8 bpmn lint --quiet` (no errors).",
       "expected_output": "Valid BPMN XML with parallel fork and join gateways, two parallel service tasks, and a notification task",
       "expectations": [
         "Contains two parallelGateway elements (fork and join)",
@@ -25,11 +28,14 @@
         "The join gateway has two incoming flows",
         "No fake-join warnings - fork and join are both parallel gateways",
         "Includes proper DI coordinates with parallel branches at different y positions"
+      ],
+      "verifiers": [
+        {"type": "bpmn-lint"}
       ]
     },
     {
       "id": "service-task-error-boundary",
-      "prompt": "Create a process with a service task that calls an external API and has a boundary error event. If the API call fails, route to an error handling task.",
+      "prompt": "Create a process with a service task that calls an external API and has a boundary error event. If the API call fails, route to an error handling task. Write the complete BPMN 2.0 XML — and only the XML, no fences, no commentary — to outputs/process.bpmn. The file must pass `c8 bpmn lint --quiet` (no errors).",
       "expected_output": "Valid BPMN XML with service task, boundary error event, and error handling path",
       "expectations": [
         "Contains a boundaryEvent with errorEventDefinition attached to the service task",
@@ -37,35 +43,39 @@
         "There is a separate flow from the boundary event to an error handling task",
         "The service task has zeebe:taskDefinition",
         "An error element is defined with errorCode"
+      ],
+      "verifiers": [
+        {"type": "bpmn-lint"}
       ]
     },
     {
       "id": "add-timer-boundary",
-      "prompt": "Here is my BPMN process (examples/invoice-approval.bpmn). Add a timer boundary event to the Review invoice task that triggers after 4 hours and sends a reminder notification.",
+      "prompt": "The file `examples/invoice-approval.bpmn` exists in the working directory. Copy it to outputs/process.bpmn and then add a non-interrupting timer boundary event to the Review invoice task that triggers after 4 hours and routes to a 'Send reminder' service task. Preserve the existing layout coordinates of the original elements. Write the modified BPMN to outputs/process.bpmn (XML only, no fences, no commentary). The file must pass `c8 bpmn lint --quiet` (no errors).",
       "expected_output": "Modified BPMN with timer boundary event added to the review task",
-      "files": [
-        "examples/invoice-approval.bpmn"
-      ],
       "expectations": [
-        "Uses Grep to find the target task before editing",
-        "Uses Edit tool for precise modification",
+        "Reads or copies examples/invoice-approval.bpmn as the starting point",
         "Adds a non-interrupting boundaryEvent with timerEventDefinition",
-        "Timer duration uses FEEL format: =\"PT4H\"",
-        "Existing layout coordinates are preserved"
+        "Timer duration uses FEEL format: =\"PT4H\" or equivalent",
+        "Existing layout coordinates of original elements are preserved",
+        "The new reminder task has its own zeebe:taskDefinition",
+        "The result passes c8 bpmn lint --quiet"
+      ],
+      "verifiers": [
+        {"type": "bpmn-lint"}
       ]
     },
     {
       "id": "validate-and-fix",
-      "prompt": "Validate this BPMN file and fix any issues: examples/invoice-approval.bpmn",
-      "expected_output": "Runs c8 bpmn lint, identifies any issues, and fixes them",
-      "files": [
-        "examples/invoice-approval.bpmn"
-      ],
+      "prompt": "The file `examples/invoice-approval.bpmn` exists in the working directory. Validate it with `c8 bpmn lint`, identify any errors or warnings, fix them, and write the corrected BPMN to outputs/process.bpmn (XML only, no fences, no commentary). The final file must pass `c8 bpmn lint --quiet` (no errors).",
+      "expected_output": "Validated and (if necessary) corrected BPMN that passes c8 bpmn lint --quiet",
       "expectations": [
         "Runs c8 bpmn lint to validate the file",
         "Reports validation results clearly",
         "If errors exist, fixes them and re-validates",
-        "Final validation passes without errors or warnings"
+        "Final file at outputs/process.bpmn passes c8 bpmn lint --quiet"
+      ],
+      "verifiers": [
+        {"type": "bpmn-lint"}
       ]
     }
   ]
