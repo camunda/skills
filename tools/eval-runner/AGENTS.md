@@ -17,19 +17,25 @@ self-contained `report.html`.
 Three layers, distinct on purpose:
 
 ```
-Tier 1 — trigger eval        Tier 2 — quality eval         Tier 2 — verifiers
-─────────────────────        ──────────────────────        ──────────────────
-trigger_eval.py              quality_eval.py               verifiers/<type>.py
-  │                            │                             │
-  └─ subprocess →              ├─ claude_agent_sdk.query()   └─ shells out to e.g.
-     run_eval.py               │     ⇒ with_skill arm           c8 feel evaluate
-     (THEIR code,              │     ⇒ without_skill arm        (post-grading)
-     SHA-pinned)               │     captures ToolUseBlocks
-                               │
-                               └─ anthropic.messages.create()
-                                     system = grader.md (THEIR text,
-                                     SHA-pinned, read at runtime)
-                                     ⇒ writes grading.json
+Tier 1 — trigger eval         Tier 2 — quality eval               Tier 2 — verifiers
+─────────────────────         ──────────────────────              ──────────────────
+trigger_eval.py               quality_eval.py + sdk_runner.py     verifiers/<type>.py
+  │                             │                                   │
+  └─ subprocess →               ├─ run_arm()                        └─ post-grading,
+     run_eval.py                │     claude_agent_sdk.query()         shells out to
+     (THEIR code,               │     ⇒ with_skill arm                 e.g. c8 feel
+     SHA-pinned)                │     ⇒ without_skill arm              evaluate or
+                                │     captures ToolUseBlocks           c8 bpmn lint
+                                │     runs in isolated_workdir         --quiet
+                                │     under /tmp
+                                │
+                                └─ run_grader()
+                                      claude_agent_sdk.query()
+                                      tools=["Read","Write"] only
+                                      system = grader.md (THEIR
+                                      text, SHA-pinned, read
+                                      at runtime); the grader
+                                      itself writes grading.json
 ```
 
 Three external dependencies, kept on different update cadences:
@@ -38,7 +44,6 @@ Three external dependencies, kept on different update cadences:
 |---|---|---|
 | `anthropics/skills` clone (`run_eval.py` + `grader.md`) | `tools/eval-runner/.skill-creator-sha` | Manual, deliberate, own PR |
 | `claude-agent-sdk` (PyPI) | `tools/eval-runner/pyproject.toml` | When new tool-use semantics ship |
-| `anthropic` (PyPI) | `tools/eval-runner/pyproject.toml` | Standard dep bump |
 
 ## SHA pin: how to update upstream `anthropics/skills`
 
@@ -127,31 +132,45 @@ in `trigger_eval.py` and bump the comment header citing the new SHA.
 
 ## Quality eval — claude-agent-sdk specifics
 
-`quality_eval.py` drives the with_skill / without_skill arms via
-`claude_agent_sdk.query()`. Per-arm setup:
+`quality_eval.py` orchestrates cases × arms × trials and dispatches each
+unit of work to `sdk_runner.run_arm()`. Per-arm setup:
 
 | Concern | Mechanism |
 |---|---|
-| Skill availability | `ClaudeAgentOptions.add_dirs=[<allowed skills root>]` — for `without_skill`, point at a temp dir that excludes the target skill but still includes its siblings (matches plugin-install reality where ALL skills are present, but we're asking what happens when the agent decides not to load this one). |
-| Output capture | Each trial gets a fresh `outputs/` dir under `add_dirs`; the agent writes there via Bash/Write. We read it back after `query()` returns. |
-| Skill-load detection | Iterate `AssistantMessage.content` blocks; collect `ToolUseBlock`s. A `Skill` tool call (`block.name == "Skill"`, `block.input.skill = "<name>"`) is the primary signal; a `Read` of any `SKILL.md` path is the fallback. Both are captured in `summary.json` under `loaded_skills.{via_skill_tool, via_read}` so we can monitor whether the fallback ever fires. |
-| Model pinning | `ClaudeAgentOptions.model="claude-opus-4-7"` for the harness arm; the grader call uses Sonnet via the plain Anthropic SDK in a separate request. |
-| Cost cap | `ClaudeAgentOptions` exposes `max_budget_usd` indirectly via `extra_args`; we also enforce a hard ceiling at the runner level (`--max-usd`). |
+| Skill availability | `ClaudeAgentOptions.skills=[…]` — the SDK's native filter. For `with_skill`, the list is every skill discovered under the project setting source; for `without_skill`, the target is removed from that list. Sibling skills remain available, matching plugin-install reality (where all skills are present and the agent decides which to load). |
+| Skill discovery | `isolated_workdir()` symlinks `<tmp>/.claude/skills/<name>` -> `<repo>/skills/<name>` for every name in `skills=[…]`. Claude Code's project setting source walks up from cwd looking for `.claude/skills/`; the symlinks bridge our `skills/<name>/` source-of-truth into that canonical location without changing the on-disk layout. |
+| Sandbox boundary | `cwd` is set to a fresh `/tmp/eval-trial-*` dir per trial, NOT the repo root. Reason: with `permission_mode="bypassPermissions"` (required for non-interactive runs) the agent can ignore `add_dirs` and write absolute paths anywhere. Confining cwd to /tmp bounds the blast radius. After the run, `<tmp>/outputs/*` is copied back into the trial's persistent dir. The repo's `examples/` is symlinked into `<tmp>/examples` so prompts that reference relative paths there resolve correctly. |
+| Output capture | Each trial pre-creates `<tmp>/outputs/` so the agent doesn't have to mkdir. Prompts instruct the agent to write to `outputs/<filename>` (e.g. `outputs/answer.feel`, `outputs/process.bpmn`). The runner copies that directory back into the persistent trial dir before the temp dir is cleaned. |
+| Skill-load detection | Iterate `AssistantMessage.content` blocks; collect `ToolUseBlock`s. A `Skill` tool call (`block.name == "Skill"`, `block.input.skill = "<name>"`) is the primary signal; a `Read` of any `SKILL.md` path is the fallback. Both are captured in `summary.json` under `trials[].skill_loads.{via_skill_tool, via_read}` so we can monitor whether the fallback ever fires. |
+| Model pinning | `ClaudeAgentOptions.model="claude-opus-4-7"` for the harness arm; the grader uses `claude-sonnet-4-6` via a separate `query()` call (see "Grader" below). |
+| Sandbox env | `env={"IS_SANDBOX": "1"}` — Claude Code refuses `--dangerously-skip-permissions` when running as root unless this is set. CI typically runs as root inside containers. |
+| Cost cap | `ClaudeAgentOptions.max_budget_usd` per query; defaults `--arm-max-usd=1.0`, `--grader-max-usd=0.5`. Plus a `--max-usd` runner-level guard for the whole invocation. |
 
-## Grader call — plain Anthropic SDK
+## Grader — also runs through claude-agent-sdk
 
-Grading is a single non-tool-using completion call. We deliberately do NOT
-use the agent SDK for this — there's no tool use, no async iteration, just
-"system prompt + user input → JSON out". `quality_eval.py` reads
-`agents/grader.md` from the SHA-pinned clone at runtime (not at import
-time, so a `make setup-skill-creator` rerun is picked up without
-restarting the harness) and passes it as the `system` parameter. The user
-message is a small JSON payload referencing the trial's transcript and
-outputs dir, exactly as the grader prompt expects.
+Earlier drafts of this file claimed grading went through plain
+`anthropic.messages.create()`. That was misleading: the grader prompt
+(`agents/grader.md`) is designed as a tool-using agent — it Reads the
+trial transcript and outputs dir and Writes `grading.json` itself. A
+single non-tool completion call can't satisfy that contract.
 
-The grader writes `grading.json` matching the schema in
-`anthropics/skills/.../skills/skill-creator/references/schemas.md`. That
-schema also matches what `report.py` already renders — no adapter needed.
+`sdk_runner.run_grader()` runs through `claude_agent_sdk.query()` with a
+restricted tool set:
+
+  - `tools=["Read", "Write"]`, `allowed_tools=["Read", "Write"]` — no
+    Bash, no Skill, nothing else. Defense in depth.
+  - `setting_sources=[]` — isolation mode; the grader sees only its own
+    system prompt, not project CLAUDE.md or settings.
+  - `system_prompt = <grader.md text read at runtime from the SHA-pinned
+    clone>` — a `make setup-skill-creator` rerun is picked up without
+    restarting the harness.
+  - User message: a small JSON payload with `expectations[]`,
+    `transcript_path`, `outputs_dir`. The grader follows its own
+    instructions to inspect those files and emit `grading.json`.
+
+After the grader returns, the runner re-reads `grading.json` and parses
+its `summary.pass_rate` to decide whether the trial passed. The schema
+matches what `report.py` already renders.
 
 ## What this code is NOT
 

@@ -465,6 +465,24 @@ cluster-only features (`--tenant`, transport failures) and warning
 payload shape. Baselines should still run against cluster to catch
 infrastructure-level regressions.
 
+### Existing verifier: `bpmn-lint`
+
+Reads `outputs/process.bpmn` (or whatever `verifier.answer_file`
+overrides to) and shells to `c8 bpmn lint <file> --quiet`. The
+`--quiet` flag is critical: in non-quiet mode the CLI exits 0 even
+when lint errors are present (it prints the report to stdout and
+exits cleanly). Quiet mode exits 1 on any parse failure or lint
+violation, which is the contract the verifier needs.
+
+There's no `expected` field — passing means the BPMN parses and
+lints clean against the c8ctl-bundled `bpmnlint` ruleset. Failure
+captures the trailing `✖ N problems (...)` summary line in the
+result message and the full report in `details.report` for the
+viewer. There's no cluster dependency (lint runs entirely
+client-side), so no `no-cluster` skip path — only `no-cli` (when
+`c8` is missing from PATH) or `no-output-file` (when the agent
+didn't emit).
+
 ### Verifier roadmap (deferred)
 
 Each rollout in Phase 4 adds the verifier its skill needs:
@@ -472,7 +490,7 @@ Each rollout in Phase 4 adds the verifier its skill needs:
 | Skill | Verifier | Status |
 |---|---|---|
 | camunda-feel | `feel-evaluate` | done |
-| camunda-bpmn | `bpmn-lint` (`c8 bpmn lint`) | future |
+| camunda-bpmn | `bpmn-lint` (`c8 bpmn lint --quiet`) | done |
 | camunda-forms | `form-render` (forms-js) | future |
 | camunda-connectors | `connector-applied` (`c8 element-template apply` + lint) | future |
 | camunda-deploy | `cli-exit` + `cluster-intercept` | future |
