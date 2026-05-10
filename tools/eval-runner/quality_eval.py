@@ -42,6 +42,7 @@ class TrialOutcome:
     skill_loads_via_tool: list[str]
     skill_loads_via_read: list[str]
     verifier_results: list[dict[str, Any]] = field(default_factory=list)
+    leaks: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -119,6 +120,7 @@ async def _run_one_trial(
                     "via_skill_tool": arm_result.skill_loads_via_tool,
                     "via_read": arm_result.skill_loads_via_read,
                 },
+                "leaks": arm_result.leaks,
             },
             indent=2,
         ),
@@ -165,6 +167,7 @@ async def _run_one_trial(
         skill_loads_via_tool=arm_result.skill_loads_via_tool,
         skill_loads_via_read=arm_result.skill_loads_via_read,
         verifier_results=serialized,
+        leaks=arm_result.leaks,
     )
 
 
@@ -331,6 +334,7 @@ def run_live(
                     "via_read": t.skill_loads_via_read,
                 },
                 "verifiers": t.verifier_results,
+                "leaks": t.leaks,
             }
             for t in trial_outcomes
         ],

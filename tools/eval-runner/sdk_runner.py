@@ -71,6 +71,7 @@ class ArmResult:
     transcript_path: Path | None = None  # JSONL of all messages
     outputs_dir: Path | None = None
     raw_text: str = ""  # concatenated assistant text blocks (for grader convenience)
+    leaks: dict[str, Any] = field(default_factory=dict)
 
     def to_timing_json(self) -> dict[str, Any]:
         return {
@@ -203,6 +204,118 @@ def _copy_outputs(src: Path, dst: Path) -> None:
             shutil.copy2(entry, dst / entry.name)
 
 
+# --- Leak detection --------------------------------------------------------
+#
+# With ``permission_mode="bypassPermissions"`` the agent can ignore add_dirs
+# and write to absolute paths anywhere on the filesystem. ``isolated_workdir``
+# bounds the *intended* sandbox to /tmp, but an over-eager agent can still
+# do ``Write /root/outputs/answer.feel`` or similar. We've observed this in
+# practice on a single rehearsal trial.
+#
+# The runner can't prevent that without a heavier sandbox (bubblewrap,
+# user namespaces, container per trial). It CAN scan a small set of
+# common leak destinations after each run and report what it finds, so
+# the leak doesn't escape attention.
+
+_LEAK_SCAN_PATHS: tuple[Path, ...] = ()
+
+
+def _default_leak_scan_paths() -> tuple[Path, ...]:
+    """Common $HOME-ish places an agent might mistake for cwd."""
+    candidates: list[Path] = []
+    home = os.environ.get("HOME")
+    if home:
+        candidates.append(Path(home) / "outputs")
+    # Common alternates that show up if the agent reads /etc/passwd or
+    # similar to "find" a working dir.
+    for p in ("/root/outputs", "/home/user/outputs", "/tmp/outputs"):
+        candidates.append(Path(p))
+    # De-dupe while preserving order.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for c in candidates:
+        rc = c.resolve(strict=False)
+        if rc not in seen:
+            seen.add(rc)
+            unique.append(c)
+    return tuple(unique)
+
+
+@dataclass
+class LeakReport:
+    """Files an agent wrote outside the intended /tmp sandbox.
+
+    ``paths`` lists the directories that were already populated when the
+    runner snapshotted state (typically because some prior trial — or
+    this trial via absolute path — wrote there).
+
+    ``new_paths`` lists the directories that the just-finished trial
+    created or added files to (i.e. populated AFTER the snapshot was
+    taken). Those are the ones to investigate first.
+    """
+
+    paths: list[Path] = field(default_factory=list)
+    new_paths: list[Path] = field(default_factory=list)
+
+    @property
+    def empty(self) -> bool:
+        return not self.paths and not self.new_paths
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "paths": [str(p) for p in self.paths],
+            "new_paths": [str(p) for p in self.new_paths],
+        }
+
+
+def snapshot_leak_state(
+    paths: tuple[Path, ...] | None = None,
+) -> dict[Path, set[str]]:
+    """Record which leak-scan dirs already exist and what they contain.
+
+    Call once before a trial; pass the result to ``check_leaks`` after.
+    Returns a mapping from each scanned path to the set of names it
+    contained at snapshot time (empty set if the path doesn't exist).
+    """
+    targets = paths if paths is not None else _default_leak_scan_paths()
+    state: dict[Path, set[str]] = {}
+    for p in targets:
+        try:
+            state[p] = {e.name for e in p.iterdir()} if p.is_dir() else set()
+        except OSError:
+            state[p] = set()
+    return state
+
+
+def check_leaks(
+    snapshot: dict[Path, set[str]],
+    paths: tuple[Path, ...] | None = None,
+) -> LeakReport:
+    """Report leak-scan dirs populated since the snapshot.
+
+    A directory is reported as ``new`` if it didn't exist at snapshot
+    time but does now, or if its contents grew. Otherwise an existing
+    populated directory is just flagged in ``paths`` (likely cruft from
+    earlier runs; still worth surfacing).
+    """
+    targets = paths if paths is not None else tuple(snapshot.keys())
+    report = LeakReport()
+    for p in targets:
+        before = snapshot.get(p, set())
+        try:
+            current = {e.name for e in p.iterdir()} if p.is_dir() else set()
+        except OSError:
+            continue
+        if not current:
+            continue
+        new_entries = current - before
+        if new_entries:
+            report.new_paths.append(p)
+        elif current:
+            report.paths.append(p)
+    return report
+
+
 # --- Arm execution ----------------------------------------------------------
 
 
@@ -243,6 +356,7 @@ async def run_arm(
     result_msg: ResultMessage | None = None
 
     started = time.monotonic()
+    leak_snapshot = snapshot_leak_state()
     # Run the agent inside a fresh /tmp dir with skills symlinked in. This
     # confines stray writes (the agent may use absolute paths under
     # bypassPermissions) and prevents leaks into the committed repo tree.
@@ -288,6 +402,9 @@ async def run_arm(
         _copy_outputs(workdir / "outputs", outputs_dir)
     elapsed_ms = int((time.monotonic() - started) * 1000)
 
+    # Did the agent leak writes outside the intended /tmp sandbox?
+    leak_report = check_leaks(leak_snapshot)
+
     return ArmResult(
         arm=arm,
         case_id=case_id,
@@ -304,6 +421,7 @@ async def run_arm(
         transcript_path=transcript_path,
         outputs_dir=outputs_dir,
         raw_text="\n".join(raw_text_parts),
+        leaks=leak_report.to_dict(),
     )
 
 

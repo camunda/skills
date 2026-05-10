@@ -256,6 +256,63 @@ def test_copy_outputs_handles_missing_src(tmp_path):
     assert not dst.exists()
 
 
+# --- Leak detection --------------------------------------------------------
+
+
+def test_snapshot_returns_empty_for_absent_dirs(tmp_path):
+    snap = sdk_runner.snapshot_leak_state((tmp_path / "absent",))
+    assert snap == {tmp_path / "absent": set()}
+
+
+def test_check_leaks_flags_new_files(tmp_path):
+    leaky = tmp_path / "leaky"
+    snap = sdk_runner.snapshot_leak_state((leaky,))
+    leaky.mkdir()
+    (leaky / "answer.feel").write_text("1+1")
+    report = sdk_runner.check_leaks(snap, (leaky,))
+    assert leaky in report.new_paths
+    assert not report.empty
+    assert leaky not in report.paths   # listed under new_paths, not paths
+
+
+def test_check_leaks_silent_when_unchanged(tmp_path):
+    leaky = tmp_path / "leaky"
+    leaky.mkdir()
+    (leaky / "old.txt").write_text("pre-existing")
+    snap = sdk_runner.snapshot_leak_state((leaky,))
+    # Nothing happens during the (mock) trial.
+    report = sdk_runner.check_leaks(snap, (leaky,))
+    assert report.empty is False  # pre-existing content still surfaces
+    assert leaky in report.paths   # but as cruft, not new
+    assert leaky not in report.new_paths
+
+
+def test_check_leaks_empty_when_dirs_clean(tmp_path):
+    clean = tmp_path / "clean"
+    snap = sdk_runner.snapshot_leak_state((clean,))
+    report = sdk_runner.check_leaks(snap, (clean,))
+    assert report.empty
+    assert report.to_dict() == {"paths": [], "new_paths": []}
+
+
+def test_default_leak_paths_include_home_outputs(monkeypatch):
+    monkeypatch.setenv("HOME", "/some/home")
+    paths = sdk_runner._default_leak_scan_paths()
+    assert Path("/some/home/outputs") in paths
+    # Common alternates also included.
+    assert Path("/root/outputs") in paths
+    assert Path("/tmp/outputs") in paths
+
+
+def test_default_leak_paths_dedupe(monkeypatch):
+    """If $HOME is /root, /root/outputs shouldn't appear twice."""
+    monkeypatch.setenv("HOME", "/root")
+    paths = sdk_runner._default_leak_scan_paths()
+    # The literal Path objects may differ but their resolutions should not.
+    resolved = [p.resolve(strict=False) for p in paths]
+    assert len(resolved) == len(set(resolved))
+
+
 @pytest.mark.asyncio
 async def test_run_arm_rejects_invalid_arm(tmp_path):
     with pytest.raises(ValueError, match="arm must be"):
