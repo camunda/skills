@@ -45,12 +45,125 @@ correctness checks fast and free.
 | Tier | What | Cost | Where it runs | When |
 |---|---|---|---|---|
 | 0 | Lint | Free, milliseconds | Pre-commit, PR CI | Every PR |
-| 1 | Trigger F1 (does the description grab the right cases?) | ~$0.05 / case-trial | PR CI on changed skills, nightly full | Every changed-skill PR + nightly |
-| 2 | Quality + verifiers (does the skill actually help?) | ~$0.20 / arm-trial | Same as Tier 1 | Same as Tier 1 |
+| 1 | Trigger probes (does the description grab the right cases without over-triggering?) | ~$0.05 / case-trial | PR CI on changed skills, nightly full | Every changed-skill PR + nightly |
+| 2 | Quality + verifiers (does the skill actually help vs. not having it?) | ~$0.20 / arm-trial | Same as Tier 1 | Same as Tier 1 |
 | 3 | Cross-agent / behavioral | Deferred — see "Future" | n/a | n/a |
 
 Tier 0 must always pass. Tier 1/2 are gated by regression thresholds vs the
-committed `baseline.json`.
+committed `baseline.json` — see "How to interpret your numbers" below.
+
+---
+
+## Skill flavors and what "good" looks like
+
+Not all skills should look the same on the dashboard. Two flavors land
+naturally on this repo, and they have different expected baselines:
+
+**Knowledge-additive skills** teach the agent something it doesn't already
+know. Examples likely to live here: `camunda-bpmn` (Zeebe extensions are
+proprietary), `camunda-forms` (Camunda Form JSON shape is proprietary),
+`camunda-connectors` (element-template wiring), the `camunda-c8ctl`/
+`-deploy`/`-operate` skills (entirely-proprietary CLI surfaces).
+
+  - **Trigger discovery should be high.** F1 ≥ 0.7 is reasonable; the
+    skill describes territory the agent doesn't have a strong default
+    answer for, so the description's pull beats "answer directly".
+  - **`skill_help` (with − without) should be large.** Often 30–70pp.
+    Without the skill, the agent invents wrong syntax / commands /
+    schema keys.
+  - **Tier 2 verifiers will catch most regressions cleanly** (the BPMN
+    lints, the form renders, the CLI exits 0).
+
+**Correctness-protective skills** are about a topic the agent mostly
+knows from training but has subtle gotchas. Example: `camunda-feel`. FEEL
+is well-trained-on, so:
+
+  - **Trigger discovery is naturally lower.** F1 of 0.20–0.40 is normal
+    — the agent often answers without invoking the skill because the
+    topic is familiar. That's fine if quality holds up; not fine if it
+    doesn't.
+  - **`skill_help` is small but non-zero.** Often 5–25pp. The skill
+    catches the rare gotcha (FEEL's strict typing, multi-entry context
+    syntax) but not every prompt exercises one.
+  - **Per-case data matters more than aggregates.** A correctness-
+    protective skill's value lives in the few cases where the agent
+    would otherwise trip; aggregate pass-rate masks them.
+
+When you're authoring a new skill, write down which flavor you expect it
+to be in the case-set's `evals/README.md`. Reviewers should expect very
+different shapes from a `c8ctl` baseline vs a `feel` baseline; the
+asymmetric regression rules below were designed to handle both without
+needing per-skill threshold knobs.
+
+---
+
+## How to interpret your numbers
+
+The `compare` step writes a markdown delta block into the PR comment with
+two tables: **Quality (the headline)** and **Discovery (secondary)**.
+That order is deliberate — the question we actually care about is "does
+having this skill loaded make the agent better?", measured by `skill_help =
+with_skill_pass_rate − without_skill_pass_rate`. Trigger metrics live
+under "Discovery" because they tell us whether the skill description is
+finding its audience, not whether the skill is doing its job.
+
+### What each metric tells you
+
+**Quality block:**
+
+| Metric | What it answers | Drop response |
+|---|---|---|
+| `skill_help` | The skill is making the agent better by this much | **Regression at >5pp drop.** This is the headline reason the skill exists. |
+| `with_skill_pass_rate` | When the skill IS loaded, how often does the agent succeed? | **Regression at >5pp drop.** A drop here means the skill content got worse. |
+| `without_skill_pass_rate` | If we removed the skill, how would the agent do? | Informational. Rises mean training caught up; falls mean the agent now needs the skill more. Neither is automatically a regression, but both shift `skill_help`. |
+
+**Discovery block:**
+
+| Metric | What it answers | Drop response |
+|---|---|---|
+| `precision` | Of the times the skill triggered, how often was the trigger right? | **Regression at >5pp drop.** Precision falling means over-triggering grew — the skill is grabbing prompts it shouldn't, wasting context. |
+| `recall` | Of the prompts that should trigger the skill, how often did it? | **Warn-only.** Low recall is acceptable when `without_skill_pass_rate` is high (the agent answers fine unaided). It only matters in concert with low quality. |
+| `F1` | Harmonic mean of precision and recall | **Informational.** Derived from precision and recall; we don't regress on it independently. |
+
+### The asymmetric regression rule
+
+This is the rule the runner enforces. Each metric has its own threshold
+and severity:
+
+| Metric | Drop threshold | Severity | Rationale |
+|---|---|---|---|
+| `with_skill_pass_rate` | 5pp | **regression** | Skill made things worse |
+| `skill_help` | 5pp | **regression** | Skill helps less than before |
+| trigger `precision` | 5pp | **regression** | Over-triggering grew |
+| trigger `recall` | any | **warn** | Under-triggering is fine if quality holds |
+| trigger `F1` | any | **informational** | Components carry the rule |
+
+A regression fails the PR check; a warning posts the markdown delta but
+exits 0. The harness uses these rules uniformly across skill flavors —
+flavor is a labeling/expectation tool for reviewers, not a per-skill
+threshold knob.
+
+### Reading a regression report in practice
+
+A few patterns to recognize:
+
+  - **`skill_help` flat, `with_skill_pass_rate` flat, `recall` dropped**:
+    safe to merge. The agent is choosing not to load the skill on
+    prompts the description claims, but quality didn't suffer because
+    those prompts didn't actually need the skill. The description may
+    be over-claiming; iterate on `triggers.json` next time but don't
+    block this PR.
+  - **`with_skill_pass_rate` flat, `without_skill_pass_rate` rose,
+    `skill_help` dropped**: also safe to merge — the model improved
+    independently. Eventually you may decide to retire the skill or
+    repurpose it (the natural exit ramp for correctness-protective
+    skills).
+  - **`precision` dropped, others stable**: regression. Description
+    grew too aggressive. Tighten the trigger phrases or the negative
+    cases that newly trigger.
+  - **`with_skill_pass_rate` dropped**: regression. Inspect per-case
+    data — usually one or two cases fell off. Look at the trial
+    `transcript.jsonl` and the failing `grading.json` evidence text.
 
 ---
 

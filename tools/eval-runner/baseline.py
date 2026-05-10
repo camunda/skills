@@ -73,12 +73,35 @@ def validate(data: dict[str, Any]) -> None:
 
 @dataclass
 class Diff:
-    """Difference between a candidate iteration and the committed baseline."""
+    """Difference between a candidate iteration and the committed baseline.
+
+    Drops are computed as ``baseline - candidate`` so positive means the
+    candidate is worse. Drops below ``noise_floor_pp`` are within trial
+    noise and should not drive decisions.
+
+    Regression rules are asymmetric — see ``docs/evals.md`` § "How to
+    interpret your numbers" for the rationale:
+
+      - **Regression** (PR-blocking): ``with_skill_pass_rate`` drop > 5pp
+        (skill made things worse), ``skill_help`` drop > 5pp (skill helps
+        less than before), or trigger-eval ``precision`` drop > 5pp
+        (over-triggering grew, wasting context).
+      - **Warning** (informational): same metrics 2-5pp drop, OR recall
+        any drop. Recall is *not* a regression target — for skills
+        whose topic is well-covered by training data, low recall just
+        means the agent answered fine without help.
+      - **Informational only**: trigger F1 itself. F1 is the harmonic
+        mean of precision and recall; the components carry the
+        decisions, F1 is a summary stat.
+    """
 
     skill: str
     with_skill_pass_rate_drop_pp: float  # positive means current is worse
-    trigger_f1_drop_pp: float  # positive means current is worse
-    delta_quality_pp: float  # signed: with_skill - without_skill, candidate
+    skill_help_drop_pp: float  # positive means skill helps less than baseline
+    precision_drop_pp: float  # positive means more false-positive triggering
+    recall_drop_pp: float  # positive means fewer expected triggers fire
+    trigger_f1_drop_pp: float  # informational; not in regression rule
+    delta_quality_pp: float  # candidate skill_help, signed
     noise_floor_pp: float
     candidate_summary: dict[str, Any]
     baseline_summary: dict[str, Any]
@@ -87,15 +110,40 @@ class Diff:
     def regression(self) -> bool:
         return (
             self.with_skill_pass_rate_drop_pp > 5.0
-            or self.trigger_f1_drop_pp > 5.0
+            or self.skill_help_drop_pp > 5.0
+            or self.precision_drop_pp > 5.0
         )
 
     @property
     def warning(self) -> bool:
+        if self.regression:
+            return False
         return (
             self.with_skill_pass_rate_drop_pp > 2.0
-            or self.trigger_f1_drop_pp > 2.0
+            or self.skill_help_drop_pp > 2.0
+            or self.precision_drop_pp > 2.0
+            or self.recall_drop_pp > self.noise_floor_pp
         )
+
+    def regression_reasons(self) -> list[str]:
+        out: list[str] = []
+        if self.with_skill_pass_rate_drop_pp > 5.0:
+            out.append(
+                f"`with_skill` pass rate dropped "
+                f"{self.with_skill_pass_rate_drop_pp:.1f}pp (limit 5.0pp)"
+            )
+        if self.skill_help_drop_pp > 5.0:
+            out.append(
+                f"`skill_help` (delta vs without_skill) dropped "
+                f"{self.skill_help_drop_pp:.1f}pp (limit 5.0pp)"
+            )
+        if self.precision_drop_pp > 5.0:
+            out.append(
+                f"trigger precision dropped "
+                f"{self.precision_drop_pp:.1f}pp (limit 5.0pp); "
+                f"over-triggering grew"
+            )
+        return out
 
 
 def diff(baseline: Baseline, candidate: dict[str, Any]) -> Diff:
@@ -111,13 +159,19 @@ def diff(baseline: Baseline, candidate: dict[str, Any]) -> Diff:
     cand_t = candidate.get("triggers", {})
 
     base_with = float(base_q["with_skill"]["pass_rate"])
+    base_without = float(base_q["without_skill"]["pass_rate"])
     cand_with = float(cand_q.get("with_skill", {}).get("pass_rate", base_with))
+    cand_without = float(cand_q.get("without_skill", {}).get("pass_rate", base_without))
 
     base_f1 = float(base_t["f1"])
+    base_precision = float(base_t.get("precision", base_f1))
+    base_recall = float(base_t.get("recall", base_f1))
     cand_f1 = float(cand_t.get("f1", base_f1))
+    cand_precision = float(cand_t.get("precision", cand_f1))
+    cand_recall = float(cand_t.get("recall", cand_f1))
 
-    cand_without = float(cand_q.get("without_skill", {}).get("pass_rate", 0.0))
-    delta_quality_pp = (cand_with - cand_without) * 100.0
+    base_skill_help = base_with - base_without
+    cand_skill_help = cand_with - cand_without
 
     n_cases = int(cand_q.get("with_skill", {}).get("n_cases", 0))
     n_trials = int(cand_q.get("with_skill", {}).get("n_trials", 0))
@@ -129,8 +183,11 @@ def diff(baseline: Baseline, candidate: dict[str, Any]) -> Diff:
     return Diff(
         skill=baseline.skill,
         with_skill_pass_rate_drop_pp=(base_with - cand_with) * 100.0,
+        skill_help_drop_pp=(base_skill_help - cand_skill_help) * 100.0,
+        precision_drop_pp=(base_precision - cand_precision) * 100.0,
+        recall_drop_pp=(base_recall - cand_recall) * 100.0,
         trigger_f1_drop_pp=(base_f1 - cand_f1) * 100.0,
-        delta_quality_pp=delta_quality_pp,
+        delta_quality_pp=cand_skill_help * 100.0,
         noise_floor_pp=noise,
         candidate_summary=candidate,
         baseline_summary=baseline.data,
@@ -154,22 +211,13 @@ def _format_pp(value: float) -> str:
 
 
 def render_markdown(diff_obj: Diff) -> str:
-    """Render a Diff as markdown suitable for posting in a PR comment.
+    """Render a Diff as markdown for posting in a PR comment.
 
-    Example output:
-
-        ## camunda-feel — eval delta
-
-        | metric | baseline | candidate | Δ |
-        |---|---:|---:|---:|
-        | trigger F1 | 0.91 | 0.86 | ▼ -5.0pp |
-        | with_skill pass rate | 0.88 | 0.82 | ▼ -6.0pp |
-        | without_skill pass rate | 0.42 | 0.40 | ≈ -2.0pp |
-        | with−without delta | 46.0pp | 42.0pp | — |
-
-        **Status: regression** — `with_skill_pass_rate` dropped 6.0pp (limit 5.0pp).
-
-        Noise floor: ±2.5pp. Drops smaller than this are within trial noise.
+    Lead with ``skill_help`` (delta vs without_skill) since that's the
+    headline value the skill is supposed to deliver. Trigger metrics are
+    grouped under a "Discovery" section because they're secondary —
+    precision matters (over-triggering is always bad), recall is fine to
+    drop if quality holds.
     """
     base_q = diff_obj.baseline_summary["quality"]
     base_t = diff_obj.baseline_summary["triggers"]
@@ -178,63 +226,73 @@ def render_markdown(diff_obj: Diff) -> str:
 
     base_with = float(base_q["with_skill"]["pass_rate"])
     base_without = float(base_q["without_skill"]["pass_rate"])
-    base_f1 = float(base_t["f1"])
     cand_with = float(cand_q.get("with_skill", {}).get("pass_rate", base_with))
     cand_without = float(cand_q.get("without_skill", {}).get("pass_rate", base_without))
-    cand_f1 = float(cand_t.get("f1", base_f1))
 
-    f1_delta = (cand_f1 - base_f1) * 100.0
+    base_f1 = float(base_t["f1"])
+    base_precision = float(base_t.get("precision", base_f1))
+    base_recall = float(base_t.get("recall", base_f1))
+    cand_f1 = float(cand_t.get("f1", base_f1))
+    cand_precision = float(cand_t.get("precision", cand_f1))
+    cand_recall = float(cand_t.get("recall", cand_f1))
+
+    base_help = (base_with - base_without) * 100.0
+    cand_help = (cand_with - cand_without) * 100.0
+    help_delta = cand_help - base_help
+
     with_delta = (cand_with - base_with) * 100.0
     without_delta = (cand_without - base_without) * 100.0
-
-    base_delta_q = (base_with - base_without) * 100.0
-    cand_delta_q = (cand_with - cand_without) * 100.0
+    f1_delta = (cand_f1 - base_f1) * 100.0
+    precision_delta = (cand_precision - base_precision) * 100.0
+    recall_delta = (cand_recall - base_recall) * 100.0
 
     if diff_obj.regression:
         status = "**Status: regression** 🚨"
-        rationale_bits: list[str] = []
-        if diff_obj.with_skill_pass_rate_drop_pp > 5.0:
-            rationale_bits.append(
-                f"`with_skill` dropped {diff_obj.with_skill_pass_rate_drop_pp:.1f}pp "
-                f"(limit 5.0pp)"
-            )
-        if diff_obj.trigger_f1_drop_pp > 5.0:
-            rationale_bits.append(
-                f"trigger F1 dropped {diff_obj.trigger_f1_drop_pp:.1f}pp "
-                f"(limit 5.0pp)"
-            )
-        rationale = "; ".join(rationale_bits) or "see metrics table"
+        reasons = diff_obj.regression_reasons()
+        rationale = "; ".join(reasons) if reasons else "see metrics table"
     elif diff_obj.warning:
         status = "**Status: warn** ⚠️"
-        rationale = "drops above 2pp but below 5pp regression threshold"
+        rationale = "metrics within 2-5pp of threshold; review before merging"
     else:
         status = "**Status: ok** ✅"
         rationale = "all metrics within thresholds"
 
-    rows = [
-        ("trigger F1", base_f1, cand_f1, f1_delta),
-        ("with_skill pass rate", base_with, cand_with, with_delta),
-        ("without_skill pass rate", base_without, cand_without, without_delta),
-    ]
-    table_lines = [
+    # Quality block — the headline.
+    quality_lines = [
+        "### Quality (the headline)",
+        "",
         "| metric | baseline | candidate | Δ |",
         "|---|---:|---:|---:|",
+        f"| **skill_help** (with − without) | {base_help:+.1f}pp | "
+        f"{cand_help:+.1f}pp | {_arrow(help_delta)} {_format_pp(help_delta)} |",
+        f"| with_skill pass rate | {base_with:.2f} | {cand_with:.2f} | "
+        f"{_arrow(with_delta)} {_format_pp(with_delta)} |",
+        f"| without_skill pass rate | {base_without:.2f} | {cand_without:.2f} | "
+        f"{_arrow(without_delta)} {_format_pp(without_delta)} |",
     ]
-    for label, b, c, d in rows:
-        table_lines.append(
-            f"| {label} | {b:.2f} | {c:.2f} | {_arrow(d)} {_format_pp(d)} |"
-        )
-    table_lines.append(
-        f"| with−without delta | {base_delta_q:.1f}pp | {cand_delta_q:.1f}pp | "
-        f"{_arrow(cand_delta_q - base_delta_q)} {_format_pp(cand_delta_q - base_delta_q)} |"
-    )
+
+    # Discovery block — secondary, but precision drops still regress.
+    discovery_lines = [
+        "### Discovery (secondary)",
+        "",
+        "| metric | baseline | candidate | Δ | rule |",
+        "|---|---:|---:|---:|---|",
+        f"| precision | {base_precision:.2f} | {cand_precision:.2f} | "
+        f"{_arrow(precision_delta)} {_format_pp(precision_delta)} | drop >5pp = regression |",
+        f"| recall | {base_recall:.2f} | {cand_recall:.2f} | "
+        f"{_arrow(recall_delta)} {_format_pp(recall_delta)} | drop = warn only |",
+        f"| F1 (informational) | {base_f1:.2f} | {cand_f1:.2f} | "
+        f"{_arrow(f1_delta)} {_format_pp(f1_delta)} | derived |",
+    ]
 
     body = [
         f"## {diff_obj.skill} — eval delta",
         "",
-        *table_lines,
-        "",
         f"{status} — {rationale}.",
+        "",
+        *quality_lines,
+        "",
+        *discovery_lines,
         "",
         f"_Noise floor: ±{diff_obj.noise_floor_pp:.1f}pp. "
         f"Drops smaller than this are within trial noise._",
