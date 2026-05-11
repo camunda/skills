@@ -10,6 +10,10 @@ contract, SHA-pin update procedure), see
 [`tools/eval-runner/AGENTS.md`](../tools/eval-runner/AGENTS.md). This file is
 the tier above both: what the framework is and why the pieces exist.
 
+If you're new to evals or want a friendlier walkthrough of the same concepts
+(including a plain-English unpack of the asymmetric regression rule), open
+[`evals-explained.html`](evals-explained.html) in a browser.
+
 ---
 
 ## Goals
