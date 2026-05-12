@@ -54,6 +54,7 @@
         "with_skill": { "$ref": "#/$defs/qualityArm" },
         "without_skill": { "$ref": "#/$defs/qualityArm" },
         "delta_pp": { "type": "number" },
+        "estimated_cost_usd": { "type": "number", "minimum": 0 },
         "per_case": {
           "type": "array",
           "items": {
