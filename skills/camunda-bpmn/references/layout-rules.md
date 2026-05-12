@@ -134,17 +134,6 @@ When modifying existing processes:
 3. **Add branches** by shifting existing elements to make room
 4. **Never recompute the entire layout** unless explicitly asked — this destroys manual positioning
 
-## Auto-Layout (Optional)
+## When Layout Is Badly Broken
 
-For a full layout reset when coordinates are badly broken, use the bundled auto-layout script:
-
-```bash
-node scripts/auto-layout.js process.bpmn -o process.bpmn
-```
-
-Or via pipe:
-```bash
-cat process.bpmn | node scripts/auto-layout.js > process-layouted.bpmn
-```
-
-The script installs `bpmn-auto-layout` on first run (cached in temp dir). Warning: this recalculates ALL positions and destroys any manual layout work. Only use as a last resort.
+If element coordinates are badly off (overlapping shapes, runaway waypoints), don't try to patch — re-derive coordinates from scratch using the standard sizes and spacing rules above, walking the flow left-to-right. Open the result in Modeler to sanity-check before declaring it done.

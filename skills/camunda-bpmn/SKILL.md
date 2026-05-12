@@ -11,7 +11,6 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 
 - Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed)
 - c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 bpmn lint`
-- Node.js 18+ (only needed for the optional auto-layout script in `scripts/`)
 
 ## Cross-References
 

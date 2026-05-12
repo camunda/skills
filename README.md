@@ -23,7 +23,6 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 
 - **Camunda 8.8+** cluster — local via [c8run](https://docs.camunda.io/docs/self-managed/setup/deploy/local/c8run/), SaaS, or Self-Managed
 - **[c8ctl](https://github.com/camunda/c8ctl)** CLI installed and configured — provides all skill tooling (`c8 bpmn lint`, `c8 element-template`, `c8 feel evaluate`, deploy, watch, operate)
-- **Node.js 18+** — only required for the optional auto-layout script in the camunda-bpmn skill
 
 ## Installation
 
