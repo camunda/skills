@@ -112,33 +112,36 @@ BPMN files can be large. Follow these rules:
 2. **Use Edit for modifications** — locate the exact section with Grep first, then make precise edits
 3. **Read specific sections only** — use offset/limit when needed
 
-### Validation
-
-After generating or editing BPMN XML, always validate:
-
-```bash
-c8 bpmn lint path/to/process.bpmn
-```
-
-`c8 bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. You can also pipe BPMN via stdin:
-
-```bash
-cat process.bpmn | c8 bpmn lint
-```
-
-Fix ALL errors and warnings, especially:
-- **no-overlapping-elements**: Adjust DI coordinates for proper spacing
-- **fake-join**: Ensure gateways properly join/synchronize flows
-- **label-required**: All labeled elements must have names
-
-Re-validate until clean.
-
 ### Hygiene
 
 - Self-close empty elements
 - Keep unique, descriptive IDs
 - Include BPMN DI section for visual layout (see `references/layout-rules.md`)
 - Always include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
+
+### Lint loop — mandatory exit gate
+
+A BPMN edit is **not done** until `c8 bpmn lint` reports zero errors AND zero warnings. Treat this as the closing step of every BPMN task — generation, modification, refactor, or merge.
+
+1. Run the linter against the file you touched:
+
+   ```bash
+   c8 bpmn lint path/to/process.bpmn
+   ```
+
+   `c8 bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8 bpmn lint`.
+
+2. If output is non-empty, fix every reported issue and run the linter again. Common categories:
+   - **no-overlapping-elements** — adjust DI coordinates per `references/layout-rules.md` spacing rules
+   - **fake-join** — make join gateways match their fork type (XOR forks → XOR joins, AND forks → AND joins)
+   - **label-required** — name every labeled element
+   - **no-disconnected** — ensure every element is on a complete start-to-end path
+   - **no-implicit-split** — exclusive gateway outgoing flows need conditions + a default
+   - **superfluous-gateway** — drop pass-through gateways with one in, one out
+
+3. Loop until the linter is clean. Do not declare the task done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
+
+If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
 
 ## References
 
