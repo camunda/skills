@@ -2,7 +2,7 @@
   "skill_name": "camunda-c8ctl",
   "evals": [
     {
-      "id": 1,
+      "id": "local-cluster-bootstrap",
       "prompt": "I want to start working with Camunda 8 locally. I don't have a cluster yet. Help me get going.",
       "expected_output": "Walks the user through installing c8ctl, starting a local cluster via c8 cluster start, and verifying the cluster is alive",
       "expectations": [
@@ -14,7 +14,7 @@
       ]
     },
     {
-      "id": 2,
+      "id": "saas-profile-setup",
       "prompt": "Set up c8ctl to talk to my Camunda 8 SaaS cluster. Cluster URL is https://abc123.bru-2.zeebe.camunda.io and I have a client ID and secret from the Camunda console.",
       "expected_output": "Adds and activates a c8ctl profile for the SaaS cluster with the provided credentials",
       "expectations": [
@@ -26,7 +26,7 @@
       ]
     },
     {
-      "id": 3,
+      "id": "list-deployments",
       "prompt": "I have c8ctl installed and a local cluster running. How do I see what's currently deployed and what process instances are running?",
       "expected_output": "Demonstrates the inspection commands for deployed definitions and running instances",
       "expectations": [
@@ -38,7 +38,7 @@
       ]
     },
     {
-      "id": 4,
+      "id": "install-plugin",
       "prompt": "I want to install the c8ctl diagram-renderer plugin from https://github.com/camunda/c8ctl-plugin-diagram-renderer and use it to render a process instance diagram.",
       "expected_output": "Installs the plugin and renders a diagram",
       "expectations": [

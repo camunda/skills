@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://camunda.com/skills/triggers.schema.json",
+  "title": "triggers.json",
+  "type": "object",
+  "required": ["schema_version", "skill", "positive", "negative"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "skill": { "type": "string", "minLength": 1 },
+    "discoverability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["all_skills"] }
+      }
+    },
+    "positive": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/positiveCase" }
+    },
+    "negative": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/negativeCase" }
+    }
+  },
+  "$defs": {
+    "positiveCase": {
+      "type": "object",
+      "required": ["id", "prompt", "expected_load"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "prompt": { "type": "string", "minLength": 1 },
+        "expected_load": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "expected_dependencies": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "must_not_load": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "negativeCase": {
+      "type": "object",
+      "required": ["id", "prompt", "must_not_load"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "prompt": { "type": "string", "minLength": 1 },
+        "expected_load": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "must_not_load": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

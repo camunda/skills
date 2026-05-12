@@ -189,6 +189,7 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see `
 - **`c8: command not found`** — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
 - **`Node.js version too old`** — c8ctl requires Node ≥ 22.18.0 for native TypeScript support. Use `nvm` or `asdf` to upgrade.
 - **Local cluster won't start** — check `c8 cluster status` and `c8 cluster logs`. Common causes: port 8080 already in use, Java not installed (c8run needs JRE 21+), insufficient disk space for the binary download.
+- **`c8 cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — you're likely running inside a sandboxed or otherwise restricted environment (some coding-agent harnesses, container modes with restricted networking, macOS App Sandbox, etc.) that blocks the underlying c8run from binding listen sockets. Run `c8 cluster start` directly on the user's machine outside any sandbox. If you're an AI coding agent operating in a restricted mode, escalate the command out of the sandbox or ask the user to run it themselves once; subsequent read-only commands against the running cluster usually work fine inside the sandbox.
 - **OAuth errors against SaaS** — verify `--clientId`, `--clientSecret`, and (if your cluster requires it) `--audience` and `--oAuthUrl`. The cluster URL for SaaS is the *Zeebe REST address*, not the dashboard URL.
 
 ## References

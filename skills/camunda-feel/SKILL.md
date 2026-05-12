@@ -1,6 +1,7 @@
 ---
 name: camunda-feel
-description: Writes and debugs FEEL (Friendly Enough Expression Language) expressions for Camunda 8. This skill should be used when creating FEEL expressions for gateway conditions, input/output mappings, timer definitions, form validation, or DMN decision logic.
+description: |
+  Writes, debugs, and evaluates FEEL (Friendly Enough Expression Language) expressions for Camunda 8 — the expression language Zeebe uses for data transformation, conditions, and calculations in BPMN, DMN, and Camunda Forms. Use whenever a Camunda task involves expressions, conditions, calculations, list filtering or projection, date/duration arithmetic, type coercion (number-to-string), null-safe access, or string interpolation. Concrete surfaces include gateway conditions and conditional sequence flows, service-task input/output mappings, timer durations and cycles (ISO 8601 PT…/R…), DMN input and output entries, Camunda Form validation rules and conditional visibility, and Connector result and error expressions. Also use to debug "FEEL_RESOLUTION_ERROR", "Can't add 'N' to ...", and expressions that silently return null. Built-in functions covered include bpmnError(), now(), today(), date(), duration(), every/some quantifiers, list filters, and Camunda's fromAi() for agentic AI.
 ---
 
 # Camunda FEEL Expressions
@@ -73,6 +74,18 @@ c8 feel evaluate 'customer.name' --var customer.name=Alice
 ```bash
 c8 feel evaluate '=amount * 1.15' --var amount=100 --engine local
 ```
+
+**Concrete divergence: `today()` returns a different type.** On the cluster engine, `today()` returns a `date` (e.g. `2026-05-12`). On `--engine local` (feelin), it returns a date-time at midnight in the local timezone (e.g. `2026-05-12T00:00:00.000+02:00`). This breaks downstream comparisons:
+
+```bash
+# cluster engine — passes
+c8 feel evaluate 'today() = date("2026-05-12")'           # → true
+
+# local engine — fails silently
+c8 feel evaluate 'today() = date("2026-05-12")' --engine local   # → false
+```
+
+If a date-typed argument is required by a downstream function, the local result may also raise a type error that the cluster never sees.
 
 ### Core Syntax
 

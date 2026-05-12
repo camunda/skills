@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "skill": "camunda-bpmn",
+  "established_at": "2026-05-12T19:47:02.561692+00:00",
+  "established_by": "3b74585",
+  "source_iteration": "evals/camunda-bpmn/iteration-1",
+  "model": {
+    "provider": "anthropic",
+    "id": "claude-sonnet-4-6",
+    "harness": "claude-agent-sdk",
+    "judge": "claude-sonnet-4-6"
+  },
+  "trials_per_case": 1,
+  "triggers": {
+    "f1": 0.3333,
+    "precision": 1.0,
+    "recall": 0.2,
+    "positive_cases": 10,
+    "negative_cases": 10
+  },
+  "quality": {
+    "with_skill": {
+      "pass_rate": 1.0,
+      "n_cases": 3,
+      "n_trials": 1
+    },
+    "without_skill": {
+      "pass_rate": 1.0,
+      "n_cases": 3,
+      "n_trials": 1
+    },
+    "delta_pp": 0.0,
+    "per_case": [
+      {
+        "id": "multi-instance-parallel",
+        "with_skill": 1.0,
+        "without_skill": 1.0
+      },
+      {
+        "id": "validate-and-fix",
+        "with_skill": 1.0,
+        "without_skill": 1.0
+      },
+      {
+        "id": "zeebe-retries-and-headers",
+        "with_skill": 1.0,
+        "without_skill": 1.0
+      }
+    ],
+    "estimated_cost_usd": 0.7235
+  },
+  "regression_thresholds": {
+    "with_skill_pass_rate_drop_pp": 5.0,
+    "trigger_f1_drop_pp": 5.0,
+    "sustained_runs": 2,
+    "noise_floor_pp": 33.33
+  }
+}
