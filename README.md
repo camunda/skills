@@ -1,3 +1,6 @@
+> [!CAUTION]
+> WIP: not ready yet. Skills might not yet work as documented.
+
 # Camunda Skills
 
 Official AI coding skills for Camunda 8 development. Build working Camunda solutions in minutes with AI guidance.
