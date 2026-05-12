@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "skill": "camunda-feel",
+  "established_at": "2026-05-12T19:46:46.610889+00:00",
+  "established_by": "3b74585",
+  "source_iteration": "evals/camunda-feel/iteration-1",
+  "model": {
+    "provider": "anthropic",
+    "id": "claude-sonnet-4-6",
+    "harness": "claude-agent-sdk",
+    "judge": "claude-sonnet-4-6"
+  },
+  "trials_per_case": 1,
+  "triggers": {
+    "f1": 0.1818,
+    "precision": 1.0,
+    "recall": 0.1,
+    "positive_cases": 10,
+    "negative_cases": 10
+  },
+  "quality": {
+    "with_skill": {
+      "pass_rate": 1.0,
+      "n_cases": 3,
+      "n_trials": 1
+    },
+    "without_skill": {
+      "pass_rate": 1.0,
+      "n_cases": 3,
+      "n_trials": 1
+    },
+    "delta_pp": 0.0,
+    "per_case": [
+      {
+        "id": "evaluate-debug",
+        "with_skill": 1.0,
+        "without_skill": 1.0
+      },
+      {
+        "id": "every-quantifier",
+        "with_skill": 1.0,
+        "without_skill": 1.0
+      },
+      {
+        "id": "first-element-access",
+        "with_skill": 1.0,
+        "without_skill": 1.0
+      }
+    ],
+    "estimated_cost_usd": 0.1333
+  },
+  "regression_thresholds": {
+    "with_skill_pass_rate_drop_pp": 5.0,
+    "trigger_f1_drop_pp": 5.0,
+    "sustained_runs": 2,
+    "noise_floor_pp": 33.33
+  }
+}
