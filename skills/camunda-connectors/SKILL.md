@@ -57,12 +57,13 @@ For frequently-used connectors, you can skip straight to a search keyword instea
 
 | Use case | Search keyword | Typical template family |
 |---|---|---|
-| Call a REST / HTTP API | `REST` or `HTTP` | `io.camunda.connectors.HttpJson.v2` (Outbound) / `HttpWebhookConnector` (Inbound) |
-| Send Slack message | `slack` | `io.camunda:slack` |
-| Send email (SMTP) | `email` | `io.camunda.connectors.email` |
-| Produce / consume Kafka | `kafka` | `io.camunda.connectors.KAFKA` (Outbound) / `KafkaConnector` (Inbound) |
-| Receive a webhook | `webhook` | `io.camunda.connectors.webhook.WebhookConnector.v1` |
-| AI Agent (LLM-driven sub-process) | `ai agent` | `io.camunda.agenticai:aiagent` — see **camunda-ai-agent** |
+| Call a REST / HTTP API (outbound) | `REST` or `HTTP` | `io.camunda.connectors.HttpJson.v2` |
+| Send Slack message | `slack` | `io.camunda.connectors.Slack.v1` |
+| Send / read email (SMTP / IMAP / POP3) | `email` | `io.camunda.connectors.email.v1` |
+| Kafka producer (outbound) | `kafka` | `io.camunda.connectors.KAFKA.v1` |
+| Kafka consumer (inbound start / intermediate / boundary) | `kafka` | `io.camunda.connectors.inbound.KafkaMessageStart.v1`, `…KafkaIntermediate.v1`, `…KafkaBoundary.v1` |
+| Receive a webhook (inbound start / intermediate / boundary) | `webhook` | `io.camunda.connectors.webhook.WebhookConnector.v1`, `…WebhookConnectorIntermediate.v1`, `…WebhookConnectorBoundary.v1` |
+| AI Agent (LLM-driven ad-hoc subprocess) | `ai agent` | Sub-process and Task variants — see **camunda-ai-agent** |
 
 For anything not in this table, search first. IDs and versions evolve — the local cache is the source of truth.
 
