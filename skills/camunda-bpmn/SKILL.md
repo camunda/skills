@@ -66,7 +66,7 @@ Always encode special characters in XML attribute values:
 - Use None start event for most processes; Message for external triggers; Timer for scheduled execution
 
 **Tasks** — one atomic action per task:
-- **User Task**: Human interaction. Requires `<zeebe:userTask/>` (8.5+) and `<zeebe:formDefinition formId="..."/>`. Assign with `<zeebe:assignmentDefinition candidateGroups="..."/>`.
+- **User Task**: Human interaction. Use the Camunda user task implementation: include `<zeebe:userTask/>` and link the form via `<zeebe:formDefinition formId="..."/>`. Assign with `<zeebe:assignmentDefinition candidateGroups="..."/>`. Do NOT write the deprecated job-worker variant (no `<zeebe:userTask/>`, `formKey` instead of `formId`) — see `references/zeebe-extensions.md` § Form Definition.
 - **Service Task**: Automated work. Requires `<zeebe:taskDefinition type="..." retries="3"/>`. The type must exactly match worker registration (case-sensitive).
 - **Script Task**: Inline FEEL expression. Uses `<zeebe:script expression="=..." resultVariable="..."/>`.
 - **Business Rule Task**: DMN evaluation. Uses `<zeebe:calledDecision decisionId="..." resultVariable="..."/>`.

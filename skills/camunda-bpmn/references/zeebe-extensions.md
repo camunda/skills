@@ -89,16 +89,46 @@ For service tasks with custom job workers:
 
 ## Form Definition
 
-Link user tasks to Camunda Forms:
+Link a user task to a Camunda Form. **Always use the Camunda user task implementation (`<zeebe:userTask/>` + `formId`) for new processes.** The older job-worker user task (no `<zeebe:userTask/>`, form linked via `formKey`) is deprecated in Camunda 8.8 and removed in 8.10.
+
+### Current — Camunda user task with linked Camunda Form
+
+```xml
+<bpmn:userTask id="ReviewInvoice" name="Review invoice">
+  <bpmn:extensionElements>
+    <zeebe:userTask />
+    <zeebe:formDefinition formId="review-invoice-form" />
+  </bpmn:extensionElements>
+</bpmn:userTask>
+```
+
+- `<zeebe:userTask/>` (empty self-closing tag) is **required** — its presence is what makes this a Camunda user task. Omitting it falls back to the deprecated job-worker implementation.
+- `formId` matches the `id` field in the corresponding `.form` JSON file.
+- Default binding is `latest` (form version resolved at task creation). To pin: add `bindingType="deployment"` (form version from the same deployment) or `bindingType="versionTag" versionTag="v1.0"` (a specific tagged version).
+
+### Current — Camunda user task with an external (custom) form
 
 ```xml
 <zeebe:userTask />
-<zeebe:formDefinition formId="review-form" />
+<zeebe:formDefinition externalReference="custom-form-key" />
 ```
 
-- `<zeebe:userTask/>` is **required** for native user tasks (8.5+)
-- `formId` must match the `id` field in the corresponding `.form` JSON file
-- For embedded forms: `<zeebe:formDefinition formKey="camunda-forms:bpmn:formId" />`
+Use `externalReference` (not `formKey`) when the form lives in an external form renderer rather than a deployed Camunda Form.
+
+### Deprecated — do not write
+
+```xml
+<!-- WRONG: deprecated job-worker user task (no <zeebe:userTask/> + formKey) -->
+<bpmn:userTask id="ReviewInvoice" name="Review invoice">
+  <bpmn:extensionElements>
+    <zeebe:formDefinition formKey="camunda-forms:bpmn:userTaskForm_review" />
+  </bpmn:extensionElements>
+</bpmn:userTask>
+```
+
+This shape (no `<zeebe:userTask/>`, `formKey` instead of `formId`) is the legacy job-worker user task. Camunda Modeler now auto-converts it to the Camunda user task and warns; new authoring must not produce it. The Tasklist v1 API that backs it is removed in 8.10.
+
+If you encounter this shape in an existing process you're editing, add `<zeebe:userTask />` and replace `formKey` with the appropriate `formId` (for embedded/deployed Camunda Forms) or `externalReference` (for external forms).
 
 ## Assignment Definition
 
