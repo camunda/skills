@@ -138,6 +138,27 @@ def test_compare_table(stdout, expected, want_pass, outputs_dir, repo_root):
     assert r.passed is want_pass, f"expected {want_pass}, got {r.passed}: {r.message}"
 
 
+def test_compare_strips_trailing_warning_block(outputs_dir, repo_root):
+    """c8 feel evaluate appends a ⚠ warning block after the JSON result on stdout
+    in some scopes (e.g. unresolved-name inside a filter closure). The trailer
+    must not break the json.loads on the list/dict result."""
+    (outputs_dir / "answer.feel").write_text(
+        'employees[department = "Engineering" and salary > 80000].name'
+    )
+    stdout = (
+        '[\n  "Alice",\n  "Dan"\n]\n\n'
+        "⚠ 1 warning:\n  No variable found with name 'department'"
+    )
+    fake_proc = CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
+    with patch.object(fe.shutil, "which", return_value="/usr/bin/c8"), \
+         patch.object(fe.subprocess, "run", return_value=fake_proc):
+        r = fe.run(
+            _verifier(expected=["Alice", "Dan"]),
+            {"id": "x"}, outputs_dir, repo_root,
+        )
+    assert r.passed, r.message
+
+
 def test_compare_records_actual_in_details(outputs_dir, repo_root):
     (outputs_dir / "answer.feel").write_text("1+1")
     fake_proc = CompletedProcess(args=[], returncode=0, stdout="2", stderr="")

@@ -81,6 +81,27 @@ _CLUSTER_UNREACHABLE_HINTS = (
 
 _FLOAT_EPSILON = 1e-6
 
+# c8 feel evaluate appends benign warning blocks after the result on stdout,
+# e.g. an unresolved-name warning emitted from inside a filter scope. They
+# start with the U+26A0 (⚠) marker on a fresh line, e.g.:
+#
+#     [
+#       "Alice",
+#       "Dan"
+#     ]
+#
+#     ⚠ 1 warning:
+#       No variable found with name 'department'
+#
+# These trailers don't affect correctness but break a naive json.loads on
+# stdout. Strip them before comparison.
+_WARNING_MARKER = "⚠"
+
+
+def _strip_warnings(stdout: str) -> str:
+    idx = stdout.find(_WARNING_MARKER)
+    return stdout if idx < 0 else stdout[:idx].rstrip()
+
 
 def _read_answer(outputs_dir: Path, name: str) -> str | None:
     """Read the agent's FEEL output file. Returns None if missing/empty."""
@@ -98,7 +119,7 @@ def _is_unreachable(stderr: str) -> bool:
 
 def _compare(actual_stdout: str, expected: Any) -> tuple[bool, str]:
     """Compare c8's trimmed stdout to ``expected``. Returns (passed, message)."""
-    actual = actual_stdout.strip()
+    actual = _strip_warnings(actual_stdout).strip()
 
     # bool / None
     if isinstance(expected, bool):
