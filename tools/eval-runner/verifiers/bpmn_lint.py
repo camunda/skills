@@ -5,10 +5,10 @@ Reads the agent's emitted BPMN from ``outputs/process.bpmn`` (or whatever
 
     c8 bpmn lint <file> --quiet
 
-`--quiet` is critical: in non-quiet mode the CLI exits 0 even when lint
-errors are present (it prints the report to stdout and exits cleanly).
-Quiet mode exits 1 on any lint or parse failure, which matches what we
-need.
+Both quiet and non-quiet modes exit non-zero on parse failures or lint
+violations; ``--quiet`` is used to suppress the ``✓ No issues found.``
+success line so the verifier output is clean when there's nothing to
+report.
 
 Verifier entry shape (in evals.json)::
 

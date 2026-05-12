@@ -472,11 +472,11 @@ infrastructure-level regressions.
 ### Existing verifier: `bpmn-lint`
 
 Reads `outputs/process.bpmn` (or whatever `verifier.answer_file`
-overrides to) and shells to `c8 bpmn lint <file> --quiet`. The
-`--quiet` flag is critical: in non-quiet mode the CLI exits 0 even
-when lint errors are present (it prints the report to stdout and
-exits cleanly). Quiet mode exits 1 on any parse failure or lint
-violation, which is the contract the verifier needs.
+overrides to) and shells to `c8 bpmn lint <file> --quiet`. Both
+quiet and non-quiet modes exit non-zero on parse failures or lint
+violations; `--quiet` is used to suppress the `✓ No issues found.`
+success line so the verifier output is clean when there's nothing
+to report.
 
 There's no `expected` field — passing means the BPMN parses and
 lints clean against the c8ctl-bundled `bpmnlint` ruleset. Failure
