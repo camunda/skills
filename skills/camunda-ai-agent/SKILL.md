@@ -1,11 +1,13 @@
 ---
 name: camunda-ai-agent
-description: Models and configures AI agents in Camunda 8 BPMN — the AI Agent connector (Sub-process and Task variants) running tools modeled as BPMN activities, with fromAi() parameters, system/user prompt FEEL strings, tool descriptions, and agent context for feedback loops. Use when creating, editing, or debugging an agentic AI process: an LLM that calls tools modeled as BPMN activities.
+description: Models and configures AI agents in Camunda 8 BPMN using the AI Agent Sub-process connector — an LLM driver applied to an ad-hoc subprocess with tools modeled as BPMN activities, fromAi() parameters, system/user prompt FEEL strings, tool descriptions, and multi-turn agent context. Use when creating, editing, or debugging an agentic AI process: an LLM that calls tools modeled as BPMN activities.
 ---
 
 # Camunda AI Agent
 
-Build agentic AI processes in Camunda 8.8+: an LLM driver (the AI Agent connector) calling tools modeled as BPMN activities inside an ad-hoc subprocess. Covers shape, prompts, tool modeling with `fromAi()`, the two implementation variants, and the feedback-loop concept.
+Build agentic AI processes in Camunda 8.8+: an LLM driver (the AI Agent connector, **Sub-process variant**) applied to an ad-hoc subprocess with tools modeled as BPMN activities. Covers shape, prompts, tool modeling with `fromAi()`, sub-flow tools, and multi-turn agent context.
+
+The older **Task variant** (AI Agent connector on a service task paired with an external multi-instance ad-hoc subprocess and explicit feedback loop) is documented in `references/ai-agent-task.md` for the niche cases where you need to audit or intercept every tool call. The Sub-process variant is the recommended choice for everything else, and is what the rest of this skill teaches.
 
 ## Prerequisites
 
@@ -29,17 +31,6 @@ Build agentic AI processes in Camunda 8.8+: an LLM driver (the AI Agent connecto
 - [`fromAi()` FEEL function](https://docs.camunda.io/docs/components/modeler/feel/builtin-functions/feel-built-in-functions-miscellaneous/#fromaivalue)
 
 When in doubt about field names, supported types, or schema details, prefer the official docs over this skill's examples.
-
-## Two Implementations
-
-The AI Agent ships in two variants. Pick before modeling.
-
-| Variant | When to use | Where it lives |
-|---|---|---|
-| **AI Agent Sub-process** (recommended) | Most use cases. Tool feedback loop is handled internally — you don't model it. Supports event subprocesses inside the agent. | Element template applied to a `bpmn:adHocSubProcess` (job-worker implementation). |
-| **AI Agent Task** | When you need explicit control over the feedback loop (auditing tool calls, pre/post-processing, or a one-shot LLM call with no tools). | Element template applied to a `bpmn:serviceTask`, paired with a separate multi-instance `bpmn:adHocSubProcess` and an explicit BPMN loop. |
-
-The rest of this skill defaults to the Sub-process variant. The Task variant is covered briefly at the end.
 
 ## Applying the AI Agent Connector
 
@@ -67,7 +58,7 @@ The template handles the `zeebe:taskDefinition`, the `zeebe:adHoc` collection bi
 
 Supported providers: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
 
-## The BPMN Shape (Sub-process Variant)
+## The BPMN Shape
 
 The host is `bpmn:adHocSubProcess` — not a service task and not a regular sub-process. Tools live inside it.
 
@@ -82,10 +73,10 @@ bpmn:adHocSubProcess  (template applied here)
 
 Hard rules that the lint loop does NOT catch — verify by hand:
 
-- The element type must be `bpmn:adHocSubProcess`. A regular `bpmn:subProcess` or a service task will not host the Sub-process variant of the connector.
-- A tool activity is **a root node with no incoming sequence flow** and **not a boundary event**. An incoming flow turns the node into a regular flow step and the agent never sees it.
+- The element type must be `bpmn:adHocSubProcess`. A regular `bpmn:subProcess` or a service task will not host the connector.
+- A tool's **root node** is the entry activity that the LLM picks. A root node has **no incoming sequence flow** and is **not a boundary event**. An incoming flow turns the node into a regular flow step and the agent never sees it.
 - The ad-hoc subprocess must contain **at least one activity** — BPMN semantics; an empty agent is rejected.
-- Tools should write their result to a variable named `toolCallResult` (see below).
+- Somewhere in the tool's execution flow, the variable `toolCallResult` must be set — for a simple single-activity tool that's the activity itself; for a sub-flow tool, it can be any activity inside the sub-flow (see below).
 
 ## Defining Tools
 
@@ -98,6 +89,8 @@ Three things determine whether the LLM picks a tool correctly:
    > "Look up a customer by ID. Returns the customer's name, tier, and account status. Call this when the user mentions a customer ID or name. Do not call for anonymous queries."
 
 3. **Input schema** — derived automatically from `fromAi()` calls inside the activity's input mappings (see next section). No `fromAi()` calls → empty schema → the LLM can't pass parameters.
+
+A tool can be a **single activity** (service task, script task, user task) or a **sub-flow** rooted at a `bpmn:subProcess` containing further activities. In both cases the LLM only sees the root node — descriptions, inputs, and schema are read from there. The internal sub-flow steps are invisible to the LLM; they execute in sequence per normal BPMN semantics and propagate variables up when the sub-process completes.
 
 ### REST connector tool
 
@@ -199,9 +192,12 @@ fromAi(value, description, type, schema, options)
 
 ## toolCallResult — Returning Output to the Agent
 
-Every tool should write its result to a variable named `toolCallResult`. The connector collects these and passes them back to the LLM as tool-call responses.
+When a tool completes, the connector reads the variable named `toolCallResult` from the tool's scope and forwards it to the LLM as the tool-call response. The rule is about **scope**, not which activity sets it:
 
-Ways to set `toolCallResult` depending on tool type:
+- **Single-activity tool** — the activity itself sets `toolCallResult` (via a result expression / result variable / output mapping / script result variable).
+- **Sub-flow tool** (root is a `bpmn:subProcess` containing further activities) — any activity inside the sub-flow can set `toolCallResult`. Typically the last meaningful activity does — e.g., the receive/transform step at the end of a send-then-wait pattern. BPMN variable scoping propagates the value to the sub-process scope when it completes.
+
+Ways to set `toolCallResult` depending on the activity type:
 
 - **Connector with result expression**: `value="={toolCallResult: response.body}"` (or any FEEL shape).
 - **Connector with result variable**: name the result variable `toolCallResult`.
@@ -210,9 +206,7 @@ Ways to set `toolCallResult` depending on tool type:
 
 The value can be primitive (string, number) or a complex FEEL context — it'll be serialized to JSON before being sent to the LLM.
 
-If `toolCallResult` is **missing or empty**, the agent doesn't stall: the connector sends a generic "tool executed successfully without returning a result" message to the LLM. The LLM then has no useful data to reason about and may make worse decisions on the next turn. Always set `toolCallResult` meaningfully.
-
-For the Task variant (multi-instance ad-hoc subprocess), define a local input mapping on the ad-hoc subprocess that creates `toolCallResult` as a local variable — this prevents interference between parallel tool calls.
+If `toolCallResult` is **missing or empty** at the end of the tool's execution, the agent doesn't stall: the connector sends a generic "tool executed successfully without returning a result" message to the LLM. The LLM then has no useful data to reason about and may make worse decisions on the next turn. Always set `toolCallResult` meaningfully somewhere in the tool flow.
 
 ## Prompts
 
@@ -237,22 +231,17 @@ For long, structured prompts, build the string in a script task upstream and pas
 
 ## Tool-Call Feedback Loop
 
-With the Sub-process variant, the feedback loop is **internal**: the agent job worker repeatedly calls the LLM, activates the tools it chose, collects results, and re-prompts until the LLM produces a final response or `maxModelCalls` is reached. You model only the tools, not the loop.
-
-With the Task variant, the loop is **explicit in the BPMN**: a multi-instance ad-hoc subprocess runs the tools, and an exclusive gateway routes back to the AI Agent task while `agent.toolCalls` is non-empty. The Task example in the official docs is the canonical reference.
+The tool feedback loop is **internal**: the agent job worker repeatedly calls the LLM, activates the tools it chose, collects results, and re-prompts until the LLM produces a final response or `data.limits.maxModelCalls` is reached. You don't model the loop — only the tools.
 
 ## Response Interaction (User Feedback Loop)
 
-Independent of the tool loop, you may want a user to review or amend the agent's final response and bounce it back in. For example, a user task collects a `followUpInput` variable; a flow routes back to the agent; the user-prompt FEEL switches between the initial and follow-up input:
+After the agent produces its final response, you may want a user (or another agent acting as a judge) to review or amend it and bounce it back in. The pattern is to route from the ad-hoc subprocess to a user task that collects `followUpInput`, then back to the same agent ad-hoc subprocess. The user-prompt FEEL switches between the initial and the follow-up input:
 
 ```
 data.userPrompt.prompt = =if (is defined(followUpInput)) then followUpInput else initialUserInput
 ```
 
-The agent context (memory of the prior conversation) is preserved across re-entries by passing the agent's previous result back in:
-
-- **Task variant** — set `Agent context = agent.context`, `Result variable = agent`. The connector reads `agent.context` on entry and writes the new state to `agent` on exit.
-- **Sub-process variant** — the context handling is internal; verify against the [Sub-process docs](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-subprocess/) for the current configuration field.
+The agent preserves conversation context across re-entries; see the [Sub-process docs](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-subprocess/) for the current context-handling field names, since these have evolved across template versions.
 
 ## Limits and Memory
 
@@ -264,12 +253,15 @@ The agent context (memory of the prior conversation) is preserved across re-entr
 
 A tool can be a multi-step sub-process when the operation has internal sequencing (e.g., send-then-wait, fetch-then-transform, or a small business workflow). The LLM sees only the sub-process root — the steps inside are invisible.
 
+`toolCallResult` can be written by any activity inside the sub-flow, not necessarily the first or last one. The variable just needs to exist in the sub-process scope when the sub-process completes. In the example below, the final transform step writes it:
+
 ```xml
 <bpmn:subProcess id="SendCustomerEmail" name="Send email to customer">
   <bpmn:documentation>Send an email to the customer and record that it was sent. Use this when the resolution should be communicated by email.</bpmn:documentation>
   <bpmn:startEvent id="SendStart" />
   <bpmn:sequenceFlow sourceRef="SendStart" targetRef="ComposeEmail" />
-  <bpmn:serviceTask id="ComposeEmail" name="Compose">
+
+  <bpmn:serviceTask id="ComposeEmail" name="Compose and send">
     <bpmn:extensionElements>
       <zeebe:taskDefinition type="io.camunda:http-json:1" />
       <zeebe:ioMapping>
@@ -279,42 +271,37 @@ A tool can be a multi-step sub-process when the operation has internal sequencin
         <!-- method, url, etc. -->
       </zeebe:ioMapping>
       <zeebe:taskHeaders>
-        <zeebe:header key="resultExpression" value="={toolCallResult: response.body}" />
+        <zeebe:header key="resultExpression" value="={emailResponse: response.body}" />
       </zeebe:taskHeaders>
     </bpmn:extensionElements>
   </bpmn:serviceTask>
-  <!-- more steps as needed -->
+  <bpmn:sequenceFlow sourceRef="ComposeEmail" targetRef="RecordSent" />
+
+  <bpmn:scriptTask id="RecordSent" name="Build tool result">
+    <bpmn:extensionElements>
+      <zeebe:script
+        expression='={sent: true, messageId: emailResponse.id, sentAt: now()}'
+        resultVariable="toolCallResult" />
+    </bpmn:extensionElements>
+  </bpmn:scriptTask>
+  <bpmn:sequenceFlow sourceRef="RecordSent" targetRef="SendEnd" />
+
   <bpmn:endEvent id="SendEnd" />
 </bpmn:subProcess>
 ```
 
-For tools that wait on an external callback (chat reply, webhook, async approval), the same pattern applies — the sub-process internally does a send step that captures a correlation key, then an intermediate catch event that waits for the corresponding message. The webhook connector documentation in **camunda-connectors** covers the catch-event side; verify field names against the current connector template before relying on a specific shape.
+The first activity (`ComposeEmail`) writes an intermediate variable (`emailResponse`); the second activity (`RecordSent`) shapes the final tool result and writes `toolCallResult`. Either step could have written `toolCallResult` directly — the agent only sees the value that exists in scope when the sub-process completes.
 
-## The Task Variant — Quick Notes
-
-If the Sub-process variant doesn't fit (you need to audit tool calls, pre-/post-process them, or run the agent without any tools), use the Task variant:
-
-1. Apply the AI Agent **Task** template to a `bpmn:serviceTask`.
-2. Add a separate `bpmn:adHocSubProcess` configured as **parallel multi-instance** with:
-   - Input collection: `=agent.toolCalls`
-   - Input element: `toolCall`
-   - Output collection: `toolCallResults`
-   - Output element: `={id: toolCall._meta.id, name: toolCall._meta.name, content: toolCallResult}`
-   - Active elements collection: `=[toolCall._meta.name]`
-3. Configure the AI Agent Task with **Ad-hoc sub-process ID** pointing at that subprocess, and **Tool call results** = `=toolCallResults`.
-4. Model the loop explicitly: agent task → exclusive gateway (`not(agent.toolCalls = null) and count(agent.toolCalls) > 0`) → ad-hoc subprocess → back to agent task. Default flow exits the loop.
-5. Set `Agent context = agent.context` and `Result variable = agent` on the agent task.
-
-Refer to the [Task-variant worked example](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-task-example/) for a full diagram before modelling this from scratch.
+For tools that wait on an external callback (chat reply, webhook, async approval), the same pattern applies — the sub-process internally does a send step that captures a correlation key, then an intermediate catch event that waits for the corresponding message and sets `toolCallResult` from the inbound payload. The webhook connector docs in **camunda-connectors** cover the catch-event side; verify field names against the current connector template before relying on a specific shape.
 
 ## Pitfalls
 
 These are non-obvious failure modes the lint loop will not catch.
 
-- **Tool has an incoming sequence flow** — it stops being a tool and becomes a regular flow step. Tools must be root nodes inside the ad-hoc subprocess.
+- **Tool has an incoming sequence flow** — it stops being a tool and becomes a regular flow step. The tool's ROOT node must have no incoming flow. Internal activities inside a sub-flow tool can (and do) have incoming flows — that's how the sub-flow works.
 - **Tool name confusion** — the LLM-visible tool name is the BPMN **`id`** (e.g., `LookupCustomer`), not the `name` attribute. Use descriptive PascalCase IDs.
-- **Missing or empty `toolCallResult`** — the LLM receives a generic "tool succeeded with no result" message instead of useful output. Tool selection on later turns degrades.
-- **`bpmn:subProcess` instead of `bpmn:adHocSubProcess`** for the Sub-process variant — the connector won't bind to a regular sub-process.
+- **Missing or empty `toolCallResult` at sub-process completion** — for a sub-flow tool, ensure that at least one activity inside the sub-flow sets `toolCallResult`. A missing value yields a generic "tool succeeded with no result" message to the LLM and degrades the next turn.
+- **`bpmn:subProcess` instead of `bpmn:adHocSubProcess` for the agent host** — the connector binds to `bpmn:adHocSubProcess` only. (Inner sub-flow tools ARE plain `bpmn:subProcess` — that's correct.)
 - **Bare-string prompts** — both system and user prompts are FEEL. Even literals must be `="..."`.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
 - **Empty ad-hoc subprocess** — at least one tool activity is required by BPMN semantics; an agent with no tools is rejected.
@@ -332,8 +319,9 @@ c8 bpmn lint process.bpmn
 
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by hand:
 
-- Host element is `bpmn:adHocSubProcess` (Sub-process variant) or service task + multi-instance ad-hoc subprocess (Task variant).
-- Every tool is a root node, has a `<bpmn:documentation>`, and writes `toolCallResult`.
+- Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
+- Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element.
+- Every tool's flow ends with `toolCallResult` set in scope (single-activity tool sets it directly; sub-flow tool sets it on some inner activity).
 - Both prompts start with `=`.
 - `data.limits.maxModelCalls` is set.
 - API keys are pulled from `{{secrets.*}}`, not literal values.
