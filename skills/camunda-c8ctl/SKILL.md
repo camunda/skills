@@ -5,7 +5,7 @@ description: Installs, configures, and uses c8ctl (the Camunda 8 CLI). This skil
 
 # Camunda c8ctl CLI
 
-Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-dependency CLI for Camunda 8.8+ — for connecting to clusters, deploying resources, and managing process automation. c8ctl is the foundation for the other camunda-* skills (`camunda-bpmn`, `camunda-connectors`, `camunda-feel`, `camunda-process-mgmt`).
+Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-dependency CLI for Camunda 8.8+ — for connecting to clusters, deploying resources, and managing process automation. c8ctl is the foundation for the other camunda-* skills (`camunda-bpmn`, `camunda-connectors`, `camunda-feel`, `camunda-process-mgmt`, `camunda-ai-agent`).
 
 ## Prerequisites
 
@@ -17,6 +17,7 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 - **camunda-connectors**: Uses `c8 element-template search/info/get-properties/apply`
 - **camunda-feel**: Uses `c8 feel evaluate`
 - **camunda-process-mgmt**: Uses `c8 deploy`, `c8 run`, `c8 watch`, `c8 list pi`, `c8 search inc`, `c8 complete ut`, `c8 resolve inc`, etc.
+- **camunda-ai-agent**: Uses `c8 element-template search/apply` to apply the AI Agent connector template
 
 ## Instructions
 

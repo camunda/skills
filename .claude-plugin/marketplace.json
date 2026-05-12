@@ -10,7 +10,7 @@
     {
       "name": "camunda-skills",
       "source": "./",
-      "description": "Camunda 8 development skills — c8ctl CLI setup, BPMN modeling, FEEL expressions, forms, connectors, and process management",
+      "description": "Camunda 8 development skills — c8ctl CLI setup, BPMN modeling, FEEL expressions, forms, connectors, process management, and AI agents",
       "version": "1.0.0"
     }
   ]
