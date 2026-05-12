@@ -227,8 +227,12 @@ def _default_leak_scan_paths() -> tuple[Path, ...]:
     if home:
         candidates.append(Path(home) / "outputs")
     # Common alternates that show up if the agent reads /etc/passwd or
-    # similar to "find" a working dir.
-    for p in ("/root/outputs", "/home/user/outputs", "/tmp/outputs"):
+    # similar to "find" a working dir. /outputs (filesystem root) is the
+    # one we hit most often in practice — agents that read the prompt
+    # instruction "write to outputs/answer.feel" sometimes treat it as
+    # the absolute path /outputs/answer.feel rather than ./outputs/...
+    # relative to cwd.
+    for p in ("/outputs", "/root/outputs", "/home/user/outputs", "/tmp/outputs"):
         candidates.append(Path(p))
     # De-dupe while preserving order.
     seen: set[Path] = set()

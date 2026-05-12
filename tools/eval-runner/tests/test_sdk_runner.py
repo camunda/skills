@@ -300,6 +300,7 @@ def test_default_leak_paths_include_home_outputs(monkeypatch):
     paths = sdk_runner._default_leak_scan_paths()
     assert Path("/some/home/outputs") in paths
     # Common alternates also included.
+    assert Path("/outputs") in paths        # observed in practice
     assert Path("/root/outputs") in paths
     assert Path("/tmp/outputs") in paths
 
