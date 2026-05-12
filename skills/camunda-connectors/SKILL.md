@@ -38,6 +38,7 @@ Read `references/element-template-schema.md` for a comprehensive guide to interp
 c8 element-template search "REST"             # find HTTP/REST connectors
 c8 element-template search "slack"            # find Slack connectors
 c8 element-template search "kafka"            # find Kafka connectors
+c8 element-template search "ai agent"         # find the AI Agent connector
 c8 element-template search "connector" --limit 5   # cap results (default 20)
 ```
 
@@ -49,6 +50,21 @@ To refresh the local OOTB cache (rarely needed — done automatically):
 c8 element-template sync             # fetch latest catalog
 c8 element-template sync --prune     # also drop entries that no longer exist upstream
 ```
+
+#### Common templates (starting points)
+
+For frequently-used connectors, you can skip straight to a search keyword instead of guessing the ID. The exact ID and version still come from `search` — the table below is a navigation hint, not a substitute for it.
+
+| Use case | Search keyword | Typical template family |
+|---|---|---|
+| Call a REST / HTTP API | `REST` or `HTTP` | `io.camunda.connectors.HttpJson.v2` (Outbound) / `HttpWebhookConnector` (Inbound) |
+| Send Slack message | `slack` | `io.camunda:slack` |
+| Send email (SMTP) | `email` | `io.camunda.connectors.email` |
+| Produce / consume Kafka | `kafka` | `io.camunda.connectors.KAFKA` (Outbound) / `KafkaConnector` (Inbound) |
+| Receive a webhook | `webhook` | `io.camunda.connectors.webhook.WebhookConnector.v1` |
+| AI Agent (LLM-driven sub-process) | `ai agent` | `io.camunda.agenticai:aiagent` — see **camunda-ai-agent** |
+
+For anything not in this table, search first. IDs and versions evolve — the local cache is the source of truth.
 
 ### Inspecting a Template
 
