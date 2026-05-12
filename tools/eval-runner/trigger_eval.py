@@ -179,12 +179,18 @@ def invoke_run_eval(
     env = {**os.environ, "PYTHONPATH": str(skill_creator_dir)}
     # Run from the repo root so find_project_root() in run_eval.py walks up
     # to our .claude/ rather than the upstream clone's tree.
+    #
+    # stderr is NOT captured: run_eval.py prints per-probe progress there
+    # and the loop is long (~20 probes × runs), so swallowing it makes the
+    # invocation look like a hang. stdout IS captured — it's a single
+    # pretty-printed JSON object we need to parse on success.
     try:
         proc = subprocess.run(
             cmd,
             cwd=str(repo_root),
             env=env,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=None,
             text=True,
             check=False,
         )
@@ -196,8 +202,9 @@ def invoke_run_eval(
 
     if proc.returncode != 0:
         raise RuntimeError(
-            f"run_eval.py failed (exit {proc.returncode}):\n"
-            f"stderr:\n{proc.stderr}\nstdout:\n{proc.stdout}"
+            f"run_eval.py failed (exit {proc.returncode}); "
+            f"stderr was streamed to the terminal above.\n"
+            f"stdout:\n{proc.stdout}"
         )
     try:
         return json.loads(proc.stdout)
