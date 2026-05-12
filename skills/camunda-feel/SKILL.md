@@ -75,6 +75,18 @@ c8 feel evaluate 'customer.name' --var customer.name=Alice
 c8 feel evaluate '=amount * 1.15' --var amount=100 --engine local
 ```
 
+**Concrete divergence: `today()` returns a different type.** On the cluster engine, `today()` returns a `date` (e.g. `2026-05-12`). On `--engine local` (feelin), it returns a date-time at midnight in the local timezone (e.g. `2026-05-12T00:00:00.000+02:00`). This breaks downstream comparisons:
+
+```bash
+# cluster engine — passes
+c8 feel evaluate 'today() = date("2026-05-12")'           # → true
+
+# local engine — fails silently
+c8 feel evaluate 'today() = date("2026-05-12")' --engine local   # → false
+```
+
+If a date-typed argument is required by a downstream function, the local result may also raise a type error that the cluster never sees.
+
 ### Core Syntax
 
 **Data Types**: Numbers (`1`, `1.5`), Strings (`"hello"`), Booleans (`true`/`false`), `null`, Dates (`date("2024-01-15")`), Times (`time("14:30:00")`), Date-times (`date and time("2024-01-15T14:30:00")`), Durations (`duration("P1D")`), Lists (`[1, 2, 3]`), Contexts (`{name: "Alice"}`), Ranges (`[1..10]`)
