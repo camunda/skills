@@ -117,18 +117,7 @@ Use `externalReference` (not `formKey`) when the form lives in an external form 
 
 ### Deprecated — do not write
 
-```xml
-<!-- WRONG: deprecated job-worker user task (no <zeebe:userTask/> + formKey) -->
-<bpmn:userTask id="ReviewInvoice" name="Review invoice">
-  <bpmn:extensionElements>
-    <zeebe:formDefinition formKey="camunda-forms:bpmn:userTaskForm_review" />
-  </bpmn:extensionElements>
-</bpmn:userTask>
-```
-
-This shape (no `<zeebe:userTask/>`, `formKey` instead of `formId`) is the legacy job-worker user task. Camunda Modeler now auto-converts it to the Camunda user task and warns; new authoring must not produce it. The Tasklist v1 API that backs it is removed in 8.10.
-
-If you encounter this shape in an existing process you're editing, add `<zeebe:userTask />` and replace `formKey` with the appropriate `formId` (for embedded/deployed Camunda Forms) or `externalReference` (for external forms).
+A `<bpmn:userTask>` without `<zeebe:userTask/>` and with `<zeebe:formDefinition formKey="..."/>` is the legacy job-worker user task (deprecated in 8.8, removed in 8.10). If you find this in an existing process, add `<zeebe:userTask />` and rename `formKey` → `formId` (or `externalReference` for external forms).
 
 ## Assignment Definition
 
