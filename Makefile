@@ -30,6 +30,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  help            Show this help."
+	@echo "  try             Launch an interactive Claude Code session with this repo's skills loaded (no install)."
 	@echo "  lint            Tier-0 structural + schema checks."
 	@echo "  eval            Trigger + quality evals (writes evals/<skill>/iteration-N/)."
 	@echo "  eval-triggers   Tier-1 trigger eval only."
@@ -49,6 +50,17 @@ help:
 	@echo "  SKILL      Skill name (e.g. camunda-feel). Empty = all where applicable."
 	@echo "  RUNS       Trials per case (default 3)."
 	@echo "  ITERATION  Iteration dir name (default: latest)."
+
+.PHONY: try
+try:
+	@command -v claude >/dev/null 2>&1 || { \
+		echo "claude CLI not found on PATH. Install Claude Code first: https://docs.claude.com/en/docs/agents-and-tools/claude-code"; \
+		exit 2; \
+	}
+	@TRYDIR=$$(mktemp -d -t camunda-skills-try-XXXXXX); \
+	echo "Launching Claude Code in a fresh dir: $$TRYDIR"; \
+	echo "Skills loaded from: $(REPO_ROOT)"; \
+	cd "$$TRYDIR" && claude --plugin-dir $(REPO_ROOT)
 
 .PHONY: lint
 lint:
