@@ -277,7 +277,7 @@ it deterministically. Schema lives at
   "source_iteration": "evals/camunda-feel/iteration-7",
   "model": {
     "provider": "anthropic",
-    "id": "claude-opus-4-7",
+    "id": "claude-sonnet-4-6",
     "harness": "claude-agent-sdk",
     "judge": "claude-sonnet-4-6"
   },

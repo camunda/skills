@@ -23,7 +23,7 @@ import sdk_runner
 import verifiers
 
 QUALITY_PASS_THRESHOLD = 0.5
-DEFAULT_HARNESS_MODEL = "claude-opus-4-7"
+DEFAULT_HARNESS_MODEL = "claude-sonnet-4-6"
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6"
 
 
