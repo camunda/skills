@@ -241,8 +241,14 @@ skills/camunda-feel/
 
 Per case:
 - `id` — kebab-case slug, stable across reorderings.
-- `prompt` — what we send to the agent. Should explicitly tell the agent
-  where to write its final output (e.g. `outputs/answer.feel`).
+- `prompt` — what we send to the agent. Should tell the agent where to
+  write its final output using the `{{OUTPUTS_DIR}}` placeholder, e.g.
+  `Write your answer to {{OUTPUTS_DIR}}/answer.feel`. The harness
+  substitutes the placeholder with the trial's absolute outputs path
+  before sending the prompt — relative paths like `outputs/answer.feel`
+  used to surface as the absolute `/outputs/answer.feel` on some models
+  because of how they resolve filesystem references under
+  `bypassPermissions`.
 - `expectations[]` — prose checks the LLM judge grades against.
 - `verifiers[]` — optional deterministic post-checks. Each entry is
   dispatched to a verifier module (see "Verifiers" below). Cases without a

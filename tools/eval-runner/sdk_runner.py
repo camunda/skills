@@ -365,6 +365,18 @@ async def run_arm(
     # confines stray writes (the agent may use absolute paths under
     # bypassPermissions) and prevents leaks into the committed repo tree.
     with isolated_workdir(repo_root, available) as workdir:
+        # Substitute {{OUTPUTS_DIR}} in the case prompt with the trial's
+        # absolute outputs path. Some cases otherwise told the agent to
+        # "write to outputs/answer.feel" (relative), and Sonnet sometimes
+        # resolved that as the absolute /outputs/answer.feel rather than
+        # ./outputs/... in cwd. Injecting the absolute path eliminates
+        # the ambiguity — and the resulting prompt is closer to what a
+        # real user with a concrete project dir would write anyway.
+        absolute_outputs = workdir / "outputs"
+        rendered_prompt = prompt.replace(
+            "{{OUTPUTS_DIR}}", str(absolute_outputs)
+        )
+
         options = ClaudeAgentOptions(
             cwd=str(workdir),
             add_dirs=[str(workdir)],
@@ -378,7 +390,7 @@ async def run_arm(
         )
 
         with transcript_path.open("w", encoding="utf-8") as transcript_fh:
-            async for msg in query(prompt=prompt, options=options):
+            async for msg in query(prompt=rendered_prompt, options=options):
                 transcript_fh.write(_serialize_message(msg) + "\n")
                 if isinstance(msg, AssistantMessage):
                     for b in msg.content:

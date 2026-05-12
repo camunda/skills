@@ -3,29 +3,51 @@
   "evals": [
     {
       "id": "first-element-access",
-      "prompt": "Given a list of order events where each event has `timestamp` (number) and `type` (string) fields, the first event in the list is always the creation event. Write a FEEL expression that returns the timestamp of the first event. The input variable is `events`. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
-      "expected_output": "A FEEL expression that returns events[1].timestamp — FEEL lists are 1-indexed, so events[1] is the first element.",
+      "prompt": "Given a list of order events where each event has `timestamp` (number) and `type` (string) fields, the first event in the list is always the creation event. Write a FEEL expression that returns the timestamp of the first event. The input variable is `events`. Write your final FEEL expression (and only the expression, no fences, no commentary) to {{OUTPUTS_DIR}}/answer.feel.",
+      "expected_output": "A FEEL expression that returns events[1].timestamp \u2014 FEEL lists are 1-indexed, so events[1] is the first element.",
       "expectations": [
         "Uses 1-based indexing: events[1] (NOT events[0], which returns null in FEEL)",
-        "Does not call a non-existent helper like first(events) — FEEL has no first() function",
+        "Does not call a non-existent helper like first(events) \u2014 FEEL has no first() function",
         "Result is a numeric value (the timestamp), not null and not a list"
       ],
       "verifiers": [
         {
           "type": "feel-evaluate",
-          "context": {"events": [{"timestamp": 100, "type": "created"}, {"timestamp": 200, "type": "paid"}, {"timestamp": 300, "type": "shipped"}]},
+          "context": {
+            "events": [
+              {
+                "timestamp": 100,
+                "type": "created"
+              },
+              {
+                "timestamp": 200,
+                "type": "paid"
+              },
+              {
+                "timestamp": 300,
+                "type": "shipped"
+              }
+            ]
+          },
           "expected": 100
         },
         {
           "type": "feel-evaluate",
-          "context": {"events": [{"timestamp": 42, "type": "created"}]},
+          "context": {
+            "events": [
+              {
+                "timestamp": 42,
+                "type": "created"
+              }
+            ]
+          },
           "expected": 42
         }
       ]
     },
     {
       "id": "every-quantifier",
-      "prompt": "Write a FEEL expression that returns true when every line item in the `items` list has a positive price, and false otherwise. The input variable `items` is a list of contexts each with a `price` field. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
+      "prompt": "Write a FEEL expression that returns true when every line item in the `items` list has a positive price, and false otherwise. The input variable `items` is a list of contexts each with a `price` field. Write your final FEEL expression (and only the expression, no fences, no commentary) to {{OUTPUTS_DIR}}/answer.feel.",
       "expected_output": "A FEEL expression using the every quantifier: every item in items satisfies item.price > 0",
       "expectations": [
         "Uses the FEEL `every ... in ... satisfies ...` quantifier (not a count-based workaround like count(items[price <= 0]) = 0)",
@@ -35,29 +57,61 @@
       "verifiers": [
         {
           "type": "feel-evaluate",
-          "context": {"items": [{"price": 10}, {"price": 20}, {"price": 30}]},
+          "context": {
+            "items": [
+              {
+                "price": 10
+              },
+              {
+                "price": 20
+              },
+              {
+                "price": 30
+              }
+            ]
+          },
           "expected": true
         },
         {
           "type": "feel-evaluate",
-          "context": {"items": [{"price": 10}, {"price": -1}, {"price": 30}]},
+          "context": {
+            "items": [
+              {
+                "price": 10
+              },
+              {
+                "price": -1
+              },
+              {
+                "price": 30
+              }
+            ]
+          },
           "expected": false
         },
         {
           "type": "feel-evaluate",
-          "context": {"items": [{"price": 0}]},
+          "context": {
+            "items": [
+              {
+                "price": 0
+              }
+            ]
+          },
           "expected": false
         },
         {
           "type": "feel-evaluate",
-          "context": {"items": []},
+          "context": {
+            "items": []
+          },
           "expected": true
         }
       ]
     },
     {
       "id": "evaluate-debug",
-      "prompt": "Fix this broken FEEL expression. It should calculate the total price with tax but returns null:\n\n```feel\n{\n  subtotal: sum(items.price)\n  taxRate: 0.19,\n  tax: subtotal * taxRate\n  total: subtotal + tax\n}.total\n```\n\nThe input variable items is a list of contexts each with a price field. Write your CORRECTED FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
+      "prompt": "Fix this broken FEEL expression. It should calculate the total price with tax but returns null:\n\n```feel\n{\n  subtotal: sum(items.price)\n  taxRate: 0.19,\n  tax: subtotal * taxRate\n  total: subtotal + tax\n}.total\n```\n\nThe input variable items is a list of contexts each with a price field. Write your CORRECTED FEEL expression (and only the expression, no fences, no commentary) to {{OUTPUTS_DIR}}/answer.feel.",
       "expected_output": "The corrected expression has commas separating every interior context entry; the .total accessor remains intact.",
       "expectations": [
         "Corrected expression at outputs/answer.feel parses and evaluates without errors against the cluster FEEL engine",
@@ -67,12 +121,27 @@
       "verifiers": [
         {
           "type": "feel-evaluate",
-          "context": {"items": [{"price": 100}, {"price": 50}]},
+          "context": {
+            "items": [
+              {
+                "price": 100
+              },
+              {
+                "price": 50
+              }
+            ]
+          },
           "expected": 178.5
         },
         {
           "type": "feel-evaluate",
-          "context": {"items": [{"price": 1000}]},
+          "context": {
+            "items": [
+              {
+                "price": 1000
+              }
+            ]
+          },
           "expected": 1190
         }
       ]
