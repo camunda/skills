@@ -84,7 +84,10 @@ make promote SKILL=camunda-<name>          # promote a clean iteration
 
 For the full reference on tiers, artefacts, the runtime flow, the verifier
 contract, and the lifecycle (bootstrap → iterate → promote → regress),
-see [`docs/evals.md`](docs/evals.md).
+see [`docs/evals.md`](docs/evals.md). For a friendlier walkthrough of
+the same concepts (with a plain-English unpack of the asymmetric
+regression rule), open [`docs/evals-explained.html`](docs/evals-explained.html)
+in a browser.
 
 ## Scripts
 

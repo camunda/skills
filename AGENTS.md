@@ -91,8 +91,11 @@ headline metrics.
 For the full picture — three-tier model, verifiers, the
 bootstrap/iterate/promote/regress lifecycle, cost discipline, and how
 to add evals for a new skill — see [`docs/evals.md`](docs/evals.md).
-Harness internals (SDK contract, SHA-pin update procedure) are in
-[`tools/eval-runner/AGENTS.md`](tools/eval-runner/AGENTS.md).
+A plain-English overview of the same concepts (including a friendlier
+unpack of the asymmetric regression rule) lives at
+[`docs/evals-explained.html`](docs/evals-explained.html); open in a
+browser. Harness internals (SDK contract, SHA-pin update procedure)
+are in [`tools/eval-runner/AGENTS.md`](tools/eval-runner/AGENTS.md).
 
 ### Adding a New Skill
 
