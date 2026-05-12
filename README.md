@@ -16,8 +16,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-feel** | Write and debug FEEL expressions |
 | **camunda-forms** | Create Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Browse and configure pre-built connectors via element templates |
-| **camunda-deploy** | Deploy resources and start process instances via c8ctl |
-| **camunda-operate** | Monitor instances, resolve incidents, complete tasks via c8ctl |
+| **camunda-process-mgmt** | Deploy resources, start/inspect instances, resolve incidents, complete tasks — via c8ctl |
 
 ## Prerequisites
 

@@ -528,8 +528,7 @@ Each rollout in Phase 4 adds the verifier its skill needs:
 | camunda-bpmn | `bpmn-lint` (`c8 bpmn lint --quiet`) | done |
 | camunda-forms | `form-render` (forms-js) | future |
 | camunda-connectors | `connector-applied` (`c8 element-template apply` + lint) | future |
-| camunda-deploy | `cli-exit` + `cluster-intercept` | future |
-| camunda-operate | `transcript-shape` (CLI call sequence) | future |
+| camunda-process-mgmt | `cli-exit` + `cluster-intercept` + `transcript-shape` (CLI call sequence) | future |
 | camunda-c8ctl | `profile-state` (post-condition inspection) | future |
 
 CPT-based BPMN behavioral verification (Camunda Process Test) is also

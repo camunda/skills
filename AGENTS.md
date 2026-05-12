@@ -11,8 +11,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-feel** | Writing FEEL expressions (gateway conditions, input/output mappings, timer definitions) |
 | **camunda-forms** | Creating Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates |
-| **camunda-deploy** | Deploying BPMN/DMN/form resources to a Camunda 8 cluster via c8ctl |
-| **camunda-operate** | Monitoring process instances, resolving incidents, completing user tasks via c8ctl |
+| **camunda-process-mgmt** | Deploying resources, starting/inspecting instances, resolving incidents, completing user tasks — all via c8ctl |
 
 ## c8ctl Setup (required)
 

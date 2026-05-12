@@ -90,7 +90,7 @@
     {
       "id": "neg-deploy-existing",
       "prompt": "Deploy this BPMN file to my Camunda 8 cluster.",
-      "expected_load": ["camunda-deploy"],
+      "expected_load": ["camunda-process-mgmt"],
       "must_not_load": ["camunda-bpmn"]
     },
     {
@@ -102,7 +102,7 @@
     {
       "id": "neg-incident-debug",
       "prompt": "I have a stuck process instance with an incident on a service task. Help me find the root cause.",
-      "expected_load": ["camunda-operate"],
+      "expected_load": ["camunda-process-mgmt"],
       "must_not_load": ["camunda-bpmn"]
     },
     {

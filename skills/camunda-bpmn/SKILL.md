@@ -17,7 +17,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 - **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
 - **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
 - **camunda-connectors**: Use for configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates
-- **camunda-deploy**: Use for deploying BPMN to a Camunda cluster via c8ctl
+- **camunda-process-mgmt**: Use for deploying BPMN to a Camunda cluster and managing running instances via c8ctl
 
 ## Instructions
 

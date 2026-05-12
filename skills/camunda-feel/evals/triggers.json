@@ -96,7 +96,7 @@
     {
       "id": "neg-deploy-only",
       "prompt": "How do I deploy invoice-approval.bpmn to my cluster?",
-      "expected_load": ["camunda-deploy"],
+      "expected_load": ["camunda-process-mgmt"],
       "must_not_load": ["camunda-feel"]
     },
     {
@@ -126,7 +126,7 @@
     {
       "id": "neg-incidents",
       "prompt": "I have stuck process instances with incidents on a service task. How do I find them and resolve the incidents?",
-      "expected_load": ["camunda-operate"],
+      "expected_load": ["camunda-process-mgmt"],
       "must_not_load": ["camunda-feel"]
     },
     {

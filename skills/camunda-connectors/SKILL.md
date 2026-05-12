@@ -15,7 +15,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 - **camunda-bpmn**: Use for creating the BPMN process structure (service tasks that host connectors)
 - **camunda-feel**: Use for FEEL expressions in connector input/output mappings
-- **camunda-deploy**: Use for deploying the configured process to a cluster
+- **camunda-process-mgmt**: Use for deploying the configured process to a cluster
 
 ## Instructions
 
