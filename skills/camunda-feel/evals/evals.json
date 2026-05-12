@@ -2,112 +2,67 @@
   "skill_name": "camunda-feel",
   "evals": [
     {
-      "id": "basic-expression",
-      "prompt": "Write a FEEL expression to calculate a 15% discount on orders over 1000. The input variable is orderAmount. Return the final price after discount. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
-      "expected_output": "A FEEL expression using if-then-else to check orderAmount > 1000, apply 15% discount, and return the final price",
+      "id": "first-element-access",
+      "prompt": "Given a list of order events where each event has `timestamp` (number) and `type` (string) fields, the first event in the list is always the creation event. Write a FEEL expression that returns the timestamp of the first event. The input variable is `events`. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
+      "expected_output": "A FEEL expression that returns events[1].timestamp — FEEL lists are 1-indexed, so events[1] is the first element.",
       "expectations": [
-        "Use if-then-else with an else branch (every if requires else)",
-        "Check orderAmount > 1000 as the condition",
-        "Apply 0.15 or 15/100 as the discount rate",
-        "Return the discounted amount for qualifying orders and the original amount otherwise",
-        "Expression is valid FEEL syntax"
-      ],
-      "verifiers": [
-        {"type": "feel-evaluate", "context": {"orderAmount": 1500}, "expected": 1275},
-        {"type": "feel-evaluate", "context": {"orderAmount": 1001}, "expected": 850.85},
-        {"type": "feel-evaluate", "context": {"orderAmount": 1000}, "expected": 1000},
-        {"type": "feel-evaluate", "context": {"orderAmount": 500}, "expected": 500}
-      ]
-    },
-    {
-      "id": "date-calculation",
-      "prompt": "Write a FEEL expression that calculates a due date 30 business days from today. Assume no holidays, only skip weekends. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
-      "expected_output": "A FEEL expression using a for loop or multi-entry context to iterate calendar days, skip weekends using day of week(), and count until 30 business days are reached",
-      "expectations": [
-        "Use today() or a date variable as the starting point",
-        "Use day of week() to identify weekends (Saturday and Sunday)",
-        "Skip non-business days in the calculation",
-        "Accumulate exactly 30 business days",
-        "Return a date value, not a number or string"
-      ],
-      "verifiers": []
-    },
-    {
-      "id": "type-coercion-string-build",
-      "prompt": "I have two process variables: `prefix` (a string, e.g. \"https://api.example.com/users/\") and `userId` (a number, e.g. 42). Write a FEEL expression for a Connector input mapping that combines them into the URL the connector will fetch. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
-      "expected_output": "A FEEL expression that wraps the numeric userId in string() before concatenation: prefix + string(userId)",
-      "expectations": [
-        "Wrap userId in string() (or the equivalent number-to-string conversion) before adding it to prefix",
-        "Acknowledge that FEEL does NOT auto-coerce types — `prefix + userId` would silently return null with a 'Can't add N to S' warning",
-        "Result is a single concatenated string"
+        "Uses 1-based indexing: events[1] (NOT events[0], which returns null in FEEL)",
+        "Does not call a non-existent helper like first(events) — FEEL has no first() function",
+        "Result is a numeric value (the timestamp), not null and not a list"
       ],
       "verifiers": [
         {
           "type": "feel-evaluate",
-          "context": {"prefix": "https://api.example.com/users/", "userId": 42},
-          "expected": "https://api.example.com/users/42"
+          "context": {"events": [{"timestamp": 100, "type": "created"}, {"timestamp": 200, "type": "paid"}, {"timestamp": 300, "type": "shipped"}]},
+          "expected": 100
         },
         {
           "type": "feel-evaluate",
-          "context": {"prefix": "user-", "userId": 1},
-          "expected": "user-1"
-        },
-        {
-          "type": "feel-evaluate",
-          "context": {"prefix": "", "userId": 999},
-          "expected": "999"
+          "context": {"events": [{"timestamp": 42, "type": "created"}]},
+          "expected": 42
         }
       ]
     },
     {
-      "id": "list-filtering",
-      "prompt": "Given a list of employees where each employee has name, department, and salary fields, write a FEEL expression to filter for employees in the Engineering department with salary above 80000. Return their names. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
-      "expected_output": "A FEEL expression using list filtering with multiple conditions and projection to extract names",
+      "id": "every-quantifier",
+      "prompt": "Write a FEEL expression that returns true when every line item in the `items` list has a positive price, and false otherwise. The input variable `items` is a list of contexts each with a `price` field. Write your final FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
+      "expected_output": "A FEEL expression using the every quantifier: every item in items satisfies item.price > 0",
       "expectations": [
-        "Filter employees list with department = \"Engineering\" condition",
-        "Include salary > 80000 condition",
-        "Use projection (.name) to extract employee names from the filtered list",
-        "Expression is valid FEEL syntax with correct list filter notation"
+        "Uses the FEEL `every ... in ... satisfies ...` quantifier (not a count-based workaround like count(items[price <= 0]) = 0)",
+        "Compares each item's price against 0 with the predicate item.price > 0",
+        "Returns a boolean (true or false), not a list and not the offending item"
       ],
       "verifiers": [
         {
           "type": "feel-evaluate",
-          "context": {
-            "employees": [
-              {"name": "Alice", "department": "Engineering", "salary": 95000},
-              {"name": "Bob", "department": "Engineering", "salary": 75000},
-              {"name": "Carol", "department": "Sales", "salary": 110000},
-              {"name": "Dan", "department": "Engineering", "salary": 120000}
-            ]
-          },
-          "expected": ["Alice", "Dan"]
+          "context": {"items": [{"price": 10}, {"price": 20}, {"price": 30}]},
+          "expected": true
         },
         {
           "type": "feel-evaluate",
-          "context": {"employees": []},
-          "expected": []
+          "context": {"items": [{"price": 10}, {"price": -1}, {"price": 30}]},
+          "expected": false
         },
         {
           "type": "feel-evaluate",
-          "context": {
-            "employees": [
-              {"name": "Eva", "department": "Engineering", "salary": 80000}
-            ]
-          },
-          "expected": []
+          "context": {"items": [{"price": 0}]},
+          "expected": false
+        },
+        {
+          "type": "feel-evaluate",
+          "context": {"items": []},
+          "expected": true
         }
       ]
     },
     {
       "id": "evaluate-debug",
       "prompt": "Fix this broken FEEL expression. It should calculate the total price with tax but returns null:\n\n```feel\n{\n  subtotal: sum(items.price)\n  taxRate: 0.19,\n  tax: subtotal * taxRate\n  total: subtotal + tax\n}.total\n```\n\nThe input variable items is a list of contexts each with a price field. Write your CORRECTED FEEL expression (and only the expression, no fences, no commentary) to outputs/answer.feel.",
-      "expected_output": "Identify the missing commas between context entries and provide the corrected expression",
+      "expected_output": "The corrected expression has commas separating every interior context entry; the .total accessor remains intact.",
       "expectations": [
-        "Identify the syntax error: missing commas after subtotal and tax entries",
-        "Provide the corrected expression with commas separating all context entries",
-        "Preserve the multi-entry context pattern structure",
-        "Explain why the expression returned null or failed to parse",
-        "Validates the fix using c8 feel evaluate (with --var or --vars to provide the items list); does not silently fall back to --engine local without user confirmation"
+        "Corrected expression at outputs/answer.feel parses and evaluates without errors against the cluster FEEL engine",
+        "Multi-entry context pattern is preserved (the four-entry context { subtotal, taxRate, tax, total } with the chained .total accessor)",
+        "Output computes the correct tax-inclusive total for the provided items"
       ],
       "verifiers": [
         {
