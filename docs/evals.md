@@ -99,6 +99,31 @@ different shapes from a `c8ctl` baseline vs a `feel` baseline; the
 asymmetric regression rules below were designed to handle both without
 needing per-skill threshold knobs.
 
+### A practical note on Sonnet's baseline competence
+
+When this framework was first calibrated against the reference skills
+(`camunda-feel`, `camunda-bpmn`) on Sonnet 4.6, both the initial set of
+broad cases AND a curated set of narrower probes ceiling-pinned at
+`with_skill = without_skill = 1.0`. Sonnet's baseline FEEL/BPMN
+competence already covers things we naïvely expected to differentiate —
+1-based list indexing, the `every X in L satisfies P` quantifier,
+multi-entry context syntax, valid Zeebe extension elements like
+`<zeebe:taskDefinition retries=…>` and `<zeebe:loopCharacteristics>`.
+**The framework caught this honestly: the harness, verifiers, and
+report all worked; the eval *content* just didn't probe behavior
+Sonnet doesn't already have.**
+
+The committed `evals/<skill>/baseline.json` files therefore reflect
+ceiling-pinned `delta_pp = 0` on Sonnet. That's a real measurement, not
+a bug — it tells reviewers that the current case set isn't a useful
+discriminator on this model, and that case content needs iteration
+(harder Camunda-specific probes, more obscure FEEL semantics, edge
+cases the model can't infer from BPMN/FEEL training data). The
+framework's regression detection still works: a future patch that
+*degrades* Sonnet on these cases will flag immediately. The framework's
+*discrimination* work — finding cases where without_skill genuinely
+fails — is a follow-up on case content, not on harness code.
+
 ---
 
 ## How to interpret your numbers
