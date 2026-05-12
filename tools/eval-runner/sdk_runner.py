@@ -470,7 +470,11 @@ async def run_grader(
     outputs_dir: Path,
     case_dir: Path,
     judge_model: str = "claude-sonnet-4-6",
-    max_turns: int = 12,
+    # BPMN/DMN-heavy outputs force the grader to do several Reads against
+    # large XML files plus the transcript; the original cap of 12 turns
+    # tripped reliably on bpmn cases. 30 matches the harness arm default
+    # and leaves headroom; budget cap still bounds total spend.
+    max_turns: int = 30,
     max_budget_usd: float | None = 0.5,
 ) -> dict[str, Any]:
     """Run the SHA-pinned grader prompt and return the parsed grading.json.
