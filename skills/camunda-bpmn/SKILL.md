@@ -1,6 +1,13 @@
 ---
 name: camunda-bpmn
-description: Creates, edits, and validates BPMN 2.0 process diagrams for Camunda 8 (Zeebe). This skill should be used when creating new BPMN processes, modifying existing process diagrams, adding elements (tasks, gateways, events, subprocesses), configuring Zeebe extensions, or validating BPMN XML.
+description: |
+  Use this skill to create, edit, and validate BPMN 2.0 process diagrams for Camunda 8 (Zeebe).
+
+  Use for: new BPMN processes, modifying existing diagrams, adding tasks/gateways/events/subprocesses, configuring Zeebe extensions (taskDefinition, ioMapping, loop characteristics), validating BPMN XML.
+
+  Do not use for: writing FEEL expressions inside BPMN (use camunda-feel), designing form schemas (use camunda-forms), or deploying and running processes (use camunda-process-mgmt).
+
+  **Workflow skill** — multi-step BPMN authoring. Covers c8ctl bpmn lint for validation.
 ---
 
 # Camunda BPMN Modeling
@@ -24,7 +31,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 
 ### XML Structure
 
-Every BPMN file requires these namespaces:
+**Example** — every BPMN file requires these namespaces:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,7 +83,7 @@ Always encode special characters in XML attribute values:
 - **Exclusive (XOR)**: Exactly one path taken. Set `default` attribute for the fallback flow. Label condition flows.
 - **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
 - **Inclusive (OR)**: One or more paths. Also requires a matching join.
-- Always fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
+- Fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
 
 **Sequence Flows:**
 - Conditions use FEEL expressions with `=` prefix:
@@ -118,7 +125,7 @@ BPMN files can be large. Follow these rules:
 - Self-close empty elements
 - Keep unique, descriptive IDs
 - Include BPMN DI section for visual layout (see `references/layout-rules.md`)
-- Always include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
+- Include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
 
 ### Lint loop — mandatory exit gate
 
@@ -147,6 +154,6 @@ If a warning is genuinely a false positive, suppress it explicitly in a project-
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/element-catalog.md` — complete BPMN element types with Camunda/Zeebe attributes (events, tasks, gateways, subprocesses)
-- `references/zeebe-extensions.md` — input/output mappings, variable scoping, task definitions, form definitions, secrets
-- `references/layout-rules.md` — DI coordinate management, element sizes, spacing rules for diagram layout
+- [element-catalog.md](references/element-catalog.md) — complete BPMN element types with Camunda/Zeebe attributes (events, tasks, gateways, subprocesses)
+- [zeebe-extensions.md](references/zeebe-extensions.md) — input/output mappings, variable scoping, task definitions, form definitions, secrets
+- [layout-rules.md](references/layout-rules.md) — DI coordinate management, element sizes, spacing rules for diagram layout

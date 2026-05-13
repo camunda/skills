@@ -6,13 +6,13 @@ Every skill is a directory under `skills/` containing at minimum a `SKILL.md` fi
 
 ```
 skills/camunda-<name>/
-├── SKILL.md              # Required — core instructions (<5000 words)
+├── SKILL.md              # Required — core instructions
 ├── references/           # Optional — detailed docs loaded on demand
 ├── scripts/              # Optional — executable code (non-interactive, version-pinned deps)
-├── assets/               # Optional — templates, schemas, static resources
-└── evals/                # Required — eval cases for quality assurance
-    └── evals.json
+└── assets/               # Optional — templates, schemas, static resources
 ```
+
+Eval suites are intentionally not checked in right now — see "Evals" below.
 
 ## SKILL.md Format
 
@@ -23,11 +23,11 @@ description: What this skill does. Third person, max 1024 chars. Front-load the 
 ---
 ```
 
-The body follows the template in the plan. Key rules:
+Key rules:
 
 - **Name must match directory name** (e.g., `camunda-bpmn` in `skills/camunda-bpmn/`)
-- **Body under 5000 words** — move detailed catalogs to `references/`
-- **References one level deep** — no chains (SKILL.md -> ref1.md -> ref2.md)
+- **Body under ~5000 words** — move detailed catalogs to `references/`
+- **References one level deep** — no chains (SKILL.md → ref1.md → ref2.md)
 - **Cross-reference other skills** by name when relevant
 - **Tooling routes through c8ctl plugin commands** (e.g., `c8ctl bpmn lint`, `c8ctl element-template apply`, `c8ctl feel evaluate`) — c8ctl is a hard prerequisite for these skills
 
@@ -36,58 +36,43 @@ The body follows the template in the plan. Key rules:
 Skills use three tiers to manage context:
 
 1. **Metadata** (~100 tokens) — always loaded (name + description from frontmatter)
-2. **SKILL.md body** (<5000 words) — loaded when skill activates
+2. **SKILL.md body** — loaded when skill activates
 3. **References/scripts/assets** — loaded on demand when instructions reference them
 
 Keep SKILL.md lean. If a section exceeds ~500 words of reference material, move it to `references/`.
 
 ## Evals
 
-Every skill must have:
+No eval suites are checked in right now. The waza migration replaced a custom
+~5,200-line Python eval framework, and our first attempt at porting eval
+content surfaced that the patterns we had didn't earn their cost yet:
 
-- `evals/evals.json` — quality cases (Tier 2). 3-5 entries with prose
-  expectations and optional deterministic verifiers.
-- `evals/triggers.json` — discovery probes (Tier 1). ~10 positive +
-  ~10 negative cases the description should/shouldn't grab.
-- `evals/baseline.json` — committed comparison point. Established by
-  `make promote SKILL=<name>` after the first good iteration; re-bumped
-  in dedicated PRs when the skill genuinely improves.
+- **Trigger probes** — we built `trigger_tests.yaml` for `camunda-feel` and
+  observed precision/recall ~0% across positive prompts. The model has FEEL
+  coverage in training and answers correctly without invoking the skill, even
+  on non-trivial idiom questions. Trigger probes don't surface useful signal
+  for utility skills whose subject matter is well-represented in training.
+- **Quality tasks** — we ran the suite under `baseline: true` (with vs.
+  without skills loaded). Delta was ~0 across all tasks. The Copilot SDK
+  surfaces skill descriptions in routing context but the skill body only
+  lands in context on explicit invocation, which the model declines for the
+  same reason above.
 
-`evals.json` shape:
+The honest conclusion: until we have a concrete hypothesis about *what* an
+eval should measure that `waza check` doesn't already prove (and that the
+model can't fake from training), running expensive evals just produces noise.
+We'll add suites back per-skill as we identify those hypotheses.
 
-```json
-{
-  "skill_name": "camunda-<name>",
-  "evals": [
-    {
-      "id": "discount-calculation",
-      "prompt": "Write a FEEL expression... Write your final FEEL expression to outputs/answer.feel.",
-      "expected_output": "Description for the LLM judge",
-      "expectations": ["Use if-then-else", "Apply 0.15 as the discount rate"],
-      "verifiers": [
-        {"type": "feel-evaluate", "context": {"orderAmount": 1500}, "expected": 1275}
-      ]
-    }
-  ]
-}
-```
-
-Run locally:
+Linting is the enforcement bar for now:
 
 ```bash
-make lint SKILL=camunda-<name>             # Tier 0
-make eval SKILL=camunda-<name> RUNS=1      # cheap rehearsal
-make eval SKILL=camunda-<name>             # full run (3 trials)
-make compare SKILL=camunda-<name>          # diff vs committed baseline
-make promote SKILL=camunda-<name>          # promote a clean iteration
+make lint                    # waza check across all skills
+make lint SKILL=camunda-feel # one skill
+waza check <skill>           # direct invocation
 ```
 
-For the full reference on tiers, artefacts, the runtime flow, the verifier
-contract, and the lifecycle (bootstrap → iterate → promote → regress),
-see [`docs/evals.md`](docs/evals.md). For a friendlier walkthrough of
-the same concepts (with a plain-English unpack of the asymmetric
-regression rule), open [`docs/evals-explained.html`](docs/evals-explained.html)
-in a browser.
+CI runs `waza check` on every PR that touches `skills/`
+(`.github/workflows/eval.yml`).
 
 ## Scripts
 
@@ -100,5 +85,5 @@ Scripts must be:
 
 1. Create a branch from `main`
 2. Add/modify skills following the structure above
-3. Ensure all evals pass
+3. Ensure `waza check` passes for any skill you touched
 4. Submit PR with description of changes

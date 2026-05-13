@@ -1,6 +1,13 @@
 ---
 name: camunda-c8ctl
-description: Installs, configures, and uses c8ctl (the Camunda 8 CLI). This skill should be used when the user mentions c8ctl, c8, the Camunda CLI, needs to connect to a Camunda 8 cluster, set up a local cluster for development, manage cluster profiles, or run cluster operations from the terminal. Also use this skill when other Camunda skills require c8ctl and it isn't installed or configured yet.
+description: |
+  Use this skill to install, configure, and operate c8ctl (the Camunda 8 CLI), the foundation the other camunda-* skills build on.
+
+  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed, managing connection profiles, installing c8ctl plugins, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
+
+  Do not use for: writing BPMN (use camunda-bpmn), writing FEEL (use camunda-feel), or deploying and operating running processes (use camunda-process-mgmt — that skill builds on c8ctl).
+
+  **Utility skill** — the foundation other camunda-* skills build on. Covers c8ctl cluster, c8ctl add/use profile, c8ctl load plugin.
 ---
 
 # Camunda c8ctl CLI
@@ -70,6 +77,8 @@ If the user hasn't decided and is doing local development, **suggest local c8run
 ### Local Cluster (c8ctl cluster)
 
 c8ctl ships with a default `cluster` plugin that wraps [c8run](https://docs.camunda.io/docs/self-managed/setup/deploy/local/c8run/). It downloads, starts, and stops a local Camunda 8 cluster for you.
+
+**Examples**:
 
 ```bash
 # Start the latest stable release (downloads on first run)
@@ -200,7 +209,7 @@ c8ctl upgrade plugin <package-name>
 c8ctl unload plugin <package-name>
 ```
 
-For plugin lifecycle (init, sync, version pinning) and the storage layout, see `references/plugins.md`.
+For plugin lifecycle (init, sync, version pinning) and the storage layout, see [command-reference.md](references/command-reference.md) § Plugin Lifecycle.
 
 ### Troubleshooting
 
@@ -213,7 +222,6 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see `
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/local-cluster.md` — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
-- `references/profiles.md` — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
-- `references/command-reference.md` — verb/resource matrix, resource aliases, search flags, global flags
-- `references/plugins.md` — plugin lifecycle, storage layout, building custom plugins
+- [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
+- [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
+- [command-reference.md](references/command-reference.md) — verb/resource matrix, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)

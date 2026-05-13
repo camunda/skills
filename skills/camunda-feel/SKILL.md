@@ -1,7 +1,13 @@
 ---
 name: camunda-feel
 description: |
-  Writes, debugs, and evaluates FEEL (Friendly Enough Expression Language) expressions for Camunda 8 — the expression language Zeebe uses for data transformation, conditions, and calculations in BPMN, DMN, and Camunda Forms. Use whenever a Camunda task involves expressions, conditions, calculations, list filtering or projection, date/duration arithmetic, type coercion (number-to-string), null-safe access, or string interpolation. Concrete surfaces include gateway conditions and conditional sequence flows, service-task input/output mappings, timer durations and cycles (ISO 8601 PT…/R…), DMN input and output entries, Camunda Form validation rules and conditional visibility, and Connector result and error expressions. Also use to debug "FEEL_RESOLUTION_ERROR", "Can't add 'N' to ...", and expressions that silently return null. Built-in functions covered include bpmnError(), now(), today(), date(), duration(), every/some quantifiers, list filters, and Camunda's fromAi() for agentic AI.
+  Use this skill to write, debug, evaluate, and validate FEEL (Friendly Enough Expression Language) expressions for Camunda 8 — the expression language Zeebe uses in BPMN, DMN, and Camunda Forms.
+
+  Use for: gateway conditions and conditional sequence flows; service-task input/output mappings; timer durations and cycles (ISO 8601 PT.../R...); DMN input/output entries; Camunda Form validation rules and conditional visibility; connector result and error expressions; list filters, projections, and quantifiers; date and duration arithmetic; type coercion (number-to-string); null-safe access; debugging FEEL_RESOLUTION_ERROR or "Can't add 'N' to ..." warnings.
+
+  Do not use for: writing the BPMN XML around expressions (use camunda-bpmn) or designing form structure (use camunda-forms).
+
+  **Utility skill** — FEEL is reused inside BPMN, DMN, forms, and connector configuration. Covers c8ctl feel evaluate for validating expressions.
 ---
 
 # Camunda FEEL Expressions
@@ -120,9 +126,9 @@ some x in items satisfies x.status = "urgent"
 - `get value(ctx, "key")`, `get entries(ctx)`
 - `context put(ctx, "key", value)`, `context merge(ctx1, ctx2)`
 
-### Common Patterns in Camunda
+### Common Patterns and Examples
 
-**Gateway condition**:
+**Example — Gateway condition**:
 ```feel
 =orderTotal > 1000 and customer.tier = "premium"
 ```
@@ -154,8 +160,14 @@ The `string()` wrapper is required, not stylistic. FEEL does not auto-coerce typ
 =if customer != null then customer.name else "Unknown"
 ```
 
+## Troubleshooting
+
+- **FEEL_RESOLUTION_ERROR** — a variable referenced in the expression doesn't exist in the variable context at evaluation time. Run `c8ctl feel evaluate '<expr>' --vars '<json>'` with the variables you expect at runtime to confirm.
+- **`Can't add 'N' to '"prefix-"'` (silent null)** — type mismatch in `+` concatenation. FEEL does not coerce numbers to strings; wrap the numeric value with `string(x)`.
+- **Expression returns `null` unexpectedly** — typical causes: 0-based indexing (use `events[1]`, not `events[0]`); calling a non-existent helper (`first()` doesn't exist); missing commas between context entries.
+
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/function-reference.md` — complete list of built-in FEEL functions (string, numeric, list, context, date/time, boolean)
-- `references/common-patterns.md` — date arithmetic, list filtering, multi-entry context patterns, fromAi() for agentic AI
+- [function-reference.md](references/function-reference.md) — complete list of built-in FEEL functions (string, numeric, list, context, date/time, boolean)
+- [common-patterns.md](references/common-patterns.md) — date arithmetic, list filtering, multi-entry context patterns, fromAi() for agentic AI

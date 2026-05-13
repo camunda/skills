@@ -1,6 +1,13 @@
 ---
 name: camunda-forms
-description: Creates and edits Camunda Form JSON schemas for user tasks in Camunda 8. This skill should be used when creating form definitions for user tasks or start events, including field layout, validation rules, conditional visibility, and process variable bindings.
+description: |
+  Use this skill to create and edit Camunda Form JSON schemas for user tasks and start events in Camunda 8.
+
+  Use for: field layouts (textfield, textarea, number, checkbox, select, radio, datetime, etc.), validation rules (required, pattern, min/max), conditional visibility via FEEL expressions, dynamic dropdown values via valuesExpression, default-value FEEL expressions, multi-row form structure, process-variable bindings.
+
+  Do not use for: writing the BPMN around a user task (use camunda-bpmn), or writing the FEEL expressions referenced by form fields (use camunda-feel).
+
+  **Workflow skill** — produces a .form JSON file linked from a BPMN user task or start event.
 ---
 
 # Camunda Forms
@@ -23,6 +30,8 @@ Create Camunda Form JSON schemas for user tasks and start events in Camunda 8.8+
 Camunda Forms are JSON files with `.form` extension (not `.json`). Link to BPMN user tasks via the form's `id` field, which must match the `formId` attribute on `<zeebe:formDefinition formId="..."/>` inside the user task. The user task itself must also include `<zeebe:userTask/>` (the Camunda user task implementation). Don't link via the older `formKey` attribute — that's the deprecated job-worker user task, removed in Camunda 8.10. See **camunda-bpmn** § Form Definition for the BPMN side.
 
 ### Form Structure
+
+**Example** — minimal form skeleton:
 
 ```json
 {
@@ -179,7 +188,13 @@ Generate complete `.form` JSON files. Ensure:
 - `layout.row` values increment sequentially (`row_0`, `row_1`, ...)
 - Metadata fields are present and correct
 
+## Troubleshooting
+
+- **Form doesn't appear in Tasklist** — verify the user task in BPMN includes `<zeebe:userTask/>` and `<zeebe:formDefinition formId="..."/>` matching the form's `id` field. The legacy `formKey` attribute was removed in Camunda 8.10.
+- **`schemaVersion` mismatch error** — set `schemaVersion: 18` and `executionPlatformVersion: "8.8.0"`; older values are rejected by 8.8+ clusters.
+- **Conditional field always hidden** — `conditional.hide` is a FEEL expression that returns true to hide. Forgetting the `=` prefix turns it into a literal string. See **camunda-feel** § Common Patterns for the FEEL side.
+
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/component-reference.md` — complete properties and examples for every component type (textfield, number, select, datetime, etc.)
+- [component-reference.md](references/component-reference.md) — complete properties and examples for every component type (textfield, number, select, datetime, etc.)

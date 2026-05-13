@@ -1,0 +1,28 @@
+name: Skill Readiness Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'skills/**'
+      - '.waza.yaml'
+      - '.github/workflows/lint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: waza check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@v2
+      - name: Install waza extension
+        run: |
+          azd config set alpha.extensions on
+          azd ext source add -n waza -t url -l https://raw.githubusercontent.com/microsoft/waza/main/registry.json
+          azd ext install microsoft.azd.waza
+      - name: Run waza check
+        run: azd waza check

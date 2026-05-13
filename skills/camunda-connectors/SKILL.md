@@ -1,6 +1,13 @@
 ---
 name: camunda-connectors
-description: Browses, configures, and applies pre-built Camunda connectors (REST, Slack, Kafka, AWS, etc.) via element templates (also known as connector templates — the terms are used interchangeably). This skill should be used when adding connector integrations to BPMN service tasks, browsing available connectors, configuring connector properties, or understanding element / connector template schemas.
+description: |
+  Use this skill to browse, configure, and apply pre-built Camunda connectors (REST, Slack, Kafka, AWS, etc.) via element templates (also known as connector templates).
+
+  Use for: discovering available connector templates, inspecting their properties, applying a template to a service task or message event, configuring input mappings (URLs, request bodies, secrets) and result expressions, understanding the element template schema, debugging connector configuration in BPMN.
+
+  Do not use for: writing free-form REST calls in service tasks (this skill is specifically for templated connectors), or modelling the BPMN structure itself (use camunda-bpmn).
+
+  **Workflow skill** — discover, inspect, then apply. Covers c8ctl element-template search, info, get-properties, apply, get, sync.
 ---
 
 # Camunda Connectors
@@ -32,7 +39,7 @@ Read `references/element-template-schema.md` for a comprehensive guide to interp
 
 ### Discovering Connectors via Search
 
-**Always discover the template ID via `c8ctl element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command always reflects what's actually available in the local OOTB catalog.
+**Always discover the template ID via `c8ctl element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command reflects what's actually available in the local OOTB catalog.
 
 ```bash
 c8ctl element-template search "REST"             # find HTTP/REST connectors
@@ -114,7 +121,7 @@ c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 --detail
 c8ctl element-template get <id> --no-icon    # raw template JSON, base64 icon stripped
 ```
 
-**Always pass `--no-icon` when reading the raw JSON.** Without it, the embedded base64 icon dominates the output and wastes context. Use the c8ctl commands above first; treat raw JSON as the escape hatch, not the default.
+**Pass `--no-icon` when reading the raw JSON.** Without it, the embedded base64 icon dominates the output and wastes context. Use the c8ctl commands above first; treat raw JSON as the escape hatch, not the default.
 
 ### Applying a Template to a BPMN Element
 
@@ -178,7 +185,7 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 7. **Use secrets** for credentials: `{{secrets.API_KEY}}`.
 8. **Validate** with `c8ctl bpmn lint process.bpmn`.
 
-### HTTP REST Connector Example
+### Example — HTTP REST Connector
 
 ```bash
 # 1. Discover the template
@@ -261,4 +268,4 @@ When the actual value is not yet known:
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/element-template-schema.md` — comprehensive guide to the element template JSON schema: binding types, conditions, constraints, FEEL support, property-to-XML mapping, and step-by-step configuration examples
+- [element-template-schema.md](references/element-template-schema.md) — comprehensive guide to the element template JSON schema: binding types, conditions, constraints, FEEL support, property-to-XML mapping, and step-by-step configuration examples
