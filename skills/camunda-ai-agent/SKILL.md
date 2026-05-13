@@ -8,7 +8,7 @@ description: |
 
 Build agentic AI processes in Camunda 8.8+: an LLM driver (the AI Agent connector, **Sub-process variant**) applied to an ad-hoc subprocess with tools modeled as BPMN activities. Covers shape, prompts, tool modeling with `fromAi()`, sub-flow tools, and multi-turn agent context.
 
-The older **Task variant** (AI Agent connector on a service task paired with an external multi-instance ad-hoc subprocess and explicit feedback loop) is documented in `references/ai-agent-task.md` for the niche cases where you need to audit or intercept every tool call. The Sub-process variant is the recommended choice for everything else, and is what the rest of this skill teaches.
+The older **Task variant** (AI Agent connector on a service task paired with an external multi-instance ad-hoc subprocess and explicit feedback loop) is documented in [references/ai-agent-task.md](references/ai-agent-task.md) for the niche cases where you need to audit or intercept every tool call. The Sub-process variant is the recommended choice for everything else, and is what the rest of this skill teaches.
 
 ## Prerequisites
 
@@ -31,11 +31,9 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 - [Tool Definitions](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-tool-definitions/) — how tool name, description, and `inputSchema` are derived
 - [`fromAi()` FEEL function](https://docs.camunda.io/docs/components/modeler/feel/builtin-functions/feel-built-in-functions-miscellaneous/#fromaivalue)
 
-When in doubt about field names, supported types, or schema details, prefer the official docs over this skill's examples.
-
 ## Applying the AI Agent Connector
 
-The connector has a lot of fields (provider auth, prompts, memory, limits, response shape, event handling). Apply the template via c8ctl rather than hand-writing them.
+Apply the template via c8ctl rather than hand-writing the many provider/prompt/memory fields:
 
 ```bash
 # 1. Find the current template ID and version — they evolve
@@ -301,14 +299,9 @@ These are non-obvious failure modes the lint loop will not catch.
 
 - **Tool has an incoming sequence flow** — it stops being a tool and becomes a regular flow step. The tool's ROOT node must have no incoming flow. Internal activities inside a sub-flow tool can (and do) have incoming flows — that's how the sub-flow works.
 - **Tool name confusion** — the LLM-visible tool name is the BPMN **`id`** (e.g., `LookupCustomer`), not the `name` attribute. Use descriptive PascalCase IDs.
-- **Missing or empty `toolCallResult` at sub-process completion** — for a sub-flow tool, ensure that at least one activity inside the sub-flow sets `toolCallResult`. A missing value yields a generic "tool succeeded with no result" message to the LLM and degrades the next turn.
-- **`bpmn:subProcess` instead of `bpmn:adHocSubProcess` for the agent host** — the connector binds to `bpmn:adHocSubProcess` only. (Inner sub-flow tools ARE plain `bpmn:subProcess` — that's correct.)
 - **Bare-string prompts** — both system and user prompts are FEEL. Even literals must be `="..."`.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
-- **Empty ad-hoc subprocess** — at least one tool activity is required by BPMN semantics; an agent with no tools is rejected.
 - **Hyphenated memory storage type** — `in-process`, `camunda-document`, `custom`. Not camelCase.
-- **Hand-coded template internals** — the AI Agent template has many provider-specific fields and they evolve. Apply via `c8ctl element-template apply --set` rather than writing the input mappings by hand.
-- **No `maxModelCalls`** — without a cap, a confused agent will iterate. Always set it to a finite value.
 
 ## Closing Step
 

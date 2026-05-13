@@ -157,5 +157,5 @@ The `string()` wrapper is required, not stylistic. FEEL does not auto-coerce typ
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/function-reference.md` — complete list of built-in FEEL functions (string, numeric, list, context, date/time, boolean)
-- `references/common-patterns.md` — date arithmetic, list filtering, multi-entry context patterns, fromAi() for agentic AI
+- [function-reference.md](references/function-reference.md) — complete list of built-in FEEL functions (string, numeric, list, context, date/time, boolean)
+- [common-patterns.md](references/common-patterns.md) — date arithmetic, list filtering, multi-entry context patterns, fromAi() for agentic AI

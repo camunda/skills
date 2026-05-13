@@ -261,4 +261,4 @@ When the actual value is not yet known:
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/element-template-schema.md` — comprehensive guide to the element template JSON schema: binding types, conditions, constraints, FEEL support, property-to-XML mapping, and step-by-step configuration examples
+- [element-template-schema.md](references/element-template-schema.md) — comprehensive guide to the element template JSON schema: binding types, conditions, constraints, FEEL support, property-to-XML mapping, and step-by-step configuration examples

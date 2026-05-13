@@ -213,7 +213,7 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see `
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/local-cluster.md` — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
-- `references/profiles.md` — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
-- `references/command-reference.md` — verb/resource matrix, resource aliases, search flags, global flags
-- `references/plugins.md` — plugin lifecycle, storage layout, building custom plugins
+- [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
+- [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
+- [command-reference.md](references/command-reference.md) — verb/resource matrix, resource aliases, search flags, global flags
+- [plugins.md](references/plugins.md) — plugin lifecycle, storage layout, building custom plugins

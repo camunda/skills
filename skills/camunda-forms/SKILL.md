@@ -182,4 +182,4 @@ Generate complete `.form` JSON files. Ensure:
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/component-reference.md` — complete properties and examples for every component type (textfield, number, select, datetime, etc.)
+- [component-reference.md](references/component-reference.md) — complete properties and examples for every component type (textfield, number, select, datetime, etc.)

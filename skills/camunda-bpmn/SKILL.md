@@ -147,6 +147,6 @@ If a warning is genuinely a false positive, suppress it explicitly in a project-
 ## References
 
 For detailed reference material, read from `references/`:
-- `references/element-catalog.md` — complete BPMN element types with Camunda/Zeebe attributes (events, tasks, gateways, subprocesses)
-- `references/zeebe-extensions.md` — input/output mappings, variable scoping, task definitions, form definitions, secrets
-- `references/layout-rules.md` — DI coordinate management, element sizes, spacing rules for diagram layout
+- [element-catalog.md](references/element-catalog.md) — complete BPMN element types with Camunda/Zeebe attributes (events, tasks, gateways, subprocesses)
+- [zeebe-extensions.md](references/zeebe-extensions.md) — input/output mappings, variable scoping, task definitions, form definitions, secrets
+- [layout-rules.md](references/layout-rules.md) — DI coordinate management, element sizes, spacing rules for diagram layout
