@@ -12,7 +12,7 @@ skills/camunda-<name>/
 └── assets/               # Optional — templates, schemas, static resources
 ```
 
-Eval cases for the skill live separately under `evals/camunda-<name>/`.
+Eval suites are intentionally not checked in right now — see "Evals" below.
 
 ## SKILL.md Format
 
@@ -43,42 +43,36 @@ Keep SKILL.md lean. If a section exceeds ~500 words of reference material, move 
 
 ## Evals
 
-Every skill has an eval suite under `evals/camunda-<name>/`:
+No eval suites are checked in right now. The waza migration replaced a custom
+~5,200-line Python eval framework, and our first attempt at porting eval
+content surfaced that the patterns we had didn't earn their cost yet:
 
-```
-evals/camunda-<name>/
-├── eval.yaml           # suite config (skill name, metrics, defaults)
-├── tasks/*.yaml        # one task per file
-├── graders/*.sh        # optional shell scripts for `program` graders
-└── fixtures/           # optional input files for `inputs.files`
-```
+- **Trigger probes** — we built `trigger_tests.yaml` for `camunda-feel` and
+  observed precision/recall ~0% across positive prompts. The model has FEEL
+  coverage in training and answers correctly without invoking the skill, even
+  on non-trivial idiom questions. Trigger probes don't surface useful signal
+  for utility skills whose subject matter is well-represented in training.
+- **Quality tasks** — we ran the suite under `baseline: true` (with vs.
+  without skills loaded). Delta was ~0 across all tasks. The Copilot SDK
+  surfaces skill descriptions in routing context but the skill body only
+  lands in context on explicit invocation, which the model declines for the
+  same reason above.
 
-Three task patterns we use:
+The honest conclusion: until we have a concrete hypothesis about *what* an
+eval should measure that `waza check` doesn't already prove (and that the
+model can't fake from training), running expensive evals just produces noise.
+We'll add suites back per-skill as we identify those hypotheses.
 
-- **Trigger probes** — `expected.should_trigger` + a `trigger` grader. One YAML
-  per case (positive or negative). Validates the skill's `description` triggers
-  on the right prompts and stays silent on adjacent ones.
-- **Quality tasks (LLM judge)** — `prompt` grader with a rubric. The judge
-  scores the agent's output (or files written to `outputs/`) against
-  explicit criteria. Good for prose answers and cross-cutting expectations.
-- **Quality tasks (deterministic)** — `program` grader that shells to a
-  script (e.g. `graders/feel-evaluate.sh`, `graders/bpmn-lint.sh`). The
-  script reads the agent's output file from `$WAZA_WORKSPACE_DIR/outputs/`
-  and exits 0 on pass, 1 on fail. Mix with the LLM judge in the same
-  task to cover both behaviour and verifiable correctness.
-
-A task with multiple graders passes only when all of them pass.
-
-Run locally:
+Linting is the enforcement bar for now:
 
 ```bash
-waza check <skill>                 # readiness check (schema, token budget, links)
-waza run <skill>                   # full run
-waza grade --output <results.json> # re-grade without re-running the agent
+make lint                    # waza check across all skills
+make lint SKILL=camunda-feel # one skill
+waza check <skill>           # direct invocation
 ```
 
-CI runs `waza run` on every PR that touches `evals/` or `skills/` and
-uploads `eval-results` as an artifact (`.github/workflows/eval.yml`).
+CI runs `waza check` on every PR that touches `skills/`
+(`.github/workflows/eval.yml`).
 
 ## Scripts
 

@@ -1,18 +1,19 @@
-name: Run Skill Evaluations
+name: Skill Readiness Check
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - 'evals/**'
       - 'skills/**'
+      - '.waza.yaml'
+      - '.github/workflows/lint.yml'
 
 permissions:
   contents: read
 
 jobs:
-  eval:
-    name: Run Evaluations
+  check:
+    name: waza check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,12 +24,13 @@ jobs:
           azd config set alpha.extensions on
           azd ext source add -n waza -t url -l https://raw.githubusercontent.com/microsoft/waza/main/registry.json
           azd ext install microsoft.azd.waza
-      - name: Run evaluations
-        run: azd waza run --output-dir ./results
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: eval-results
-          path: ./results
-          retention-days: 30
+      - name: Run waza check on all skills
+        run: |
+          fail=0
+          for d in skills/*/; do
+            name=$(basename "$d")
+            echo ""
+            echo "=== $name ==="
+            azd waza check "$name" || fail=1
+          done
+          exit $fail

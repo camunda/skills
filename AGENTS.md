@@ -58,42 +58,32 @@ The sections below are for developers maintaining this skills repository.
 
 ```
 skills/           - Skill definitions (each skill = SKILL.md + references/)
-evals/            - Eval suites (one per skill)
-  <skill>/
-    eval.yaml       - Suite config (skill, metrics, defaults)
-    tasks/*.yaml    - One task per file (trigger probes + quality cases)
-    graders/*.sh    - Optional shell scripts shelled to by `program` graders
-    fixtures/       - Optional input files referenced by tasks via `inputs.files`
 examples/         - Reference BPMN/form files
-.waza.yaml        - Project-wide waza config
-.github/workflows - CI: runs `waza run` on PRs touching evals/ or skills/
+.waza.yaml        - Project-wide waza config (token limits, defaults)
+.github/workflows/lint.yml - CI: runs `waza check` on PRs touching skills/
 ```
 
-### Running Evals
+No eval suites are checked in right now. They were removed in the waza migration
+once we learned that trigger probes don't fire for utility skills the model
+knows from training (precision/recall ~0% on camunda-feel), and quality-task
+delta against the with-vs-without-skills baseline is ~0 because the skill body
+only loads on explicit invocation. We'll add evals back deliberately, per skill,
+once we have a hypothesis about what to measure that the linter can't already
+prove. Until then, `waza check` is the enforcement bar.
 
-Evals run via [waza](https://github.com/microsoft/waza). Install once with the Azure
-Developer CLI extension (see `.github/workflows/eval.yml`) or `go install
-github.com/microsoft/waza`.
+### Linting
 
 ```bash
-waza check                          # readiness check (token budget, link health, schema, eval suite)
-waza check <skill>                  # one skill only
-waza run                            # run all suites
-waza run <skill>                    # run one skill's suite
-waza grade --output <results.json>  # re-grade existing results without re-running the agent
-waza dev <skill>                    # interactive frontmatter improvement loop
+make lint                           # waza check all skills
+make lint SKILL=camunda-feel        # one skill
+waza check <skill>                  # equivalent direct invocation
 ```
 
-Per-run results land in `results/<timestamp>/<model>.json`. The CI workflow
-uploads them as `eval-results` artifacts on every PR.
+`waza check` covers: agentskills.io spec compliance (description length, required
+sections), token budget (per `.waza.yaml`), link health, frontmatter quality
+advisories. Returns non-zero on hard violations; warnings are advisory.
 
 ### Adding a New Skill
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The eval-side recipe:
-
-1. `waza new skill <name>` (or hand-create `skills/<name>/SKILL.md`).
-2. Add a suite under `evals/<name>/` — copy `evals/camunda-feel/` as a
-   reference (it has both trigger probes and quality tasks with `program`
-   graders).
-3. `waza check <name>` to validate schema + advisory checks.
-4. `waza run <name>` for a cheap rehearsal.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Hand-create `skills/<name>/SKILL.md` and
+its `references/`, then run `make lint SKILL=<name>` until clean.
