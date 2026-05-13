@@ -2,6 +2,7 @@ name: camunda-connectors-eval
 description: Evaluation suite for camunda-connectors — quality tasks for element-template discovery and application.
 skill: camunda-connectors
 version: "1.0"
+baseline: true
 metrics:
   - name: task_completion
     weight: 1.0

@@ -2,6 +2,7 @@ name: camunda-forms-eval
 description: Evaluation suite for camunda-forms — quality tasks for Camunda Form JSON schemas.
 skill: camunda-forms
 version: "1.0"
+baseline: true
 metrics:
   - name: task_completion
     weight: 1.0

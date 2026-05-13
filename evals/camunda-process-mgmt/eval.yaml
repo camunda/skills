@@ -2,6 +2,7 @@ name: camunda-process-mgmt-eval
 description: Evaluation suite for camunda-process-mgmt — quality tasks for deploy/run/list/operate cluster operations via c8ctl.
 skill: camunda-process-mgmt
 version: "1.0"
+baseline: true
 metrics:
   - name: task_completion
     weight: 1.0

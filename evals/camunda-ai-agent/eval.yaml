@@ -2,6 +2,7 @@ name: camunda-ai-agent-eval
 description: Evaluation suite for camunda-ai-agent — quality tasks for modelling AI agents in BPMN.
 skill: camunda-ai-agent
 version: "1.0"
+baseline: true
 metrics:
   - name: task_completion
     weight: 1.0

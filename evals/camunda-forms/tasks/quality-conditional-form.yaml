@@ -1,30 +1,40 @@
 id: quality-conditional-form
 name: Quality - Conditional approval form
 description: |
-  Tests that the agent uses a FEEL conditional.hide expression to show a
-  comments field only when the decision is rejected.
+  Tests that the agent uses a FEEL `conditional.hide` expression to
+  show a comments field only when the decision is rejected.
 tags:
   - quality
 
 inputs:
   prompt: |
-    Create an approval form that shows a comments field only when
-    decision is rejected.
+    Create a Camunda Form for an approval workflow: a decision
+    component (approved/rejected) and a comments textarea that is only
+    visible when the decision is `rejected`.
+
+    Output ONLY the raw Camunda Form JSON object — no code fences, no
+    commentary, no prose. Just the JSON.
 
 graders:
+  - type: json_schema
+    name: form-schema
+    config:
+      schema_file: ../schemas/form.schema.json
+
   - type: prompt
-    name: rubric-judge
+    name: semantic-check
     config:
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's response,
-        otherwise 0.0:
-        - Contains a radio or select component for the approval decision
-          with at least approved and rejected options.
-        - Contains a textarea component for comments.
-        - The comments field has a conditional.hide property using a FEEL
-          expression.
-        - The FEEL expression hides comments when the decision is not
-          rejected.
-        - The decision field has required validation.
-        - Includes metadata: executionPlatform, executionPlatformVersion,
-          schemaVersion 18, exporter, id, type.
+        Score the agent's Camunda Form JSON. The json_schema grader
+        already enforces structural validity — your job is to verify
+        the conditional-visibility task.
+
+        Score 1.0 if ALL hold, otherwise 0.0:
+        - Has a radio or select component for the approval decision with
+          at least two options including `approved` and `rejected`.
+        - Has a textarea component for comments.
+        - The comments component has a `conditional.hide` FEEL expression
+          (starting with `=`) that evaluates truthy when the decision is
+          NOT `rejected`.
+        - The decision component is `required: true` (or equivalent in
+          the `validate` block).

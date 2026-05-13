@@ -1,29 +1,37 @@
 id: quality-basic-form
 name: Quality - Basic contact form
 description: |
-  Tests that the agent generates a valid Camunda Forms JSON schema with
-  the standard fields and metadata.
+  Tests that the agent generates a valid Camunda Form with standard
+  input fields, validation rules, and required metadata.
 tags:
   - quality
 
 inputs:
   prompt: |
-    Create a form for collecting customer contact information (name,
-    email, phone, address).
+    Create a Camunda Form for collecting customer contact information
+    (name, email, phone, address).
+
+    Output ONLY the raw Camunda Form JSON object — no code fences, no
+    commentary, no prose. Just the JSON.
 
 graders:
+  - type: json_schema
+    name: form-schema
+    config:
+      schema_file: ../schemas/form.schema.json
+
   - type: prompt
-    name: rubric-judge
+    name: semantic-check
     config:
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's response,
-        otherwise 0.0:
-        - Output is valid JSON with .form-compatible structure.
-        - Contains components for name, email, phone, and address.
-        - Each input component has type, id, key, label, and layout
-          properties.
-        - Email field has a regex pattern validation.
-        - Name field has required validation set to true.
-        - Layout uses sequential row identifiers for logical grouping.
-        - Includes metadata: executionPlatform, executionPlatformVersion,
-          schemaVersion 18, exporter, id, type.
+        Score the agent's Camunda Form JSON. The json_schema grader
+        already enforces structural validity — your job is to verify
+        the task-specific semantics.
+
+        Score 1.0 if ALL hold, otherwise 0.0:
+        - Has input components for all four fields: name, email, phone,
+          address.
+        - The email field has a regex `pattern` validation (any reasonable
+          pattern).
+        - The name field has `required: true` (or equivalent in the
+          `validate` block).

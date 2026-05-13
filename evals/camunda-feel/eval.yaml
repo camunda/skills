@@ -2,6 +2,7 @@ name: camunda-feel-eval
 description: Evaluation suite for camunda-feel — trigger probes (positive/negative) and quality tasks for FEEL expressions.
 skill: camunda-feel
 version: "1.0"
+baseline: true
 metrics:
   - name: task_completion
     weight: 1.0

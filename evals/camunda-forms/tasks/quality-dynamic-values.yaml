@@ -1,26 +1,37 @@
 id: quality-dynamic-values
 name: Quality - Dynamic dropdown values
 description: |
-  Tests that the agent uses valuesExpression bound to a process variable
-  rather than a static values array.
+  Tests that the agent uses `valuesExpression` bound to a process
+  variable rather than a static `values` array.
 tags:
   - quality
 
 inputs:
   prompt: |
-    Create a form with a dropdown populated from a process variable
-    called departments.
+    Create a Camunda Form with a dropdown populated from a process
+    variable called `departments`.
+
+    Output ONLY the raw Camunda Form JSON object — no code fences, no
+    commentary, no prose. Just the JSON.
 
 graders:
+  - type: json_schema
+    name: form-schema
+    config:
+      schema_file: ../schemas/form.schema.json
+
   - type: prompt
-    name: rubric-judge
+    name: semantic-check
     config:
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's response,
-        otherwise 0.0:
-        - Contains a select component with valuesExpression set to
-          "=departments".
-        - Does not use a static values array on the select.
-        - The select component has key, label, id, and layout properties.
-        - Includes metadata: executionPlatform, executionPlatformVersion,
-          schemaVersion 18, exporter, id, type.
+        Score the agent's Camunda Form JSON. The json_schema grader
+        already enforces structural validity — your job is to verify
+        the dynamic-values task.
+
+        Score 1.0 if ALL hold, otherwise 0.0:
+        - Has a select component (`type: "select"` or `type: "radio"`
+          would also be acceptable — any options-bearing component).
+        - That component sets `valuesExpression` to `=departments` (a
+          FEEL reference to the process variable).
+        - That component does NOT also set a static `values` array
+          (mixing the two is a bug).

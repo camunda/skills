@@ -2,6 +2,7 @@ name: camunda-bpmn-eval
 description: Evaluation suite for camunda-bpmn — trigger probes (positive/negative) and quality tasks for BPMN authoring.
 skill: camunda-bpmn
 version: "1.0"
+baseline: true
 metrics:
   - name: task_completion
     weight: 1.0
