@@ -141,7 +141,10 @@ For full profile management — OAuth audience/endpoint, default tenants, multi-
 
 ### Use the CLI
 
-c8ctl follows a `<verb> <resource>` structure. Resources have short aliases (`pi` = process-instance, `pd` = process-definition, `ut` = user-task, `inc` = incident, `msg` = message).
+c8ctl has two command shapes:
+
+- **Core API commands** follow `<verb> <resource>` — `list pi`, `get inc <key>`, `complete ut <key>`. Resources have short aliases (`pi` = process-instance, `pd` = process-definition, `ut` = user-task, `inc` = incident, `msg` = message).
+- **Plugin commands** follow `<plugin> <subcommand>` — `cluster start`, `element-template apply`, `bpmn lint`, `feel evaluate`. The plugin name is the first token; subcommands are plugin-defined.
 
 Quick tour:
 
@@ -167,7 +170,7 @@ c8ctl resolve inc 2251799813685251
 c8ctl cancel pi 2251799813685249
 ```
 
-For the full verb/resource matrix and resource-specific flags, see `references/command-reference.md`.
+For the full verb/resource matrix, plugin commands, and resource-specific flags, see `references/command-reference.md`.
 
 ### Output Modes (for AI / scripting)
 
@@ -224,4 +227,4 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see [
 For detailed reference material, read from `references/`:
 - [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
 - [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
-- [command-reference.md](references/command-reference.md) — verb/resource matrix, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)
+- [command-reference.md](references/command-reference.md) — verb/resource matrix, plugin command shape, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)

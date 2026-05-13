@@ -4,7 +4,9 @@ Verb-and-resource matrix, resource aliases, common flags. For the full auto-gene
 
 ## Command Structure
 
-c8ctl uses a `<verb> <resource> [args] [flags]` shape:
+c8ctl has two command shapes. Core API commands use `<verb> <resource>`; plugin commands use `<plugin> <subcommand>`.
+
+**Core API** — `<verb> <resource> [args] [flags]`:
 
 ```bash
 c8ctl list pi                            # verb=list, resource=pi (process-instance)
@@ -12,6 +14,17 @@ c8ctl get pi 2251799813685249            # verb=get, resource=pi, key=...
 c8ctl complete ut 2251799813685250       # verb=complete, resource=ut (user-task)
 c8ctl search inc --state=ACTIVE          # verb=search, resource=inc (incident)
 ```
+
+**Plugins** — `<plugin> <subcommand> [args] [flags]`. The plugin name is the first token; subcommands are plugin-defined and do not share the core verb/resource grammar:
+
+```bash
+c8ctl cluster start                       # plugin=cluster, subcommand=start
+c8ctl element-template apply -i <template> <element-id> <bpmn>
+c8ctl bpmn lint process.bpmn              # plugin=bpmn, subcommand=lint
+c8ctl feel evaluate '1 + 2'               # plugin=feel, subcommand=evaluate
+```
+
+Default plugins (`cluster`, `bpmn`, `feel`, `element-template`) ship with c8ctl. See "Default Plugins" below.
 
 ## Resource Aliases
 
