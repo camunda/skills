@@ -1,36 +1,28 @@
 id: quality-first-element-access
-name: Quality - FEEL list first-element access
+name: Quality - FEEL 1-based list indexing
 description: |
-  Tests 1-based list indexing (events[1]) — a FEEL gotcha that costs
-  correctness marks for agents that default to 0-based.
+  Asks for a FEEL expression that returns the first element's
+  `timestamp` from a list. FEEL uses 1-based indexing (`events[1]`),
+  unlike most programming languages — 0-based attempts silently
+  evaluate to null. Program graders catch the null-return case fully,
+  so no prompt grader is needed here.
 tags:
   - quality
 
 inputs:
   prompt: |
-    Given a list of order events where each event has `timestamp` (number)
-    and `type` (string) fields, the first event in the list is always the
-    creation event. Write a FEEL expression that returns the timestamp of
-    the first event. The input variable is `events`. Write your final
-    FEEL expression (and only the expression, no fences, no commentary)
-    to outputs/answer.feel.
+    I need a FEEL expression that returns the timestamp of the first
+    event in the `events` list. Each event has `timestamp` (number) and
+    `type` (string) fields.
 
 graders:
-  - type: prompt
-    name: idiomatic-check
+  - type: skill_invocation
+    name: invoked-camunda-feel
     config:
-      continue_session: true
-      prompt: |
-        Read outputs/answer.feel and score the *style* of the FEEL
-        expression. The program graders alongside this one already
-        verify it returns the right value — your job is to flag
-        non-idiomatic code that happens to work.
-
-        Score 1.0 if ALL hold, otherwise 0.0:
-        - The expression is a direct indexed access (e.g. events[1].timestamp)
-          — NOT a for-loop, NOT a filter expression, NOT a quantifier.
-        - The index literal is `1` directly — not arithmetic like `2 - 1`
-          or `count(events) - 2`.
+      mode: any_order
+      required_skills:
+        - camunda-feel
+      allow_extra: true
 
   - type: program
     name: feel-evaluate-3events
@@ -38,7 +30,6 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"events":[{"timestamp":100,"type":"created"},{"timestamp":200,"type":"paid"},{"timestamp":300,"type":"shipped"}]}'
         - "100"
 
@@ -48,6 +39,5 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"events":[{"timestamp":42,"type":"created"}]}'
         - "42"

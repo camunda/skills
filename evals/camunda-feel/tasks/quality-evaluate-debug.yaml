@@ -1,17 +1,20 @@
 id: quality-evaluate-debug
-name: Quality - Debug broken FEEL context
+name: Quality - Debug broken FEEL context expression
 description: |
-  Tests that the agent fixes missing commas in a multi-entry context
-  expression while preserving the chained .total accessor.
+  A four-entry context expression chained to `.total` should compute
+  total price with tax for an `items` list, but returns null — two
+  commas are missing. The agent has to spot and fix the issue without
+  being told how. Grader extracts the corrected FEEL from the agent's
+  response and evaluates it across two inputs.
 tags:
   - quality
 
 inputs:
   prompt: |
-    Fix this broken FEEL expression. It should calculate the total price
-    with tax but returns null:
+    This FEEL expression should compute total price with tax for an
+    `items` list (each item has a `price` field), but it returns null:
 
-    ```feel
+    ```
     {
       subtotal: sum(items.price)
       taxRate: 0.19,
@@ -20,34 +23,16 @@ inputs:
     }.total
     ```
 
-    The input variable items is a list of contexts each with a price
-    field. Write your CORRECTED FEEL expression (and only the expression,
-    no fences, no commentary) to outputs/answer.feel.
+    Fix it.
 
 graders:
-  - type: prompt
-    name: minimal-diff-check
+  - type: skill_invocation
+    name: invoked-camunda-feel
     config:
-      continue_session: true
-      prompt: |
-        Read outputs/answer.feel and score whether the agent did a
-        *minimal fix*. The program graders alongside this one already
-        verify the numeric output — your job is to flag rewrites that
-        happen to work but discard the original shape.
-
-        The original was a four-entry context `{ subtotal, taxRate, tax,
-        total }` chained to `.total`, with missing commas after the
-        `subtotal:` and `tax:` entries.
-
-        Score 1.0 if ALL hold, otherwise 0.0:
-        - The four-entry context shape is preserved — all four keys
-          (subtotal, taxRate, tax, total) still appear in the same
-          order.
-        - The chained `.total` accessor is still on the outside of the
-          context.
-        - The agent fixed the missing commas without rewriting the
-          arithmetic (no inlining of `subtotal` or `tax` into the
-          final expression, no renaming of fields).
+      mode: any_order
+      required_skills:
+        - camunda-feel
+      allow_extra: true
 
   - type: program
     name: feel-evaluate-two-items
@@ -55,7 +40,6 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"items":[{"price":100},{"price":50}]}'
         - "178.5"
 
@@ -65,6 +49,5 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"items":[{"price":1000}]}'
         - "1190"

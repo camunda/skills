@@ -1,30 +1,48 @@
 #!/usr/bin/env bash
-# Deterministic verifier: shell to `c8ctl feel evaluate` and compare the
-# result against the expected value. Reads the agent's FEEL expression
-# from a file written into the per-trial workspace, defaults to
-# outputs/answer.feel.
+# Deterministic verifier: extracts the last fenced code block from the
+# agent's response (on stdin), evaluates it with `c8ctl feel evaluate`,
+# and compares the result against the expected output.
 #
 # Usage (from a task's `program` grader):
 #   args:
 #     - evals/camunda-feel/graders/feel-evaluate.sh
-#     - outputs/answer.feel                # answer file (relative to workspace)
-#     - '{"events":[…]}'                   # context as JSON
-#     - "100"                              # expected output (stdout match)
+#     - '{"events":[…]}'                   # variable context as JSON
+#     - "100"                              # expected output
 #
-# Exit 0 on match, 1 otherwise. The agent's text response is on stdin.
-
+# Exit 0 on match, 1 otherwise.
 set -euo pipefail
 
-answer_path="${WAZA_WORKSPACE_DIR:?WAZA_WORKSPACE_DIR not set}/$1"
-context_json="$2"
-expected="$3"
+context_json="$1"
+expected="$2"
 
-if [ ! -f "$answer_path" ]; then
-  echo "FAIL: $1 not found in workspace ($answer_path)"
+# Pull the last fenced code block from the agent's response. Allows
+# any language hint (```feel, ```xml, plain ```), keeps multi-line
+# expressions intact.
+expr=$(awk '
+  /^[[:space:]]*```/ {
+    if (in_block) { last = current; current = ""; in_block = 0 }
+    else { in_block = 1 }
+    next
+  }
+  in_block { current = current $0 "\n" }
+  END {
+    if (in_block && current) last = current
+    printf "%s", last
+  }
+')
+
+# Strip trailing newlines.
+expr="${expr%$'\n'}"
+
+if [ -z "$expr" ]; then
+  echo "FAIL: no fenced code block found in agent response"
   exit 1
 fi
 
-expr=$(< "$answer_path")
+# Strip a leading `=` (FEEL-in-BPMN syntax). c8ctl feel evaluate
+# accepts both forms, but normalising avoids ambiguous error messages.
+expr="${expr#=}"
+
 actual=$(c8ctl feel evaluate "$expr" --vars "$context_json")
 
 if [ "$actual" = "$expected" ]; then

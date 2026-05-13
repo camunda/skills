@@ -1,13 +1,17 @@
 name: camunda-bpmn-eval
-description: Evaluation suite for camunda-bpmn — trigger probes (positive/negative) and quality tasks for BPMN authoring.
+description: Evaluation suite for camunda-bpmn — quality tasks for BPMN authoring plus trigger accuracy probes from trigger_tests.yaml.
 skill: camunda-bpmn
 version: "1.0"
 baseline: true
 metrics:
   - name: task_completion
-    weight: 1.0
+    weight: 0.7
     threshold: 0.8
     description: Did the skill complete the assigned task?
+  - name: trigger_accuracy
+    weight: 0.3
+    threshold: 0.9
+    description: Does the skill correctly trigger on relevant prompts and not on unrelated ones?
 config:
   trials_per_task: 1
   timeout_seconds: 300

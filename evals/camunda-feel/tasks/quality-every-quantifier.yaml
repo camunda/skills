@@ -1,39 +1,44 @@
 id: quality-every-quantifier
-name: Quality - FEEL every quantifier
+name: Quality - Use FEEL `every ... satisfies` quantifier
 description: |
-  Tests use of FEEL's `every ... in ... satisfies ...` quantifier rather
-  than count-based workarounds.
+  Asks for a FEEL expression that validates every item in a list against
+  a predicate. Idiomatic FEEL is `every x in items satisfies x.price >
+  0`. We grade functional correctness across edge cases (all-positive,
+  one-negative, zero-price, empty list — which must return true under
+  FEEL's vacuous-truth semantics) plus one prompt grader for idiom,
+  because the entire point of this task is to surface non-idiomatic
+  workarounds (count-based, filter-based) that happen to produce the
+  right boolean.
 tags:
   - quality
 
 inputs:
   prompt: |
-    Write a FEEL expression that returns true when every line item in the
-    `items` list has a positive price, and false otherwise. The input
-    variable `items` is a list of contexts each with a `price` field.
-    Write your final FEEL expression (and only the expression, no fences,
-    no commentary) to outputs/answer.feel.
+    I need a FEEL expression that returns true when every item in the
+    `items` list has a positive price, and false otherwise. `items` is
+    a list of contexts each with a `price` field.
 
 graders:
+  - type: skill_invocation
+    name: invoked-camunda-feel
+    config:
+      mode: any_order
+      required_skills:
+        - camunda-feel
+      allow_extra: true
+
   - type: prompt
     name: idiomatic-check
     config:
-      continue_session: true
       prompt: |
-        Read outputs/answer.feel and score the *style* of the FEEL
-        expression. The program graders alongside this one already
-        verify the boolean output across edge cases — your job is to
-        flag non-idiomatic code that happens to work.
-
-        Score 1.0 if ALL hold, otherwise 0.0:
-        - Uses the FEEL `every ... in ... satisfies ...` quantifier as
-          the top-level construct.
-        - Does NOT use a count-based workaround like
-          `count(items[price <= 0]) = 0`.
-        - Does NOT use a filter-then-compare workaround like
-          `items[price <= 0] = []`.
-        - The predicate is a single comparison, not a chained
-          if-then-else.
+        Look at the FEEL expression the agent provided (in a fenced code
+        block in the response). Score 1.0 if it uses FEEL's `every ...
+        in ... satisfies ...` quantifier as the top-level construct;
+        0.0 otherwise. Reject count-based workarounds (`count(items[price
+        <= 0]) = 0`), filter-then-compare workarounds (`items[price <=
+        0] = []`), or chained if-then-else. The program graders
+        alongside this one already verify the boolean output across edge
+        cases.
 
   - type: program
     name: feel-evaluate-all-positive
@@ -41,7 +46,6 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"items":[{"price":10},{"price":20},{"price":30}]}'
         - "true"
 
@@ -51,7 +55,6 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"items":[{"price":10},{"price":-1},{"price":30}]}'
         - "false"
 
@@ -61,7 +64,6 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"items":[{"price":0}]}'
         - "false"
 
@@ -71,6 +73,5 @@ graders:
       command: bash
       args:
         - evals/camunda-feel/graders/feel-evaluate.sh
-        - outputs/answer.feel
         - '{"items":[]}'
         - "true"
