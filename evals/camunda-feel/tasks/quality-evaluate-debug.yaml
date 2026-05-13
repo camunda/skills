@@ -1,0 +1,60 @@
+id: quality-evaluate-debug
+name: Quality - Debug broken FEEL context
+description: |
+  Tests that the agent fixes missing commas in a multi-entry context
+  expression while preserving the chained .total accessor.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Fix this broken FEEL expression. It should calculate the total price
+    with tax but returns null:
+
+    ```feel
+    {
+      subtotal: sum(items.price)
+      taxRate: 0.19,
+      tax: subtotal * taxRate
+      total: subtotal + tax
+    }.total
+    ```
+
+    The input variable items is a list of contexts each with a price
+    field. Write your CORRECTED FEEL expression (and only the expression,
+    no fences, no commentary) to outputs/answer.feel.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's final FEEL
+        expression at outputs/answer.feel, otherwise 0.0:
+        - Corrected expression parses and evaluates without errors
+          against the cluster FEEL engine.
+        - Multi-entry context pattern is preserved (the four-entry
+          context { subtotal, taxRate, tax, total } with the chained
+          .total accessor).
+        - Output computes the correct tax-inclusive total for the
+          provided items.
+
+  - type: program
+    name: feel-evaluate-two-items
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"items":[{"price":100},{"price":50}]}'
+        - "178.5"
+
+  - type: program
+    name: feel-evaluate-one-item
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"items":[{"price":1000}]}'
+        - "1190"

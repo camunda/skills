@@ -1,0 +1,19 @@
+id: neg-incidents
+name: Negative trigger - neg-incidents
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'I have stuck process instances with incidents on a service task. How do I find them and resolve the incidents?'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-feel/SKILL.md
+      mode: negative
+      threshold: 0.6

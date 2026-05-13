@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/main/schemas/config.schema.json
+
+paths:
+  skills: skills/
+  evals: evals/
+  results: results/
+defaults:
+  engine: copilot-sdk
+  model: claude-sonnet-4.6
+  timeout: 300
+  parallel: false
+  workers: 4
+  verbose: false
+  sessionLog: false
+cache:
+  enabled: false
+  dir: .waza-cache
+server:
+  port: 3000
+  resultsDir: results/
+dev:
+  model: claude-sonnet-4-20250514
+  target: medium-high
+  maxIterations: 5
+tokens:
+  # Aligned with the agentskills.io spec (5000 tokens per SKILL.md). Patterns
+  # are matched relative to each skill's own directory, so the SKILL.md key is
+  # the bare filename.
+  warningThreshold: 4000
+  fallbackLimit: 5000
+  limits:
+    defaults:
+      "SKILL.md": 5000
+      "references/**/*.md": 3000
+      "*.md": 5000
+graders:
+  programTimeout: 30
+storage:
+  containerName: waza-results

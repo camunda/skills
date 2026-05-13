@@ -1,0 +1,41 @@
+id: quality-zeebe-retries-and-headers
+name: Quality - Zeebe taskDefinition retries and headers
+description: |
+  Tests that the agent generates a BPMN service task with proper Zeebe
+  taskDefinition (retries) and taskHeaders extension elements.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Create a BPMN 2.0 process with a single service task 'Send notification'
+    wired to a Zeebe job worker. The worker type is 'send-notification' and
+    the task must retry 5 times on failure. Pass two task headers to the
+    worker: priority='high' and category='alerts'. Include the standard
+    Zeebe namespace and a full bpmndi:BPMNDiagram with coordinates so the
+    file is deployable. Write the complete BPMN 2.0 XML — and only the
+    XML, no fences, no commentary — to outputs/process.bpmn. The file
+    must pass `c8ctl bpmn lint --quiet` (no errors).
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's final BPMN at
+        outputs/process.bpmn, otherwise 0.0:
+        - Service task has <zeebe:taskDefinition> with type='send-notification'
+          AND retries='5'.
+        - Service task has <zeebe:taskHeaders> containing entries for
+          priority='high' AND category='alerts'.
+        - The Zeebe namespace xmlns:zeebe='http://camunda.org/schema/zeebe/1.0'
+          is declared on the definitions element.
+        - BPMN parses cleanly (start/end events connected, bpmndi present).
+
+  - type: program
+    name: bpmn-lint
+    config:
+      command: bash
+      args:
+        - evals/camunda-bpmn/graders/bpmn-lint.sh
+        - outputs/process.bpmn

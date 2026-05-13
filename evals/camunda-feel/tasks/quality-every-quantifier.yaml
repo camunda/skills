@@ -1,0 +1,69 @@
+id: quality-every-quantifier
+name: Quality - FEEL every quantifier
+description: |
+  Tests use of FEEL's `every ... in ... satisfies ...` quantifier rather
+  than count-based workarounds.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Write a FEEL expression that returns true when every line item in the
+    `items` list has a positive price, and false otherwise. The input
+    variable `items` is a list of contexts each with a `price` field.
+    Write your final FEEL expression (and only the expression, no fences,
+    no commentary) to outputs/answer.feel.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's final FEEL
+        expression at outputs/answer.feel, otherwise 0.0:
+        - Uses the FEEL `every ... in ... satisfies ...` quantifier
+          (not a count-based workaround like count(items[price <= 0]) = 0).
+        - Compares each item's price against 0 with the predicate
+          item.price > 0.
+        - Returns a boolean (true or false), not a list and not the
+          offending item.
+
+  - type: program
+    name: feel-evaluate-all-positive
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"items":[{"price":10},{"price":20},{"price":30}]}'
+        - "true"
+
+  - type: program
+    name: feel-evaluate-one-negative
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"items":[{"price":10},{"price":-1},{"price":30}]}'
+        - "false"
+
+  - type: program
+    name: feel-evaluate-zero-price
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"items":[{"price":0}]}'
+        - "false"
+
+  - type: program
+    name: feel-evaluate-empty
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"items":[]}'
+        - "true"

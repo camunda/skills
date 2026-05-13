@@ -1,0 +1,19 @@
+id: neg-deploy-existing
+name: Negative trigger - neg-deploy-existing
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Deploy this BPMN file to my Camunda 8 cluster.'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-bpmn/SKILL.md
+      mode: negative
+      threshold: 0.6

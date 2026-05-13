@@ -1,0 +1,31 @@
+id: quality-local-cluster-bootstrap
+name: Quality - Local cluster bootstrap
+description: |
+  Tests that the agent walks the user through installing c8ctl and starting
+  a local cluster via c8ctl cluster start (rather than telling them to
+  download c8run separately).
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    I want to start working with Camunda 8 locally. I don't have a cluster
+    yet. Help me get going.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Recommends/installs c8ctl via `npm install -g @camunda8/cli`.
+        - Recommends starting a local cluster using `c8ctl cluster start`
+          (the c8run wrapper) rather than telling the user to download
+          c8run separately.
+        - Explains that `c8ctl cluster start` downloads and starts c8run
+          on first run, defaulting to the latest stable.
+        - Verifies the cluster is alive (`c8ctl cluster status` or
+          `c8ctl get topology`).
+        - Does NOT require the user to manually create a profile for the
+          local case (mentions the localhost fallback).

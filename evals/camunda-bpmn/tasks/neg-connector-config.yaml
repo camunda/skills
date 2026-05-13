@@ -1,0 +1,19 @@
+id: neg-connector-config
+name: Negative trigger - neg-connector-config
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Configure a Slack connector to post a message to the #ops channel on incident.'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-bpmn/SKILL.md
+      mode: negative
+      threshold: 0.6

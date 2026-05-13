@@ -1,0 +1,19 @@
+id: pos-list-projection
+name: Positive trigger - pos-list-projection
+description: Trigger probe ported from triggers.json (positive).
+tags:
+  - positive-trigger
+
+inputs:
+  prompt: 'Given a list of orders, give me only the IDs of orders where status is ''pending'' and amount > 500.'
+
+expected:
+  should_trigger: true
+
+graders:
+  - type: trigger
+    name: trigger-positive
+    config:
+      skill_path: skills/camunda-feel/SKILL.md
+      mode: positive
+      threshold: 0.6

@@ -1,0 +1,23 @@
+id: quality-deploy-and-start-instance
+name: Quality - Deploy and start instance
+description: |
+  Tests that the agent deploys a process and creates an instance with the
+  specified variables.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Deploy my process and start an instance with orderId=ORD-456 and
+    amount=2500.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Deploys the BPMN file first.
+        - Creates a process instance with correct variables JSON.
+        - Uses `c8ctl run` or `c8ctl deploy` followed by `c8ctl create pi`.

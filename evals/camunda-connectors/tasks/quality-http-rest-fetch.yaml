@@ -1,0 +1,32 @@
+id: quality-http-rest-fetch
+name: Quality - HTTP REST connector
+description: |
+  Tests that the agent applies the HTTP REST connector template via
+  c8ctl element-template apply with a dynamic URL and result mapping.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Add an HTTP REST connector to my process that fetches user data from
+    https://api.example.com/users/{userId}. The userId comes from a
+    process variable.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Discovers the HTTP/REST template via `c8ctl element-template
+          search` (does not guess the template ID from memory).
+        - Uses `c8ctl element-template apply` with the HTTP REST
+          template (e.g., io.camunda.connectors.HttpJson.v2).
+        - Targets the process by file path and uses --in-place (or
+          equivalent) to modify the BPMN.
+        - Configures method=GET and a FEEL expression for the URL (with
+          the userId variable).
+        - Sets resultVariable or resultExpression for the response.
+        - Uses proper XML encoding for FEEL expressions in attributes
+          (when manual edits are made).

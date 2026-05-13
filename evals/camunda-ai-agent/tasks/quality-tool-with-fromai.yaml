@@ -1,0 +1,29 @@
+id: quality-tool-with-fromai
+name: Quality - Tool with fromAi() parameter
+description: |
+  Tests that the agent adds a service task tool inside an ad-hoc
+  subprocess with fromAi() for the query parameter and a resultExpression
+  writing toolCallResult.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Add a 'Search orders' tool to my AI agent ad-hoc subprocess. It calls
+    GET https://api.example.com/orders?q=<query> with the query coming
+    from the LLM, and returns the response body to the agent.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Adds a serviceTask child of the ad-hoc subprocess with no
+          incoming sequence flow.
+        - Names the tool clearly (e.g. 'Search orders') and includes
+          bpmn:documentation.
+        - Uses fromAi(toolCall.query, ..., "string") to declare the
+          LLM-supplied parameter.
+        - Sets resultExpression to ={toolCallResult: response.body}.

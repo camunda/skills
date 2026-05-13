@@ -1,0 +1,50 @@
+id: quality-first-element-access
+name: Quality - FEEL list first-element access
+description: |
+  Tests 1-based list indexing (events[1]) — a FEEL gotcha that costs
+  correctness marks for agents that default to 0-based.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Given a list of order events where each event has `timestamp` (number)
+    and `type` (string) fields, the first event in the list is always the
+    creation event. Write a FEEL expression that returns the timestamp of
+    the first event. The input variable is `events`. Write your final
+    FEEL expression (and only the expression, no fences, no commentary)
+    to outputs/answer.feel.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's final FEEL
+        expression at outputs/answer.feel, otherwise 0.0:
+        - Uses 1-based indexing: events[1] (NOT events[0], which
+          returns null in FEEL).
+        - Does not call a non-existent helper like first(events) —
+          FEEL has no first() function.
+        - The result is a numeric value (the timestamp), not null and
+          not a list.
+
+  - type: program
+    name: feel-evaluate-3events
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"events":[{"timestamp":100,"type":"created"},{"timestamp":200,"type":"paid"},{"timestamp":300,"type":"shipped"}]}'
+        - "100"
+
+  - type: program
+    name: feel-evaluate-1event
+    config:
+      command: bash
+      args:
+        - evals/camunda-feel/graders/feel-evaluate.sh
+        - outputs/answer.feel
+        - '{"events":[{"timestamp":42,"type":"created"}]}'
+        - "42"

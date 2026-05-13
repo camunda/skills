@@ -1,0 +1,19 @@
+id: neg-graphviz
+name: Negative trigger - neg-graphviz
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Use Graphviz to draw a flowchart of my CI pipeline showing build, test, lint, and deploy stages with their dependencies.'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-bpmn/SKILL.md
+      mode: negative
+      threshold: 0.6

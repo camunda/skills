@@ -1,0 +1,29 @@
+id: quality-multi-turn-context
+name: Quality - Multi-turn context wiring
+description: |
+  Tests that the agent explains feeding agent.context back in as
+  agentContext on the next invocation.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    The agent should be able to take a follow-up message from the user
+    after its first response and continue with the same conversation
+    context. How do I wire that?
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Pipes agent.context back in via <zeebe:input
+          source="=agent.context" target="agentContext" /> on subsequent
+          invocations.
+        - Uses a follow-up prompt branch (e.g. if is defined(followUpInput)
+          then followUpInput else inputText).
+        - Notes that data.response.includeAgentContext should be true.
+        - Writes the agent output back to a process variable so the next
+          iteration can read it.

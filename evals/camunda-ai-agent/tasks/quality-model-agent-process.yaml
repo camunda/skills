@@ -1,0 +1,34 @@
+id: quality-model-agent-process
+name: Quality - Model an AI agent process
+description: |
+  Tests that the agent models an ad-hoc subprocess with the AI Agent
+  connector, a REST tool, and a user-task escalation tool.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Create a Camunda 8 BPMN process that uses the AI Agent connector to
+    handle customer support tickets. The agent should be able to look up
+    customer data via a REST API and escalate to a human user task when
+    needed.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Uses bpmn:adHocSubProcess as the agent host element (not
+          bpmn:subProcess).
+        - Applies the AI Agent connector via `c8ctl element-template
+          apply`.
+        - Models the customer lookup as a service task with no incoming
+          sequence flow.
+        - Uses fromAi(toolCall.customerId, ...) inside the lookup tool's
+          input mapping.
+        - Writes toolCallResult on every tool.
+        - Sets data.limits.maxModelCalls.
+        - Sets data.systemPrompt.prompt and data.userPrompt.prompt as
+          FEEL strings (= prefix).

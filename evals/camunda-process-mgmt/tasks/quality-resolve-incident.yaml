@@ -1,0 +1,25 @@
+id: quality-resolve-incident
+name: Quality - Investigate and resolve an incident
+description: |
+  Tests that the agent investigates an incident, identifies the root
+  cause, and resolves it.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    My process has an incident. Help me find and fix it.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Uses `c8ctl search inc` or `c8ctl list inc` to find active
+          incidents.
+        - Reads the error message to identify the root cause.
+        - Inspects process variables with `c8ctl search variables`.
+        - Suggests a fix based on the error.
+        - Resolves the incident with `c8ctl resolve inc` after the fix.

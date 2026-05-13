@@ -1,0 +1,19 @@
+id: neg-state-machine
+name: Negative trigger - neg-state-machine
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Implement an order state machine in TypeScript using xstate where orders go from pending → paid → shipped → delivered.'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-bpmn/SKILL.md
+      mode: negative
+      threshold: 0.6

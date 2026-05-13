@@ -1,0 +1,30 @@
+id: quality-conditional-form
+name: Quality - Conditional approval form
+description: |
+  Tests that the agent uses a FEEL conditional.hide expression to show a
+  comments field only when the decision is rejected.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Create an approval form that shows a comments field only when
+    decision is rejected.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Contains a radio or select component for the approval decision
+          with at least approved and rejected options.
+        - Contains a textarea component for comments.
+        - The comments field has a conditional.hide property using a FEEL
+          expression.
+        - The FEEL expression hides comments when the decision is not
+          rejected.
+        - The decision field has required validation.
+        - Includes metadata: executionPlatform, executionPlatformVersion,
+          schemaVersion 18, exporter, id, type.

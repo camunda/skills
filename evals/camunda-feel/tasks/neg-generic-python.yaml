@@ -1,0 +1,19 @@
+id: neg-generic-python
+name: Negative trigger - neg-generic-python
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Write a Python function that returns True when a number is divisible by both 3 and 5.'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-feel/SKILL.md
+      mode: negative
+      threshold: 0.6

@@ -1,0 +1,17 @@
+name: camunda-c8ctl-eval
+description: Evaluation suite for camunda-c8ctl — quality tasks for c8ctl install, profile setup, cluster bootstrap, and plugin install.
+skill: camunda-c8ctl
+version: "1.0"
+metrics:
+  - name: task_completion
+    weight: 1.0
+    threshold: 0.8
+    description: Did the skill complete the assigned task?
+config:
+  trials_per_task: 1
+  timeout_seconds: 300
+  parallel: false
+  executor: copilot-sdk
+  model: claude-sonnet-4.6
+tasks:
+  - "tasks/*.yaml"

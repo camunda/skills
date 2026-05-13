@@ -57,49 +57,43 @@ The sections below are for developers maintaining this skills repository.
 ### Repository Structure
 
 ```
-skills/           - Skill definitions (each skill = SKILL.md + references/ + evals/)
-tools/
-  skill-lint/     - Tier-0 structural + schema lint
-  eval-runner/    - Tier-1/2 harness (subprocess to anthropics/skills' run_eval.py
-                    for triggers; claude-agent-sdk + grader.md for quality;
-                    pluggable verifiers)
-  external/       - SHA-pinned upstream clones (gitignored, recreated by
-                    `make setup-skill-creator`)
+skills/           - Skill definitions (each skill = SKILL.md + references/)
+evals/            - Eval suites (one per skill)
+  <skill>/
+    eval.yaml       - Suite config (skill, metrics, defaults)
+    tasks/*.yaml    - One task per file (trigger probes + quality cases)
+    graders/*.sh    - Optional shell scripts shelled to by `program` graders
+    fixtures/       - Optional input files referenced by tasks via `inputs.files`
 examples/         - Reference BPMN/form files
-docs/             - Reference docs and design notes
-  evals.md          ← read this first for the eval framework
-evals/            - Per-run iteration outputs (gitignored)
+.waza.yaml        - Project-wide waza config
+.github/workflows - CI: runs `waza run` on PRs touching evals/ or skills/
 ```
 
 ### Running Evals
 
+Evals run via [waza](https://github.com/microsoft/waza). Install once with the Azure
+Developer CLI extension (see `.github/workflows/eval.yml`) or `go install
+github.com/microsoft/waza`.
+
 ```bash
-make lint                           # Tier 0, all skills
-make lint SKILL=camunda-feel        # Tier 0, one skill
-make setup-skill-creator            # one-time: clone the SHA-pinned upstream
-make eval SKILL=camunda-feel RUNS=1 # cheap rehearsal
-make eval SKILL=camunda-feel        # full run (3 trials)
-make compare SKILL=camunda-feel     # diff vs committed baseline (markdown via --format markdown)
-make promote SKILL=camunda-feel     # write the new baseline.json
+waza check                          # readiness check (token budget, link health, schema, eval suite)
+waza check <skill>                  # one skill only
+waza run                            # run all suites
+waza run <skill>                    # run one skill's suite
+waza grade --output <results.json>  # re-grade existing results without re-running the agent
+waza dev <skill>                    # interactive frontmatter improvement loop
 ```
 
-Per-run iterations land at `evals/<skill>/iteration-N/`. Each one ships
-with a self-contained `report.html` (open via `file://`) and an
-`index.html` at `evals/<skill>/` that lists all iterations with their
-headline metrics.
-
-For the full picture — three-tier model, verifiers, the
-bootstrap/iterate/promote/regress lifecycle, cost discipline, and how
-to add evals for a new skill — see [`docs/evals.md`](docs/evals.md).
-A plain-English overview of the same concepts (including a friendlier
-unpack of the asymmetric regression rule) lives at
-[`docs/evals-explained.html`](docs/evals-explained.html); open in a
-browser. Harness internals (SDK contract, SHA-pin update procedure)
-are in [`tools/eval-runner/AGENTS.md`](tools/eval-runner/AGENTS.md).
+Per-run results land in `results/<timestamp>/<model>.json`. The CI workflow
+uploads them as `eval-results` artifacts on every PR.
 
 ### Adding a New Skill
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the high-level checklist and
-[`docs/evals.md`](docs/evals.md) for the eval-side recipe (lint →
-triggers.json → evals.json with verifiers → cheap rehearsal →
-promote).
+See [CONTRIBUTING.md](CONTRIBUTING.md). The eval-side recipe:
+
+1. `waza new skill <name>` (or hand-create `skills/<name>/SKILL.md`).
+2. Add a suite under `evals/<name>/` — copy `evals/camunda-feel/` as a
+   reference (it has both trigger probes and quality tasks with `program`
+   graders).
+3. `waza check <name>` to validate schema + advisory checks.
+4. `waza run <name>` for a cheap rehearsal.

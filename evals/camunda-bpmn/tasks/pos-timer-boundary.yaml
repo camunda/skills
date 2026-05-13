@@ -1,0 +1,19 @@
+id: pos-timer-boundary
+name: Positive trigger - pos-timer-boundary
+description: Trigger probe ported from triggers.json (positive).
+tags:
+  - positive-trigger
+
+inputs:
+  prompt: 'Add a timer boundary event to my user task that escalates to a manager if the task isn''t completed within 24 hours.'
+
+expected:
+  should_trigger: true
+
+graders:
+  - type: trigger
+    name: trigger-positive
+    config:
+      skill_path: skills/camunda-bpmn/SKILL.md
+      mode: positive
+      threshold: 0.6

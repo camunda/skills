@@ -1,0 +1,19 @@
+id: neg-uml-activity
+name: Negative trigger - neg-uml-activity
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Draw a UML activity diagram showing user authentication: enter credentials, validate, success or retry.'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-bpmn/SKILL.md
+      mode: negative
+      threshold: 0.6

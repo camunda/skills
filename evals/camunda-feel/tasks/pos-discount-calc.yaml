@@ -1,0 +1,19 @@
+id: pos-discount-calc
+name: Positive trigger - pos-discount-calc
+description: Trigger probe ported from triggers.json (positive).
+tags:
+  - positive-trigger
+
+inputs:
+  prompt: 'Implement a tiered discount: 5% if order total >= 500, 10% if >= 1000, 15% if >= 2500. Return the discounted total.'
+
+expected:
+  should_trigger: true
+
+graders:
+  - type: trigger
+    name: trigger-positive
+    config:
+      skill_path: skills/camunda-feel/SKILL.md
+      mode: positive
+      threshold: 0.6

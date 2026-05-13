@@ -6,13 +6,13 @@ Every skill is a directory under `skills/` containing at minimum a `SKILL.md` fi
 
 ```
 skills/camunda-<name>/
-├── SKILL.md              # Required — core instructions (<5000 words)
+├── SKILL.md              # Required — core instructions
 ├── references/           # Optional — detailed docs loaded on demand
 ├── scripts/              # Optional — executable code (non-interactive, version-pinned deps)
-├── assets/               # Optional — templates, schemas, static resources
-└── evals/                # Required — eval cases for quality assurance
-    └── evals.json
+└── assets/               # Optional — templates, schemas, static resources
 ```
+
+Eval cases for the skill live separately under `evals/camunda-<name>/`.
 
 ## SKILL.md Format
 
@@ -23,11 +23,11 @@ description: What this skill does. Third person, max 1024 chars. Front-load the 
 ---
 ```
 
-The body follows the template in the plan. Key rules:
+Key rules:
 
 - **Name must match directory name** (e.g., `camunda-bpmn` in `skills/camunda-bpmn/`)
-- **Body under 5000 words** — move detailed catalogs to `references/`
-- **References one level deep** — no chains (SKILL.md -> ref1.md -> ref2.md)
+- **Body under ~5000 words** — move detailed catalogs to `references/`
+- **References one level deep** — no chains (SKILL.md → ref1.md → ref2.md)
 - **Cross-reference other skills** by name when relevant
 - **Tooling routes through c8ctl plugin commands** (e.g., `c8ctl bpmn lint`, `c8ctl element-template apply`, `c8ctl feel evaluate`) — c8ctl is a hard prerequisite for these skills
 
@@ -36,58 +36,49 @@ The body follows the template in the plan. Key rules:
 Skills use three tiers to manage context:
 
 1. **Metadata** (~100 tokens) — always loaded (name + description from frontmatter)
-2. **SKILL.md body** (<5000 words) — loaded when skill activates
+2. **SKILL.md body** — loaded when skill activates
 3. **References/scripts/assets** — loaded on demand when instructions reference them
 
 Keep SKILL.md lean. If a section exceeds ~500 words of reference material, move it to `references/`.
 
 ## Evals
 
-Every skill must have:
+Every skill has an eval suite under `evals/camunda-<name>/`:
 
-- `evals/evals.json` — quality cases (Tier 2). 3-5 entries with prose
-  expectations and optional deterministic verifiers.
-- `evals/triggers.json` — discovery probes (Tier 1). ~10 positive +
-  ~10 negative cases the description should/shouldn't grab.
-- `evals/baseline.json` — committed comparison point. Established by
-  `make promote SKILL=<name>` after the first good iteration; re-bumped
-  in dedicated PRs when the skill genuinely improves.
-
-`evals.json` shape:
-
-```json
-{
-  "skill_name": "camunda-<name>",
-  "evals": [
-    {
-      "id": "discount-calculation",
-      "prompt": "Write a FEEL expression... Write your final FEEL expression to outputs/answer.feel.",
-      "expected_output": "Description for the LLM judge",
-      "expectations": ["Use if-then-else", "Apply 0.15 as the discount rate"],
-      "verifiers": [
-        {"type": "feel-evaluate", "context": {"orderAmount": 1500}, "expected": 1275}
-      ]
-    }
-  ]
-}
 ```
+evals/camunda-<name>/
+├── eval.yaml           # suite config (skill name, metrics, defaults)
+├── tasks/*.yaml        # one task per file
+├── graders/*.sh        # optional shell scripts for `program` graders
+└── fixtures/           # optional input files for `inputs.files`
+```
+
+Three task patterns we use:
+
+- **Trigger probes** — `expected.should_trigger` + a `trigger` grader. One YAML
+  per case (positive or negative). Validates the skill's `description` triggers
+  on the right prompts and stays silent on adjacent ones.
+- **Quality tasks (LLM judge)** — `prompt` grader with a rubric. The judge
+  scores the agent's output (or files written to `outputs/`) against
+  explicit criteria. Good for prose answers and cross-cutting expectations.
+- **Quality tasks (deterministic)** — `program` grader that shells to a
+  script (e.g. `graders/feel-evaluate.sh`, `graders/bpmn-lint.sh`). The
+  script reads the agent's output file from `$WAZA_WORKSPACE_DIR/outputs/`
+  and exits 0 on pass, 1 on fail. Mix with the LLM judge in the same
+  task to cover both behaviour and verifiable correctness.
+
+A task with multiple graders passes only when all of them pass.
 
 Run locally:
 
 ```bash
-make lint SKILL=camunda-<name>             # Tier 0
-make eval SKILL=camunda-<name> RUNS=1      # cheap rehearsal
-make eval SKILL=camunda-<name>             # full run (3 trials)
-make compare SKILL=camunda-<name>          # diff vs committed baseline
-make promote SKILL=camunda-<name>          # promote a clean iteration
+waza check <skill>                 # readiness check (schema, token budget, links)
+waza run <skill>                   # full run
+waza grade --output <results.json> # re-grade without re-running the agent
 ```
 
-For the full reference on tiers, artefacts, the runtime flow, the verifier
-contract, and the lifecycle (bootstrap → iterate → promote → regress),
-see [`docs/evals.md`](docs/evals.md). For a friendlier walkthrough of
-the same concepts (with a plain-English unpack of the asymmetric
-regression rule), open [`docs/evals-explained.html`](docs/evals-explained.html)
-in a browser.
+CI runs `waza run` on every PR that touches `evals/` or `skills/` and
+uploads `eval-results` as an artifact (`.github/workflows/eval.yml`).
 
 ## Scripts
 
@@ -100,5 +91,5 @@ Scripts must be:
 
 1. Create a branch from `main`
 2. Add/modify skills following the structure above
-3. Ensure all evals pass
+3. Ensure `waza check` passes for any skill you touched
 4. Submit PR with description of changes

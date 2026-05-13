@@ -1,0 +1,21 @@
+id: quality-deploy-bpmn
+name: Quality - Deploy a BPMN file
+description: |
+  Tests that the agent uses `c8ctl deploy` with the correct file path and
+  verifies deployment success.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Deploy the invoice-approval.bpmn file to my Camunda cluster.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Uses `c8ctl deploy` command with the correct file path.
+        - Verifies deployment success by listing process definitions.

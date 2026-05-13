@@ -1,0 +1,29 @@
+id: quality-basic-form
+name: Quality - Basic contact form
+description: |
+  Tests that the agent generates a valid Camunda Forms JSON schema with
+  the standard fields and metadata.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Create a form for collecting customer contact information (name,
+    email, phone, address).
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Output is valid JSON with .form-compatible structure.
+        - Contains components for name, email, phone, and address.
+        - Each input component has type, id, key, label, and layout
+          properties.
+        - Email field has a regex pattern validation.
+        - Name field has required validation set to true.
+        - Layout uses sequential row identifiers for logical grouping.
+        - Includes metadata: executionPlatform, executionPlatformVersion,
+          schemaVersion 18, exporter, id, type.

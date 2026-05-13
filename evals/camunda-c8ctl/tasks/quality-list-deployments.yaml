@@ -1,0 +1,28 @@
+id: quality-list-deployments
+name: Quality - List deployments and instances
+description: |
+  Tests that the agent demonstrates the inspection commands for deployed
+  process definitions and running instances.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    I have c8ctl installed and a local cluster running. How do I see
+    what's currently deployed and what process instances are running?
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Uses `c8ctl list pd` (or `c8ctl list process-definitions`) to
+          show deployed process definitions.
+        - Uses `c8ctl list pi` (or `c8ctl list process-instances`) to
+          show running instances.
+        - Optionally narrows results with --state=ACTIVE or filter flags.
+        - Optionally suggests `c8ctl get topology` for cluster-level info.
+        - Does NOT require the user to install additional plugins for
+          this.

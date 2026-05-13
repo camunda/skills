@@ -1,0 +1,19 @@
+id: neg-juel-conversion
+name: Negative trigger - neg-juel-conversion
+description: Trigger probe ported from triggers.json (negative).
+tags:
+  - negative-trigger
+
+inputs:
+  prompt: 'Convert this JUEL expression to Camunda 7 syntax: ${customer.tier == ''gold''}'
+
+expected:
+  should_trigger: false
+
+graders:
+  - type: trigger
+    name: trigger-negative
+    config:
+      skill_path: skills/camunda-feel/SKILL.md
+      mode: negative
+      threshold: 0.6

@@ -1,0 +1,27 @@
+id: quality-install-plugin
+name: Quality - Install plugin from Git URL
+description: |
+  Tests that the agent installs a c8ctl plugin from a Git URL and
+  demonstrates its command.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    I want to install the c8ctl diagram-renderer plugin from
+    https://github.com/camunda/c8ctl-plugin-diagram-renderer and use it
+    to render a process instance diagram.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Uses `c8ctl load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer`.
+        - Verifies the plugin is loaded (`c8ctl list plugins` or
+          `c8ctl help`).
+        - Demonstrates the `c8ctl diagram <process-instance-id>` command.
+        - Mentions --output for saving to a file (since not all
+          terminals support inline image rendering).

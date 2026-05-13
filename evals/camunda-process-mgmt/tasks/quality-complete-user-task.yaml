@@ -1,0 +1,22 @@
+id: quality-complete-user-task
+name: Quality - Complete user task
+description: |
+  Tests that the agent completes a user task with the specified variables.
+tags:
+  - quality
+
+inputs:
+  prompt: |
+    Complete the pending user task for the approval step with
+    approved=true and comments='Looks good'.
+
+graders:
+  - type: prompt
+    name: rubric-judge
+    config:
+      prompt: |
+        Score 1.0 if ALL of these hold for the agent's response,
+        otherwise 0.0:
+        - Lists user tasks to find the correct task key.
+        - Uses `c8ctl complete ut` with the correct variables JSON.
+        - Confirms task completion.
