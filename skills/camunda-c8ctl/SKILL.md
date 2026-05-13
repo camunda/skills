@@ -13,7 +13,7 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 
 ## Cross-References
 
-- **camunda-bpmn**: Uses `c8ctl bpmn lint` (ships in c8ctl by default)
+- **camunda-bpmn**: Uses `c8ctl bpmn lint` (ships in c8ctl by default once [#347](https://github.com/camunda/c8ctl/pull/347) lands)
 - **camunda-connectors**: Uses `c8ctl element-template search/info/get-properties/apply`
 - **camunda-feel**: Uses `c8ctl feel evaluate`
 - **camunda-process-mgmt**: Uses `c8ctl deploy`, `c8ctl run`, `c8ctl watch`, `c8ctl list pi`, `c8ctl search inc`, `c8ctl complete ut`, `c8ctl resolve inc`, etc.
@@ -29,7 +29,7 @@ Install c8ctl globally from npm:
 npm install -g @camunda8/cli
 ```
 
-After installation, both `c8ctl` and the shorter alias `c8` are available.
+After installation, both `c8ctl` and the shorter alias `c8` are available. The other camunda-* skills use the `c8ctl` form for clarity.
 
 Verify:
 
@@ -37,6 +37,24 @@ Verify:
 c8ctl --version
 c8ctl help
 ```
+
+### Verify default plugins (temporary — until camunda/c8ctl#347 lands)
+
+The `bpmn`, `element-template`, and `feel` commands used by the other camunda-* skills are shipped as default plugins in [camunda/c8ctl#347](https://github.com/camunda/c8ctl/pull/347), which hasn't released yet. Verify each is available:
+
+```bash
+c8ctl bpmn --help              # camunda-bpmn
+c8ctl element-template --help  # camunda-connectors, camunda-ai-agent
+c8ctl feel --help              # camunda-feel
+```
+
+If any command exits non-zero, install c8ctl from the PR branch instead of the released npm package:
+
+```bash
+npm install -g github:camunda/c8ctl#feat/bpmn-apply-element-template-and-lint
+```
+
+**Remove this section once #347 is merged and released** — the plugins will then ship by default with `npm install -g @camunda8/cli`.
 
 ### Pick a Cluster
 
@@ -164,7 +182,7 @@ When a skill produces commands intended for piping into `jq` or similar, set `c8
 
 ### Plugins
 
-c8ctl can be extended with npm packages that add commands. The `element-template`, `bpmn`, `feel`, and `cluster` commands used by the other camunda-* skills are all default plugins — already installed and ready to use. To add more:
+c8ctl can be extended with npm packages that add commands. The `cluster` command is a default plugin shipped with c8ctl; `element-template`, `bpmn`, and `feel` ship as defaults once [#347](https://github.com/camunda/c8ctl/pull/347) lands (see "Verify default plugins" above for the temporary install). To add more:
 
 ```bash
 # List installed plugins
@@ -186,7 +204,7 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see `
 
 ### Troubleshooting
 
-- **`c8: command not found`** — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
+- **`c8ctl: command not found`** (or `c8: command not found`) — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
 - **`Node.js version too old`** — c8ctl requires Node ≥ 22.18.0 for native TypeScript support. Use `nvm` or `asdf` to upgrade.
 - **Local cluster won't start** — check `c8ctl cluster status` and `c8ctl cluster logs`. Common causes: port 8080 already in use, Java not installed (c8run needs JRE 21+), insufficient disk space for the binary download.
 - **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — you're likely running inside a sandboxed or otherwise restricted environment (some coding-agent harnesses, container modes with restricted networking, macOS App Sandbox, etc.) that blocks the underlying c8run from binding listen sockets. Run `c8ctl cluster start` directly on the user's machine outside any sandbox. If you're an AI coding agent operating in a restricted mode, escalate the command out of the sandbox or ask the user to run it themselves once; subsequent read-only commands against the running cluster usually work fine inside the sandbox.
