@@ -1,7 +1,7 @@
 ---
 name: camunda-feel
 description: |
-  Use this skill to write, debug, and evaluate FEEL (Friendly Enough Expression Language) expressions for Camunda 8 — the expression language Zeebe uses in BPMN, DMN, and Camunda Forms.
+  Use this skill to write, debug, evaluate, and validate FEEL (Friendly Enough Expression Language) expressions for Camunda 8 — the expression language Zeebe uses in BPMN, DMN, and Camunda Forms.
 
   Use for: gateway conditions and conditional sequence flows; service-task input/output mappings; timer durations and cycles (ISO 8601 PT.../R...); DMN input/output entries; Camunda Form validation rules and conditional visibility; connector result and error expressions; list filters, projections, and quantifiers; date and duration arithmetic; type coercion (number-to-string); null-safe access; debugging FEEL_RESOLUTION_ERROR or "Can't add 'N' to ..." warnings.
 

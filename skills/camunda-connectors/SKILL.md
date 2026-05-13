@@ -39,7 +39,7 @@ Read `references/element-template-schema.md` for a comprehensive guide to interp
 
 ### Discovering Connectors via Search
 
-**Always discover the template ID via `c8ctl element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command always reflects what's actually available in the local OOTB catalog.
+**Always discover the template ID via `c8ctl element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command reflects what's actually available in the local OOTB catalog.
 
 ```bash
 c8ctl element-template search "REST"             # find HTTP/REST connectors
@@ -121,7 +121,7 @@ c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 --detail
 c8ctl element-template get <id> --no-icon    # raw template JSON, base64 icon stripped
 ```
 
-**Always pass `--no-icon` when reading the raw JSON.** Without it, the embedded base64 icon dominates the output and wastes context. Use the c8ctl commands above first; treat raw JSON as the escape hatch, not the default.
+**Pass `--no-icon` when reading the raw JSON.** Without it, the embedded base64 icon dominates the output and wastes context. Use the c8ctl commands above first; treat raw JSON as the escape hatch, not the default.
 
 ### Applying a Template to a BPMN Element
 

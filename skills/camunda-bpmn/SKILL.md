@@ -83,7 +83,7 @@ Always encode special characters in XML attribute values:
 - **Exclusive (XOR)**: Exactly one path taken. Set `default` attribute for the fallback flow. Label condition flows.
 - **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
 - **Inclusive (OR)**: One or more paths. Also requires a matching join.
-- Always fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
+- Fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
 
 **Sequence Flows:**
 - Conditions use FEEL expressions with `=` prefix:
@@ -125,7 +125,7 @@ BPMN files can be large. Follow these rules:
 - Self-close empty elements
 - Keep unique, descriptive IDs
 - Include BPMN DI section for visual layout (see `references/layout-rules.md`)
-- Always include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
+- Include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
 
 ### Lint loop — mandatory exit gate
 

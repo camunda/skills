@@ -209,7 +209,7 @@ c8ctl upgrade plugin <package-name>
 c8ctl unload plugin <package-name>
 ```
 
-For plugin lifecycle (init, sync, version pinning) and the storage layout, see `references/plugins.md`.
+For plugin lifecycle (init, sync, version pinning) and the storage layout, see [command-reference.md](references/command-reference.md) § Plugin Lifecycle.
 
 ### Troubleshooting
 
@@ -224,5 +224,4 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see `
 For detailed reference material, read from `references/`:
 - [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
 - [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
-- [command-reference.md](references/command-reference.md) — verb/resource matrix, resource aliases, search flags, global flags
-- [plugins.md](references/plugins.md) — plugin lifecycle, storage layout, building custom plugins
+- [command-reference.md](references/command-reference.md) — verb/resource matrix, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)
