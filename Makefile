@@ -41,9 +41,5 @@ lint:
 	@if [ -n "$(SKILL)" ]; then \
 		waza check $(SKILL); \
 	else \
-		for d in skills/*/; do \
-			name=$$(basename $$d); \
-			echo ""; echo "=== $$name ==="; \
-			waza check $$name || exit $$?; \
-		done; \
+		waza check; \
 	fi

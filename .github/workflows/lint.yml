@@ -24,13 +24,5 @@ jobs:
           azd config set alpha.extensions on
           azd ext source add -n waza -t url -l https://raw.githubusercontent.com/microsoft/waza/main/registry.json
           azd ext install microsoft.azd.waza
-      - name: Run waza check on all skills
-        run: |
-          fail=0
-          for d in skills/*/; do
-            name=$(basename "$d")
-            echo ""
-            echo "=== $name ==="
-            azd waza check "$name" || fail=1
-          done
-          exit $fail
+      - name: Run waza check
+        run: azd waza check
