@@ -1,7 +1,13 @@
 ---
 name: camunda-ai-agent
 description: |
-  Models and configures AI agents in Camunda 8 BPMN using the AI Agent Sub-process connector — an LLM driver applied to an ad-hoc subprocess with tools modeled as BPMN activities, fromAi() parameters, system/user prompt FEEL strings, tool descriptions, and multi-turn agent context. Use when creating, editing, or debugging an agentic AI process — an LLM that calls tools modeled as BPMN activities.
+  Use this skill to model and configure AI agents in Camunda 8 BPMN using the AI Agent Sub-process connector — an LLM driver applied to an ad-hoc subprocess with tools as BPMN activities.
+
+  Use for: shaping the ad-hoc subprocess that hosts the agent, defining tools as service/script/user tasks or sub-processes, declaring LLM-supplied parameters via fromAi(), writing system/user prompt FEEL strings, wiring toolCallResult outputs, setting model and call limits, enabling multi-turn agent context, debugging tool-call resolution.
+
+  Do not use for: the older AI Agent Task variant (see references/ai-agent-task.md), or generic BPMN authoring outside the agent host (use camunda-bpmn).
+
+  **Workflow skill** — model the agent host, its tools, prompts, and limits. Covers c8ctl element-template apply for the AI Agent connector template.
 ---
 
 # Camunda AI Agent

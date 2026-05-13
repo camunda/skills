@@ -1,6 +1,13 @@
 ---
 name: camunda-c8ctl
-description: Installs, configures, and uses c8ctl (the Camunda 8 CLI). This skill should be used when the user mentions c8ctl, c8, the Camunda CLI, needs to connect to a Camunda 8 cluster, set up a local cluster for development, manage cluster profiles, or run cluster operations from the terminal. Also use this skill when other Camunda skills require c8ctl and it isn't installed or configured yet.
+description: |
+  Use this skill to install, configure, and operate c8ctl (the Camunda 8 CLI), the foundation the other camunda-* skills build on.
+
+  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed, managing connection profiles, installing c8ctl plugins, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
+
+  Do not use for: writing BPMN (use camunda-bpmn), writing FEEL (use camunda-feel), or deploying and operating running processes (use camunda-process-mgmt — that skill builds on c8ctl).
+
+  **Utility skill** — the foundation other camunda-* skills build on. Covers c8ctl cluster, c8ctl add/use profile, c8ctl load plugin.
 ---
 
 # Camunda c8ctl CLI
