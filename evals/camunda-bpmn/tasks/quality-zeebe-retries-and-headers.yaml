@@ -21,9 +21,10 @@ graders:
   - type: prompt
     name: rubric-judge
     config:
+      continue_session: true
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's final BPMN at
-        outputs/process.bpmn, otherwise 0.0:
+        Read outputs/process.bpmn and score 1.0 if ALL of these hold for
+        the agent's final BPMN, otherwise 0.0:
         - Service task has <zeebe:taskDefinition> with type='send-notification'
           AND retries='5'.
         - Service task has <zeebe:taskHeaders> containing entries for

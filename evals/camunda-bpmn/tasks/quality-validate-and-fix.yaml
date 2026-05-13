@@ -20,8 +20,10 @@ graders:
   - type: prompt
     name: rubric-judge
     config:
+      continue_session: true
       prompt: |
-        Score 1.0 if ALL of these hold, otherwise 0.0:
+        Read the agent's transcript and outputs/process.bpmn. Score 1.0
+        if ALL of these hold, otherwise 0.0:
         - The agent ran c8ctl bpmn lint to validate the input file.
         - Reported validation results clearly in its response.
         - If errors existed, fixed them and re-validated.

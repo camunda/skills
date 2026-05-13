@@ -8,6 +8,9 @@ paths:
 defaults:
   engine: copilot-sdk
   model: claude-sonnet-4.6
+  # Use Haiku for prompt graders (LLM judge + trigger graders). Judging is a
+  # simpler task than authoring, and haiku is much faster and cheaper.
+  judgeModel: claude-haiku-4.5
   timeout: 300
   parallel: false
   workers: 4

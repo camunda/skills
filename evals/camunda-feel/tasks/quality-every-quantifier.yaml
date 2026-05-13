@@ -16,17 +16,24 @@ inputs:
 
 graders:
   - type: prompt
-    name: rubric-judge
+    name: idiomatic-check
     config:
+      continue_session: true
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's final FEEL
-        expression at outputs/answer.feel, otherwise 0.0:
-        - Uses the FEEL `every ... in ... satisfies ...` quantifier
-          (not a count-based workaround like count(items[price <= 0]) = 0).
-        - Compares each item's price against 0 with the predicate
-          item.price > 0.
-        - Returns a boolean (true or false), not a list and not the
-          offending item.
+        Read outputs/answer.feel and score the *style* of the FEEL
+        expression. The program graders alongside this one already
+        verify the boolean output across edge cases — your job is to
+        flag non-idiomatic code that happens to work.
+
+        Score 1.0 if ALL hold, otherwise 0.0:
+        - Uses the FEEL `every ... in ... satisfies ...` quantifier as
+          the top-level construct.
+        - Does NOT use a count-based workaround like
+          `count(items[price <= 0]) = 0`.
+        - Does NOT use a filter-then-compare workaround like
+          `items[price <= 0] = []`.
+        - The predicate is a single comparison, not a chained
+          if-then-else.
 
   - type: program
     name: feel-evaluate-all-positive

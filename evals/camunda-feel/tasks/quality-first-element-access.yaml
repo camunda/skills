@@ -17,17 +17,20 @@ inputs:
 
 graders:
   - type: prompt
-    name: rubric-judge
+    name: idiomatic-check
     config:
+      continue_session: true
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's final FEEL
-        expression at outputs/answer.feel, otherwise 0.0:
-        - Uses 1-based indexing: events[1] (NOT events[0], which
-          returns null in FEEL).
-        - Does not call a non-existent helper like first(events) —
-          FEEL has no first() function.
-        - The result is a numeric value (the timestamp), not null and
-          not a list.
+        Read outputs/answer.feel and score the *style* of the FEEL
+        expression. The program graders alongside this one already
+        verify it returns the right value — your job is to flag
+        non-idiomatic code that happens to work.
+
+        Score 1.0 if ALL hold, otherwise 0.0:
+        - The expression is a direct indexed access (e.g. events[1].timestamp)
+          — NOT a for-loop, NOT a filter expression, NOT a quantifier.
+        - The index literal is `1` directly — not arithmetic like `2 - 1`
+          or `count(events) - 2`.
 
   - type: program
     name: feel-evaluate-3events

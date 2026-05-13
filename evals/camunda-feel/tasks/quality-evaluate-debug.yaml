@@ -26,18 +26,28 @@ inputs:
 
 graders:
   - type: prompt
-    name: rubric-judge
+    name: minimal-diff-check
     config:
+      continue_session: true
       prompt: |
-        Score 1.0 if ALL of these hold for the agent's final FEEL
-        expression at outputs/answer.feel, otherwise 0.0:
-        - Corrected expression parses and evaluates without errors
-          against the cluster FEEL engine.
-        - Multi-entry context pattern is preserved (the four-entry
-          context { subtotal, taxRate, tax, total } with the chained
-          .total accessor).
-        - Output computes the correct tax-inclusive total for the
-          provided items.
+        Read outputs/answer.feel and score whether the agent did a
+        *minimal fix*. The program graders alongside this one already
+        verify the numeric output — your job is to flag rewrites that
+        happen to work but discard the original shape.
+
+        The original was a four-entry context `{ subtotal, taxRate, tax,
+        total }` chained to `.total`, with missing commas after the
+        `subtotal:` and `tax:` entries.
+
+        Score 1.0 if ALL hold, otherwise 0.0:
+        - The four-entry context shape is preserved — all four keys
+          (subtotal, taxRate, tax, total) still appear in the same
+          order.
+        - The chained `.total` accessor is still on the outside of the
+          context.
+        - The agent fixed the missing commas without rewriting the
+          arithmetic (no inlining of `subtotal` or `tax` into the
+          final expression, no renaming of fields).
 
   - type: program
     name: feel-evaluate-two-items
