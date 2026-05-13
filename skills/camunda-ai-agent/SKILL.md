@@ -39,7 +39,7 @@ Apply the template via c8ctl rather than hand-writing the many provider/prompt/m
 # 1. Find the current template ID and version — they evolve
 c8ctl element-template search "ai agent"
 
-# 2. Inspect the properties you care about (condensed view, then detailed for specifics)
+# 2. Inspect the properties you care about
 c8ctl element-template get-properties <id>
 c8ctl element-template get-properties <id> --detailed data.systemPrompt.prompt
 
@@ -53,7 +53,7 @@ c8ctl element-template apply -i <id> AgentTools process.bpmn \
   --set data.limits.maxModelCalls='=10'
 ```
 
-The template handles the `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindings, default input mappings, and the model-provider-specific fields. Avoid hand-coding these — they change across template versions.
+The template handles `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindings, default input mappings, and the model-provider-specific fields — they change across template versions, don't hand-code them.
 
 Supported providers: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
 
@@ -75,7 +75,7 @@ Hard rules that the lint loop does NOT catch — verify by hand:
 - The element type must be `bpmn:adHocSubProcess`. A regular `bpmn:subProcess` or a service task will not host the connector.
 - A tool's **root node** is the entry activity that the LLM picks. A root node has **no incoming sequence flow** and is **not a boundary event**. An incoming flow turns the node into a regular flow step and the agent never sees it.
 - The ad-hoc subprocess must contain **at least one activity** — BPMN semantics; an empty agent is rejected.
-- Somewhere in the tool's execution flow, the variable `toolCallResult` must be set — for a simple single-activity tool that's the activity itself; for a sub-flow tool, it can be any activity inside the sub-flow (see below).
+- Somewhere in the tool's execution flow, the variable `toolCallResult` must be set — for a single-activity tool that's the activity itself; for a sub-flow tool, it can be any activity inside the sub-flow.
 
 ## Defining Tools
 
@@ -87,125 +87,39 @@ Three things determine whether the LLM picks a tool correctly:
 
    > "Look up a customer by ID. Returns the customer's name, tier, and account status. Call this when the user mentions a customer ID or name. Do not call for anonymous queries."
 
-3. **Input schema** — derived automatically from `fromAi()` calls inside the activity's input mappings (see next section). No `fromAi()` calls → empty schema → the LLM can't pass parameters.
+3. **Input schema** — derived automatically from `fromAi()` calls inside the activity's input mappings. No `fromAi()` calls → empty schema → the LLM can't pass parameters.
 
 A tool can be a **single activity** (service task, script task, user task) or a **sub-flow** rooted at a `bpmn:subProcess` containing further activities. In both cases the LLM only sees the root node — descriptions, inputs, and schema are read from there. The internal sub-flow steps are invisible to the LLM; they execute in sequence per normal BPMN semantics and propagate variables up when the sub-process completes.
 
-### REST connector tool
-
-```xml
-<bpmn:serviceTask id="LookupCustomer" name="Look up customer">
-  <bpmn:documentation>Look up a customer by ID. Returns name, tier, and account status. Call this when the user mentions a customer ID. Do not call for anonymous queries.</bpmn:documentation>
-  <bpmn:extensionElements>
-    <zeebe:taskDefinition type="io.camunda:http-json:1" retries="1" />
-    <zeebe:ioMapping>
-      <zeebe:input source="GET" target="method" />
-      <zeebe:input
-        source='="https://api.example.com/customers/" + fromAi(toolCall.customerId, "The customer ID to look up", "string")'
-        target="url" />
-    </zeebe:ioMapping>
-    <zeebe:taskHeaders>
-      <zeebe:header key="resultExpression" value="={toolCallResult: response.body}" />
-    </zeebe:taskHeaders>
-  </bpmn:extensionElements>
-</bpmn:serviceTask>
-```
-
-For real REST connector configuration, apply the HTTP connector template via `c8ctl element-template apply` (see **camunda-connectors**) — the snippet above shows the resulting XML shape.
-
-### Script tool
-
-```xml
-<bpmn:scriptTask id="ComputeRefund" name="Compute refund amount">
-  <bpmn:documentation>Compute the refund amount for an order, taking partial refunds into account.</bpmn:documentation>
-  <bpmn:extensionElements>
-    <zeebe:script
-      expression="=fromAi(toolCall.orderTotal, &quot;Order total&quot;, &quot;number&quot;) * (1 - fromAi(toolCall.refundRatio, &quot;Refund ratio between 0 and 1&quot;, &quot;number&quot;))"
-      resultVariable="toolCallResult" />
-  </bpmn:extensionElements>
-</bpmn:scriptTask>
-```
-
-### User task tool (human-in-the-loop)
-
-```xml
-<bpmn:userTask id="EscalateToHuman" name="Escalate to human agent">
-  <bpmn:documentation>Hand the conversation to a human support agent. Call this when the customer's issue cannot be resolved with the available tools, or when they explicitly ask for a human.</bpmn:documentation>
-  <bpmn:extensionElements>
-    <zeebe:userTask />
-    <zeebe:formDefinition formId="EscalationForm" />
-    <zeebe:ioMapping>
-      <zeebe:output source="=resolution" target="toolCallResult" />
-    </zeebe:ioMapping>
-  </bpmn:extensionElements>
-</bpmn:userTask>
-```
+Worked XML for each of the four shapes (REST, script, user task, sub-flow) is in [references/tool-modeling.md](references/tool-modeling.md).
 
 ## fromAi() — Declaring AI-Generated Parameters
 
-The `fromAi()` FEEL function tags a value as "the LLM will provide this at runtime". It returns its first argument unchanged at execution time, but at tool-resolution time the connector scans for these calls and builds a JSON Schema from them.
-
-Signature (positional or named):
-
-```
-fromAi(value, description, type, schema, options)
-```
-
-- **value** (required) — must be a reference to `toolCall.<paramName>`. The last segment becomes the parameter name the LLM sees.
-- **description** (optional) — null or a string constant. This is the one thing the LLM has to understand what value to provide — be explicit.
-- **type** (optional) — `"string"` (default), `"number"`, `"boolean"`, `"array"`, `"object"`. Must be a string constant.
-- **schema** (optional) — a FEEL context constant for a JSON Schema fragment (e.g., enum values, item types).
-- **options** (optional) — e.g. `{required: false}` for optional parameters.
+`fromAi()` tags a value as "the LLM will provide this at runtime". The first argument must be a reference to `toolCall.<paramName>` — the last segment becomes the LLM-visible parameter name. The function takes an optional description, type (`"string"` default, plus `"number"`, `"boolean"`, `"array"`, `"object"`), a JSON-Schema fragment, and an options context for things like `{required: false}`.
 
 ```xml
-<!-- Simplest form: just declare a parameter -->
-<zeebe:input source="=fromAi(toolCall.url)" target="url" />
-
-<!-- With description and type -->
-<zeebe:input
-  source='=fromAi(toolCall.firstNumber, "The first number.", "number")'
-  target="firstNumber" />
-
-<!-- Inside an interpolated URL -->
 <zeebe:input
   source='="https://api.example.com/customers/" + fromAi(toolCall.id, "Customer ID", "string")'
   target="url" />
-
-<!-- With an enum schema -->
-<zeebe:input
-  source='=fromAi(toolCall.documentType, "The document type", "string", { enum: ["invoice", "receipt", "contract"] })'
-  target="documentType" />
-
-<!-- Optional parameter via named args -->
-<zeebe:input
-  source='=fromAi(value: toolCall.note, description: "Optional note", options: { required: false })'
-  target="note" />
-
-<!-- Inside a JSON body — multiple fromAi calls in one expression -->
-<zeebe:input
-  source='={"to": fromAi(toolCall.recipient, "Recipient email", "string"), "subject": fromAi(toolCall.subject, "Email subject", "string"), "body": fromAi(toolCall.body, "Email body", "string")}'
-  target="body" />
 ```
 
-`fromAi()` is valid in any input mapping — service task ioMapping, script task expression, user task ioMapping, and inside connector-template-provided input fields (which are also input mappings under the hood).
+Full signature, all 6 calling variants (positional, named, enum schemas, optional params, multi-call JSON bodies) in [references/fromai.md](references/fromai.md).
 
 ## toolCallResult — Returning Output to the Agent
 
 When a tool completes, the connector reads the variable named `toolCallResult` from the tool's scope and forwards it to the LLM as the tool-call response. The rule is about **scope**, not which activity sets it:
 
 - **Single-activity tool** — the activity itself sets `toolCallResult` (via a result expression / result variable / output mapping / script result variable).
-- **Sub-flow tool** (root is a `bpmn:subProcess` containing further activities) — any activity inside the sub-flow can set `toolCallResult`. Typically the last meaningful activity does — e.g., the receive/transform step at the end of a send-then-wait pattern. BPMN variable scoping propagates the value to the sub-process scope when it completes.
+- **Sub-flow tool** — any activity inside the sub-flow can set `toolCallResult`; BPMN variable scoping propagates the value to the sub-process scope when it completes.
 
-Ways to set `toolCallResult` depending on the activity type:
+Ways to set it depending on the activity type:
 
-- **Connector with result expression**: `value="={toolCallResult: response.body}"` (or any FEEL shape).
+- **Connector with result expression**: `value="={toolCallResult: response.body}"`.
 - **Connector with result variable**: name the result variable `toolCallResult`.
 - **Output mapping**: `<zeebe:output source="=someValue" target="toolCallResult" />`.
 - **Script task**: `<zeebe:script expression="..." resultVariable="toolCallResult" />`.
 
-The value can be primitive (string, number) or a complex FEEL context — it'll be serialized to JSON before being sent to the LLM.
-
-If `toolCallResult` is **missing or empty** at the end of the tool's execution, the agent doesn't stall: the connector sends a generic "tool executed successfully without returning a result" message to the LLM. The LLM then has no useful data to reason about and may make worse decisions on the next turn. Always set `toolCallResult` meaningfully somewhere in the tool flow.
+The value can be primitive (string, number) or a complex FEEL context — it'll be serialized to JSON before being sent to the LLM. If `toolCallResult` is missing or empty when the tool completes, the connector sends a generic "tool succeeded without returning a result" message to the LLM and the next turn degrades. Always set it meaningfully.
 
 ## Prompts
 
@@ -220,13 +134,11 @@ Both `data.systemPrompt.prompt` and `data.userPrompt.prompt` are FEEL strings �
   target="data.userPrompt.prompt" />
 ```
 
-Patterns:
-
 - **Static prompt**: `="You are ..."`. The `=` is mandatory even for plain text.
 - **Variable interpolation**: `="Customer " + customerId + " reports: " + issue`. `+` coerces scalars to string.
-- **Feedback-loop prompt**: `=if (is defined(followUpInput)) then followUpInput else initialUserInput`. Used when looping back into the agent with user follow-up — see "Response interaction" below.
+- **Feedback-loop prompt**: `=if (is defined(followUpInput)) then followUpInput else initialUserInput`. Used when looping back into the agent with user follow-up — see "Response Interaction" below.
 
-For long, structured prompts, build the string in a script task upstream and pass it in via a variable — keeps the inline FEEL legible.
+For long, structured prompts, build the string in a script task upstream and pass it in via a variable.
 
 ## Tool-Call Feedback Loop
 
@@ -248,57 +160,12 @@ The agent preserves conversation context across re-entries; see the [Sub-process
 - `data.memory.contextWindowSize` — caps how many prior messages the agent replays to the LLM (default 20). Smaller saves tokens, larger preserves more context.
 - `data.memory.storage.type` — `in-process` (default), `camunda-document` (offload to the Camunda Document store when context grows past variable size limits), or `custom`. Use the hyphenated form.
 
-## Sub-Flow as a Tool
-
-A tool can be a multi-step sub-process when the operation has internal sequencing (e.g., send-then-wait, fetch-then-transform, or a small business workflow). The LLM sees only the sub-process root — the steps inside are invisible.
-
-`toolCallResult` can be written by any activity inside the sub-flow, not necessarily the first or last one. The variable just needs to exist in the sub-process scope when the sub-process completes. In the example below, the final transform step writes it:
-
-```xml
-<bpmn:subProcess id="SendCustomerEmail" name="Send email to customer">
-  <bpmn:documentation>Send an email to the customer and record that it was sent. Use this when the resolution should be communicated by email.</bpmn:documentation>
-  <bpmn:startEvent id="SendStart" />
-  <bpmn:sequenceFlow sourceRef="SendStart" targetRef="ComposeEmail" />
-
-  <bpmn:serviceTask id="ComposeEmail" name="Compose and send">
-    <bpmn:extensionElements>
-      <zeebe:taskDefinition type="io.camunda:http-json:1" />
-      <zeebe:ioMapping>
-        <zeebe:input
-          source='={"to": fromAi(toolCall.recipient, "Recipient", "string"), "subject": fromAi(toolCall.subject, "Subject", "string"), "body": fromAi(toolCall.body, "Body", "string")}'
-          target="body" />
-        <!-- method, url, etc. -->
-      </zeebe:ioMapping>
-      <zeebe:taskHeaders>
-        <zeebe:header key="resultExpression" value="={emailResponse: response.body}" />
-      </zeebe:taskHeaders>
-    </bpmn:extensionElements>
-  </bpmn:serviceTask>
-  <bpmn:sequenceFlow sourceRef="ComposeEmail" targetRef="RecordSent" />
-
-  <bpmn:scriptTask id="RecordSent" name="Build tool result">
-    <bpmn:extensionElements>
-      <zeebe:script
-        expression='={sent: true, messageId: emailResponse.id, sentAt: now()}'
-        resultVariable="toolCallResult" />
-    </bpmn:extensionElements>
-  </bpmn:scriptTask>
-  <bpmn:sequenceFlow sourceRef="RecordSent" targetRef="SendEnd" />
-
-  <bpmn:endEvent id="SendEnd" />
-</bpmn:subProcess>
-```
-
-The first activity (`ComposeEmail`) writes an intermediate variable (`emailResponse`); the second activity (`RecordSent`) shapes the final tool result and writes `toolCallResult`. Either step could have written `toolCallResult` directly — the agent only sees the value that exists in scope when the sub-process completes.
-
-For tools that wait on an external callback (chat reply, webhook, async approval), the same pattern applies — the sub-process internally does a send step that captures a correlation key, then an intermediate catch event that waits for the corresponding message and sets `toolCallResult` from the inbound payload. The webhook connector docs in **camunda-connectors** cover the catch-event side; verify field names against the current connector template before relying on a specific shape.
-
 ## Pitfalls
 
-These are non-obvious failure modes the lint loop will not catch.
+Non-obvious failure modes the lint loop will not catch.
 
 - **Tool has an incoming sequence flow** — it stops being a tool and becomes a regular flow step. The tool's ROOT node must have no incoming flow. Internal activities inside a sub-flow tool can (and do) have incoming flows — that's how the sub-flow works.
-- **Tool name confusion** — the LLM-visible tool name is the BPMN **`id`** (e.g., `LookupCustomer`), not the `name` attribute. Use descriptive PascalCase IDs.
+- **Tool name confusion** — the LLM-visible tool name is the BPMN **`id`**, not the `name` attribute. Use descriptive PascalCase IDs.
 - **Bare-string prompts** — both system and user prompts are FEEL. Even literals must be `="..."`.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
 - **Hyphenated memory storage type** — `in-process`, `camunda-document`, `custom`. Not camelCase.
@@ -315,7 +182,14 @@ Lint catches structural BPMN problems but does not validate connector-template i
 
 - Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
 - Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element.
-- Every tool's flow ends with `toolCallResult` set in scope (single-activity tool sets it directly; sub-flow tool sets it on some inner activity).
+- Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.
 - `data.limits.maxModelCalls` is set.
 - API keys are pulled from `{{secrets.*}}`, not literal values.
+
+## References
+
+For detailed reference material, read from `references/`:
+- [tool-modeling.md](references/tool-modeling.md) — worked XML for the four tool shapes (REST connector, script task, user task, sub-flow), including async-callback sub-flows
+- [fromai.md](references/fromai.md) — full `fromAi()` signature, all calling variants (positional, named, enum schemas, optional params, multi-call JSON bodies)
+- [ai-agent-task.md](references/ai-agent-task.md) — the older Task variant (audit/intercept every tool call) — niche use only
