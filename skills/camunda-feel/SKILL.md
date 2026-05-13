@@ -10,7 +10,7 @@ Write, debug, and evaluate FEEL expressions used in Camunda 8 BPMN processes, DM
 
 ## Prerequisites
 
-- c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 feel evaluate`
+- c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl feel evaluate`
 - Camunda 8.9+ cluster for default cluster-engine evaluation (uses `POST /v2/expression/evaluation`)
 
 ## Cross-References
@@ -37,53 +37,53 @@ All FEEL expressions in BPMN XML must be prefixed with `=`:
 
 ### Expression Evaluation
 
-To validate and debug FEEL expressions, use `c8 feel evaluate`. By default this runs against the configured cluster's Scala FEEL engine — the same engine that Zeebe uses at runtime, so results match production behavior exactly.
+To validate and debug FEEL expressions, use `c8ctl feel evaluate`. By default this runs against the configured cluster's Scala FEEL engine — the same engine that Zeebe uses at runtime, so results match production behavior exactly.
 
 ```bash
 # Simple expression
-c8 feel evaluate '1 + 2'
+c8ctl feel evaluate '1 + 2'
 
 # Expression with individual variables (leading = optional)
-c8 feel evaluate '=amount * 1.15' --var amount=100
+c8ctl feel evaluate '=amount * 1.15' --var amount=100
 
 # Multiple variables
-c8 feel evaluate 'a + b' --var a=1 --var b=2
+c8ctl feel evaluate 'a + b' --var a=1 --var b=2
 
 # JSON values for complex types
-c8 feel evaluate 'sum(items)' --var 'items=[1,2,3]'
+c8ctl feel evaluate 'sum(items)' --var 'items=[1,2,3]'
 
 # Bulk variables as a single JSON object
-c8 feel evaluate 'orderTotal > 1000 and customer.tier = "premium"' \
+c8ctl feel evaluate 'orderTotal > 1000 and customer.tier = "premium"' \
   --vars '{"orderTotal": 1500, "customer": {"tier": "premium"}}'
 
 # Dot-path nesting on the CLI
-c8 feel evaluate 'customer.name' --var customer.name=Alice
+c8ctl feel evaluate 'customer.name' --var customer.name=Alice
 ```
 
 **Debugging workflow:**
 1. Write the expression
 2. Identify the expected variable context
-3. Evaluate via `c8 feel evaluate` to validate against the cluster engine
+3. Evaluate via `c8ctl feel evaluate` to validate against the cluster engine
 4. If evaluation fails, fix based on error message and retry
 
 #### Offline evaluation (`--engine local`)
 
-`c8 feel evaluate --engine local` evaluates expressions locally using the `feelin` JavaScript engine — useful when no cluster is available. **Use only when explicitly requested or when no cluster is reachable AND the user has confirmed the fallback.** Never silently fall back.
+`c8ctl feel evaluate --engine local` evaluates expressions locally using the `feelin` JavaScript engine — useful when no cluster is available. **Use only when explicitly requested or when no cluster is reachable AND the user has confirmed the fallback.** Never silently fall back.
 
 `feelin` behaves DIFFERENTLY from the Scala FEEL engine that Zeebe runs in production. Subtle differences in type coercion, function support, and date/time handling can cause an expression that passes locally to fail in the cluster (and vice versa). Always re-validate against the cluster before relying on a result obtained with `--engine local`.
 
 ```bash
-c8 feel evaluate '=amount * 1.15' --var amount=100 --engine local
+c8ctl feel evaluate '=amount * 1.15' --var amount=100 --engine local
 ```
 
 **Concrete divergence: `today()` returns a different type.** On the cluster engine, `today()` returns a `date` (e.g. `2026-05-12`). On `--engine local` (feelin), it returns a date-time at midnight in the local timezone (e.g. `2026-05-12T00:00:00.000+02:00`). This breaks downstream comparisons:
 
 ```bash
 # cluster engine — passes
-c8 feel evaluate 'today() = date("2026-05-12")'           # → true
+c8ctl feel evaluate 'today() = date("2026-05-12")'           # → true
 
 # local engine — fails silently
-c8 feel evaluate 'today() = date("2026-05-12")' --engine local   # → false
+c8ctl feel evaluate 'today() = date("2026-05-12")' --engine local   # → false
 ```
 
 If a date-typed argument is required by a downstream function, the local result may also raise a type error that the cluster never sees.

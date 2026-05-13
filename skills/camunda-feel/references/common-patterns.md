@@ -161,10 +161,10 @@ FEEL does **not** auto-coerce between types in arithmetic. Operating on mismatch
 | Boolean | `boolean(value)` |
 | Date / time / duration | `date(...)`, `time(...)`, `duration(...)` |
 
-**Debugging tip.** When a process variable comes out null unexpectedly, run the suspect expression through `c8 feel evaluate` and read the warnings:
+**Debugging tip.** When a process variable comes out null unexpectedly, run the suspect expression through `c8ctl feel evaluate` and read the warnings:
 
 ```bash
-c8 feel evaluate '"user-" + userId' --var userId=42
+c8ctl feel evaluate '"user-" + userId' --var userId=42
 # null
 #
 # ⚠ 1 warning:

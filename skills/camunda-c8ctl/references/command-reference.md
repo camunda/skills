@@ -1,16 +1,16 @@
 # c8ctl Command Reference
 
-Verb-and-resource matrix, resource aliases, common flags. For the full auto-generated reference (every flag of every command), see [the upstream docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) or run `c8 help <command>`.
+Verb-and-resource matrix, resource aliases, common flags. For the full auto-generated reference (every flag of every command), see [the upstream docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) or run `c8ctl help <command>`.
 
 ## Command Structure
 
 c8ctl uses a `<verb> <resource> [args] [flags]` shape:
 
 ```bash
-c8 list pi                            # verb=list, resource=pi (process-instance)
-c8 get pi 2251799813685249            # verb=get, resource=pi, key=...
-c8 complete ut 2251799813685250       # verb=complete, resource=ut (user-task)
-c8 search inc --state=ACTIVE          # verb=search, resource=inc (incident)
+c8ctl list pi                            # verb=list, resource=pi (process-instance)
+c8ctl get pi 2251799813685249            # verb=get, resource=pi, key=...
+c8ctl complete ut 2251799813685250       # verb=complete, resource=ut (user-task)
+c8ctl search inc --state=ACTIVE          # verb=search, resource=inc (incident)
 ```
 
 ## Resource Aliases
@@ -56,7 +56,7 @@ These work on `list` and `search` commands:
 
 ## Verb Catalog
 
-Brief descriptions only. Use `c8 help <verb>` for resource-specific flags.
+Brief descriptions only. Use `c8ctl help <verb>` for resource-specific flags.
 
 ### Inspection
 
@@ -137,9 +137,9 @@ Brief descriptions only. Use `c8 help <verb>` for resource-specific flags.
 For programmatic consumption, switch to JSON mode and combine with `--fields` for stable structured output:
 
 ```bash
-c8 output json
-c8 list pd --fields=key,bpmnProcessId,version,name
-c8 get pi 2251799813685249 --variables --fields=key,state,variables
+c8ctl output json
+c8ctl list pd --fields=key,bpmnProcessId,version,name
+c8ctl get pi 2251799813685249 --variables --fields=key,state,variables
 ```
 
 `--dry-run` shows what would be sent without executing — useful for previewing destructive operations before running them.

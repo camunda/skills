@@ -7,7 +7,7 @@
       "expected_output": "Generates an ad-hoc subprocess with the AI Agent connector configured, a REST tool, and a user-task escalation tool",
       "expectations": [
         "Uses bpmn:adHocSubProcess as the agent host element (not bpmn:subProcess)",
-        "Applies the AI Agent connector via c8 element-template apply",
+        "Applies the AI Agent connector via c8ctl element-template apply",
         "Models the customer lookup as a service task with no incoming sequence flow",
         "Uses fromAi(toolCall.customerId, ...) inside the lookup tool's input mapping",
         "Writes toolCallResult on every tool",

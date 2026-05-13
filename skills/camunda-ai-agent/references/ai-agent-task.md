@@ -43,7 +43,7 @@ Add a `bpmn:adHocSubProcess` input mapping that declares `toolCallResult` as a l
 
 ## Configure the AI Agent service task
 
-Apply the AI Agent **Task** element template (different from the Sub-process variant template — search for both via `c8 element-template search "ai agent"`). Set:
+Apply the AI Agent **Task** element template (different from the Sub-process variant template — search for both via `c8ctl element-template search "ai agent"`). Set:
 
 - **Ad-hoc sub-process ID**: the element ID of the ad-hoc subprocess that hosts the tools.
 - **Tool call results**: `=toolCallResults` (matches the Output collection above).

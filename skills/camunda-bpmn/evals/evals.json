@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": "zeebe-retries-and-headers",
-      "prompt": "Create a BPMN 2.0 process with a single service task 'Send notification' wired to a Zeebe job worker. The worker type is 'send-notification' and the task must retry 5 times on failure. Pass two task headers to the worker: priority='high' and category='alerts'. Include the standard Zeebe namespace and a full bpmndi:BPMNDiagram with coordinates so the file is deployable. Write the complete BPMN 2.0 XML \u2014 and only the XML, no fences, no commentary \u2014 to {{OUTPUTS_DIR}}/process.bpmn. The file must pass `c8 bpmn lint --quiet` (no errors).",
+      "prompt": "Create a BPMN 2.0 process with a single service task 'Send notification' wired to a Zeebe job worker. The worker type is 'send-notification' and the task must retry 5 times on failure. Pass two task headers to the worker: priority='high' and category='alerts'. Include the standard Zeebe namespace and a full bpmndi:BPMNDiagram with coordinates so the file is deployable. Write the complete BPMN 2.0 XML \u2014 and only the XML, no fences, no commentary \u2014 to {{OUTPUTS_DIR}}/process.bpmn. The file must pass `c8ctl bpmn lint --quiet` (no errors).",
       "expected_output": "Valid BPMN with a service task whose extensionElements contain zeebe:taskDefinition(type='send-notification' retries='5') and zeebe:taskHeaders with two header entries.",
       "expectations": [
         "Service task has <zeebe:taskDefinition> with type='send-notification' AND retries='5'",
         "Service task has <zeebe:taskHeaders> containing entries for priority='high' AND category='alerts'",
         "The Zeebe namespace xmlns:zeebe='http://camunda.org/schema/zeebe/1.0' is declared on the definitions element",
-        "BPMN parses and passes c8 bpmn lint --quiet (start/end events connected, bpmndi present)"
+        "BPMN parses and passes c8ctl bpmn lint --quiet (start/end events connected, bpmndi present)"
       ],
       "verifiers": [
         {
@@ -19,14 +19,14 @@
     },
     {
       "id": "multi-instance-parallel",
-      "prompt": "Create a BPMN 2.0 process with a multi-instance service task 'Validate item' that runs in parallel once per element of the input `items` list. Each instance must receive the current item as `currentItem` and return a result that is collected into an output list called `itemResults`. Include the standard Zeebe namespace and a full bpmndi:BPMNDiagram with coordinates. Write the complete BPMN 2.0 XML \u2014 and only the XML, no fences, no commentary \u2014 to {{OUTPUTS_DIR}}/process.bpmn. The file must pass `c8 bpmn lint --quiet` (no errors).",
+      "prompt": "Create a BPMN 2.0 process with a multi-instance service task 'Validate item' that runs in parallel once per element of the input `items` list. Each instance must receive the current item as `currentItem` and return a result that is collected into an output list called `itemResults`. Include the standard Zeebe namespace and a full bpmndi:BPMNDiagram with coordinates. Write the complete BPMN 2.0 XML \u2014 and only the XML, no fences, no commentary \u2014 to {{OUTPUTS_DIR}}/process.bpmn. The file must pass `c8ctl bpmn lint --quiet` (no errors).",
       "expected_output": "Valid BPMN with a service task whose body contains <bpmn:multiInstanceLoopCharacteristics isSequential='false'> and whose extensionElements contain <zeebe:loopCharacteristics> wiring inputCollection=items, inputElement=currentItem, and outputCollection=itemResults.",
       "expectations": [
         "Service task contains <bpmn:multiInstanceLoopCharacteristics isSequential='false'> (parallel, not sequential)",
         "Inside extensionElements, <zeebe:loopCharacteristics> sets inputCollection referencing items (e.g. inputCollection='=items')",
         "<zeebe:loopCharacteristics> sets inputElement='currentItem'",
         "<zeebe:loopCharacteristics> sets outputCollection='itemResults' AND outputElement (e.g. '=result') so per-instance outputs are collected",
-        "BPMN parses and passes c8 bpmn lint --quiet"
+        "BPMN parses and passes c8ctl bpmn lint --quiet"
       ],
       "verifiers": [
         {
@@ -36,13 +36,13 @@
     },
     {
       "id": "validate-and-fix",
-      "prompt": "The file `examples/invoice-approval.bpmn` exists in the working directory. Validate it with `c8 bpmn lint`, identify any errors or warnings, fix them, and write the corrected BPMN to {{OUTPUTS_DIR}}/process.bpmn (XML only, no fences, no commentary). The final file must pass `c8 bpmn lint --quiet` (no errors).",
-      "expected_output": "Validated and (if necessary) corrected BPMN that passes c8 bpmn lint --quiet",
+      "prompt": "The file `examples/invoice-approval.bpmn` exists in the working directory. Validate it with `c8ctl bpmn lint`, identify any errors or warnings, fix them, and write the corrected BPMN to {{OUTPUTS_DIR}}/process.bpmn (XML only, no fences, no commentary). The final file must pass `c8ctl bpmn lint --quiet` (no errors).",
+      "expected_output": "Validated and (if necessary) corrected BPMN that passes c8ctl bpmn lint --quiet",
       "expectations": [
-        "Runs c8 bpmn lint to validate the file",
+        "Runs c8ctl bpmn lint to validate the file",
         "Reports validation results clearly",
         "If errors exist, fixes them and re-validates",
-        "Final file at outputs/process.bpmn passes c8 bpmn lint --quiet"
+        "Final file at outputs/process.bpmn passes c8ctl bpmn lint --quiet"
       ],
       "verifiers": [
         {

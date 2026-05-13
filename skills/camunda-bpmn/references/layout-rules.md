@@ -136,4 +136,4 @@ When modifying existing processes:
 
 ## When Layout Is Badly Broken
 
-If element coordinates are badly off (overlapping shapes, runaway waypoints), don't try to patch — re-derive coordinates from scratch using the standard sizes and spacing rules above, walking the flow left-to-right. The `c8 bpmn lint` loop (see SKILL.md) catches `no-overlapping-elements` and related layout warnings; rely on that signal rather than a visual check, since rendering the diagram isn't generally available to the agent.
+If element coordinates are badly off (overlapping shapes, runaway waypoints), don't try to patch — re-derive coordinates from scratch using the standard sizes and spacing rules above, walking the flow left-to-right. The `c8ctl bpmn lint` loop (see SKILL.md) catches `no-overlapping-elements` and related layout warnings; rely on that signal rather than a visual check, since rendering the diagram isn't generally available to the agent.

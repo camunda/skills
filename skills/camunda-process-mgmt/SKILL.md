@@ -26,60 +26,60 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 Deploy a single BPMN file:
 
 ```bash
-c8 deploy process.bpmn
+c8ctl deploy process.bpmn
 ```
 
 Deploy multiple resources at once (BPMN, DMN, forms):
 
 ```bash
-c8 deploy process.bpmn decision.dmn approval-form.form
+c8ctl deploy process.bpmn decision.dmn approval-form.form
 ```
 
 Deploy an entire directory (recursive):
 
 ```bash
-c8 deploy ./my-project
+c8ctl deploy ./my-project
 ```
 
 After deploying, verify:
 
 ```bash
-c8 list pd
-c8 search pd --iname="MyProcess"
+c8ctl list pd
+c8ctl search pd --iname="MyProcess"
 ```
 
-Each deployment creates a new version of any resource it contains. Use `c8 list pd --fields Key,Name,Version` to see versions.
+Each deployment creates a new version of any resource it contains. Use `c8ctl list pd --fields Key,Name,Version` to see versions.
 
 ### Starting Process Instances
 
 Create an instance for a deployed process:
 
 ```bash
-c8 create pi --id MyProcess
+c8ctl create pi --id MyProcess
 ```
 
 With input variables:
 
 ```bash
-c8 create pi --id MyProcess --variables '{"orderId": "ORD-123", "amount": 1500}'
+c8ctl create pi --id MyProcess --variables '{"orderId": "ORD-123", "amount": 1500}'
 ```
 
 Deploy and start in one step:
 
 ```bash
-c8 run process.bpmn --variables '{"orderId": "ORD-123"}'
+c8ctl run process.bpmn --variables '{"orderId": "ORD-123"}'
 ```
 
 Start and block until the instance completes (useful for tests / smoke checks):
 
 ```bash
-c8 await pi --id MyProcess --variables '{"orderId": "ORD-123"}'
+c8ctl await pi --id MyProcess --variables '{"orderId": "ORD-123"}'
 ```
 
 With a custom request timeout:
 
 ```bash
-c8 await pi --id MyProcess --requestTimeout 60000
+c8ctl await pi --id MyProcess --requestTimeout 60000
 ```
 
 ### Watch Mode (Development)
@@ -87,7 +87,7 @@ c8 await pi --id MyProcess --requestTimeout 60000
 Auto-redeploy on file changes during local development:
 
 ```bash
-c8 watch ./my-project
+c8ctl watch ./my-project
 ```
 
 Watches `.bpmn`, `.dmn`, and `.form` files and redeploys on save.
@@ -97,31 +97,31 @@ Watches `.bpmn`, `.dmn`, and `.form` files and redeploys on save.
 List active instances:
 
 ```bash
-c8 list pi
+c8ctl list pi
 ```
 
 Search by process name (`i` prefix means case-insensitive substring match):
 
 ```bash
-c8 search pi --iprocessDefinitionName="MyProcess"
+c8ctl search pi --iprocessDefinitionName="MyProcess"
 ```
 
 Get instance details with variables:
 
 ```bash
-c8 get pi <instanceKey> --variables
+c8ctl get pi <instanceKey> --variables
 ```
 
 Dump variable values for a specific instance (use `--fullValue` to avoid truncation):
 
 ```bash
-c8 search variables --processInstanceKey=<key> --fullValue
+c8ctl search variables --processInstanceKey=<key> --fullValue
 ```
 
 Retrieve the deployed BPMN XML for a process definition:
 
 ```bash
-c8 get pd <key> --xml
+c8ctl get pd <key> --xml
 ```
 
 ### Resolving Incidents
@@ -131,14 +131,14 @@ Incidents are the cluster's way of pausing an instance when something fails non-
 List active incidents:
 
 ```bash
-c8 list inc
-c8 search inc --state=ACTIVE
+c8ctl list inc
+c8ctl search inc --state=ACTIVE
 ```
 
 Filter by error message:
 
 ```bash
-c8 search inc --ierrorMessage="Connection refused"
+c8ctl search inc --ierrorMessage="Connection refused"
 ```
 
 **Debug workflow** when a process has an incident:
@@ -146,13 +146,13 @@ c8 search inc --ierrorMessage="Connection refused"
 1. **Find the incident** and read the error type + message:
 
    ```bash
-   c8 search inc --state=ACTIVE
+   c8ctl search inc --state=ACTIVE
    ```
 
 2. **Inspect the instance variables** at the failure point:
 
    ```bash
-   c8 search variables --processInstanceKey=<key> --fullValue
+   c8ctl search variables --processInstanceKey=<key> --fullValue
    ```
 
 3. **Identify root cause**. Common categories:
@@ -166,7 +166,7 @@ c8 search inc --ierrorMessage="Connection refused"
 5. **Resolve the incident** to retry the failed step:
 
    ```bash
-   c8 resolve inc <incidentKey>
+   c8ctl resolve inc <incidentKey>
    ```
 
 Resolving without fixing the root cause just re-triggers the same incident. Always fix first.
@@ -176,13 +176,13 @@ Resolving without fixing the root cause just re-triggers the same incident. Alwa
 List pending user tasks:
 
 ```bash
-c8 list ut
+c8ctl list ut
 ```
 
 Complete with output variables:
 
 ```bash
-c8 complete ut <taskKey> --variables '{"approved": true, "comments": "Looks good"}'
+c8ctl complete ut <taskKey> --variables '{"approved": true, "comments": "Looks good"}'
 ```
 
 Variable keys must match the form's component `key` values (see **camunda-forms**) — extra keys are ignored; missing required keys block completion downstream.
@@ -192,7 +192,7 @@ Variable keys must match the form's component `key` values (see **camunda-forms*
 Publish a message to wake up a waiting message event in an instance:
 
 ```bash
-c8 publish msg <messageName> --correlationKey=<key> --variables '{"status": "approved"}'
+c8ctl publish msg <messageName> --correlationKey=<key> --variables '{"status": "approved"}'
 ```
 
 The correlation key must match the value resolved from the process's message subscription expression (typically a FEEL expression over a variable, e.g. `=orderId`).
@@ -200,7 +200,7 @@ The correlation key must match the value resolved from the process's message sub
 ### Cancelling Instances
 
 ```bash
-c8 cancel pi <instanceKey>
+c8ctl cancel pi <instanceKey>
 ```
 
 ### JSON Output for Scripting
@@ -208,22 +208,22 @@ c8 cancel pi <instanceKey>
 Switch to structured output globally:
 
 ```bash
-c8 output json
+c8ctl output json
 ```
 
 Reduce noise by limiting fields:
 
 ```bash
-c8 list pi --fields Key,State,ProcessDefinitionId
-c8 list pd --fields Key,Name,Version
+c8ctl list pi --fields Key,State,ProcessDefinitionId
+c8ctl list pd --fields Key,Name,Version
 ```
 
 ### Troubleshooting
 
-**Deployment fails** — Run `c8 bpmn lint process.bpmn` first (see **camunda-bpmn**). Most deploy errors are caught by the linter pre-deploy.
+**Deployment fails** — Run `c8ctl bpmn lint process.bpmn` first (see **camunda-bpmn**). Most deploy errors are caught by the linter pre-deploy.
 
-**Process won't start** — Verify the process ID matches a deployed definition (`c8 list pd`). Check required input variables.
+**Process won't start** — Verify the process ID matches a deployed definition (`c8ctl list pd`). Check required input variables.
 
-**Instance hangs at a service task** — No worker is registered for that task type, the worker crashed, or the job timed out beyond max retries. Check `c8 list jobs --processInstanceKey=<key>` and confirm a worker process is running for the matching task type.
+**Instance hangs at a service task** — No worker is registered for that task type, the worker crashed, or the job timed out beyond max retries. Check `c8ctl list jobs --processInstanceKey=<key>` and confirm a worker process is running for the matching task type.
 
 **Repeated identical incidents** — You're resolving without fixing. Read the error message every time; if it doesn't change, the root cause hasn't been addressed.

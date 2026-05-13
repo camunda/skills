@@ -9,7 +9,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 ## Prerequisites
 
-- c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 element-template` commands
+- c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl element-template` commands
 
 ## Cross-References
 
@@ -32,14 +32,14 @@ Read `references/element-template-schema.md` for a comprehensive guide to interp
 
 ### Discovering Connectors via Search
 
-**Always discover the template ID via `c8 element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command always reflects what's actually available in the local OOTB catalog.
+**Always discover the template ID via `c8ctl element-template search` rather than guessing or recalling an ID from memory.** Template IDs and versions evolve — the search command always reflects what's actually available in the local OOTB catalog.
 
 ```bash
-c8 element-template search "REST"             # find HTTP/REST connectors
-c8 element-template search "slack"            # find Slack connectors
-c8 element-template search "kafka"            # find Kafka connectors
-c8 element-template search "ai agent"         # find the AI Agent connector
-c8 element-template search "connector" --limit 5   # cap results (default 20)
+c8ctl element-template search "REST"             # find HTTP/REST connectors
+c8ctl element-template search "slack"            # find Slack connectors
+c8ctl element-template search "kafka"            # find Kafka connectors
+c8ctl element-template search "ai agent"         # find the AI Agent connector
+c8ctl element-template search "connector" --limit 5   # cap results (default 20)
 ```
 
 Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), version, applies-to, engine constraint, and description. The header reads `Showing N of M matches for '<query>'` — if `M > N`, narrow the query or raise `--limit`. Pick the ID that matches your use case.
@@ -47,8 +47,8 @@ Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v
 To refresh the local OOTB cache (rarely needed — done automatically):
 
 ```bash
-c8 element-template sync             # fetch latest catalog
-c8 element-template sync --prune     # also drop entries that no longer exist upstream
+c8ctl element-template sync             # fetch latest catalog
+c8ctl element-template sync --prune     # also drop entries that no longer exist upstream
 ```
 
 #### Common templates (starting points)
@@ -74,16 +74,16 @@ Two complementary commands cover the questions you'll ask before applying:
 **`info`** — metadata card. *What is this thing?* (applies-to, engine constraint, description, docs link). Optional; useful when the connector is unfamiliar or you want to confirm it fits the target element type.
 
 ```bash
-c8 element-template info io.camunda.connectors.HttpJson.v2
+c8ctl element-template info io.camunda.connectors.HttpJson.v2
 ```
 
 **`get-properties`** — settable properties. *What knobs can I turn?* The default is a cheap condensed view: name + description, grouped. Filter with positional names (shell-style globs supported, quote them) or `--group <id>` for narrower output.
 
 ```bash
-c8 element-template get-properties io.camunda.connectors.HttpJson.v2          # all settable properties
-c8 element-template get-properties io.camunda.connectors.HttpJson.v2 url method  # named properties only
-c8 element-template get-properties io.camunda.connectors.HttpJson.v2 'auth*'   # glob filter
-c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --group endpoint
+c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2          # all settable properties
+c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 url method  # named properties only
+c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 'auth*'   # glob filter
+c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 --group endpoint
 ```
 
 When a property's internal id differs from its binding name (the name `--set` matches), the condensed view annotates the divergence on a continuation line, e.g.:
@@ -98,7 +98,7 @@ Here `retries` is the binding name (use this with `--set`); `retryCount` is the 
 Add `--detailed` for full per-property cards showing **Required**, **FEEL** support, **Active when** (the conditional expression), **Pattern** constraint, **Default**, and **Choices**. Use this when you need to know whether to set a value, prefix it with `=` for FEEL, or which parent property unlocks the property:
 
 ```bash
-c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --detailed authentication.token url
+c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 --detailed authentication.token url
 ```
 
 **When to use which:**
@@ -111,7 +111,7 @@ c8 element-template get-properties io.camunda.connectors.HttpJson.v2 --detailed 
 `info` + `get-properties --detailed` cover essentially every configuration question. **Only reach for raw JSON when c8ctl commands genuinely don't surface what you need** — e.g., inspecting hidden (non-settable) properties, studying schema fields the CLI doesn't render, or authoring a custom template:
 
 ```bash
-c8 element-template get <id> --no-icon    # raw template JSON, base64 icon stripped
+c8ctl element-template get <id> --no-icon    # raw template JSON, base64 icon stripped
 ```
 
 **Always pass `--no-icon` when reading the raw JSON.** Without it, the embedded base64 icon dominates the output and wastes context. Use the c8ctl commands above first; treat raw JSON as the escape hatch, not the default.
@@ -121,7 +121,7 @@ c8 element-template get <id> --no-icon    # raw template JSON, base64 icon strip
 Apply a template to a service task (or other supported element):
 
 ```bash
-c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn
+c8ctl element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn
 ```
 
 The `<template>` argument can be:
@@ -132,9 +132,9 @@ The `<template>` argument can be:
 `-i` modifies the BPMN file directly. Without `-i`, the modified XML is printed to stdout — useful for previews, redirected output, or composing with other tooling:
 
 ```bash
-c8 element-template apply <id> <element> process.bpmn | diff process.bpmn -    # preview the diff
-c8 element-template apply <id> <element> process.bpmn > new-process.bpmn       # write to a different file
-c8 element-template apply <id> <element> process.bpmn | c8 bpmn lint           # apply and lint in one pipeline
+c8ctl element-template apply <id> <element> process.bpmn | diff process.bpmn -    # preview the diff
+c8ctl element-template apply <id> <element> process.bpmn > new-process.bpmn       # write to a different file
+c8ctl element-template apply <id> <element> process.bpmn | c8ctl bpmn lint           # apply and lint in one pipeline
 ```
 
 Use `-i` for the common "apply and persist" case. Use the pipeable form for previews, dry-runs, or chaining into other tooling.
@@ -146,7 +146,7 @@ Apply sets `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:taskD
 Set values inline using repeated `--set key=value` flags:
 
 ```bash
-c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn \
+c8ctl element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn \
   --set method=GET \
   --set url='="https://api.example.com/users/" + string(userId)' \
   --set authentication.type=bearer \
@@ -169,24 +169,24 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 
 ### Configuration Workflow
 
-1. **Search first** — `c8 element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
-2. **Inspect when unfamiliar** — for connectors not documented in this skill, run `c8 element-template get-properties <id>` to scan available properties + descriptions. Add `--detailed <name>` when you need required/FEEL/condition details.
+1. **Search first** — `c8ctl element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
+2. **Inspect when unfamiliar** — for connectors not documented in this skill, run `c8ctl element-template get-properties <id>` to scan available properties + descriptions. Add `--detailed <name>` when you need required/FEEL/condition details.
 3. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions.
-4. **Apply with values** — `c8 element-template apply -i <id> <element-id> <bpmn> --set key=value ...`
+4. **Apply with values** — `c8ctl element-template apply -i <id> <element-id> <bpmn> --set key=value ...`
 5. **Skip inactive properties** — do not set values for properties whose conditions are not met (a warning surfaces if you do).
 6. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`).
 7. **Use secrets** for credentials: `{{secrets.API_KEY}}`.
-8. **Validate** with `c8 bpmn lint process.bpmn`.
+8. **Validate** with `c8ctl bpmn lint process.bpmn`.
 
 ### HTTP REST Connector Example
 
 ```bash
 # 1. Discover the template
-c8 element-template search "REST"
+c8ctl element-template search "REST"
 # → io.camunda.connectors.HttpJson.v2 (REST Outbound Connector)
 
 # 2. Apply with values (no inspection needed — HTTP REST property names are obvious)
-c8 element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn \
+c8ctl element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser process.bpmn \
   --set authentication.type=bearer \
   --set authentication.token='{{secrets.API_TOKEN}}' \
   --set method=GET \
@@ -249,13 +249,13 @@ When the actual value is not yet known:
 
 ### Best Practices
 
-1. **Use `c8 element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes.
-2. **Inspect via c8ctl, not raw JSON.** Use `info` for metadata and `get-properties` (condensed by default; add `--detailed <name>` for required/FEEL/condition cards). Only fall back to `c8 element-template get --no-icon` if c8ctl commands don't surface what you need.
+1. **Use `c8ctl element-template apply`** to apply templates — never manually set `zeebe:modelerTemplate` attributes.
+2. **Inspect via c8ctl, not raw JSON.** Use `info` for metadata and `get-properties` (condensed by default; add `--detailed <name>` for required/FEEL/condition cards). Only fall back to `c8ctl element-template get --no-icon` if c8ctl commands don't surface what you need.
 3. **Set values via `--set`** when applying — saves a second editing pass.
 4. **Only set active properties** — respect conditions; inactive properties surface a warning and are skipped.
 5. **Use FEEL for dynamic values** — combine variables and functions with `=` prefix.
 6. **Use secrets for credentials** — `{{secrets.MY_SECRET}}`.
-7. **Validate after configuration** — `c8 bpmn lint process.bpmn`.
+7. **Validate after configuration** — `c8ctl bpmn lint process.bpmn`.
 8. **Avoid reading full BPMN XML after template application** — template icons are large base64 strings; use Grep for targeted reads.
 
 ## References

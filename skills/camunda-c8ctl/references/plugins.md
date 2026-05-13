@@ -8,40 +8,40 @@ c8ctl ships with these plugins pre-loaded — no install step needed:
 
 | Plugin | Provides |
 |--------|----------|
-| `cluster` | `c8 cluster start/stop/status/logs/list/install/...` (local c8run management) |
-| `bpmn` | `c8 bpmn lint` |
-| `feel` | `c8 feel evaluate` |
-| `element-template` | `c8 element-template search/info/get-properties/apply/get/sync` |
+| `cluster` | `c8ctl cluster start/stop/status/logs/list/install/...` (local c8run management) |
+| `bpmn` | `c8ctl bpmn lint` |
+| `feel` | `c8ctl feel evaluate` |
+| `element-template` | `c8ctl element-template search/info/get-properties/apply/get/sync` |
 
 ## Plugin Commands
 
 ```bash
 # List installed plugins
-c8 list plugins
+c8ctl list plugins
 
 # Install from npm
-c8 load plugin <package-name>
+c8ctl load plugin <package-name>
 
 # Install from a URL (Git, file, https://)
-c8 load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer
-c8 load plugin --from git://github.com/user/repo.git
-c8 load plugin --from file:///path/to/local/plugin
+c8ctl load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer
+c8ctl load plugin --from git://github.com/user/repo.git
+c8ctl load plugin --from file:///path/to/local/plugin
 
 # Upgrade
-c8 upgrade plugin <package-name>             # to latest
-c8 upgrade plugin <package-name> 1.2.3       # to specific version
+c8ctl upgrade plugin <package-name>             # to latest
+c8ctl upgrade plugin <package-name> 1.2.3       # to specific version
 
 # Downgrade
-c8 downgrade plugin <package-name> 1.0.0
+c8ctl downgrade plugin <package-name> 1.0.0
 
 # Uninstall
-c8 unload plugin <package-name>
+c8ctl unload plugin <package-name>
 
 # Reconcile installed plugins with the registry file (e.g. after manual edits)
-c8 sync plugin
+c8ctl sync plugin
 
 # Scaffold a new plugin from template (for plugin authors)
-c8 init plugin my-plugin
+c8ctl init plugin my-plugin
 ```
 
 ## Storage Layout
@@ -58,11 +58,11 @@ Override the data directory with the `C8CTL_DATA_DIR` environment variable.
 
 ## Discovering Plugins
 
-Plugins surface their commands in `c8 help` output once loaded. After installing a plugin:
+Plugins surface their commands in `c8ctl help` output once loaded. After installing a plugin:
 
 ```bash
-c8 help                              # see new command groups appear
-c8 help <new-command>                # full reference for the plugin's commands
+c8ctl help                              # see new command groups appear
+c8ctl help <new-command>                # full reference for the plugin's commands
 ```
 
 ## Notable Third-Party Plugins
@@ -70,8 +70,8 @@ c8 help <new-command>                # full reference for the plugin's commands
 - **`c8ctl-plugin-diagram-renderer`** — renders BPMN diagrams as PNG (or inline in terminals that support it: iTerm2, Ghostty, Kitty). Useful for visualizing process state at a particular instance.
 
   ```bash
-  c8 load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer
-  c8 diagram <process-instance-id> --output ./diagram.png
+  c8ctl load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer
+  c8ctl diagram <process-instance-id> --output ./diagram.png
   ```
 
 ## Building a Custom Plugin
@@ -98,11 +98,11 @@ Plugins automatically respect:
 To get started:
 
 ```bash
-c8 init plugin my-tool             # scaffold from template
+c8ctl init plugin my-tool             # scaffold from template
 cd my-tool
 # implement c8ctl-plugin.js
-c8 load plugin --from file://$(pwd)
-c8 help                            # confirm your commands appear
+c8ctl load plugin --from file://$(pwd)
+c8ctl help                            # confirm your commands appear
 ```
 
 ## Debug Mode
@@ -110,8 +110,8 @@ c8 help                            # confirm your commands appear
 Plugin loading and other internals are silent by default. Enable debug output to see what's happening:
 
 ```bash
-DEBUG=1 c8 list plugins
-C8CTL_DEBUG=true c8 <command>
+DEBUG=1 c8ctl list plugins
+C8CTL_DEBUG=true c8ctl <command>
 ```
 
 Debug output is written to stderr with timestamps, so it doesn't interfere with normal command output or JSON parsing.

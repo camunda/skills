@@ -298,13 +298,13 @@ To configure a connector after applying a template:
 
 ## Configuring Properties in BPMN XML
 
-After `c8 element-template apply` applies the template, it creates default `zeebe:ioMapping` entries and `zeebe:taskHeaders`. Use `--set key=value` flags at apply time for straightforward configuration, or edit the BPMN XML manually for complex cases.
+After `c8ctl element-template apply` applies the template, it creates default `zeebe:ioMapping` entries and `zeebe:taskHeaders`. Use `--set key=value` flags at apply time for straightforward configuration, or edit the BPMN XML manually for complex cases.
 
 To inspect what properties are settable on a given template, run:
 
 ```bash
-c8 element-template get-properties <template-id>             # condensed: name + description per property, grouped
-c8 element-template get-properties <template-id> --detailed  # full cards: Required, FEEL, Active when, Pattern, Default, Choices
+c8ctl element-template get-properties <template-id>             # condensed: name + description per property, grouped
+c8ctl element-template get-properties <template-id> --detailed  # full cards: Required, FEEL, Active when, Pattern, Default, Choices
 ```
 
 The condensed default skips `Hidden` properties. `--detailed` is the full per-property card with everything `--set` needs to pick a value.
@@ -320,7 +320,7 @@ The condensed default skips `Hidden` properties. `--detailed` is the full per-pr
 
 ### Example: Configuring an HTTP Connector
 
-Apply with values inline using `c8 element-template apply ... --set ...`. The template defines these key properties:
+Apply with values inline using `c8ctl element-template apply ... --set ...`. The template defines these key properties:
 
 ```
 authentication.type  → zeebe:input, name="authentication.type"  (Dropdown: noAuth, basic, bearer, apiKey, oauth)

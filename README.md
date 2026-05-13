@@ -22,7 +22,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 ## Prerequisites
 
 - **Camunda 8.8+** cluster — local via [c8run](https://docs.camunda.io/docs/self-managed/setup/deploy/local/c8run/), SaaS, or Self-Managed
-- **[c8ctl](https://github.com/camunda/c8ctl)** CLI installed and configured — provides all skill tooling (`c8 bpmn lint`, `c8 element-template`, `c8 feel evaluate`, deploy, watch, operate)
+- **[c8ctl](https://github.com/camunda/c8ctl)** CLI installed and configured — provides all skill tooling (`c8ctl bpmn lint`, `c8ctl element-template`, `c8ctl feel evaluate`, deploy, watch, operate)
 
 ## Installation
 
@@ -66,10 +66,10 @@ Clone this repository and copy `skills/<skill-name>/` directories into your agen
 1. Install c8ctl and start a local cluster:
    ```bash
    npm install -g @camunda8/cli
-   c8 cluster start          # downloads c8run on first run
+   c8ctl cluster start          # downloads c8run on first run
    ```
 
-   For SaaS or Self-Managed clusters, run `c8 add profile` instead — see the **camunda-c8ctl** skill.
+   For SaaS or Self-Managed clusters, run `c8ctl add profile` instead — see the **camunda-c8ctl** skill.
 
 2. Ask your AI agent:
    > "Create an invoice approval process with a user task for review and an HTTP connector to notify the accounting system"

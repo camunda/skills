@@ -19,7 +19,7 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 ## Cross-References
 
 - **camunda-bpmn**: BPMN basics, ad-hoc subprocess element, namespaces, the mandatory lint loop.
-- **camunda-connectors**: The underlying `c8 element-template` workflow used to apply the AI Agent template (and the REST connector commonly used as a tool).
+- **camunda-connectors**: The underlying `c8ctl element-template` workflow used to apply the AI Agent template (and the REST connector commonly used as a tool).
 - **camunda-feel**: FEEL syntax for prompts, `fromAi()` calls, result expressions, type coercion.
 - **camunda-process-mgmt**: Deploying the process, starting an instance, inspecting incidents from agent invocations.
 
@@ -39,14 +39,14 @@ The connector has a lot of fields (provider auth, prompts, memory, limits, respo
 
 ```bash
 # 1. Find the current template ID and version — they evolve
-c8 element-template search "ai agent"
+c8ctl element-template search "ai agent"
 
 # 2. Inspect the properties you care about (condensed view, then detailed for specifics)
-c8 element-template get-properties <id>
-c8 element-template get-properties <id> --detailed data.systemPrompt.prompt
+c8ctl element-template get-properties <id>
+c8ctl element-template get-properties <id> --detailed data.systemPrompt.prompt
 
 # 3. Apply to your ad-hoc subprocess element
-c8 element-template apply -i <id> AgentTools process.bpmn \
+c8ctl element-template apply -i <id> AgentTools process.bpmn \
   --set provider.type=anthropic \
   --set provider.anthropic.authentication.apiKey='{{secrets.ANTHROPIC_API_KEY}}' \
   --set provider.anthropic.model.model=claude-sonnet-4-5 \
@@ -113,7 +113,7 @@ A tool can be a **single activity** (service task, script task, user task) or a 
 </bpmn:serviceTask>
 ```
 
-For real REST connector configuration, apply the HTTP connector template via `c8 element-template apply` (see **camunda-connectors**) — the snippet above shows the resulting XML shape.
+For real REST connector configuration, apply the HTTP connector template via `c8ctl element-template apply` (see **camunda-connectors**) — the snippet above shows the resulting XML shape.
 
 ### Script tool
 
@@ -307,7 +307,7 @@ These are non-obvious failure modes the lint loop will not catch.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
 - **Empty ad-hoc subprocess** — at least one tool activity is required by BPMN semantics; an agent with no tools is rejected.
 - **Hyphenated memory storage type** — `in-process`, `camunda-document`, `custom`. Not camelCase.
-- **Hand-coded template internals** — the AI Agent template has many provider-specific fields and they evolve. Apply via `c8 element-template apply --set` rather than writing the input mappings by hand.
+- **Hand-coded template internals** — the AI Agent template has many provider-specific fields and they evolve. Apply via `c8ctl element-template apply --set` rather than writing the input mappings by hand.
 - **No `maxModelCalls`** — without a cap, a confused agent will iterate. Always set it to a finite value.
 
 ## Closing Step
@@ -315,7 +315,7 @@ These are non-obvious failure modes the lint loop will not catch.
 Run the BPMN lint loop (see **camunda-bpmn**) before declaring the agent process done:
 
 ```bash
-c8 bpmn lint process.bpmn
+c8ctl bpmn lint process.bpmn
 ```
 
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by hand:

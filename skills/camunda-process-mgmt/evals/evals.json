@@ -4,9 +4,9 @@
     {
       "id": "deploy-bpmn",
       "prompt": "Deploy the invoice-approval.bpmn file to my Camunda cluster.",
-      "expected_output": "Runs c8 deploy command for the BPMN file",
+      "expected_output": "Runs c8ctl deploy command for the BPMN file",
       "expectations": [
-        "Uses c8 deploy command with the correct file path",
+        "Uses c8ctl deploy command with the correct file path",
         "Verifies deployment success by listing process definitions"
       ]
     },
@@ -17,7 +17,7 @@
       "expectations": [
         "Deploys the BPMN file first",
         "Creates a process instance with correct variables JSON",
-        "Uses c8 run or c8 deploy followed by c8 create pi"
+        "Uses c8ctl run or c8ctl deploy followed by c8ctl create pi"
       ]
     },
     {
@@ -25,7 +25,7 @@
       "prompt": "Check if my latest deployment of the InvoiceApproval process succeeded and what version it is.",
       "expected_output": "Lists process definitions and finds the latest version",
       "expectations": [
-        "Uses c8 list pd or c8 search pd to find the process",
+        "Uses c8ctl list pd or c8ctl search pd to find the process",
         "Shows the version number and deployment status"
       ]
     },
@@ -34,7 +34,7 @@
       "prompt": "Show me all running process instances.",
       "expected_output": "Lists active process instances using c8ctl",
       "expectations": [
-        "Uses c8 list pi or c8 search pi command",
+        "Uses c8ctl list pi or c8ctl search pi command",
         "Presents results in a readable format"
       ]
     },
@@ -43,11 +43,11 @@
       "prompt": "My process has an incident. Help me find and fix it.",
       "expected_output": "Investigates incidents, identifies root cause, and resolves",
       "expectations": [
-        "Uses c8 search inc or c8 list inc to find active incidents",
+        "Uses c8ctl search inc or c8ctl list inc to find active incidents",
         "Reads the error message to identify the root cause",
-        "Inspects process variables with c8 search variables",
+        "Inspects process variables with c8ctl search variables",
         "Suggests a fix based on the error",
-        "Resolves the incident with c8 resolve inc after the fix"
+        "Resolves the incident with c8ctl resolve inc after the fix"
       ]
     },
     {
@@ -56,7 +56,7 @@
       "expected_output": "Completes the user task with the specified variables",
       "expectations": [
         "Lists user tasks to find the correct task key",
-        "Uses c8 complete ut with the correct variables JSON",
+        "Uses c8ctl complete ut with the correct variables JSON",
         "Confirms task completion"
       ]
     }

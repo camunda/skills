@@ -4,12 +4,12 @@
     {
       "id": "local-cluster-bootstrap",
       "prompt": "I want to start working with Camunda 8 locally. I don't have a cluster yet. Help me get going.",
-      "expected_output": "Walks the user through installing c8ctl, starting a local cluster via c8 cluster start, and verifying the cluster is alive",
+      "expected_output": "Walks the user through installing c8ctl, starting a local cluster via c8ctl cluster start, and verifying the cluster is alive",
       "expectations": [
         "Recommends/installs c8ctl via npm install -g @camunda8/cli",
-        "Recommends starting a local cluster using c8 cluster start (the c8run wrapper) rather than telling the user to download c8run separately",
-        "Explains that c8 cluster start downloads and starts c8run on first run, defaulting to the latest stable",
-        "Verifies the cluster is alive (c8 cluster status or c8 get topology)",
+        "Recommends starting a local cluster using c8ctl cluster start (the c8run wrapper) rather than telling the user to download c8run separately",
+        "Explains that c8ctl cluster start downloads and starts c8run on first run, defaulting to the latest stable",
+        "Verifies the cluster is alive (c8ctl cluster status or c8ctl get topology)",
         "Does NOT require the user to manually create a profile for the local case (mentions the localhost fallback)"
       ]
     },
@@ -18,9 +18,9 @@
       "prompt": "Set up c8ctl to talk to my Camunda 8 SaaS cluster. Cluster URL is https://abc123.bru-2.zeebe.camunda.io and I have a client ID and secret from the Camunda console.",
       "expected_output": "Adds and activates a c8ctl profile for the SaaS cluster with the provided credentials",
       "expectations": [
-        "Uses c8 add profile <name> with --baseUrl, --clientId, --clientSecret flags",
-        "Activates the profile with c8 use profile <name>",
-        "Verifies the connection (e.g., c8 get topology or c8 list pd)",
+        "Uses c8ctl add profile <name> with --baseUrl, --clientId, --clientSecret flags",
+        "Activates the profile with c8ctl use profile <name>",
+        "Verifies the connection (e.g., c8ctl get topology or c8ctl list pd)",
         "Does NOT append /v2 to the SaaS cluster URL manually (c8ctl handles this for cloud URLs)",
         "Does NOT hardcode credentials in shell history visibly (uses placeholders or recommends env vars / secret managers if appropriate)"
       ]
@@ -30,10 +30,10 @@
       "prompt": "I have c8ctl installed and a local cluster running. How do I see what's currently deployed and what process instances are running?",
       "expected_output": "Demonstrates the inspection commands for deployed definitions and running instances",
       "expectations": [
-        "Uses c8 list pd (or c8 list process-definitions) to show deployed process definitions",
-        "Uses c8 list pi (or c8 list process-instances) to show running instances",
+        "Uses c8ctl list pd (or c8ctl list process-definitions) to show deployed process definitions",
+        "Uses c8ctl list pi (or c8ctl list process-instances) to show running instances",
         "Optionally narrows results with --state=ACTIVE or filter flags",
-        "Optionally suggests c8 get topology for cluster-level info",
+        "Optionally suggests c8ctl get topology for cluster-level info",
         "Does NOT require the user to install additional plugins for this"
       ]
     },
@@ -42,9 +42,9 @@
       "prompt": "I want to install the c8ctl diagram-renderer plugin from https://github.com/camunda/c8ctl-plugin-diagram-renderer and use it to render a process instance diagram.",
       "expected_output": "Installs the plugin and renders a diagram",
       "expectations": [
-        "Uses c8 load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer",
-        "Verifies the plugin is loaded (c8 list plugins or c8 help)",
-        "Demonstrates the c8 diagram <process-instance-id> command",
+        "Uses c8ctl load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer",
+        "Verifies the plugin is loaded (c8ctl list plugins or c8ctl help)",
+        "Demonstrates the c8ctl diagram <process-instance-id> command",
         "Mentions --output for saving to a file (since not all terminals support inline image rendering)"
       ]
     }

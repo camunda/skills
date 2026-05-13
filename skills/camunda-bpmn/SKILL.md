@@ -10,7 +10,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 ## Prerequisites
 
 - Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed)
-- c8ctl CLI installed and configured (`c8 add profile`) — provides `c8 bpmn lint`
+- c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl bpmn lint`
 
 ## Cross-References
 
@@ -76,7 +76,7 @@ Always encode special characters in XML attribute values:
 - **Exclusive (XOR)**: Exactly one path taken. Set `default` attribute for the fallback flow. Label condition flows.
 - **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
 - **Inclusive (OR)**: One or more paths. Also requires a matching join.
-- Always fix fake-join warnings from `c8 bpmn lint` — join gateways must match their fork type.
+- Always fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
 
 **Sequence Flows:**
 - Conditions use FEEL expressions with `=` prefix:
@@ -122,15 +122,15 @@ BPMN files can be large. Follow these rules:
 
 ### Lint loop — mandatory exit gate
 
-A BPMN edit is **not done** until `c8 bpmn lint` reports zero errors AND zero warnings. Treat this as the closing step of every BPMN task — generation, modification, refactor, or merge.
+A BPMN edit is **not done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing step of every BPMN task — generation, modification, refactor, or merge.
 
 1. Run the linter against the file you touched:
 
    ```bash
-   c8 bpmn lint path/to/process.bpmn
+   c8ctl bpmn lint path/to/process.bpmn
    ```
 
-   `c8 bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8 bpmn lint`.
+   `c8ctl bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
 
 2. If output is non-empty, fix every reported issue and run the linter again. Common categories:
    - **no-overlapping-elements** — adjust DI coordinates per `references/layout-rules.md` spacing rules

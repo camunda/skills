@@ -16,30 +16,30 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 
 ## c8ctl Setup (required)
 
-All cluster interaction and skill tooling uses [c8ctl](https://github.com/camunda/c8ctl). It is a **hard prerequisite** for the other skills. The dedicated **camunda-c8ctl** skill walks through installation, picking a cluster (incl. starting a local one via `c8 cluster start`), profile setup, and plugin management.
+All cluster interaction and skill tooling uses [c8ctl](https://github.com/camunda/c8ctl). It is a **hard prerequisite** for the other skills. The dedicated **camunda-c8ctl** skill walks through installation, picking a cluster (incl. starting a local one via `c8ctl cluster start`), profile setup, and plugin management.
 
 Quick start:
 
 ```bash
 npm install -g @camunda8/cli
-c8 cluster start         # spin up a local cluster (downloads c8run on first run)
-c8 get topology          # confirm it's alive
-c8 output json           # switch to structured output for scripting/AI use
+c8ctl cluster start         # spin up a local cluster (downloads c8run on first run)
+c8ctl get topology          # confirm it's alive
+c8ctl output json           # switch to structured output for scripting/AI use
 ```
 
 ## Tooling
 
 All skill tooling is unified under c8ctl plugin commands:
 
-- **BPMN validation**: `c8 bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
+- **BPMN validation**: `c8ctl bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
 - **Element templates**:
-  - `c8 element-template search "<query>" [--limit N]` — discover OOTB connector templates (default limit 20)
-  - `c8 element-template info <id>` — show metadata card (applies-to, engines, docs link)
-  - `c8 element-template get-properties <id> [<name>...]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern)
-  - `c8 element-template apply -i <template> <element-id> <bpmn> [--set key=value ...]` — apply a template (omit `-i` to print to stdout)
-  - `c8 element-template get <id>` — print raw template JSON
-  - `c8 element-template sync [--prune]` — refresh the local OOTB cache
-- **FEEL evaluation**: `c8 feel evaluate '<expression>' [--var key=value | --vars '<json>']` — defaults to cluster evaluation (Scala FEEL engine; requires Camunda 8.9+). `--engine local` uses the `feelin` JS engine, which behaves DIFFERENTLY from the cluster engine — only use it when explicitly requested or the cluster is unreachable AND the user has confirmed.
+  - `c8ctl element-template search "<query>" [--limit N]` — discover OOTB connector templates (default limit 20)
+  - `c8ctl element-template info <id>` — show metadata card (applies-to, engines, docs link)
+  - `c8ctl element-template get-properties <id> [<name>...]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern)
+  - `c8ctl element-template apply -i <template> <element-id> <bpmn> [--set key=value ...]` — apply a template (omit `-i` to print to stdout)
+  - `c8ctl element-template get <id>` — print raw template JSON
+  - `c8ctl element-template sync [--prune]` — refresh the local OOTB cache
+- **FEEL evaluation**: `c8ctl feel evaluate '<expression>' [--var key=value | --vars '<json>']` — defaults to cluster evaluation (Scala FEEL engine; requires Camunda 8.9+). `--engine local` uses the `feelin` JS engine, which behaves DIFFERENTLY from the cluster engine — only use it when explicitly requested or the cluster is unreachable AND the user has confirmed.
 
 ## Conventions
 
