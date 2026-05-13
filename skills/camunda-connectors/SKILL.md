@@ -185,7 +185,7 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 7. **Use secrets** for credentials: `{{secrets.API_KEY}}`.
 8. **Validate** with `c8ctl bpmn lint process.bpmn`.
 
-### HTTP REST Connector Example
+### Example — HTTP REST Connector
 
 ```bash
 # 1. Discover the template

@@ -30,7 +30,7 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 
 ### Deploying Resources
 
-Deploy a single BPMN file:
+**Example** — deploy a single BPMN file:
 
 ```bash
 c8ctl deploy process.bpmn

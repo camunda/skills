@@ -31,7 +31,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 
 ### XML Structure
 
-Every BPMN file requires these namespaces:
+**Example** — every BPMN file requires these namespaces:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>

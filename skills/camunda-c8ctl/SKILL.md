@@ -78,6 +78,8 @@ If the user hasn't decided and is doing local development, **suggest local c8run
 
 c8ctl ships with a default `cluster` plugin that wraps [c8run](https://docs.camunda.io/docs/self-managed/setup/deploy/local/c8run/). It downloads, starts, and stops a local Camunda 8 cluster for you.
 
+**Examples**:
+
 ```bash
 # Start the latest stable release (downloads on first run)
 c8ctl cluster start

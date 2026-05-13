@@ -31,6 +31,8 @@ Camunda Forms are JSON files with `.form` extension (not `.json`). Link to BPMN 
 
 ### Form Structure
 
+**Example** — minimal form skeleton:
+
 ```json
 {
   "components": [],
@@ -185,6 +187,12 @@ Generate complete `.form` JSON files. Ensure:
 - `key` values match expected process variable names
 - `layout.row` values increment sequentially (`row_0`, `row_1`, ...)
 - Metadata fields are present and correct
+
+## Troubleshooting
+
+- **Form doesn't appear in Tasklist** — verify the user task in BPMN includes `<zeebe:userTask/>` and `<zeebe:formDefinition formId="..."/>` matching the form's `id` field. The legacy `formKey` attribute was removed in Camunda 8.10.
+- **`schemaVersion` mismatch error** — set `schemaVersion: 18` and `executionPlatformVersion: "8.8.0"`; older values are rejected by 8.8+ clusters.
+- **Conditional field always hidden** — `conditional.hide` is a FEEL expression that returns true to hide. Forgetting the `=` prefix turns it into a literal string. See **camunda-feel** § Common Patterns for the FEEL side.
 
 ## References
 

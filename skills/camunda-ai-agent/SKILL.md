@@ -39,7 +39,7 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 
 ## Applying the AI Agent Connector
 
-Apply the template via c8ctl rather than hand-writing the many provider/prompt/memory fields:
+**Example** — apply the template via c8ctl rather than hand-writing the many provider/prompt/memory fields:
 
 ```bash
 # 1. Find the current template ID and version — they evolve
@@ -166,7 +166,7 @@ The agent preserves conversation context across re-entries; see the [Sub-process
 - `data.memory.contextWindowSize` — caps how many prior messages the agent replays to the LLM (default 20). Smaller saves tokens, larger preserves more context.
 - `data.memory.storage.type` — `in-process` (default), `camunda-document` (offload to the Camunda Document store when context grows past variable size limits), or `custom`. Use the hyphenated form.
 
-## Pitfalls
+## Troubleshooting
 
 Non-obvious failure modes the lint loop will not catch.
 
