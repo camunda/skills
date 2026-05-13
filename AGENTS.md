@@ -14,9 +14,15 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-process-mgmt** | Deploying resources, starting/inspecting instances, resolving incidents, completing user tasks — all via c8ctl |
 | **camunda-ai-agent** | Building AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tool modeling, `fromAi()` parameters, prompts, sub-flow tools |
 
+## Design goal: c8ctl is the programmatic API
+
+[c8ctl](https://github.com/camunda/c8ctl) is the single programmatic surface for these skills — cluster operations, resource deployment, BPMN linting, element templates, FEEL evaluation all route through it. Skills should reach for a `c8ctl` subcommand or plugin before writing custom code. If a workflow currently needs a bespoke script, that's a signal a c8ctl command (or plugin) is missing — file it upstream rather than baking glue into a skill.
+
+Why: c8ctl is versioned, tested, and shared across skills. Ad-hoc scripts drift, hide assumptions in shell, and split the surface area an agent has to learn. One CLI, consistent flags, structured (`c8ctl output json`) output.
+
 ## c8ctl Setup (required)
 
-All cluster interaction and skill tooling uses [c8ctl](https://github.com/camunda/c8ctl). It is a **hard prerequisite** for the other skills. The dedicated **camunda-c8ctl** skill walks through installation, picking a cluster (incl. starting a local one via `c8ctl cluster start`), profile setup, and plugin management.
+c8ctl is a **hard prerequisite** for every skill below. The dedicated **camunda-c8ctl** skill walks through installation, picking a cluster (incl. starting a local one via `c8ctl cluster start`), profile setup, and plugin management.
 
 Quick start:
 
@@ -73,9 +79,11 @@ prove. Until then, `waza check` is the enforcement bar.
 
 ### Linting
 
+**Always run `make lint SKILL=<name>` after modifying a skill.** CI runs the same check on PRs touching `skills/` and will fail on hard violations.
+
 ```bash
-make lint                           # waza check all skills
-make lint SKILL=camunda-feel        # one skill
+make lint SKILL=camunda-feel        # check one skill (use after editing it)
+make lint                           # check all skills
 waza check <skill>                  # equivalent direct invocation
 ```
 

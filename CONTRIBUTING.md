@@ -29,7 +29,7 @@ Key rules:
 - **Body under ~5000 words** — move detailed catalogs to `references/`
 - **References one level deep** — no chains (SKILL.md → ref1.md → ref2.md)
 - **Cross-reference other skills** by name when relevant
-- **Tooling routes through c8ctl plugin commands** (e.g., `c8ctl bpmn lint`, `c8ctl element-template apply`, `c8ctl feel evaluate`) — c8ctl is a hard prerequisite for these skills
+- **Tooling routes through c8ctl** (e.g., `c8ctl bpmn lint`, `c8ctl element-template apply`, `c8ctl feel evaluate`) — c8ctl is the programmatic API for these skills. If you find yourself reaching for a custom script, first check whether a c8ctl subcommand or plugin already does it; if not, prefer adding one upstream over baking shell glue into the skill.
 
 ## Progressive Discovery
 
@@ -76,7 +76,12 @@ CI runs `waza check` on every PR that touches `skills/`
 
 ## Scripts
 
-Scripts must be:
+Prefer c8ctl over scripts. A `scripts/` directory is a last resort, not the
+default — if you can express the same workflow as a c8ctl invocation (or a
+plugin contributed upstream), do that instead. Custom scripts drift, hide
+assumptions in shell, and split the surface an agent has to learn.
+
+When a script is genuinely warranted, it must be:
 - **Non-interactive** — no TTY prompts or confirmation dialogs
 - **Self-contained** — use inline dependency declarations or npx with version pinning
 - **Idempotent** — safe to run multiple times
@@ -85,5 +90,5 @@ Scripts must be:
 
 1. Create a branch from `main`
 2. Add/modify skills following the structure above
-3. Ensure `waza check` passes for any skill you touched
+3. **Run `make lint SKILL=<name>` after every change** and fix any hard violations before pushing (CI runs the same check)
 4. Submit PR with description of changes
