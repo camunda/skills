@@ -49,14 +49,15 @@ Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missin
 
 Follow [references/setup.md](references/setup.md): verify Java 21+, Maven, Docker; add the CPT dependency; scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
 
-### 3. Plan segments
+### 3. Plan segments (set-cover, not per-element)
 
-Apply [references/coverage-strategy.md](references/coverage-strategy.md):
+Plan the minimum number of segments **before** authoring anything. Apply [references/coverage-strategy.md](references/coverage-strategy.md):
 
 1. Parse the BPMN: `processId`, element IDs and types, gateway outgoing flows + conditions, error / timer / escalation boundaries, end events, called DMN decisions (`<zeebe:calledDecision decisionId="…">`) and the DMN rules inside them.
-2. Pick **one happy-path segment** from start event to the most common end event — this seeds coverage of the spine.
-3. For every element still uncovered, define one **minimal segment** rooted at the nearest upstream decision point (gateway, DMN, error boundary) and ending at the next element that rejoins the happy path. Do not always run to the end event.
-4. Print the segment plan as a table: segment name | root | covered elements | end condition.
+2. **Enumerate candidate segments.** For every gateway branch, DMN rule, boundary event, and alternate end event, define one minimal candidate segment rooted at the nearest upstream decision point. For each candidate, **statically predict its full visited-element + sequence-flow set** by walking the BPMN forward from the root through the targeted branch to the next rejoin or end event.
+3. **Greedy set-cover.** Repeatedly pick the candidate whose predicted set covers the largest number of still-uncovered ids. Tie-break by shortest path (cheapest to author). Stop when the union covers every id.
+4. **Diagnostic-isolation override (optional).** If two chosen segments share a root but exercise different failure modes (e.g. one fires a boundary event, the other completes the user task normally), keep both so a failure points at one cause cleanly. Apply only when the user is debugging a specific area; default is pure set-cover.
+5. Print the segment plan as a table: `segment name | root | predicted ids covered | end condition`. Authoring then implements exactly this list — no speculative scenarios that may be deduped later.
 
 ### 4. Author
 
@@ -127,17 +128,17 @@ REPORT="target/coverage-report/report.html"
 
 On Linux substitute `xdg-open`; on Windows substitute `start`. Default behavior, not opt-in — every run ends with the report visible.
 
-**Auto-loop to 100% — default behavior.** If aggregate coverage `(covered elements + covered sequence flows) / totalElementCount` is < 100%:
+**Patch-loop on prediction misses — default behavior.** Set-cover planning in step 3 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
 
-1. For each uncovered id, classify: element (visit it directly), or sequence flow (its source must be hit *and* the condition routing through it must be satisfied — usually means a non-happy gateway branch).
-2. Define one additional segment per uncovered id using [references/coverage-strategy.md](references/coverage-strategy.md). Group ids that share a root onto one segment.
+1. Classify the miss: element (visit it directly), or sequence flow (its source must be hit *and* the condition routing through it must be satisfied — usually a gateway branch the planner failed to attribute).
+2. Re-run greedy set-cover restricted to the remaining uncovered ids. Add the chosen candidates (often one) to the scenario file.
 3. For timer boundary events: use `INCREASE_TIME` with an ISO 8601 `duration` greater than the timer cycle (e.g. `"PT25H"` for `R/PT24H`). The boundary fires; the outgoing path's job is created; complete it with `COMPLETE_JOB`.
 4. For message boundary events: `PUBLISH_MESSAGE` instruction with matching name + correlationKey.
-5. Re-run step 5 (`mvn test`) → step 6 (coverage check). Repeat.
+5. Re-run step 5 (`mvn test`) → step 6. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
 
 Hard blockers that terminate the loop:
 
-- Same set of ids uncovered after 3 consecutive iterations — surface the list and stop.
+- Same set of ids uncovered after 2 consecutive iterations — surface the list and stop.
 - An uncovered element is dead code (no inbound flow, or its inbound condition is unsatisfiable) — flag as a BPMN defect, point at camunda-bpmn, stop.
 - Test infrastructure failure repeats (Docker down, deploy parse error) — stop and route to [references/troubleshooting.md](references/troubleshooting.md).
 
@@ -145,11 +146,11 @@ Do not declare the suite done while ids remain uncovered and no hard blocker app
 
 > **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios manually to confirm coverage in that case.
 
-### 7. Deduplication pass
+### 7. Verify no redundancy slipped through
 
-Re-read every scenario. For each, compute the set of elements visited and the gateway branches taken. Flag any scenario whose visited set is a strict subset of another's **and** whose branch choices are identical on the overlap — that scenario is redundant; propose removing it.
+Set-cover planning in step 3 should produce a non-redundant suite by construction. Verify with a leave-one-out check against the runtime coverage data: for each scenario, compute the union of all *other* scenarios' covered ids; if removing the scenario loses zero ids, it is redundant and the planner has a bug — fix the planner, then drop the scenario.
 
-Also flag:
+Also flag (cheap, do unconditionally):
 
 - Scenario names that do not match `<who/what> — <outcome>` (e.g. `"test1"`, `"happy"`).
 - Duplicated descriptions across scenarios.

@@ -1,89 +1,108 @@
-# Coverage strategy — segment-based, 100% target
+# Coverage strategy — set-cover, 100% target
 
-A test segment is a slice of process execution between two points. Cover the spine with one happy-path segment. Then add the minimum number of secondary segments to exercise every remaining element. Each secondary segment starts at the nearest upstream decision point and ends as soon as it rejoins the happy path or hits an end event.
+A test segment is a slice of process execution between two points. The goal: pick the smallest set of segments whose combined coverage is every element and sequence flow in the BPMN. Plan first, author second. The CPT coverage report at `target/coverage-report/report.html` is the exit gate.
 
-The exit gate is the CPT coverage report at `target/coverage-report/report.html`. Every element must be visited at least once.
+Two ideas drive the strategy:
+
+1. **Predict each candidate's coverage statically** by walking the BPMN forward from the segment's root through its targeted branch to its rejoin or end event. Set membership is known before any test runs.
+2. **Greedy set-cover** picks the smallest non-redundant subset. No "author then dedupe" — redundancy never gets authored.
 
 ## Step 1 — parse the BPMN
 
 Extract:
 
 - `processId` from `<bpmn:process id="…">`.
-- All element IDs and types. Treat the **happy path** as the sequence of elements traversed by the most common branch at every gateway and the most common rule in every DMN.
+- All element IDs and types.
 - Every gateway's outgoing flows with their `conditionExpression`, plus the `default` flow.
 - Every `<bpmn:boundaryEvent>` (error, timer, escalation, message), the element it attaches to, and the error code / timer / message it catches.
 - Every `<zeebe:calledDecision decisionId="…">` and the rules inside the DMN file.
 - All end events — distinct ends produce distinct outcomes.
 
-## Step 2 — happy-path segment
+## Step 2 — enumerate candidate segments
 
-One scenario, start event → most common end event, choosing the most common branch at every gateway and the most common rule in every DMN. This seeds coverage of:
+Build a candidate list. Walk the model:
 
-- The start event
-- All elements on the spine
-- One branch of every gateway on the spine
-- One rule of every DMN on the spine
-- The chosen end event
+| Candidate type | Root | End | Notes |
+|----------------|------|-----|-------|
+| Each gateway branch (incl. `default`) | The gateway | First rejoin or end event | One candidate per outgoing flow |
+| Each DMN rule (incl. `default`) | The business-rule task | First rejoin or end event | Variables chosen to match the rule's input entries |
+| Each error boundary event | The activity it attaches to (use `THROW_BPMN_ERROR_FROM_JOB` with matching `errorCode`) | The boundary's outgoing path end event | |
+| Each timer / escalation / message boundary | The activity it attaches to | The boundary's outgoing path end event | Timer uses `INCREASE_TIME` past the cycle |
+| Each alternate end event | A gateway / branch combination that reaches it | The end event | |
+| Multi-instance loop | `CREATE_PROCESS_INSTANCE` with a collection input | First post-loop join | |
+| Happy path (baseline) | Start event | Most common end event | Choose the most common branch at every gateway and DMN |
 
-## Step 3 — enumerate uncovered elements
+For each candidate, **statically predict the visited set**: walk the BPMN forward from root through the chosen branch to the end condition, collecting every element id and sequence flow id along the way. Store as `(name, root, predicted_ids)`.
 
-Walk the BPMN element list, subtract the happy-path visited set, and produce the to-cover list.
+## Step 3 — greedy set-cover
 
-## Step 4 — pick a minimal segment per uncovered element
+```text
+universe   = {every element id} ∪ {every sequence flow id}
+chosen     = []
+covered    = ∅
 
-For each uncovered element, the rules:
+while covered != universe:
+    pick candidate c that maximizes |predicted_ids(c) − covered|
+    tie-break: shortest path (fewest predicted ids — cheapest to author)
+    chosen.append(c)
+    covered |= predicted_ids(c)
+```
 
-| Element type | Root the segment at | End the segment when |
-|--------------|---------------------|----------------------|
-| Non-happy gateway branch | The gateway itself (variables chosen at `CREATE_PROCESS_INSTANCE` to route this way) | The branch's next merge / join with the happy path, or the next end event reached |
-| `default` gateway flow | The gateway | First rejoin or end event |
-| Non-happy DMN rule | The business-rule task (variables chosen to satisfy that rule's input entries) | First rejoin or end event |
-| `default` DMN rule | The business-rule task | First rejoin or end event |
-| Error boundary event | The service / user task it attaches to (use `THROW_BPMN_ERROR_FROM_JOB` with the matching `errorCode`) | The boundary's outgoing path end event |
-| Timer boundary event | The element it attaches to (advance time via the cluster clock if the segment must wait) | The boundary's outgoing path end event |
-| Escalation / message boundary | The element it attaches to | The boundary's outgoing path end event |
-| Alternate end event | A gateway / branch combination that reaches it | The end event |
-| Multi-instance loop element | A `CREATE_PROCESS_INSTANCE` with collection input that triggers the loop | First post-loop join |
+The happy-path candidate usually wins round 1 because it covers the spine. Subsequent rounds pick segments that uniquely add boundary events, alternate branches, or alternate rules.
 
-Pick **one** segment per uncovered element. Do not write a segment that re-tests an element already covered by the happy path or another secondary segment.
+When two candidates share a root but exercise different failure modes (e.g. boundary fires vs. user task completes normally), greedy set-cover may pick only one. If diagnostic isolation matters more than minimality (you want failures to point at one cause), keep both — flag this as an explicit opt-out, not the default.
 
-## Step 5 — print the segment plan
-
-Before authoring any JSON, print:
+## Step 4 — print the plan
 
 ```text
 Segment plan — expense-approval
 
-  Happy path: amount=200, dept=Engineering → AUTO → Notification → End
-              covers: Start, DMN, Task_SendNotification, EndEvent_Done
-                      Gateway_Routing (AUTO branch)
+  Selected by greedy set-cover (predicted 100% coverage):
 
-  Secondary segments:
-    1. MANAGER branch — amount=750
-       root: Gateway_Routing (MANAGER), ends: Task_SendNotification (rejoin)
-       covers: Task_ManagerReview, DMN rule MANAGER
-    2. FINANCE branch — amount=1500, both approve
-       root: Gateway_Routing (FINANCE), ends: Task_SendNotification (rejoin)
-       covers: Task_ManagerReview_Finance, Task_FinanceReview, DMN rule FINANCE
-    3. FINANCE — manager rejects
-       root: Task_ManagerReview_Finance, ends: Task_SendNotification (rejoin)
-       covers: Gateway_ManagerDecision_Finance (Reject branch)
-    4. notification error boundary
-       root: Task_SendNotification (throw NOTIFICATION_FAILED)
-       covers: BoundaryEvent_NotifyError, EndEvent_Error
+  1. MANAGER path — manager approves
+     root: Gateway_ApprovalLevel (MANAGER branch via amount=750)
+     covers (13): Start, Task_DetermineApproval, Gateway_ApprovalLevel,
+                  Flow_Manager, Task_ManagerReview, Gateway_ManagerDecision,
+                  Flow_ManagerApproved, Gateway_MergeBeforeNotify, Flow_ToNotify,
+                  Task_SendNotification, Flow_ToEnd, EndEvent_1, …
+  2. MANAGER path — manager rejects
+     root: Gateway_ManagerDecision (reject)
+     covers (+1): Flow_ManagerRejected
+  3. FINANCE path — manager and finance approve
+     root: Gateway_ApprovalLevel (FINANCE branch via amount=1500)
+     covers (+3): Task_ManagerReview_Finance, Flow_FinanceManagerApproved,
+                  Task_FinanceReview, Flow_FinanceReviewDone, …
+  4. FINANCE path — manager rejects
+     root: Gateway_FinanceManagerDecision (reject)
+     covers (+1): Flow_FinanceManagerRejected
+  5. AUTO path — notification fails, error boundary fires
+     root: Task_SendNotification (throw NOTIFICATION_FAILED), routes via amount=200
+     covers (+4): Flow_Auto, BoundaryEvent_NotifyError, Flow_ErrorEnd, EndEvent_Error
+  6. MANAGER path — reminder fires after 24h
+     root: Task_ManagerReview + INCREASE_TIME PT25H
+     covers (+5): BoundaryEvent_Reminder, Flow_Reminder, Task_SendReminder,
+                  Flow_ReminderEnd, EndEvent_Reminder
+  7. FINANCE path — reminder2 fires after 24h
+     root: Task_ManagerReview_Finance + INCREASE_TIME PT25H
+     covers (+5): BoundaryEvent_Reminder2, Flow_Reminder2, Task_SendReminder2,
+                  Flow_ReminderEnd2, EndEvent_Reminder2
 
-  Total: 1 + 4 = 5 segments. Predicted coverage: 100%.
+  Total: 7 segments. Predicted coverage: 38/38 = 100%.
 ```
 
-## Step 6 — verify against the CPT report
+Author exactly this list.
 
-Run `mvn test`. Parse `target/coverage-report/report.html` (the page embeds the full dataset as a `window.COVERAGE_DATA` JSON literal). For each uncovered element, return to step 4 and add one segment.
+## Step 5 — verify against the CPT report
 
-The loop terminates only when the report shows 100% element coverage.
+Run `mvn test`. Parse `target/coverage-report/report.html` (the page embeds the full dataset as a `window.COVERAGE_DATA` JSON literal — see SKILL.md for the extractor).
+
+If aggregate runtime coverage equals predicted coverage, done. If it does not, the gap is a **prediction miss** — the static walk for one of the chosen candidates did not match the engine's actual path. Common causes: gateway condition the parser couldn't evaluate, FEEL expression depending on a variable the planner did not set, non-interrupting boundary that creates a parallel branch the walker missed.
+
+Treat misses as planner bugs, not just gaps to patch. Add the missing candidates to chosen, but also fix the prediction rule so the next BPMN does not hit the same miss.
 
 ## Anti-patterns
 
-- **Happy-path tail in every segment.** If a secondary segment rejoins the spine before the tail, end the segment at the rejoin. The happy-path scenario already covers the tail.
-- **One segment per gateway, ignoring downstream elements.** If a non-happy branch carries unique elements (its own user task, a different end event), the segment must cover them — pick the rejoin point accordingly.
+- **Author-then-dedupe.** Authoring one segment per uncovered element and pruning after the loop wastes Maven cycles and adds reviewer noise. Set-cover planning eliminates redundancy at the planning step.
+- **Happy-path tail in every segment.** A secondary segment that runs through the entire happy path after rejoining doubles up coverage. End the segment at the first rejoin.
 - **Variable-value assertions instead of routing assertions.** A segment that asserts `amount == 750` after the gateway tests Jackson, not the gateway. Assert the element the gateway routed to.
-- **One scenario per DMN rule when the rule is on the happy path.** The happy-path scenario already exercises one rule. Add scenarios only for *other* rules.
+- **One scenario per DMN rule when the rule is on the chosen happy path.** Set-cover already credits the chosen rule. Add scenarios only for other rules.
