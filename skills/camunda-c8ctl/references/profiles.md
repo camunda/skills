@@ -132,6 +132,8 @@ When c8ctl runs a command, it resolves credentials in this order (first match wi
 3. **Environment variables** — standard `CAMUNDA_*` variables
 4. **Localhost fallback** — `http://localhost:8080/v2` with no auth
 
+**Agent safety**: always use item 1 (`--profile=<name>` explicit per command) on cluster-touching work. Do not rely on the active profile — it may point at production or staging from a previous session. See `SKILL.md § Safety` for the full rule.
+
 ### Environment Variables
 
 ```bash

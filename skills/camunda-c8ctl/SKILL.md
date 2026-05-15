@@ -139,6 +139,18 @@ c8ctl list pi --profile=staging
 
 For full profile management — OAuth audience/endpoint, default tenants, multi-tenancy, Modeler integration locations, credential resolution order, environment variables — see `references/profiles.md`.
 
+### Safety: target the right cluster
+
+c8ctl resolves cluster connections via the globally-active profile by default — convenient for humans, but unsafe for agents, since the active profile might still point at production or staging from a previous session.
+
+**Always pass `--profile=<name>` explicitly on commands that touch a cluster**, especially mutating ones (`deploy`, `run`, `cancel`, `resolve`, `complete`, `publish`, `watch`). Read-only commands (`get`, `list`, `search`, `feel evaluate`) are safer but the same discipline keeps the transcript auditable and prevents a forgotten `c8ctl use profile prod` from silently steering the next command.
+
+Session opener: before doing any cluster-touching work, run `c8ctl which profile` and confirm with the user. If the active profile name suggests a shared environment (`prod`, `production`, `staging`, `live`, `saas`-prefixed, customer names), **ask before acting** — don't assume that profile is intended for the current work.
+
+For new local-development projects, use `--profile=local` — don't inherit whatever profile a previous project left active.
+
+`c8ctl cluster start/stop/status/logs` are unaffected: they operate on the local c8run process directly, not via a profile.
+
 ### Use the CLI
 
 c8ctl has two command shapes:
@@ -146,7 +158,7 @@ c8ctl has two command shapes:
 - **Core API commands** follow `<verb> <resource>` — `list pi`, `get inc <key>`, `complete ut <key>`. Resources have short aliases (`pi` = process-instance, `pd` = process-definition, `ut` = user-task, `inc` = incident, `msg` = message).
 - **Plugin commands** follow `<plugin> <subcommand>` — `cluster start`, `element-template apply`, `bpmn lint`, `feel evaluate`. The plugin name is the first token; subcommands are plugin-defined.
 
-Quick tour:
+Quick tour (examples omit `--profile=<name>` for brevity — pass it explicitly per the Safety rule above):
 
 ```bash
 # Inspect the cluster
