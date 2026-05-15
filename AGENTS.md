@@ -13,6 +13,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-forms** | Creating Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates |
 | **camunda-process-mgmt** | Deploying resources, starting/inspecting instances, resolving incidents, completing user tasks — all via c8ctl |
+| **camunda-process-test** | Authoring and running Camunda Process Test (CPT) suites that reach 100% BPMN coverage with segment-based scenarios — `.test.json` instructions, `mvn test`, coverage report parsing |
 | **camunda-ai-agent** | Building AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tool modeling, `fromAi()` parameters, prompts, sub-flow tools |
 
 ## Design goal: c8ctl is the programmatic API
