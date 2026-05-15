@@ -7,6 +7,7 @@ Diagnose `mvn test` failures. Each row classifies the failure as a **test proble
 | Failure | Likely root cause | Class | Fix |
 |---------|-------------------|-------|-----|
 | Spring context fails to start | Docker not running | Infra | Start Docker. Re-run. No code change. |
+| `Cannot connect to the Docker daemon at unix:///…/docker.sock` after `docker info` prints a Client section | Docker CLI installed but daemon stopped — exit code 0 from `docker info` is misleading because the client section alone returns success | Infra | Check daemon-up explicitly: `docker info --format '{{.ServerVersion}}'` returns a version string only when the daemon is reachable. Start the runtime (Docker Desktop / OrbStack / Rancher) and re-run. |
 | `processId not found` | Wrong process id in `processDefinitionSelector` | Test | Re-read `<bpmn:process id="…">` and update the scenario. |
 | `elementId not found` | Wrong element id in `elementSelector` / `jobSelector` / `userTaskSelector` | Test | Re-read the `id` attribute on the BPMN element. |
 | `FileNotFoundException` for BPMN / DMN / form on deploy | `classpath:` prefix in `@TestDeployment` | Test | Remove `classpath:` — CPT adds it internally. |

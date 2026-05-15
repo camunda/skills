@@ -92,6 +92,20 @@ waza check <skill>                  # equivalent direct invocation
 sections), token budget (per `.waza.yaml`), link health, frontmatter quality
 advisories. Returns non-zero on hard violations; warnings are advisory.
 
+`waza` ships as an Azure Developer CLI (`azd`) extension, not a standalone binary.
+One-time install:
+
+```bash
+brew install azd
+azd config set alpha.extensions on
+azd ext source add -n waza -t url -l https://raw.githubusercontent.com/microsoft/waza/main/registry.json
+azd ext install microsoft.azd.waza
+```
+
+After install, the `azd waza` command is on PATH and `make lint` works. The
+Makefile's "Install it from https://github.com/microsoft/waza" message refers
+to this extension flow, not a direct binary download.
+
 ### Adding a New Skill
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Hand-create `skills/<name>/SKILL.md` and
