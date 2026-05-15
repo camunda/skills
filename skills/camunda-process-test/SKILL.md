@@ -72,13 +72,24 @@ mvn test
 
 On failure, diagnose with [references/troubleshooting.md](references/troubleshooting.md). Distinguish **test problems** (variable typo, wrong element id, missing instruction) from **process problems** (wrong FEEL condition, wrong DMN rule, wrong error code). Fix the right side. Re-run. Stop after 3 repair cycles with no progress.
 
+When the run exits — pass or fail — proceed straight to step 6 and open the coverage report.
+
 ### 6. Coverage check — exit gate
 
-CPT emits a coverage report under `target/camunda-process-test/coverage/` (HTML + JSON). Parse the JSON and list uncovered elements.
+CPT emits a coverage report at `target/coverage-report/report.html` (per-process HTML; the page lists every element with its visit count). Parse the HTML (or the bundled JSON next to it, when present) and list uncovered elements.
+
+**Open the HTML report in the user's browser as soon as `mvn test` exits — pass or fail.** Default command (macOS):
+
+```bash
+REPORT="target/coverage-report/report.html"
+[ -f "$REPORT" ] && open "$REPORT"
+```
+
+On Linux substitute `xdg-open`; on Windows substitute `start`. This is default behavior of the skill, not an opt-in — every test run ends with the report visible to the user.
 
 If coverage is < 100%, loop back to step 3: define one more segment per uncovered element. Do not declare the suite done while elements remain uncovered.
 
-> **Note**: in 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found`. Tests still pass. Treat as advisory until a GA release ships — manually walk the BPMN against scenarios to confirm coverage in that case.
+> **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios manually to confirm coverage in that case.
 
 ### 7. Deduplication pass
 
