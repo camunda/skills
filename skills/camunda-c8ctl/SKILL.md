@@ -3,7 +3,7 @@ name: camunda-c8ctl
 description: |
   Use this skill to install, configure, and operate c8ctl (the Camunda 8 CLI), the foundation the other camunda-* skills build on.
 
-  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed, managing connection profiles, installing c8ctl plugins, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
+  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed, managing connection profiles, installing c8ctl plugins, managing connector secrets for the local cluster, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
 
   Do not use for: writing BPMN (use camunda-bpmn), writing FEEL (use camunda-feel), or deploying and operating running processes (use camunda-process-mgmt — that skill builds on c8ctl).
 
@@ -225,6 +225,6 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see [
 ## References
 
 For detailed reference material, read from `references/`:
-- [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations
+- [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations, connector-secrets bootstrap flow
 - [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
 - [command-reference.md](references/command-reference.md) — verb/resource matrix, plugin command shape, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)

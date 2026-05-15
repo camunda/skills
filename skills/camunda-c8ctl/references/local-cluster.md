@@ -114,6 +114,34 @@ c8ctl cluster logs                  # check Camunda log output
 c8ctl cluster start --debug         # stream raw c8run output on next attempt
 ```
 
+## Connector Secrets
+
+c8run resolves `{{secrets.FOO}}` from the env var `SECRET_FOO` — the `SECRET_` prefix is stripped at lookup. Local secrets live in a `.env` file with the prefix in each key:
+
+```env
+SECRET_ANTHROPIC_API_KEY=sk-ant-...
+SECRET_SLACK_OAUTH_TOKEN=xoxb-...
+```
+
+Ask the user where they keep this file before working with it. If they have no preference, default to `connector-secrets.env` at the project root, plus a committed sibling `connector-secrets.example.env` listing expected keys with placeholder values.
+
+**Never commit the real secrets file** — suggest the user adds it to `.gitignore`. **Never read its contents** — it may hold real values, and reading risks leaking them into commits, PRs, or chat. The example file is safe to read and write.
+
+When a process needs a secret the user hasn't provided:
+
+1. Add `SECRET_FOO=PLACEHOLDER` for each required key to the example file.
+2. If the real file doesn't exist, create it by copying the example.
+3. Tell the user which keys need real values and ask them to fill the real file.
+
+Load secrets before starting the cluster:
+
+```bash
+set -a; source connector-secrets.env; set +a   # or the path the user chose
+c8ctl cluster start
+```
+
+c8run reads the environment once at startup. After adding or changing keys in the secrets file, stop and restart the cluster (`c8ctl cluster stop && set -a; source connector-secrets.env; set +a && c8ctl cluster start`) — a running cluster will not pick up new values.
+
 ## Requirements
 
 - **Java**: c8run requires JRE 21+ on the local machine (downloaded separately or installed via your package manager / SDKMAN).
