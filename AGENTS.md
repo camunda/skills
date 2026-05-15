@@ -13,6 +13,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-forms** | Creating Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates |
 | **camunda-process-mgmt** | Deploying resources, starting/inspecting instances, resolving incidents, completing user tasks — all via c8ctl |
+| **camunda-process-test** | Authoring and running Camunda Process Test (CPT) suites that reach 100% BPMN coverage with segment-based scenarios — `.test.json` instructions, `mvn test`, coverage report parsing |
 | **camunda-ai-agent** | Building AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tool modeling, `fromAi()` parameters, prompts, sub-flow tools |
 
 ## Design goal: c8ctl is the programmatic API
@@ -90,6 +91,20 @@ waza check <skill>                  # equivalent direct invocation
 `waza check` covers: agentskills.io spec compliance (description length, required
 sections), token budget (per `.waza.yaml`), link health, frontmatter quality
 advisories. Returns non-zero on hard violations; warnings are advisory.
+
+`waza` ships as an Azure Developer CLI (`azd`) extension, not a standalone binary.
+One-time install:
+
+```bash
+brew install azd
+azd config set alpha.extensions on
+azd ext source add -n waza -t url -l https://raw.githubusercontent.com/microsoft/waza/main/registry.json
+azd ext install microsoft.azd.waza
+```
+
+After install, the `azd waza` command is on PATH and `make lint` works. The
+Makefile's "Install it from https://github.com/microsoft/waza" message refers
+to this extension flow, not a direct binary download.
 
 ### Adding a New Skill
 
