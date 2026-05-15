@@ -109,12 +109,9 @@ For full c8ctl cluster command reference (list, install, list-remote, delete, ca
 
 ### Connect: Profiles
 
-Profiles store cluster connection details. Configure once, switch between clusters with one command.
+Profiles store cluster connection details. A `local` profile shipped with c8ctl already points at `http://localhost:8080/v2`, so no setup is needed for local c8run work — just pass `--profile=local`. Configure additional profiles for SaaS or Self-Managed clusters:
 
 ```bash
-# Minimal local profile (defaults to http://localhost:8080/v2)
-c8ctl add profile local
-
 # OAuth-secured cluster (SaaS or Self-Managed)
 c8ctl add profile prod \
   --baseUrl=https://camunda.example.com \
@@ -141,7 +138,7 @@ For full profile management — OAuth audience/endpoint, default tenants, multi-
 
 ### Safety: target the right cluster
 
-c8ctl resolves cluster connections via the globally-active profile by default — convenient for humans, but unsafe for agents, since the active profile might still point at production or staging from a previous session.
+c8ctl resolves cluster connections via the globally-active profile by default. That's risky: the active profile might still point at production or staging from a previous session, and a cluster-touching command will silently target it.
 
 **Always pass `--profile=<name>` explicitly on commands that touch a cluster**, especially mutating ones (`deploy`, `run`, `cancel`, `resolve`, `complete`, `publish`, `watch`). Read-only commands (`get`, `list`, `search`, `feel evaluate`) are safer but the same discipline keeps the transcript auditable and prevents a forgotten `c8ctl use profile prod` from silently steering the next command.
 

@@ -54,12 +54,9 @@ Any port number is supported.
 
 ## Profile Examples
 
-### Minimal local profile
+### Default local profile
 
-```bash
-c8ctl add profile local
-# Defaults to http://localhost:8080/v2 with no authentication
-```
+c8ctl ships with a built-in `local` profile pointing at `http://localhost:8080/v2` with no authentication — use `--profile=local` directly, no setup needed.
 
 ### OAuth-secured Self-Managed cluster
 
@@ -132,7 +129,7 @@ When c8ctl runs a command, it resolves credentials in this order (first match wi
 3. **Environment variables** — standard `CAMUNDA_*` variables
 4. **Localhost fallback** — `http://localhost:8080/v2` with no auth
 
-**Agent safety**: always use item 1 (`--profile=<name>` explicit per command) on cluster-touching work. Do not rely on the active profile — it may point at production or staging from a previous session. See `SKILL.md § Safety` for the full rule.
+Always use item 1 (`--profile=<name>` explicit per command) on cluster-touching work — do not rely on the active profile, it may point at production or staging from a previous session. See `SKILL.md § Safety` for the full rule.
 
 ### Environment Variables
 
