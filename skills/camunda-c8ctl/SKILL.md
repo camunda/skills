@@ -20,7 +20,7 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 
 ## Cross-References
 
-- **camunda-bpmn**: Uses `c8ctl bpmn lint` (ships in c8ctl by default once [#347](https://github.com/camunda/c8ctl/pull/347) lands)
+- **camunda-bpmn**: Uses `c8ctl bpmn lint`
 - **camunda-connectors**: Uses `c8ctl element-template search/info/get-properties/apply`
 - **camunda-feel**: Uses `c8ctl feel evaluate`
 - **camunda-process-mgmt**: Uses `c8ctl deploy`, `c8ctl run`, `c8ctl watch`, `c8ctl list pi`, `c8ctl search inc`, `c8ctl complete ut`, `c8ctl resolve inc`, etc.
@@ -45,9 +45,9 @@ c8ctl --version
 c8ctl help
 ```
 
-### Verify default plugins (temporary — until camunda/c8ctl#347 lands)
+### Verify default plugins
 
-The `bpmn`, `element-template`, and `feel` commands used by the other camunda-* skills are shipped as default plugins in [camunda/c8ctl#347](https://github.com/camunda/c8ctl/pull/347), which hasn't released yet. Verify each is available:
+The other camunda-* skills depend on three plugins that ship with c8ctl: `bpmn`, `element-template`, and `feel`. Verify each is available:
 
 ```bash
 c8ctl bpmn --help              # camunda-bpmn
@@ -55,13 +55,11 @@ c8ctl element-template --help  # camunda-connectors, camunda-ai-agent
 c8ctl feel --help              # camunda-feel
 ```
 
-If any command exits non-zero, install c8ctl from the PR branch instead of the released npm package:
+If any command exits non-zero, the installed c8ctl is out of date. Prompt the user to update to the latest version:
 
 ```bash
-npm install -g github:camunda/c8ctl#feat/bpmn-apply-element-template-and-lint
+npm install -g @camunda8/cli@latest
 ```
-
-**Remove this section once #347 is merged and released** — the plugins will then ship by default with `npm install -g @camunda8/cli`.
 
 ### Pick a Cluster
 
@@ -200,7 +198,7 @@ Prefer the per-invocation `--json` flag over `c8ctl output json` — the latter 
 
 ### Plugins
 
-c8ctl can be extended with npm packages that add commands. The `cluster` command is a default plugin shipped with c8ctl; `element-template`, `bpmn`, and `feel` ship as defaults once [#347](https://github.com/camunda/c8ctl/pull/347) lands (see "Verify default plugins" above for the temporary install). To add more:
+c8ctl can be extended with npm packages that add commands. The `cluster`, `bpmn`, `element-template`, and `feel` commands are default plugins shipped with c8ctl. To add more:
 
 ```bash
 # List installed plugins
