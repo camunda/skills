@@ -141,19 +141,20 @@ Brief descriptions only. Use `c8ctl help <verb>` for resource-specific flags.
 | `upgrade plugin <pkg> [<version>]` / `downgrade plugin <pkg> <version>` | Manage plugin versions |
 | `sync plugin` | Reconcile installed plugins with the registry file |
 | `init plugin <name>` | Scaffold a new plugin from template |
-| `output [text\|json]` | Switch session output mode |
+| `output [text\|json]` | Switch *persistent* session output mode (prefer the `--json` flag per command — see below) |
 | `open <app>` | Open Operate / Tasklist / Modeler / Optimize in the browser |
 | `completion <shell>` / `completion install` | Shell completion (bash, zsh, fish) |
 
 ## JSON Mode and AI / Scripting
 
-For programmatic consumption, switch to JSON mode and combine with `--fields` for stable structured output:
+For programmatic consumption, request JSON per invocation with the `--json` flag and combine with `--fields` for stable structured output:
 
 ```bash
-c8ctl output json
-c8ctl list pd --fields=key,bpmnProcessId,version,name
-c8ctl get pi 2251799813685249 --variables --fields=key,state,variables
+c8ctl list pd --json --fields=key,bpmnProcessId,version,name
+c8ctl get pi 2251799813685249 --variables --json --fields=key,state,variables
 ```
+
+Prefer `--json` (per invocation) over `c8ctl output json` (persistent — mutates `session.json` and leaks across tools and sessions). The `C8CTL_OUTPUT_MODE=json` env var works for the current shell too, but does not survive across separate Bash tool calls in most agent harnesses.
 
 `--dry-run` shows what would be sent without executing — useful for previewing destructive operations before running them.
 

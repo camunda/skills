@@ -174,14 +174,11 @@ For the full verb/resource matrix, plugin commands, and resource-specific flags,
 
 ### Output Modes (for AI / scripting)
 
-For AI-driven and scripted use, prefer JSON output and field selection:
+For AI-driven and scripted use, request JSON per command and combine with `--fields` for stable structured output:
 
 ```bash
-# Switch the session to JSON output (persists across commands)
-c8ctl output json
-
-# Restrict columns (works in both text and JSON modes)
-c8ctl list pd --fields=key,bpmnProcessId,version,name
+# Per-command JSON (deterministic, does not mutate session state)
+c8ctl list pd --json --fields=key,bpmnProcessId,version,name
 
 # Preview an API request without executing it
 c8ctl deploy ./process.bpmn --dry-run
@@ -190,7 +187,7 @@ c8ctl deploy ./process.bpmn --dry-run
 c8ctl list pi --limit=50 --sortBy=startDate --desc
 ```
 
-When a skill produces commands intended for piping into `jq` or similar, set `c8ctl output json` first so structured fields are guaranteed.
+Prefer the per-invocation `--json` flag over `c8ctl output json` — the latter mutates `session.json` and leaks across other tools and sessions. The `C8CTL_OUTPUT_MODE=json` env var works for the current shell too, but shell state does not persist across separate tool calls in most agent harnesses, so an `export` in one step won't carry to the next. Always pass `--json` on the command itself when you need structured output.
 
 ### Plugins
 

@@ -19,7 +19,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 
 [c8ctl](https://github.com/camunda/c8ctl) is the single programmatic surface for these skills — cluster operations, resource deployment, BPMN linting, element templates, FEEL evaluation all route through it. Skills should reach for a `c8ctl` subcommand or plugin before writing custom code. If a workflow currently needs a bespoke script, that's a signal a c8ctl command (or plugin) is missing — file it upstream rather than baking glue into a skill.
 
-Why: c8ctl is versioned, tested, and shared across skills. Ad-hoc scripts drift, hide assumptions in shell, and split the surface area an agent has to learn. One CLI, consistent flags, structured (`c8ctl output json`) output.
+Why: c8ctl is versioned, tested, and shared across skills. Ad-hoc scripts drift, hide assumptions in shell, and split the surface area an agent has to learn. One CLI, consistent flags, structured (`--json`) output.
 
 ## c8ctl Setup (required)
 
@@ -30,8 +30,7 @@ Quick start:
 ```bash
 npm install -g @camunda8/cli
 c8ctl cluster start         # spin up a local cluster (downloads c8run on first run)
-c8ctl get topology          # confirm it's alive
-c8ctl output json           # switch to structured output for scripting/AI use
+c8ctl get topology --json   # confirm it's alive (use --json per command for scripting/AI use)
 ```
 
 ## Tooling
