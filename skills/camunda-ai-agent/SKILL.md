@@ -20,7 +20,7 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 
 - Camunda 8.8+ cluster (the AI Agent connector ships in 8.8+)
 - c8ctl CLI installed and a profile configured — see **camunda-c8ctl**
-- An API key for the model provider you'll use (Anthropic, Amazon Bedrock, Azure OpenAI, Google Vertex AI, OpenAI, or any OpenAI-compatible provider). Store it as a Camunda cluster secret, never in the BPMN file.
+- An API key for the model provider you'll use (Anthropic, Amazon Bedrock, Azure OpenAI, Google Vertex AI, OpenAI, or any OpenAI-compatible provider). Store it as a Camunda cluster secret, never in the BPMN file. For local c8run, see **camunda-c8ctl** for the secrets bootstrap flow.
 
 ## Cross-References
 

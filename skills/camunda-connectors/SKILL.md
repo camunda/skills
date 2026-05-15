@@ -247,6 +247,8 @@ Reference cluster secrets — never hardcode credentials:
 <zeebe:input source="{{secrets.SLACK_OAUTH_TOKEN}}" target="token" />
 ```
 
+For local c8run clusters, see **camunda-c8ctl** for the secrets bootstrap flow — where the file lives, how to load it before starting the cluster, how to add new keys without reading existing values.
+
 ### Placeholder Values
 
 When the actual value is not yet known:

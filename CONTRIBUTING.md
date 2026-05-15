@@ -28,7 +28,7 @@ Key rules:
 - **Name must match directory name** (e.g., `camunda-bpmn` in `skills/camunda-bpmn/`)
 - **Body under ~5000 words** — move detailed catalogs to `references/`
 - **References one level deep** — no chains (SKILL.md → ref1.md → ref2.md)
-- **Cross-reference other skills** by name when relevant
+- **Cross-reference other skills** by name when relevant — link to the skill (e.g. **camunda-c8ctl**), not into its `references/<file>.md`. The target skill's SKILL.md is the entry point; let it route the agent to the right reference. Make sure that target skill's own references list mentions the topic so it can be found after navigating in. Deep-linking within your own skill's `references/` is fine — the constraint is cross-skill.
 - **Tooling routes through c8ctl** (e.g., `c8ctl bpmn lint`, `c8ctl element-template apply`, `c8ctl feel evaluate`) — c8ctl is the programmatic API for these skills. If you find yourself reaching for a custom script, first check whether a c8ctl subcommand or plugin already does it; if not, prefer adding one upstream over baking shell glue into the skill.
 
 ## Progressive Discovery

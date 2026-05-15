@@ -7,6 +7,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | Skill | Use When |
 |-------|----------|
 | **camunda-c8ctl** | Installing and configuring c8ctl, picking/setting up a cluster (incl. local c8run), managing profiles, plugins |
+| **camunda-docs** | Verifying a Camunda 8 technical fact against the official docs (FEEL signatures, BPMN extension shapes, API endpoints, version requirements) before writing it down |
 | **camunda-bpmn** | Creating or editing BPMN 2.0 processes (elements, flows, gateways, events, subprocesses) |
 | **camunda-feel** | Writing FEEL expressions (gateway conditions, input/output mappings, timer definitions) |
 | **camunda-forms** | Creating Camunda Form JSON schemas for user tasks |

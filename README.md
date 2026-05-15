@@ -12,6 +12,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | Skill | Description |
 |-------|-------------|
 | **camunda-c8ctl** | Install and configure c8ctl, set up a local cluster, manage profiles and plugins |
+| **camunda-docs** | Look up the official Camunda 8 docs via the camunda-docs MCP server (with `llms.txt` fallback) |
 | **camunda-bpmn** | Create and edit BPMN 2.0 processes for Camunda 8/Zeebe |
 | **camunda-feel** | Write and debug FEEL expressions |
 | **camunda-forms** | Create Camunda Form JSON schemas for user tasks |
