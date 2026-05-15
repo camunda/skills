@@ -74,9 +74,36 @@ On failure, diagnose with [references/troubleshooting.md](references/troubleshoo
 
 When the run exits — pass or fail — proceed straight to step 6 and open the coverage report.
 
-### 6. Coverage check — exit gate
+### 6. Coverage check — exit gate (100% loop)
 
-CPT emits a coverage report at `target/coverage-report/report.html` (per-process HTML; the page lists every element with its visit count). Parse the HTML (or the bundled JSON next to it, when present) and list uncovered elements.
+CPT emits a coverage report at `target/coverage-report/report.html` (per-process HTML; the page embeds the full coverage dataset in a `window.COVERAGE_DATA` JSON literal). Parse it:
+
+```bash
+python3 - <<'PY'
+import re, json
+html=open("target/coverage-report/report.html").read()
+i=html.find("window.COVERAGE_DATA"); eq=html.find("{", i); depth=0; end=eq
+for j,ch in enumerate(html[eq:], eq):
+    if ch=="{": depth+=1
+    elif ch=="}":
+        depth-=1
+        if depth==0: end=j+1; break
+data=json.loads(html[eq:end])
+el=set(); flows=set(); total=None
+for s in data["suites"]:
+  for r in s["runs"]:
+    for c in r["coverages"]:
+      el.update(c.get("completedElements", []))
+      flows.update(c.get("takenSequenceFlows", []))
+      total=c.get("totalElementCount", total)
+covered=len(el)+len(flows)
+print(f"coverage={covered}/{total}={100*covered/total:.2f}%")
+print("covered_elements:", sorted(el))
+print("covered_flows:", sorted(flows))
+PY
+```
+
+Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_]+"' <bpmn>`, exclude `_di`, `BPMNDiagram`, `BPMNPlane`, `Definitions_`, `ErrorDef_`, `TimerDef_`, `Signal_`, `Message_`).
 
 **Open the HTML report in the user's browser as soon as `mvn test` exits — pass or fail.** Default command (macOS):
 
@@ -85,9 +112,23 @@ REPORT="target/coverage-report/report.html"
 [ -f "$REPORT" ] && open "$REPORT"
 ```
 
-On Linux substitute `xdg-open`; on Windows substitute `start`. This is default behavior of the skill, not an opt-in — every test run ends with the report visible to the user.
+On Linux substitute `xdg-open`; on Windows substitute `start`. Default behavior, not opt-in — every run ends with the report visible.
 
-If coverage is < 100%, loop back to step 3: define one more segment per uncovered element. Do not declare the suite done while elements remain uncovered.
+**Auto-loop to 100% — default behavior.** If aggregate coverage (covered elements + covered sequence flows / `totalElementCount`) is < 100%:
+
+1. For each uncovered id, classify: element (visit it directly), or sequence flow (its source must be hit *and* the condition routing through it must be satisfied — usually means a non-happy gateway branch).
+2. Define one additional segment per uncovered id using [references/coverage-strategy.md](references/coverage-strategy.md). Group ids that share a root onto one segment.
+3. For timer boundary events: use `INCREASE_TIME` with an ISO 8601 `duration` greater than the timer cycle (e.g. `"PT25H"` for `R/PT24H`). The boundary fires; the outgoing path's job is created; complete it with `COMPLETE_JOB`.
+4. For message boundary events: `PUBLISH_MESSAGE` instruction with matching name + correlationKey.
+5. Re-run step 5 (`mvn test`) → step 6 (coverage check). Repeat.
+
+Hard blockers that terminate the loop:
+
+- Same set of ids uncovered after 3 consecutive iterations — surface the list and stop.
+- An uncovered element is dead code (no inbound flow, or its inbound condition is unsatisfiable) — flag as a BPMN defect, point at camunda-bpmn, stop.
+- Test infrastructure failure repeats (Docker down, deploy parse error) — stop and route to [references/troubleshooting.md](references/troubleshooting.md).
+
+Do not declare the suite done while ids remain uncovered and no hard blocker applies.
 
 > **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios manually to confirm coverage in that case.
 
