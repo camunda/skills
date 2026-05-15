@@ -156,7 +156,7 @@ package io.camunda.tests;
 import io.camunda.process.test.api.CamundaAssert;
 import io.camunda.process.test.api.CamundaSpringProcessTest;
 import io.camunda.process.test.api.TestDeployment;
-import io.camunda.zeebe.client.ZeebeClient;
+import io.camunda.client.CamundaClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -169,11 +169,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 })
 public class ExpenseApprovalJavaTest {
 
-    @Autowired private ZeebeClient zeebe;
+    @Autowired private CamundaClient camunda;
 
     @Test
     void financePath_managerApprovesFinanceApproves() {
-        var instance = zeebe.newCreateInstanceCommand()
+        var instance = camunda.newCreateInstanceCommand()
             .bpmnProcessId("expense-approval").latestVersion()
             .variables(java.util.Map.of("amount", 1500, "department", "Marketing"))
             .send().join();
@@ -190,7 +190,7 @@ public class ExpenseApprovalJavaTest {
 
 - `CamundaAssert.assertThat(processInstance).hasActiveElements("…")` — equivalent to `ASSERT_ELEMENT_INSTANCES … IS_ACTIVE`.
 - `CamundaAssert.assertThat(processInstance).isCompleted()` — equivalent to `ASSERT_PROCESS_INSTANCE … IS_COMPLETED`.
-- `CamundaAssert.setAssertionTimeout(Duration.ofMinutes(5))` — bump the default 10s polling timeout for slow external workers.
+- `CamundaAssert.setAssertionTimeout(Duration.ofMinutes(5))` — bump the polling timeout for slow external workers (LLMs, multi-second connectors). The CPT default is short (10s as of 8.9 (assumption); confirm via `CamundaAssert` source for the version on your classpath).
 
 ### Mocking workers
 

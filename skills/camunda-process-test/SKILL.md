@@ -81,22 +81,35 @@ CPT emits a coverage report at `target/coverage-report/report.html` (per-process
 ```bash
 python3 - <<'PY'
 import re, json
-html=open("target/coverage-report/report.html").read()
-i=html.find("window.COVERAGE_DATA"); eq=html.find("{", i); depth=0; end=eq
-for j,ch in enumerate(html[eq:], eq):
-    if ch=="{": depth+=1
-    elif ch=="}":
-        depth-=1
-        if depth==0: end=j+1; break
-data=json.loads(html[eq:end])
-el=set(); flows=set(); total=None
+html = open("target/coverage-report/report.html").read()
+# Balanced-brace extraction. Walk character by character, but track string
+# state so braces inside JSON strings (e.g. inside a description) don't
+# unbalance the counter.
+m = re.search(r"window\.COVERAGE_DATA\s*=\s*", html)
+start = html.index("{", m.end())
+depth = 0; in_str = False; esc = False; end = start
+for k, ch in enumerate(html[start:], start):
+    if in_str:
+        if esc: esc = False
+        elif ch == "\\": esc = True
+        elif ch == '"': in_str = False
+    else:
+        if ch == '"': in_str = True
+        elif ch == "{": depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = k + 1
+                break
+data = json.loads(html[start:end])
+el = set(); flows = set(); total = None
 for s in data["suites"]:
-  for r in s["runs"]:
-    for c in r["coverages"]:
-      el.update(c.get("completedElements", []))
-      flows.update(c.get("takenSequenceFlows", []))
-      total=c.get("totalElementCount", total)
-covered=len(el)+len(flows)
+    for r in s["runs"]:
+        for c in r["coverages"]:
+            el.update(c.get("completedElements", []))
+            flows.update(c.get("takenSequenceFlows", []))
+            total = c.get("totalElementCount", total)
+covered = len(el) + len(flows)
 print(f"coverage={covered}/{total}={100*covered/total:.2f}%")
 print("covered_elements:", sorted(el))
 print("covered_flows:", sorted(flows))
@@ -114,7 +127,7 @@ REPORT="target/coverage-report/report.html"
 
 On Linux substitute `xdg-open`; on Windows substitute `start`. Default behavior, not opt-in — every run ends with the report visible.
 
-**Auto-loop to 100% — default behavior.** If aggregate coverage (covered elements + covered sequence flows / `totalElementCount`) is < 100%:
+**Auto-loop to 100% — default behavior.** If aggregate coverage `(covered elements + covered sequence flows) / totalElementCount` is < 100%:
 
 1. For each uncovered id, classify: element (visit it directly), or sequence flow (its source must be hit *and* the condition routing through it must be satisfied — usually means a non-happy gateway branch).
 2. Define one additional segment per uncovered id using [references/coverage-strategy.md](references/coverage-strategy.md). Group ids that share a root onto one segment.
@@ -156,6 +169,6 @@ Duplicates flagged: 0
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout
-- [authoring.md](references/authoring.md) — `.test.json` schema, instruction reference, Java fallback
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type
+- [authoring.md](references/authoring.md) — `.test.json` schema, instruction reference, Java fallback
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)

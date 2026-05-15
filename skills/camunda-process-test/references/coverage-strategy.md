@@ -1,8 +1,8 @@
 # Coverage strategy — segment-based, 100% target
 
-A test segment is a slice of process execution between two points. The strategy: cover the spine with one happy-path segment, then add the minimum number of secondary segments to exercise every remaining element. Each secondary segment starts at the nearest upstream decision point and ends as soon as it rejoins the happy path or hits an end event.
+A test segment is a slice of process execution between two points. Cover the spine with one happy-path segment. Then add the minimum number of secondary segments to exercise every remaining element. Each secondary segment starts at the nearest upstream decision point and ends as soon as it rejoins the happy path or hits an end event.
 
-The exit gate is the CPT coverage report at `target/camunda-process-test/coverage/` — every element must be visited at least once.
+The exit gate is the CPT coverage report at `target/coverage-report/report.html`. Every element must be visited at least once.
 
 ## Step 1 — parse the BPMN
 
@@ -77,7 +77,7 @@ Segment plan — expense-approval
 
 ## Step 6 — verify against the CPT report
 
-Run `mvn test`. Parse `target/camunda-process-test/coverage/coverage.json` (or open the HTML report). For each uncovered element, return to step 4 and add one segment.
+Run `mvn test`. Parse `target/coverage-report/report.html` (the page embeds the full dataset as a `window.COVERAGE_DATA` JSON literal). For each uncovered element, return to step 4 and add one segment.
 
 The loop terminates only when the report shows 100% element coverage.
 
