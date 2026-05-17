@@ -1,5 +1,5 @@
-> [!CAUTION]
-> WIP: not ready yet. Skills might not yet work as documented.
+> [!NOTE]
+> Technical preview. Skills depend on c8ctl features not yet released in a stable version.
 
 # Camunda Skills
 
