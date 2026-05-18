@@ -111,6 +111,13 @@ to this extension flow, not a direct binary download.
 See [CONTRIBUTING.md](CONTRIBUTING.md). Hand-create `skills/<name>/SKILL.md` and
 its `references/`, then run `make lint SKILL=<name>` until clean.
 
+### Cross-References Between Skills
+
+Cross-reference other skills by name only (`**camunda-X**`). No section anchors
+(`§ "…"`), no links into another skill's `references/`, no inline-restating of
+the target skill's rules. Keep cross-ref bullets to a one-line topical pointer
+(`**camunda-X**: Use for …`). See [CONTRIBUTING.md § SKILL.md Format](CONTRIBUTING.md#skillmd-format).
+
 ### Commits
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <subject>`,
