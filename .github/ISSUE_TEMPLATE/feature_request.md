@@ -5,11 +5,5 @@ title: ""
 labels: enhancement
 ---
 
-**Problem**
-What's currently hard or impossible? Which skill is involved (or is this a new skill)?
-
-
-**Proposed approach** _(optional)_
-
-
-**Alternatives considered** _(optional)_
+**What you'd like to do**
+A new capability, a new skill, or a change to an existing skill — and what it would unblock for you.
