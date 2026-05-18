@@ -3,11 +3,11 @@ name: camunda-c8ctl
 description: |
   Use this skill to install, configure, and operate c8ctl (the Camunda 8 CLI), the foundation the other camunda-* skills build on.
 
-  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed via already-configured profiles, switching between connection profiles, installing c8ctl plugins, managing connector secrets for the local cluster, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
+  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed via already-configured profiles, switching between connection profiles, managing connector secrets for the local cluster, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
 
   Do not use for: writing BPMN (use camunda-bpmn), writing FEEL (use camunda-feel), or deploying and operating running processes (use camunda-process-mgmt — that skill builds on c8ctl).
 
-  **Utility skill** — the foundation other camunda-* skills build on. Covers c8ctl cluster, c8ctl use profile, c8ctl load plugin.
+  **Utility skill** — the foundation other camunda-* skills build on. Covers c8ctl cluster, c8ctl use profile, and the four default c8ctl plugins.
 ---
 
 # Camunda c8ctl CLI
@@ -196,25 +196,9 @@ Prefer the per-invocation `--json` flag over `c8ctl output json` — the latter 
 
 ### Plugins
 
-c8ctl can be extended with npm packages that add commands. The `cluster`, `bpmn`, `element-template`, and `feel` commands are default plugins shipped with c8ctl. To add more:
+Default plugins (`cluster`, `bpmn`, `feel`, `element-template`) ship pre-loaded with c8ctl — no install step needed. List them with `c8ctl list plugins`. For installing or managing additional plugins, see the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/).
 
-```bash
-# List installed plugins
-c8ctl list plugins
-
-# Load a plugin from npm
-c8ctl load plugin <package-name>
-
-# Load a plugin from a Git URL or local path
-c8ctl load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer
-c8ctl load plugin --from file:///path/to/local/plugin
-
-# Upgrade / unload
-c8ctl upgrade plugin <package-name>
-c8ctl unload plugin <package-name>
-```
-
-For plugin lifecycle (init, sync, version pinning) and the storage layout, see [command-reference.md](references/command-reference.md) § Plugin Lifecycle.
+Don't run `c8ctl load plugin` on the agent's initiative — plugin code runs in the c8ctl runtime with full access to the active profile. Ask the user to install plugins themselves.
 
 ### Troubleshooting
 
@@ -230,4 +214,4 @@ For plugin lifecycle (init, sync, version pinning) and the storage layout, see [
 For detailed reference material, read from `references/`:
 - [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations, connector-secrets bootstrap flow
 - [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
-- [command-reference.md](references/command-reference.md) — verb/resource matrix, plugin command shape, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)
+- [command-reference.md](references/command-reference.md) — verb/resource matrix, plugin command shape, resource aliases, search flags, global flags, default plugins
