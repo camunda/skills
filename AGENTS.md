@@ -110,3 +110,9 @@ to this extension flow, not a direct binary download.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Hand-create `skills/<name>/SKILL.md` and
 its `references/`, then run `make lint SKILL=<name>` until clean.
+
+### Commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <subject>`,
+with the skill name as the scope (e.g. `feat(camunda-dmn): …`, `fix(camunda-bpmn): …`).
+See [CONTRIBUTING.md § Commit Messages](CONTRIBUTING.md#commit-messages) for the full list of types and examples.

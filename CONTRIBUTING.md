@@ -93,9 +93,32 @@ When a script is genuinely warranted, it must be:
 - **Self-contained** — use inline dependency declarations or npx with version pinning
 - **Idempotent** — safe to run multiple times
 
+## Commit Messages
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/). Format: `<type>(<scope>): <subject>`. Scope is the skill name (`camunda-bpmn`, `camunda-feel`, …) or a repo-wide area (`ci`, `contributing`, `lint`). Common types:
+
+- `feat` — new skill or new capability within a skill
+- `fix` — correction to existing skill content or tooling
+- `docs` — README / CONTRIBUTING / AGENTS.md changes
+- `refactor` — restructuring without behavioural change (e.g., moving content into `references/`)
+- `chore` — versioning, lint config, dependency bumps
+- `test` — eval suites or test infrastructure
+
+Examples:
+
+```
+feat(camunda-dmn): add decision-table hit-policy reference
+fix(camunda-connectors): correct sync caveat duplication
+refactor(camunda-connectors): move post-apply concerns into references/
+docs(contributing): document conventional commit format
+```
+
+Keep the subject under ~70 characters. Use the body for the *why*, not the *what*.
+
 ## Pull Request Process
 
 1. Create a branch from `main`
 2. Add/modify skills following the structure above
 3. **Run `make lint SKILL=<name>` after every change** and fix any hard violations before pushing (CI runs the same check)
-4. Submit PR with description of changes
+4. Use Conventional Commits (see above) for every commit on the branch
+5. Submit PR with description of changes
