@@ -22,6 +22,7 @@ Write, debug, and evaluate FEEL expressions used in Camunda 8 BPMN processes, DM
 ## Cross-References
 
 - **camunda-bpmn**: Use when FEEL expressions are part of BPMN conditions or I/O mappings
+- **camunda-dmn**: Use when FEEL appears inside DMN — input expressions, input entries (unary tests), output entries, literal expressions
 - **camunda-forms**: Use when FEEL expressions control form validation or conditional visibility
 - **camunda-ai-agent**: Use when FEEL expressions are prompts, `fromAi()` parameter declarations, or `toolCallResult` shaping in an AI Agent process
 
