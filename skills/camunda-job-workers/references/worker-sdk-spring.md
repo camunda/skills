@@ -18,6 +18,39 @@ Do not mix the two starters on one classpath.
 
 The starter replaces the deprecated **Spring Zeebe SDK** (`spring-zeebe-starter` / `io.camunda.spring:spring-boot-starter-camunda-sdk`); existing applications should migrate.
 
+## Minimal worker
+
+```java
+@SpringBootApplication
+public class App {
+  public static void main(String[] args) { SpringApplication.run(App.class, args); }
+}
+
+@Component
+class OrderWorker {
+  @JobWorker(type = "process-order")
+  public Map<String, Object> processOrder(@Variable String orderId, @Variable BigDecimal amount) {
+    if (amount.compareTo(MAX) > 0) {
+      throw CamundaError.bpmnError("AMOUNT_EXCEEDED", "Amount " + amount + " exceeds limit");
+    }
+    var ref = paymentGateway.charge(orderId, amount);
+    return Map.of("paymentRef", ref);                  // autoComplete writes this back as a variable
+  }
+}
+```
+
+```yaml
+# application.yaml
+camunda:
+  client:
+    mode: self-managed            # or saas, depending on cluster
+    zeebe:
+      grpc-address: ${CAMUNDA_GRPC_ADDRESS}
+      rest-address: ${CAMUNDA_REST_ADDRESS}
+```
+
+Run the app — the starter activates jobs of type `process-order` as soon as a process instance reaches a service task with `<zeebe:taskDefinition type="process-order"/>`.
+
 ## `@JobWorker` parameters
 
 ```java
@@ -41,7 +74,13 @@ public Map<String, Object> processOrder(@Variable String orderId, @Variable BigD
 }
 ```
 
-All parameters are optional; sensible defaults apply. `maxJobsActive` defaults to 64.
+All parameters are optional. The most common defaults:
+
+- **`type`** — defaults to the method name (e.g. `processOrder` → job type `processOrder`). Always set `type` explicitly unless the method is named exactly to match the BPMN's `zeebe:taskDefinition type`; method-name binding is silent and easy to break by renaming the method.
+- **`name`** — defaults to the bean name + method name; surfaced in cluster-side audit views.
+- **`autoComplete`** — `true`.
+- **`maxJobsActive`** — `64`.
+- **`enabled`** — `true`.
 
 ## Handler-method shape
 

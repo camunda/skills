@@ -31,7 +31,7 @@ try (CamundaClient client = CamundaClient.newClientBuilder()
 }
 ```
 
-Authentication, multi-tenancy, OAuth flags follow the standard builder pattern (`.credentialsProvider(...)`, `.defaultTenantId(...)`). See the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) for the same env-var shape — the client reads the same `ZEEBE_*` / `CAMUNDA_*` variables as `c8ctl`.
+Authentication, multi-tenancy, and OAuth flags follow the standard builder pattern (`.credentialsProvider(...)`, `.defaultTenantId(...)`). For the env-var shape, OAuth flow, and per-environment configuration, see the [Java client getting-started docs](https://docs.camunda.io/docs/apis-tools/java-client/getting-started/).
 
 ## `newWorker()` — the worker builder
 

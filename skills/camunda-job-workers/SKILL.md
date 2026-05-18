@@ -18,10 +18,7 @@ Implement job workers for Camunda 8.8+ in Java, Camunda Spring Boot, or TypeScri
 
 - Camunda 8.8+ cluster reachable from the worker process (local c8run, SaaS, or Self-Managed — see **camunda-c8ctl**)
 - A BPMN process with at least one element that has `<zeebe:taskDefinition type="..."/>` matching the worker's job type (see **camunda-bpmn**)
-- Toolchain for the chosen SDK:
-  - **Java**: OpenJDK 17+, Maven (or Gradle)
-  - **Camunda Spring Boot Starter**: OpenJDK 17+ and either Spring Boot 4.0.x (default starter) or Spring Boot 3.5.x (fallback starter — see "Spring Boot version" below)
-  - **TypeScript**: Node.js 18+ (Node-only worker runtimes can use both `createJobWorker` and `createThreadedJobWorker`; browsers are limited to `createJobWorker`)
+- Toolchain for the chosen SDK — OpenJDK 17+ and Maven/Gradle for Java and Spring; Node.js 18+ for TypeScript. SDK-specific version constraints (e.g. Spring Boot 4 vs 3, browser support) are in each SDK's reference.
 
 ## Cross-References
 
@@ -65,137 +62,44 @@ Storing local "has this job ran?" state in the worker process is not idempotency
 
 ## Failure modes — three distinct paths
 
-The choice depends on whether the failure is a **transient infrastructure problem**, a **business outcome modelled in the BPMN**, or an **unexpected programming error**.
+The choice depends on whether the failure is a **transient infrastructure problem**, a **modelled business outcome**, or an **unexpected programming error**:
 
-1. **`fail` with retries and back-off (transient).** Network timeout, downstream 5xx, broker unreachable. The handler computes a remaining-retries count (typically `job.retries - 1`) and a back-off duration, and the engine redelivers after the back-off. In the Camunda Spring Boot Starter, this is `throw CamundaError.jobError(message, variables, retries, retryBackoff, cause)`. In the Java client, this is the `newFailCommand(...).retries(...).retryBackoff(...).send()` builder. In TypeScript, this is `job.fail({ errorMessage, retries, retryBackOff })`. Reaching zero retries raises an incident.
+1. **Transient failure → fail with retries and back-off.** Network timeout, downstream 5xx, broker unreachable. The handler decrements retries and asks the engine to redeliver after a back-off. Reaching zero retries raises an incident.
 
-2. **BPMN error (modelled business outcome).** The handler succeeded in identifying that something the business expects can fail — a payment was declined, an inventory check came back empty, a license validation rejected the input. The handler throws a BPMN error with a code that an error boundary event (or error end event in a subprocess) catches in the model. The job is **not retried** — the engine takes the error path. In the Camunda Spring Boot Starter: `throw CamundaError.bpmnError("ERROR_CODE", "human-readable explanation")`. In the Java client: `client.newThrowErrorCommand(job.getKey()).errorCode(...).errorMessage(...).send()`. In TypeScript: `job.error({ errorCode, errorMessage })`.
+2. **Business outcome → BPMN error.** The handler succeeded in *identifying* a failure modelled in the BPMN — payment declined, inventory empty, license rejected. Throw a BPMN error with a code that an error boundary event (or error end event in a subprocess) catches. The job is **not** retried — the engine takes the error path.
 
-3. **Unhandled exception (programming error).** The handler threw something the SDK didn't expect — NullPointerException, unhandled promise rejection, type error. The SDK falls back to the default behaviour: `fail` with `retries = job.retries - 1` and `retryBackoff = 0`. The engine redelivers immediately; if the bug is deterministic the job burns through its retries and raises an incident. **Never use unhandled exceptions as a control-flow signal** — the zero back-off thrashes the cluster, and a future SDK change could redefine the default.
+3. **Programming error → unhandled exception.** A NullPointerException, an unhandled promise rejection, a type error. SDKs fall back to *fail-with-zero-back-off* — the engine redelivers immediately, burns retries, and raises an incident. **Never use unhandled exceptions as a control-flow signal**: the zero back-off thrashes the cluster, and a future SDK change could redefine the default.
+
+The SDK-specific call signatures (`CamundaError.jobError` / `CamundaError.bpmnError` for Spring, `newFailCommand` / `newThrowErrorCommand` for the Java client, `job.fail` / `job.error` for TypeScript) are in the per-SDK references.
 
 ## Auto-complete vs. explicit complete
 
-The Camunda Spring Boot Starter's `@JobWorker` defaults to `autoComplete = true`: the handler returns a value (a `Map<String, Object>` or a POJO that gets serialised to variables) and the framework calls `complete` with that value. Set `autoComplete = false` when the handler needs to call `complete` itself — e.g. to merge variables conditionally, to send the response asynchronously, or to hand the `ActivatedJob` to another component that owns completion.
+The Camunda Spring Boot Starter's `@JobWorker` auto-completes by default: the handler's return value is serialised as the job's output variables. Set `autoComplete = false` when the handler needs to call `complete` itself (conditional variables, asynchronous response, ownership transfer).
 
-The Java client and the TypeScript SDK do not auto-complete — the handler is responsible for calling `complete`, `fail`, or `error` on every code path. Forgetting to call one of those leaks the job's lease: it eventually times out and the engine redelivers it.
+The Java client and TypeScript SDK **do not** auto-complete — the handler must call `complete`, `fail`, or `error` on every code path. Missing a terminal call leaks the job's lease until activation timeout.
 
-## Quick start — Camunda Spring Boot Starter
+## Pick an SDK
 
-The Spring starter is the most common path for new Java workers. Drop the dependency, annotate a method, run.
+| SDK | When to pick |
+|---|---|
+| **Camunda Spring Boot Starter** — `camunda-spring-boot-starter` ([ref](references/worker-sdk-spring.md)) | New Java applications. Annotation-driven (`@JobWorker`), auto-complete, config via `application.yaml`. The default Java path. |
+| **Java client** — `camunda-client-java` ([ref](references/worker-sdk-java.md)) | Standalone JVM applications, non-Spring frameworks, libraries embedding Zeebe access. Lower-level builder API. Replaces the deprecated Zeebe Java Client (removed in 8.10). |
+| **TypeScript** — `@camunda8/orchestration-cluster-api` ([ref](references/worker-sdk-typescript.md)) | Node.js workers, browser-hosted clients, 8.9+ projects. Fall back to `@camunda8/sdk` (Node-only) only when gRPC streaming, sub-8.8 targets, or migration friction explicitly require it. |
 
-```xml
-<dependency>
-  <groupId>io.camunda</groupId>
-  <artifactId>camunda-spring-boot-starter</artifactId>
-  <version>${camunda.version}</version>
-</dependency>
-```
-
-```java
-@SpringBootApplication
-public class App {
-  public static void main(String[] args) { SpringApplication.run(App.class, args); }
-}
-
-@Component
-class OrderWorker {
-  @JobWorker(type = "process-order")
-  public Map<String, Object> processOrder(@Variable String orderId, @Variable BigDecimal amount) {
-    if (amount.compareTo(MAX) > 0) {
-      throw CamundaError.bpmnError("AMOUNT_EXCEEDED", "Amount " + amount + " exceeds limit");
-    }
-    var ref = paymentGateway.charge(orderId, amount);  // throws JobError on transient HTTP failure
-    return Map.of("paymentRef", ref);                  // autoComplete writes this back as a variable
-  }
-}
-```
-
-`application.yaml`:
-
-```yaml
-camunda:
-  client:
-    mode: self-managed            # or saas, depending on cluster
-    zeebe:
-      grpc-address: ${CAMUNDA_GRPC_ADDRESS}
-      rest-address: ${CAMUNDA_REST_ADDRESS}
-```
-
-Run the app — the starter activates jobs of type `process-order` as soon as a process instance reaches a service task with `<zeebe:taskDefinition type="process-order"/>`. For the SDK details (all annotation parameters, profile activation, environment-specific config, exception types), read `references/worker-sdk-spring.md`.
-
-## Spring Boot version — pick the right starter on 8.9+
+### Spring Boot 4 vs. 3 — high-stakes routing
 
 > The default Camunda Spring Boot Starter (`camunda-spring-boot-starter`) is bundled with and requires Spring Boot 4.0.x.
 
-Applications on Spring Boot 4 use `camunda-spring-boot-starter` directly. Applications that cannot upgrade yet use **`camunda-spring-boot-3-starter`** instead — bundled with Spring Boot 3.5.x. Spring's OSS support for the 3.5.x line ends **June 2026**, so treat the SB3 starter as a migration bridge, not a long-lived target.
+Applications still on Spring Boot 3.5.x use **`camunda-spring-boot-3-starter`** as a migration bridge — Spring's OSS support for the 3.5.x line ends **June 2026**. Don't mix the two starters on one classpath: the SB4 starter won't start on a Spring Boot 3 app, and the SB3 starter pulls conflicting transitive deps into a Spring Boot 4 app.
 
 All starter modules require OpenJDK 17+.
 
-## Java client — `camunda-client-java`
-
-The plain Java client (no Spring) is the right choice when the worker process is not a Spring application, or when you need the lower-level `JobWorkerBuilder` API directly. As of Camunda 8.8 the artifact is **`camunda-client-java`** — it replaces the Zeebe Java Client. The Zeebe client will be **removed in 8.10**; existing code should migrate.
-
-```xml
-<dependency>
-  <groupId>io.camunda</groupId>
-  <artifactId>camunda-client-java</artifactId>
-  <version>${camunda.version}</version>
-</dependency>
-```
-
-```java
-try (var client = CamundaClient.newClientBuilder().build()) {
-  client.newWorker()
-    .jobType("process-order")
-    .handler((jobClient, job) -> {
-      // run logic, then:
-      jobClient.newCompleteCommand(job.getKey())
-        .variables(Map.of("paymentRef", ref))
-        .send().join();
-    })
-    .timeout(Duration.ofMinutes(1))
-    .open();
-  Thread.currentThread().join();   // keep the worker alive
-}
-```
-
-Full client API (command builders, streaming, multi-tenancy, OAuth configuration), see `references/worker-sdk-java.md`.
-
-## TypeScript — `@camunda8/orchestration-cluster-api`
-
-The TypeScript path uses two packages. Pick the focused client by default; fall back to the bundled SDK only for narrow cases:
-
-- **`@camunda8/orchestration-cluster-api`** (recommended) — REST-only client targeting Camunda 8.9+, runs in Node *and* browsers (browsers limited to `createJobWorker`; `createThreadedJobWorker` is Node-only).
-- **`@camunda8/sdk`** (fallback) — bundles all clients, supports gRPC and REST, Node-only. Use it when: you need gRPC streaming, you target Camunda 8.7 or earlier, you depend on earlier Operate query APIs, or you are migrating an existing app and aren't ready to update environment configuration.
-
-```typescript
-import { CamundaRestApi } from "@camunda8/orchestration-cluster-api";
-
-const client = new CamundaRestApi();
-const worker = client.createJobWorker({
-  jobType: "process-order",
-  maxParallelJobs: 10,
-  jobTimeoutMs: 60_000,
-  jobHandler: async (job) => {
-    if (job.variables.amount > MAX) {
-      return job.error({ errorCode: "AMOUNT_EXCEEDED", errorMessage: `Amount ${job.variables.amount} exceeds limit` });
-    }
-    const ref = await paymentGateway.charge(job.variables.orderId, job.variables.amount);
-    return job.complete({ paymentRef: ref });
-  },
-});
-```
-
-For CPU-bound handlers in Node, swap `createJobWorker` for `createThreadedJobWorker` (moves the handler to a worker-thread pool). Full reference: `references/worker-sdk-typescript.md`.
-
 ## Common pitfalls
 
-- **Forgetting to complete / fail / error a job** (Java client, TypeScript). The lease times out and the engine redelivers. Handlers must hit exactly one terminal call on every code path. Spring's `autoComplete = true` covers happy-path returns; the failure paths still need `throw CamundaError.bpmnError(...)` / `CamundaError.jobError(...)` to signal the engine.
-- **Treating unhandled exceptions as BPMN errors.** An unhandled throw is a programming error, not a modelled outcome. The SDK fails the job with `retries - 1` and `retryBackoff = 0` — the engine redelivers immediately, burns retries, and raises an incident. Use `CamundaError.bpmnError(...)` (or the SDK equivalent) when the failure is a business outcome, and `CamundaError.jobError(...)` (or `fail`) with a sensible back-off when it's transient infrastructure.
+- **Forgetting to complete / fail / error a job** (Java client, TypeScript). The lease times out and the engine redelivers. Handlers must hit exactly one terminal call on every code path. Spring's `autoComplete = true` covers happy-path returns; failure paths still need an explicit signal.
+- **Treating unhandled exceptions as BPMN errors.** An unhandled throw is a programming error, not a modelled outcome. SDKs fail the job with `retries - 1` and `retryBackoff = 0` — the engine redelivers immediately, burns retries, and raises an incident.
 - **Storing "already processed" state in the worker process.** Crashes and scale-out erase it. Idempotency belongs in the downstream system or in process variables that survive redelivery.
-- **Polling and request-timeout misalignment.** The activation request timeout must be shorter than the gateway / load-balancer cutoff, otherwise the worker tears the connection down and reconnects in a loop. The SDK defaults are sensible — change them deliberately.
-- **Mixing `camunda-spring-boot-starter` and `camunda-spring-boot-3-starter`** on the same classpath. Pick one. The default SB4 starter on a Spring Boot 3 application will not start; the SB3 starter on a Spring Boot 4 application brings in conflicting transitive deps.
-- **Picking `@camunda8/sdk` for new 8.9+ TypeScript projects by default.** Reach for `@camunda8/orchestration-cluster-api` first; only fall back to the bundled SDK when gRPC, sub-8.8 compatibility, or migration friction explicitly requires it.
+- **Polling and request-timeout misalignment.** The activation request timeout must be shorter than the gateway / load-balancer cutoff, otherwise the worker tears the connection down and reconnects in a loop. SDK defaults are sensible — change them deliberately.
 
 ## References
 
