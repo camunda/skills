@@ -24,6 +24,8 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 
 - **camunda-bpmn**: Run `c8ctl bpmn lint` on the process under test before authoring scenarios — failing lints surface as deploy-time `@TestDeployment` failures.
 - **camunda-feel**: Use when a gateway condition or DMN entry is unclear; FEEL semantics drive which segment hits which branch.
+- **camunda-job-workers**: Use when the handler code that backs a service task is itself under test — CPT drives BPMN reachability; worker unit tests drive handler behaviour.
+- **camunda-connectors-development**: Use when a custom connector is the unit under test — CPT exercises it from the BPMN side; SDK-side tests cover the connector class directly.
 - **camunda-process-mgmt**: CPT runs against an **embedded** Zeebe engine — it does **not** use the c8ctl-managed cluster or any profile. No `c8ctl` call deploys a process under test.
 
 ## Scope boundaries

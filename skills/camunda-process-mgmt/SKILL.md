@@ -24,6 +24,8 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 - **camunda-c8ctl**: Use for c8ctl install, profile management, local cluster operations, and cluster-safety rules
 - **camunda-bpmn**: Use for fixing BPMN process issues found during debugging
 - **camunda-connectors**: Use for fixing connector configuration issues found during debugging
+- **camunda-job-workers**: Use when an incident traces back to handler code rather than the process model — the worker side of `zeebe:taskDefinition type`
+- **camunda-connectors-development**: Use when an incident traces back to a custom connector's runtime / registration / hosting rather than its template configuration
 - **camunda-feel**: Use for diagnosing FEEL evaluation errors (EXTRACT_VALUE_ERROR, CONDITION_ERROR) in incidents
 - **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
 

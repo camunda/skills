@@ -24,6 +24,9 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 - **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
 - **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
 - **camunda-connectors**: Use for configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates
+- **camunda-development**: Use to decide whether a service task should be backed by an OOTB connector, a custom connector, or a job worker
+- **camunda-job-workers**: Use to implement the handler code that a service task's `zeebe:taskDefinition type` activates
+- **camunda-connectors-development**: Use to build a custom connector (JSON-only template or Java SDK) that attaches to a service task or event element
 - **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
 - **camunda-process-mgmt**: Use for deploying to a cluster and running instances
 - **camunda-ai-agent**: Use when modeling an AI agent — ad-hoc subprocess hosting tools driven by the AI Agent connector
