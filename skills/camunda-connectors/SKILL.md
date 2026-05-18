@@ -129,7 +129,7 @@ Both can be set together — `resultVariable` captures the raw response, `result
 --set resultExpression='={user: response.body.user, status: response.statusCode}'
 ```
 
-The same mechanism applies to **inbound connectors** — webhook receivers, Slack inbound (`io.camunda.connectors.inbound.Slack.*`), email inbound (`io.camunda.connectors.inbound.Email*`), Kafka consumers (`io.camunda.connectors.inbound.Kafka*`). They surface `resultVariable` + `resultExpression` under the same Output mapping group; the engine writes the incoming event payload into the process scope when the trigger fires, identically to how outbound writes the response when the service task completes.
+The same mechanism applies to **inbound connectors** — e.g. the Slack inbound connector surfaces `resultVariable` + `resultExpression` under the same Output mapping group. The engine writes the incoming event payload into the process scope when the trigger fires, identically to how outbound writes the response when the service task completes.
 
 ### Example — HTTP REST Connector
 
