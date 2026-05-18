@@ -39,13 +39,13 @@ c8ctl get topology --json   # confirm it's alive (use --json per command for scr
 All skill tooling is unified under c8ctl plugin commands:
 
 - **BPMN validation**: `c8ctl bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
-- **Element templates**:
+- **Element templates** (run `c8ctl element-template sync` **once** before any OOTB-ID command; file/URL applies bypass the cache):
   - `c8ctl element-template search "<query>" [--limit N]` — discover OOTB connector templates (default limit 20)
   - `c8ctl element-template info <id>` — show metadata card (applies-to, engines, docs link)
   - `c8ctl element-template get-properties <id> [<name>...]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern)
   - `c8ctl element-template apply -i <template> <element-id> <bpmn> [--set key=value ...]` — apply a template (omit `-i` to print to stdout)
   - `c8ctl element-template get <id>` — print raw template JSON
-  - `c8ctl element-template sync [--prune]` — refresh the local OOTB cache
+  - `c8ctl element-template sync [--prune]` — refresh the local OOTB cache (required once before first use; re-run to pick up upstream changes)
 - **FEEL evaluation**: `c8ctl feel evaluate '<expression>' [--var key=value | --vars '<json>']` — defaults to cluster evaluation (Scala FEEL engine; requires Camunda 8.9+). `--engine local` uses the `feelin` JS engine, which behaves DIFFERENTLY from the cluster engine — only use it when explicitly requested or the cluster is unreachable AND the user has confirmed.
 
 ## Conventions

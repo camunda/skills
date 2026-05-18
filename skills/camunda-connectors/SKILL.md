@@ -17,6 +17,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 ## Prerequisites
 
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl element-template` commands
+- **Local OOTB catalog synced** — run `c8ctl element-template sync` **once** before using `search`, `info`, `get-properties`, `get`, or `apply` with an OOTB template ID. Applying a template from a local file path or `https://` URL bypasses the cache and does not require sync.
 
 ## Cross-References
 
@@ -51,7 +52,7 @@ c8ctl element-template search "connector" --limit 5   # cap results (default 20)
 
 Each result shows the template name, ID (e.g., `io.camunda.connectors.HttpJson.v2`), version, applies-to, engine constraint, and description. The header reads `Showing N of M matches for '<query>'` — if `M > N`, narrow the query or raise `--limit`. Pick the ID that matches your use case.
 
-To refresh the local OOTB cache (rarely needed — done automatically):
+The local OOTB cache must be synced **once** before `search` / `info` / `get-properties` / `get` / OOTB-ID `apply` work (see Prerequisites). Re-sync to pick up new upstream templates or drop stale ones:
 
 ```bash
 c8ctl element-template sync             # fetch latest catalog
@@ -132,9 +133,9 @@ c8ctl element-template apply -i io.camunda.connectors.HttpJson.v2 Task_FetchUser
 ```
 
 The `<template>` argument can be:
-- An OOTB template ID (with optional `@<version>`, e.g., `io.camunda.connectors.HttpJson.v2@13`). Without `@<version>`, the highest version compatible with the BPMN's `executionPlatformVersion` is auto-resolved.
-- A local file path (e.g., `./my-custom-template.json`)
-- An `https://` URL (GitHub blob URLs are auto-rewritten to raw content)
+- An OOTB template ID (with optional `@<version>`, e.g., `io.camunda.connectors.HttpJson.v2@13`). Without `@<version>`, the highest version compatible with the BPMN's `executionPlatformVersion` is auto-resolved. **Requires `c8ctl element-template sync` to have run at least once.**
+- A local file path (e.g., `./my-custom-template.json`) — no sync required
+- An `https://` URL (GitHub blob URLs are auto-rewritten to raw content) — no sync required
 
 `-i` modifies the BPMN file directly. Without `-i`, the modified XML is printed to stdout — useful for previews, redirected output, or composing with other tooling:
 
@@ -176,14 +177,15 @@ For complex cases (multi-line FEEL expressions, dynamic body templates, etc.) yo
 
 ### Configuration Workflow
 
-1. **Search first** — `c8ctl element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
-2. **Inspect when unfamiliar** — for connectors not documented in this skill, run `c8ctl element-template get-properties <id>` to scan available properties + descriptions. Add `--detailed <name>` when you need required/FEEL/condition details.
-3. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions.
-4. **Apply with values** — `c8ctl element-template apply -i <id> <element-id> <bpmn> --set key=value ...`
-5. **Skip inactive properties** — do not set values for properties whose conditions are not met (a warning surfaces if you do).
-6. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`).
-7. **Use secrets** for credentials: `{{secrets.API_KEY}}`.
-8. **Validate** with `c8ctl bpmn lint process.bpmn`.
+1. **Sync the OOTB catalog once** — `c8ctl element-template sync` if you haven't synced in this environment yet. Without it, `search` returns empty and `apply` with an OOTB ID fails. Skip if you're applying from a local file or URL.
+2. **Search** — `c8ctl element-template search "<keyword>"` to discover the right template ID. Never guess IDs from memory.
+3. **Inspect when unfamiliar** — for connectors not documented in this skill, run `c8ctl element-template get-properties <id>` to scan available properties + descriptions. Add `--detailed <name>` when you need required/FEEL/condition details.
+4. **Decide on parent values** — authentication type, method, etc. These determine which child properties become active via conditions.
+5. **Apply with values** — `c8ctl element-template apply -i <id> <element-id> <bpmn> --set key=value ...`
+6. **Skip inactive properties** — do not set values for properties whose conditions are not met (a warning surfaces if you do).
+7. **Use FEEL expressions** for dynamic values (`=` prefix for `feel: optional`, always for `feel: required`).
+8. **Use secrets** for credentials: `{{secrets.API_KEY}}`.
+9. **Validate** with `c8ctl bpmn lint process.bpmn`.
 
 ### Example — HTTP REST Connector
 

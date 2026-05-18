@@ -42,6 +42,11 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 **Example** — apply the template via c8ctl rather than hand-writing the many provider/prompt/memory fields:
 
 ```bash
+# 0. One-time per environment: sync the OOTB catalog. search,
+#    get-properties, and OOTB-ID apply need this to have run at
+#    least once. Skip on subsequent runs.
+c8ctl element-template sync
+
 # 1. Find the current template ID and version — they evolve
 c8ctl element-template search "ai agent"
 
