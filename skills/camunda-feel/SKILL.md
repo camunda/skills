@@ -163,8 +163,7 @@ The `string()` wrapper is required, not stylistic. FEEL does not auto-coerce typ
 ## Troubleshooting
 
 - **FEEL_RESOLUTION_ERROR** — a variable referenced in the expression doesn't exist in the variable context at evaluation time. Run `c8ctl feel evaluate '<expr>' --vars '<json>'` with the variables you expect at runtime to confirm.
-- **`Can't add 'N' to '"prefix-"'` (silent null)** — type mismatch in `+` concatenation. FEEL does not coerce numbers to strings; wrap the numeric value with `string(x)`.
-- **Expression returns `null` unexpectedly** — typical causes: 0-based indexing (use `events[1]`, not `events[0]`); calling a non-existent helper (`first()` doesn't exist); missing commas between context entries.
+- **Expression returns `null` unexpectedly** — typical causes: type mismatch in `+` concatenation (see `string()` rule above); 0-based indexing (use `events[1]`, not `events[0]`); calling a non-existent helper (`first()` doesn't exist); missing commas between context entries. `c8ctl feel evaluate` prints an actual null result as `<null>` in text mode to distinguish it from the FEEL string `"null"` (which still prints as `null`).
 
 ## References
 
