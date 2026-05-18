@@ -1,5 +1,12 @@
 # Contributing to Camunda Skills
 
+## Reporting issues
+
+- **Bug in a skill?** Open a [bug report](https://github.com/camunda/skills/issues/new?template=bug_report.md). Include the agent harness, model, OS, and `c8ctl` version — skill behaviour varies across them.
+- **Feature idea or new skill?** Open a [feature request](https://github.com/camunda/skills/issues/new?template=feature_request.md).
+- **General Camunda 8 question** not specific to a skill here? Ask on the [Camunda Forum](https://forum.camunda.io).
+- **Issue with `c8ctl` itself** (not the skill wrapping it)? File it on [`camunda/c8ctl`](https://github.com/camunda/c8ctl/issues) — the skills route through c8ctl, so most CLI-layer bugs belong upstream.
+
 ## Skill Structure
 
 Every skill is a directory under `skills/` containing at minimum a `SKILL.md` file:

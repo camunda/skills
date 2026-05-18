@@ -77,6 +77,10 @@ Clone this repository and copy `skills/<skill-name>/` directories into your agen
 
 3. The agent will use the appropriate skills to create your BPMN process, forms, and guide you through deployment.
 
+## Issues
+
+Bug or feature request? [Open an issue](https://github.com/camunda/skills/issues/new/choose). General Camunda 8 questions belong on the [Camunda Forum](https://forum.camunda.io).
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
