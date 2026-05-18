@@ -18,6 +18,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-forms** | Create Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Browse and configure pre-built connectors via element templates |
 | **camunda-development** | Choose between OOTB connectors, custom connector templates, custom Java connectors, and job workers before writing integration code |
+| **camunda-job-workers** | Implement job workers in Java, Camunda Spring Boot, or TypeScript |
 | **camunda-process-mgmt** | Deploy resources, start/inspect instances, resolve incidents, complete tasks — via c8ctl |
 | **camunda-ai-agent** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
 
