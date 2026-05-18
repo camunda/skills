@@ -1,6 +1,8 @@
 # Profile and Credential Management
 
-Reference for connecting c8ctl to a cluster — profiles, credentials, tenants.
+Reference for using already-configured c8ctl profiles — switching, inspection, resolution order, tenants.
+
+Profile setup (OAuth flags, credentials) is a one-time human task — see the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/). This reference covers how to use already-configured profiles.
 
 ## Profile Types
 
@@ -11,10 +13,9 @@ c8ctl supports two profile types:
 
 ## c8ctl Profile Commands
 
-```bash
-# Add a profile
-c8ctl add profile <name> [flags]
+For creating profiles with `c8ctl add profile`, see the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/). Commands for using configured profiles:
 
+```bash
 # List all profiles (both c8ctl and Modeler)
 c8ctl list profiles
 
@@ -32,17 +33,6 @@ c8ctl rm profile <name>          # alias
 c8ctl list pi --profile=staging
 ```
 
-## Profile Flags
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--baseUrl` | Cluster base URL (Zeebe REST endpoint, not the dashboard URL) | `https://camunda.example.com` |
-| `--clientId` | OAuth client ID | `your-client-id` |
-| `--clientSecret` | OAuth client secret | `your-client-secret` |
-| `--audience` | OAuth audience (when the cluster needs an explicit audience) | `camunda-api` |
-| `--oAuthUrl` | OAuth token endpoint (when not auto-discoverable) | `https://auth.example.com/oauth/token` |
-| `--defaultTenantId` | Default tenant for this profile | `dev-tenant` |
-
 ## URL Construction
 
 c8ctl handles the `/v2` REST suffix automatically:
@@ -52,41 +42,9 @@ c8ctl handles the `/v2` REST suffix automatically:
 
 Any port number is supported.
 
-## Profile Examples
-
-### Default local profile
+## Default Local Profile
 
 c8ctl ships with a built-in `local` profile pointing at `http://localhost:8080/v2` with no authentication — use `--profile=local` directly, no setup needed.
-
-### OAuth-secured Self-Managed cluster
-
-```bash
-c8ctl add profile prod \
-  --baseUrl=https://camunda.example.com \
-  --clientId=your-client-id \
-  --clientSecret=your-client-secret
-```
-
-### Explicit OAuth audience and endpoint
-
-```bash
-c8ctl add profile prod \
-  --baseUrl=https://camunda.example.com \
-  --clientId=your-client-id \
-  --clientSecret=your-client-secret \
-  --audience=camunda-api \
-  --oAuthUrl=https://auth.example.com/oauth/token
-```
-
-### Profile with default tenant
-
-```bash
-c8ctl add profile dev \
-  --baseUrl=https://dev.example.com \
-  --clientId=dev-client \
-  --clientSecret=dev-secret \
-  --defaultTenantId=dev-tenant
-```
 
 ## Camunda Modeler Integration
 
@@ -131,16 +89,7 @@ When c8ctl runs a command, it resolves credentials in this order (first match wi
 
 Always use item 1 (`--profile=<name>` explicit per command) on cluster-touching work — do not rely on the active profile, it may point at production or staging from a previous session. See `SKILL.md § Safety` for the full rule.
 
-### Environment Variables
-
-```bash
-export CAMUNDA_BASE_URL=https://camunda.example.com
-export CAMUNDA_CLIENT_ID=your-client-id
-export CAMUNDA_CLIENT_SECRET=your-client-secret
-c8ctl list pi
-```
-
-Useful when running c8ctl in CI/CD where storing a profile on disk isn't ideal.
+The `CAMUNDA_*` environment variables (e.g., `CAMUNDA_BASE_URL`, `CAMUNDA_CLIENT_ID`, `CAMUNDA_CLIENT_SECRET`) are documented in the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/). Useful for CI/CD where storing a profile on disk isn't ideal — but the actual values stay out of agent transcripts and out of this skill.
 
 ## Tenant Resolution
 
