@@ -36,7 +36,7 @@ Element templates (also called **connector templates** — the terms are used in
 - **Constraints** validating user input (required fields, URL patterns, etc.)
 - **Groups** organizing properties into logical sections (authentication, endpoint, output, error handling)
 
-Read `references/element-template-schema.md` for the binding-types-and-XML-mapping deep dive.
+Read `references/element-template-schema.md` for the reader's guide to property fields and the binding → BPMN XML mapping. The full authoring schema lives in **camunda-connectors-development**.
 
 ### Discovering Connectors via Search
 
@@ -187,4 +187,4 @@ After applying, validate with `c8ctl bpmn lint process.bpmn`.
 ## References
 
 For detailed reference material, read from `references/`:
-- [element-template-schema.md](references/element-template-schema.md) — element template JSON schema: binding types, conditions, constraints, FEEL support, property-to-XML mapping
+- [element-template-schema.md](references/element-template-schema.md) — reader's guide for configuring OOTB templates via `apply --set`: property-reading checklist, binding → BPMN XML mapping table, HTTP worked example. For the full authoring schema, see **camunda-connectors-development**

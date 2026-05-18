@@ -108,7 +108,7 @@ When Path B will run via the standalone runtime against a SaaS cluster (Hybrid h
 
 For detail, read from `references/`:
 
-- [protocol-connector-templates.md](references/protocol-connector-templates.md) — Path A walkthrough: *Save as Template*, hiding URL/method/auth, FEEL pre-fill, custom groups, the SWAPI-style worked example, and a brief link to template-generator tools
+- [protocol-connector-templates.md](references/protocol-connector-templates.md) — Path A walkthrough: *Save as Template*, hiding URL/method/auth, FEEL pre-fill, custom groups, a REST Countries worked example, and a brief link to template-generator tools
 - [connector-sdk-outbound.md](references/connector-sdk-outbound.md) — `OutboundConnectorProvider` + `@Operation` (modern), `OutboundConnectorFunction` (legacy), `@Variable` / `@Header`, `ConnectorException`, Jakarta Validation
 - [connector-sdk-inbound.md](references/connector-sdk-inbound.md) — `InboundConnectorExecutable`, three flavours, lifecycle, `correlateWithResult` / `CorrelationResult`
 - [element-template-json.md](references/element-template-json.md) — schema reference: top-level fields, property types, binding types, property features, template variants per BPMN attachment

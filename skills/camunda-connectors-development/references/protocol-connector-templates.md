@@ -30,18 +30,18 @@ Use the same shape to lock the URL down to a single base path, force-set authent
 
 ## Pre-filling URL with FEEL
 
-The URL field accepts FEEL expressions (leading `=`) so you can compute it from earlier domain inputs. Bake a SWAPI-style example:
+The URL field accepts FEEL expressions (leading `=`) so you can compute it from earlier domain inputs. A REST Countries lookup template that exposes only the lookup mode and the query value:
 
 ```json
 {
   "id": "url",
   "type": "Hidden",
-  "value": "=\"https://swapi.dev/api/\" + resource + \"/\" + index",
+  "value": "=\"https://restcountries.com/v3.1/\" + lookupBy + \"/\" + query",
   "binding": { "type": "zeebe:taskHeader", "key": "url" }
 }
 ```
 
-`resource` and `index` are domain properties declared elsewhere in the template's `properties` array. The user picks a *resource* from a dropdown and types an *index*; the connector receives the fully-formed URL.
+`lookupBy` and `query` are domain properties declared elsewhere in the template's `properties` array. The user picks a *lookup mode* (`name` / `capital` / `alpha` / `currency`) from a dropdown and types a *query* string; the connector receives the fully-formed URL.
 
 ### URL constraint regex
 
@@ -57,7 +57,7 @@ The URL property in the REST template enforces:
 
 > Any property whose FEEL `value` references another property must appear *after* the referenced property in the `properties` array.
 
-Out-of-order references silently evaluate to `null` at runtime. The Modeler does not flag this. The `resource` and `index` properties in the SWAPI example must appear *before* the hidden `url` property that references them.
+Out-of-order references silently evaluate to `null` at runtime. The Modeler does not flag this. The `lookupBy` and `query` properties in the REST Countries example must appear *before* the hidden `url` property that references them.
 
 This rule applies to all Path A customisations, all hand-authored templates, and the auto-generated templates from `@ElementTemplate` — though in the auto-generated case the plugin orders properties by annotation source order.
 
@@ -90,29 +90,30 @@ Group domain properties into labelled sections so the Modeler's properties panel
 ```json
 {
   "groups": [
-    { "id": "endpoint", "label": "Star Wars resource" },
-    { "id": "output",   "label": "Output mapping" }
+    { "id": "lookup", "label": "Country lookup" },
+    { "id": "output", "label": "Output mapping" }
   ],
   "properties": [
     {
-      "id": "resource",
-      "label": "Resource",
+      "id": "lookupBy",
+      "label": "Lookup by",
       "type": "Dropdown",
-      "group": "endpoint",
+      "group": "lookup",
       "choices": [
-        { "name": "People",    "value": "people" },
-        { "name": "Planets",   "value": "planets" },
-        { "name": "Starships", "value": "starships" }
+        { "name": "Name",            "value": "name" },
+        { "name": "Capital",         "value": "capital" },
+        { "name": "ISO 3166-1 code", "value": "alpha" },
+        { "name": "Currency",        "value": "currency" }
       ],
-      "binding": { "type": "zeebe:input", "name": "resource" }
+      "binding": { "type": "zeebe:input", "name": "lookupBy" }
     },
     {
-      "id": "index",
-      "label": "Resource ID",
+      "id": "query",
+      "label": "Query value",
       "type": "String",
-      "group": "endpoint",
+      "group": "lookup",
       "feel": "optional",
-      "binding": { "type": "zeebe:input", "name": "index" }
+      "binding": { "type": "zeebe:input", "name": "query" }
     }
   ]
 }
@@ -120,21 +121,21 @@ Group domain properties into labelled sections so the Modeler's properties panel
 
 The pre-existing *Output mapping* group from the REST template should be kept (or re-declared) so users can still bind `resultVariable` / `resultExpression`.
 
-## Worked example — the full SWAPI template
+## Worked example — the full REST Countries template
 
 A minimal but complete customisation:
 
 ```json
 {
   "$schema": "https://unpkg.com/@camunda/zeebe-element-templates-json-schema/resources/schema.json",
-  "name": "Star Wars API",
-  "id": "io.example.connector.swapi.v1",
-  "description": "Look up Star Wars resources via the SWAPI REST API",
+  "name": "Country lookup",
+  "id": "io.example.connector.countries.v1",
+  "description": "Look up country reference data via the REST Countries API",
   "appliesTo": ["bpmn:Task"],
   "elementType": { "value": "bpmn:ServiceTask" },
   "groups": [
-    { "id": "endpoint", "label": "SWAPI resource" },
-    { "id": "output",   "label": "Output mapping" }
+    { "id": "lookup", "label": "Country lookup" },
+    { "id": "output", "label": "Output mapping" }
   ],
   "properties": [
     {
@@ -143,24 +144,25 @@ A minimal but complete customisation:
       "binding": { "type": "zeebe:taskDefinition", "property": "type" }
     },
     {
-      "id": "resource",
-      "label": "Resource",
+      "id": "lookupBy",
+      "label": "Lookup by",
       "type": "Dropdown",
-      "group": "endpoint",
+      "group": "lookup",
       "choices": [
-        { "name": "People",    "value": "people" },
-        { "name": "Planets",   "value": "planets" },
-        { "name": "Starships", "value": "starships" }
+        { "name": "Name",            "value": "name" },
+        { "name": "Capital",         "value": "capital" },
+        { "name": "ISO 3166-1 code", "value": "alpha" },
+        { "name": "Currency",        "value": "currency" }
       ],
-      "binding": { "type": "zeebe:input", "name": "resource" }
+      "binding": { "type": "zeebe:input", "name": "lookupBy" }
     },
     {
-      "id": "index",
-      "label": "Resource ID",
+      "id": "query",
+      "label": "Query value",
       "type": "String",
-      "group": "endpoint",
+      "group": "lookup",
       "feel": "optional",
-      "binding": { "type": "zeebe:input", "name": "index" }
+      "binding": { "type": "zeebe:input", "name": "query" }
     },
     {
       "type": "Hidden",
@@ -169,7 +171,7 @@ A minimal but complete customisation:
     },
     {
       "type": "Hidden",
-      "value": "=\"https://swapi.dev/api/\" + resource + \"/\" + index",
+      "value": "=\"https://restcountries.com/v3.1/\" + lookupBy + \"/\" + query",
       "binding": { "type": "zeebe:input", "name": "url" }
     },
     {
@@ -196,7 +198,7 @@ A minimal but complete customisation:
 }
 ```
 
-The user sees: a *Resource* dropdown, a *Resource ID* string field, and the output-mapping group. Everything else is hidden. The connector receives a fully-formed `GET https://swapi.dev/api/people/1` — without the user knowing it's a REST connector underneath.
+The user sees: a *Lookup by* dropdown, a *Query value* string field, and the output-mapping group. Everything else is hidden. The connector receives a fully-formed `GET https://restcountries.com/v3.1/name/germany` — without the user knowing it's a REST connector underneath.
 
 The hidden `zeebe:taskDefinition` `type` is what binds the element to the underlying protocol connector (`io.camunda:http-json:1` for the REST connector). Verify the exact `type` value of the protocol connector you're layering on with `c8ctl element-template get-properties <id>` before hard-coding it — it's the load-bearing line.
 

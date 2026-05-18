@@ -17,7 +17,7 @@ The Java ServiceLoader pattern. A file at `META-INF/services/<interface>` lists 
 META-INF/services/io.camunda.connector.api.outbound.OutboundConnectorProvider
 ```
 ```
-io.example.connector.swapi.SwapiConnector
+io.example.connector.countries.CountryLookupConnector
 ```
 
 The element-template-generator Maven plugin writes this file automatically (`<writeMetaInfFileGeneration>true</writeMetaInfFileGeneration>`, default). The connector requires only `connector-core` and (optionally) `connector-validation` on its compile classpath.
@@ -36,7 +36,7 @@ The connector class is a `@Component` (or any Spring bean) inside an application
 @Component
 @OutboundConnector(name = "...", type = "...", inputVariables = {...})
 @ElementTemplate(id = "...", name = "...", version = 1)
-public class SwapiConnector implements OutboundConnectorProvider { ... }
+public class CountryLookupConnector implements OutboundConnectorProvider { ... }
 ```
 
 Required dependencies:
@@ -61,7 +61,7 @@ Required dependencies:
 <configuration>
   <connectors>
     <connector>
-      <connectorClass>io.example.connector.swapi.SwapiConnector</connectorClass>
+      <connectorClass>io.example.connector.countries.CountryLookupConnector</connectorClass>
       <writeMetaInfFileGeneration>false</writeMetaInfFileGeneration>
       ...
     </connector>
@@ -92,7 +92,7 @@ Mount the connector JAR into `/opt/app/`:
 
 ```bash
 docker run --rm --name=connectors -d \
-  -v $PWD/swapi-connector.jar:/opt/app/swapi-connector.jar \
+  -v $PWD/countries-connector.jar:/opt/app/countries-connector.jar \
   -e CAMUNDA_CLIENT_MODE=self-managed \
   -e CAMUNDA_CLIENT_GRPC_ADDRESS=http://localhost:26500 \
   -e CAMUNDA_CLIENT_REST_ADDRESS=http://localhost:8080 \

@@ -13,7 +13,7 @@ The element template is the JSON document that gives a connector (or a worker) i
 | Field | Purpose |
 |---|---|
 | `$schema` | JSON schema URL Modeler validates against |
-| `id` | Unique template identifier (reverse-DNS recommended, e.g. `io.example.connector.swapi.v1`) |
+| `id` | Unique template identifier (reverse-DNS recommended, e.g. `io.example.connector.countries.v1`) |
 | `name` | Human-readable template name in the Modeler element picker |
 | `version` | Integer version. New versions allow processes to opt in; old versions remain pinned to existing elements |
 | `description` | One-line subtitle in the element picker |
@@ -29,21 +29,21 @@ The element template is the JSON document that gives a connector (or a worker) i
 
 ```json
 {
-  "id": "resource",
-  "label": "Resource",
-  "description": "Which SWAPI resource to look up",
+  "id": "lookupBy",
+  "label": "Lookup by",
+  "description": "Which REST Countries endpoint to query",
   "type": "Dropdown",
-  "group": "endpoint",
-  "value": "people",
+  "group": "lookup",
+  "value": "name",
   "feel": "optional",
   "optional": false,
-  "tooltip": "All SWAPI endpoints share this shape",
+  "tooltip": "All REST Countries endpoints share the /v3.1/<key>/<query> shape",
   "constraints": { "notEmpty": true },
   "condition": { "property": "mode", "equals": "lookup" },
-  "binding": { "type": "zeebe:input", "name": "resource" },
+  "binding": { "type": "zeebe:input", "name": "lookupBy" },
   "choices": [
-    { "name": "People",   "value": "people" },
-    { "name": "Planets",  "value": "planets" }
+    { "name": "Name",    "value": "name" },
+    { "name": "Capital", "value": "capital" }
   ]
 }
 ```
@@ -138,7 +138,7 @@ The binding writes the property value into the BPMN element XML when the templat
 
 A minimal outbound template wires three bindings:
 
-1. `zeebe:taskDefinition` `property: "type"` — value is the connector's registered type (e.g. `io.example.connector.swapi:1`). This is the load-bearing line that routes the job to the connector.
+1. `zeebe:taskDefinition` `property: "type"` — value is the connector's registered type (e.g. `io.example.connector.countries:1`). This is the load-bearing line that routes the job to the connector.
 2. `zeebe:input` `name: "<var>"` — per-property input variables.
 3. `zeebe:taskHeader` `key: "resultExpression"` (and `errorExpression`) — output mapping and error mapping.
 
@@ -147,7 +147,7 @@ A minimal outbound template wires three bindings:
 Inbound templates use `zeebe:property` instead of `zeebe:taskDefinition`:
 
 ```json
-{ "type": "Hidden", "value": "io.example.connector.swapi.updates:1",
+{ "type": "Hidden", "value": "io.example.connector.fxrates:1",
   "binding": { "type": "zeebe:property", "name": "inbound.type" } }
 ```
 

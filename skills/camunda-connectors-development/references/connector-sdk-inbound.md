@@ -50,19 +50,19 @@ Every inbound connector implements this interface. The runtime calls `activate` 
 
 ```java
 @InboundConnector(
-    name = "Star Wars updates",
-    type = "io.example.connector.swapi.updates:1"
+    name = "Currency rate watcher",
+    type = "io.example.connector.fxrates:1"
 )
 @ElementTemplate(
-    id = "io.example.connector.swapi.updates.v1",
-    name = "Star Wars updates",
+    id = "io.example.connector.fxrates.v1",
+    name = "Currency rate watcher",
     version = 1,
     inbound = @ElementTemplate.ConnectorElementType(
         appliesTo = {"bpmn:StartEvent"},
         elementType = "bpmn:StartEvent"
     )
 )
-public class SwapiUpdatesExecutable implements InboundConnectorExecutable {
+public class FxRateWatcherExecutable implements InboundConnectorExecutable {
 
   private ScheduledExecutorService scheduler;
   private InboundConnectorContext context;
@@ -84,15 +84,15 @@ public class SwapiUpdatesExecutable implements InboundConnectorExecutable {
   }
 
   private void poll() {
-    Person person = ...; // poll the external system
-    var result = context.correlateWithResult(person);
+    FxRate rate = ...; // fetch the latest rate from the external provider
+    var result = context.correlateWithResult(rate);
     if (result instanceof CorrelationResult.Failure failure) {
       context.log(Activity.level(Severity.WARNING)
           .tag("correlation").message("failed: " + failure));
     }
   }
 
-  public record Config(int pollIntervalSeconds, String resource) {}
+  public record Config(int pollIntervalSeconds, String baseCurrency, String quoteCurrency) {}
 }
 ```
 
@@ -185,7 +185,7 @@ Inbound templates differ from outbound on two key bindings:
 ```json
 {
   "type": "Hidden",
-  "value": "io.example.connector.swapi.updates:1",
+  "value": "io.example.connector.fxrates:1",
   "binding": { "type": "zeebe:property", "name": "inbound.type" }
 },
 {

@@ -19,22 +19,22 @@ Provides `@ElementTemplate`, `@PropertyGroup`, `@TemplateProperty`, and the supp
 ## `@ElementTemplate` on the connector class
 
 ```java
-@OutboundConnector(name = "Star Wars API", type = "io.example.connector.swapi:1",
-    inputVariables = { "resource", "index" })
+@OutboundConnector(name = "Country lookup", type = "io.example.connector.countries:1",
+    inputVariables = { "lookupBy", "query" })
 @ElementTemplate(
-    id = "io.example.connector.swapi.v1",
-    name = "Star Wars API",
+    id = "io.example.connector.countries.v1",
+    name = "Country lookup",
     version = 1,
-    description = "Look up Star Wars resources via the SWAPI REST API",
-    documentationRef = "https://swapi.dev",
-    icon = "swapi.svg",
-    inputDataClass = SwapiRequest.class,
+    description = "Look up country reference data via the REST Countries API",
+    documentationRef = "https://restcountries.com",
+    icon = "countries.svg",
+    inputDataClass = LookupRequest.class,
     propertyGroups = {
-      @PropertyGroup(id = "endpoint", label = "Star Wars resource"),
-      @PropertyGroup(id = "output",   label = "Output mapping")
+      @PropertyGroup(id = "lookup", label = "Country lookup"),
+      @PropertyGroup(id = "output", label = "Output mapping")
     }
 )
-public class SwapiConnector implements OutboundConnectorProvider { ... }
+public class CountryLookupConnector implements OutboundConnectorProvider { ... }
 ```
 
 The `inputDataClass` points to the record/POJO whose `@TemplateProperty`-annotated fields drive the template's `properties` array. Inbound connectors add an `inbound = @ElementTemplate.ConnectorElementType(...)` clause per element variant; multi-element connectors declare one variant per BPMN attachment.
@@ -42,23 +42,24 @@ The `inputDataClass` points to the record/POJO whose `@TemplateProperty`-annotat
 `@TemplateProperty` on the input class:
 
 ```java
-public record SwapiRequest(
+public record LookupRequest(
     @TemplateProperty(
-        id = "resource",
-        label = "Resource",
-        group = "endpoint",
+        id = "lookupBy",
+        label = "Lookup by",
+        group = "lookup",
         type = TemplateProperty.PropertyType.Dropdown,
         choices = {
-            @TemplateProperty.PropertyChoice(label = "People",    value = "people"),
-            @TemplateProperty.PropertyChoice(label = "Planets",   value = "planets"),
-            @TemplateProperty.PropertyChoice(label = "Starships", value = "starships")
+            @TemplateProperty.PropertyChoice(label = "Name",            value = "name"),
+            @TemplateProperty.PropertyChoice(label = "Capital",         value = "capital"),
+            @TemplateProperty.PropertyChoice(label = "ISO 3166-1 code", value = "alpha"),
+            @TemplateProperty.PropertyChoice(label = "Currency",        value = "currency")
         }
     )
-    @NotEmpty String resource,
+    @NotEmpty String lookupBy,
 
-    @TemplateProperty(id = "index", label = "Resource ID", group = "endpoint",
+    @TemplateProperty(id = "query", label = "Query value", group = "lookup",
                       feel = TemplateProperty.FeelMode.optional)
-    @NotEmpty String index
+    @NotEmpty String query
 ) {}
 ```
 
@@ -74,11 +75,11 @@ The annotation surface mirrors the element template JSON schema — see `element
   <configuration>
     <connectors>
       <connector>
-        <connectorClass>io.example.connector.swapi.SwapiConnector</connectorClass>
+        <connectorClass>io.example.connector.countries.CountryLookupConnector</connectorClass>
         <files>
           <file>
-            <templateId>io.example.connector.swapi.v1</templateId>
-            <templateFileName>swapi-outbound-connector.json</templateFileName>
+            <templateId>io.example.connector.countries.v1</templateId>
+            <templateFileName>countries-outbound-connector.json</templateFileName>
           </file>
         </files>
         <generateHybridTemplates>true</generateHybridTemplates>
@@ -96,25 +97,25 @@ Run `mvn package` (or `mvn process-classes` to skip tests) and the templates lan
 ```xml
 <connectors>
   <connector>
-    <connectorClass>io.example.connector.swapi.SwapiConnector</connectorClass>
+    <connectorClass>io.example.connector.countries.CountryLookupConnector</connectorClass>
     <files>
       <file>
-        <templateId>io.example.connector.swapi.v1</templateId>
-        <templateFileName>swapi-outbound-connector.json</templateFileName>
+        <templateId>io.example.connector.countries.v1</templateId>
+        <templateFileName>countries-outbound-connector.json</templateFileName>
       </file>
     </files>
     <generateHybridTemplates>true</generateHybridTemplates>
   </connector>
   <connector>
-    <connectorClass>io.example.connector.swapi.SwapiInboundExecutable</connectorClass>
+    <connectorClass>io.example.connector.fxrates.FxRateWatcherExecutable</connectorClass>
     <files>
       <file>
-        <templateId>io.example.connector.swapi.inbound.intermediate.v1</templateId>
-        <templateFileName>swapi-inbound-intermediate.json</templateFileName>
+        <templateId>io.example.connector.fxrates.intermediate.v1</templateId>
+        <templateFileName>fxrates-inbound-intermediate.json</templateFileName>
       </file>
       <file>
-        <templateId>io.example.connector.swapi.inbound.receive.v1</templateId>
-        <templateFileName>swapi-inbound-receive.json</templateFileName>
+        <templateId>io.example.connector.fxrates.receive.v1</templateId>
+        <templateFileName>fxrates-inbound-receive.json</templateFileName>
       </file>
     </files>
     <generateHybridTemplates>false</generateHybridTemplates>
@@ -136,7 +137,7 @@ One `<connector>` per Java class. Multiple `<file>` entries on the same connecto
 
 ### Top-level
 
-- **`<versionHistoryEnabled>`** — `true` writes a versioned copy of each template alongside the current one (e.g. `swapi-outbound-connector.json` plus `swapi-outbound-connector-v1.json`). Lets older process versions stay pinned to their template version after the connector ships a new one.
+- **`<versionHistoryEnabled>`** — `true` writes a versioned copy of each template alongside the current one (e.g. `countries-outbound-connector.json` plus `countries-outbound-connector-v1.json`). Lets older process versions stay pinned to their template version after the connector ships a new one.
 - **`<includeDependencies>`** — `groupId:artifactId` pairs whose classpath should be scanned for additional `@ElementTemplate` classes. Used when the connector inherits template structure from a base module (e.g. webhook connectors riding on `connector-webhook`).
 
 ## Hybrid templates
@@ -170,9 +171,9 @@ target/
 ├── classes/
 │   └── META-INF/services/...           (SPI files, if writeMetaInfFileGeneration=true)
 └── generated-resources/element-templates/
-    ├── swapi-outbound-connector.json
-    ├── swapi-outbound-connector-hybrid.json   (if generateHybridTemplates=true)
-    └── swapi-outbound-connector-v1.json       (if versionHistoryEnabled=true)
+    ├── countries-outbound-connector.json
+    ├── countries-outbound-connector-hybrid.json   (if generateHybridTemplates=true)
+    └── countries-outbound-connector-v1.json       (if versionHistoryEnabled=true)
 ```
 
 Commit the generated templates to your repo (or copy them into Modeler's resources directory) so process developers can pick them up without running the build first. Treat them as build artefacts checked in for convenience — re-run the plugin and re-commit on every annotation change.

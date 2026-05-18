@@ -34,43 +34,43 @@ One class can declare multiple operations. The connector type identifies the cla
 
 ```java
 @OutboundConnector(
-    name = "Star Wars API",
-    type = "io.example.connector.swapi:1",
-    inputVariables = { "resource", "index" }
+    name = "Country lookup",
+    type = "io.example.connector.countries:1",
+    inputVariables = { "lookupBy", "query" }
 )
 @ElementTemplate(
-    id = "io.example.connector.swapi.v1",
-    name = "Star Wars API",
+    id = "io.example.connector.countries.v1",
+    name = "Country lookup",
     version = 1,
-    documentationRef = "https://swapi.dev",
-    icon = "swapi.svg"
+    documentationRef = "https://restcountries.com",
+    icon = "countries.svg"
 )
-public class SwapiConnector implements OutboundConnectorProvider {
+public class CountryLookupConnector implements OutboundConnectorProvider {
 
   private final HttpClient http = HttpClient.newHttpClient();
 
   @Operation(id = "lookup")
-  public Person lookup(
-      @Variable @NotEmpty String resource,
-      @Variable @NotEmpty String index
+  public List<Country> lookup(
+      @Variable @NotEmpty String lookupBy,
+      @Variable @NotEmpty String query
   ) throws ConnectorException {
-    var uri = URI.create("https://swapi.dev/api/" + resource + "/" + index);
+    var uri = URI.create("https://restcountries.com/v3.1/" + lookupBy + "/" + query);
     var request = HttpRequest.newBuilder(uri).GET().build();
     try {
       var response = http.send(request, BodyHandlers.ofString());
       if (response.statusCode() == 404) {
-        throw new ConnectorException("NOT_FOUND", "No " + resource + "/" + index);
+        throw new ConnectorException("NOT_FOUND", "No country matched " + lookupBy + "=" + query);
       }
       if (response.statusCode() >= 400) {
-        throw new ConnectorException("SWAPI_ERROR", "Status " + response.statusCode());
+        throw new ConnectorException("UPSTREAM_ERROR", "Status " + response.statusCode());
       }
-      return new ObjectMapper().readValue(response.body(), Person.class);
+      return new ObjectMapper().readValue(response.body(), new TypeReference<>() {});
     } catch (IOException | InterruptedException e) {
-      throw new ConnectorException("SWAPI_UNREACHABLE", e.getMessage(), e);
+      throw new ConnectorException("UPSTREAM_UNREACHABLE", e.getMessage(), e);
     }
   }
 
-  public record Person(String name, String birthYear, String gender) {}
+  public record Country(String name, String capital, List<String> currencies) {}
 }
 ```
 
@@ -99,8 +99,8 @@ Validation failures throw before the method body runs, surfacing as a `Connector
 `ConnectorException(code, message)` is the typed channel that the element template's `errorExpression` taps into. Users wire `errorExpression` to map specific codes to BPMN errors:
 
 ```feel
-if error.code = "NOT_FOUND"   then bpmnError("NOT_FOUND", error.message) else
-if error.code = "SWAPI_ERROR" then bpmnError("UPSTREAM",  error.message) else
+if error.code = "NOT_FOUND"       then bpmnError("NOT_FOUND", error.message) else
+if error.code = "UPSTREAM_ERROR"  then bpmnError("UPSTREAM",  error.message) else
 null
 ```
 
@@ -112,22 +112,22 @@ Older connectors and the historical `connector-template-outbound` GitHub-templat
 
 ```java
 @OutboundConnector(
-    name = "Star Wars API",
-    type = "io.example.connector.swapi:1",
-    inputVariables = { "resource", "index" }
+    name = "Country lookup",
+    type = "io.example.connector.countries:1",
+    inputVariables = { "lookupBy", "query" }
 )
-@ElementTemplate(id = "io.example.connector.swapi.v1", name = "Star Wars API", version = 1)
-public class SwapiFunction implements OutboundConnectorFunction {
+@ElementTemplate(id = "io.example.connector.countries.v1", name = "Country lookup", version = 1)
+public class CountryLookupFunction implements OutboundConnectorFunction {
 
   @Override
   public Object execute(OutboundConnectorContext context) throws Exception {
-    var request = context.bindVariables(SwapiRequest.class);
-    var uri = URI.create("https://swapi.dev/api/" + request.resource() + "/" + request.index());
+    var request = context.bindVariables(LookupRequest.class);
+    var uri = URI.create("https://restcountries.com/v3.1/" + request.lookupBy() + "/" + request.query());
     // ...
-    return new Person(...);
+    return new Country(...);
   }
 
-  public record SwapiRequest(@NotEmpty String resource, @NotEmpty String index) {}
+  public record LookupRequest(@NotEmpty String lookupBy, @NotEmpty String query) {}
 }
 ```
 
