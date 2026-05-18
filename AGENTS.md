@@ -14,6 +14,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-connectors** | Configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates |
 | **camunda-development** | Choosing between OOTB connectors, custom connector templates, custom Java connectors, and job workers before writing integration code |
 | **camunda-job-workers** | Implementing custom Camunda 8 job workers in Java, Camunda Spring Boot, or TypeScript — handler code that activates jobs and signals complete / fail / BPMN error |
+| **camunda-connectors-development** | Building custom Camunda 8 connectors — JSON-only template on a protocol connector (Path A) or custom Java connector via the Connectors SDK (Path B, outbound + inbound) |
 | **camunda-process-mgmt** | Deploying resources, starting/inspecting instances, resolving incidents, completing user tasks — all via c8ctl |
 | **camunda-process-test** | Authoring and running Camunda Process Test (CPT) suites that reach 100% BPMN coverage with segment-based scenarios — `.test.json` instructions, `mvn test`, coverage report parsing |
 | **camunda-ai-agent** | Building AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tool modeling, `fromAi()` parameters, prompts, sub-flow tools |
