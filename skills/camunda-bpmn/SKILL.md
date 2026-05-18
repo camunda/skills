@@ -24,9 +24,8 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 - **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
 - **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
 - **camunda-connectors**: Use for configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates
-- **camunda-process-test**: **Preferred validation path after lint** — CPT runs the process against an embedded Zeebe engine; fast feedback, no cluster needed
-- **camunda-process-mgmt**: Fallback validation — deploy and run on a real cluster (prefer local c8run; safety check before any shared cluster)
-- **camunda-c8ctl**: Always pass `--profile=<name>` on deploy commands and confirm with the user before touching anything that isn't local c8run. See the "Safety: target the right cluster" section.
+- **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
+- **camunda-process-mgmt**: Use for deploying to a cluster and running instances
 - **camunda-ai-agent**: Use when modeling an AI agent — ad-hoc subprocess hosting tools driven by the AI Agent connector
 
 ## Instructions
@@ -153,45 +152,9 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
 
-### Behavioural validation — by execution
+### Behavioural validation
 
-Lint catches structure. It does not catch FEEL errors at runtime, missing job workers, mismatched job types, missing variables, or unreachable end events. After lint is clean, validate behaviour by **running the process**. Two paths, in preference order:
-
-#### 1. Camunda Process Test (preferred)
-
-If the repo already has a CPT setup, that's the best feedback loop — fastest, no cluster, embedded Zeebe runs the process to completion against a `.test.json` scenario. CPT catches gateway routing bugs, FEEL evaluation errors, DMN integration issues, error boundary firing, and timer behaviour.
-
-See **camunda-process-test** for authoring scenarios, the segment-based coverage approach, and the 100% BPMN coverage exit gate.
-
-If no CPT setup exists and adding one is a heavier lift than the change warrants, fall back to path 2.
-
-#### 2. Deploy to a cluster and start an instance
-
-For ad-hoc validation or projects without CPT, deploy and run an instance with representative input.
-
-**Cluster safety — ask before deploying:**
-
-- **Always prefer local c8run.** If `c8ctl cluster status` shows a running local cluster, validate there. If not, start one with `c8ctl cluster start` (see **camunda-c8ctl**).
-- **If only a remote profile is configured**, run `c8ctl which profile` and **confirm with the user** before deploying — a profile named `prod`, `staging`, `live`, or a customer name should never receive a validation deploy without explicit confirmation.
-- **Always pass `--profile=<name>` explicitly** on the deploy command.
-
-Validation deploy + run:
-
-```bash
-# 1. Confirm or start a local cluster
-c8ctl cluster status || c8ctl cluster start
-
-# 2. Deploy (use the local profile)
-c8ctl deploy process.bpmn --profile=local
-
-# 3. Start an instance with representative input
-c8ctl run process.bpmn --variables '{"orderId":"ORD-123"}' --profile=local
-
-# Or, block until completion (useful for smoke tests)
-c8ctl await pi --id MyProcess --variables '{"orderId":"ORD-123"}' --profile=local
-```
-
-If the instance reaches an end event, the behaviour is sound for that input. If it raises an incident, inspect with `c8ctl search inc --state=ACTIVE` and follow the debug workflow in **camunda-process-mgmt**. Iterate: fix → lint → redeploy → restart.
+Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
 
 ## References
 

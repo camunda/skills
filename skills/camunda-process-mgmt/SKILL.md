@@ -21,11 +21,11 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 
 ## Cross-References
 
-- **camunda-c8ctl**: Use for installing c8ctl, configuring profiles, starting a local c8run cluster. Read the "Safety: target the right cluster" section — this skill enforces those rules on every mutating command.
+- **camunda-c8ctl**: Use for c8ctl install, profile management, local cluster operations, and cluster-safety rules
 - **camunda-bpmn**: Use for fixing BPMN process issues found during debugging
 - **camunda-connectors**: Use for fixing connector configuration issues found during debugging
 - **camunda-feel**: Use for diagnosing FEEL evaluation errors (EXTRACT_VALUE_ERROR, CONDITION_ERROR) in incidents
-- **camunda-process-test**: Prefer CPT (embedded engine, no cluster) over deploy-to-cluster for behavioural validation when a CPT setup is available
+- **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
 
 ## Instructions
 
@@ -39,7 +39,7 @@ The globally-active c8ctl profile might still point at a shared cluster (`prod`,
 - **Always pass `--profile=<name>` explicitly** on `deploy` and other mutating commands (`run`, `cancel`, `resolve`, `complete`, `publish`, `watch`).
 - For validation deploys (just running the change once to check it works), prefer `--profile=local` against a running c8run cluster — `c8ctl cluster start` if not running.
 
-The full safety rules live in **camunda-c8ctl** § "Safety: target the right cluster". This skill follows them throughout.
+See **camunda-c8ctl** for the authoritative cluster-safety rules.
 
 **Example** — deploy a single BPMN file to the local profile:
 
