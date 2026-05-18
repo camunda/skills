@@ -15,6 +15,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-docs** | Look up the official Camunda 8 docs via the camunda-docs MCP server (with `llms.txt` fallback) |
 | **camunda-bpmn** | Create and edit BPMN 2.0 processes for Camunda 8/Zeebe |
 | **camunda-feel** | Write and debug FEEL expressions |
+| **camunda-dmn** | Author DMN decisions — decision tables, hit policies, literal expressions, business-rule task wiring |
 | **camunda-forms** | Create Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Browse and configure pre-built connectors via element templates |
 | **camunda-development** | Choose between OOTB connectors, custom connector templates, custom Java connectors, and job workers before writing integration code |
