@@ -128,22 +128,18 @@ Brief descriptions only. Use `c8ctl help <verb>` for resource-specific flags.
 | `run <file> [--variables=...]` | Deploy + start in a single step |
 | `watch [--extensions=...]` | Auto-redeploy on file save |
 
-### Profiles, Plugins, Output
+### Profiles, Output, Misc
 
 | Verb | Common usage |
 |------|--------------|
-| `add profile <name> [flags]` | Create a c8ctl profile |
-| `remove profile <name>` (alias `rm`) | Delete a c8ctl profile |
 | `use profile <name>` / `which profile` | Switch / show active profile |
+| `remove profile <name>` (alias `rm`) | Delete a c8ctl profile |
 | `use tenant <id>` | Switch active tenant |
-| `load plugin <pkg>` / `load plugin --from <url>` | Install a plugin |
-| `unload plugin <pkg>` | Uninstall a plugin |
-| `upgrade plugin <pkg> [<version>]` / `downgrade plugin <pkg> <version>` | Manage plugin versions |
-| `sync plugin` | Reconcile installed plugins with the registry file |
-| `init plugin <name>` | Scaffold a new plugin from template |
 | `output [text\|json]` | Switch *persistent* session output mode (prefer the `--json` flag per command — see below) |
 | `open <app>` | Open Operate / Tasklist / Modeler / Optimize in the browser |
 | `completion <shell>` / `completion install` | Shell completion (bash, zsh, fish) |
+
+Profile creation (`add profile`) and plugin management (`load/unload/upgrade/sync/init plugin`) are documented in the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/).
 
 ## JSON Mode and AI / Scripting
 
