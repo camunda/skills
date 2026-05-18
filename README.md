@@ -27,6 +27,20 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 
 ## Installation
 
+### Any AI coding agent
+
+Several installers in the [Agent Skills](https://agentskills.io) ecosystem support a range of agents — Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI, Goose, and others. Two common ones:
+
+```bash
+# npm-based
+npx skills add camunda/skills --skill '*'
+
+# GitHub CLI -- select "all skills"
+gh skill install camunda/skills
+```
+
+See each tool's `--help` for supported agents and options (version pinning, scope).
+
 ### Claude Code Plugin
 
 ```bash
@@ -37,7 +51,11 @@ claude plugin marketplace add camunda/skills
 claude plugin install camunda-skills@camunda-skills
 ```
 
-To try the skills without installing — useful for evaluating before you commit — load them session-only against a local clone:
+### Manual (local clone)
+
+Clone this repository and copy `skills/<skill-name>/` directories into your agent's skills lookup path (e.g. `~/.claude/skills/` for Claude Code user-wide, `<project>/.claude/skills/` for project-scoped; consult your agent's docs for other agents).
+
+To try the skills with Claude Code without installing — useful for evaluating before you commit — load them session-only against a local clone:
 
 ```bash
 git clone https://github.com/camunda/skills && cd skills
@@ -45,22 +63,6 @@ claude --plugin-dir .
 # or, equivalent shortcut while developing this repo:
 make try
 ```
-
-### Any AI coding agent
-
-Two installers support a range of agents — Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI, Goose, and others. See each tool's `--help` for the full agent list and options (per-skill install, version pinning, scope).
-
-```bash
-# npm-based
-npx skills add camunda/skills
-
-# GitHub CLI (preview)
-gh skill install camunda/skills <skill-name> --agent <agent-id>
-```
-
-### Manual
-
-Clone this repository and copy `skills/<skill-name>/` directories into your agent's skills lookup path (e.g. `~/.claude/skills/` for Claude Code user-wide, `<project>/.claude/skills/` for project-scoped; consult your agent's docs for other agents).
 
 ## Quick Start
 
