@@ -1,0 +1,34 @@
+name: Bug report
+description: Something a skill does (or fails to do) when invoked by an agent
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected outcome
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce
+      description: The prompt you gave the agent, plus any relevant inputs (BPMN snippet, FEEL expression, element template ID, etc.).
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Sharing your environment helps a lot for reproducing.
+      value: |
+        - AI agent harness (Claude Code, Codex, …):
+        - Model (e.g. `claude-opus-4-7`, `gpt-5`):
+        - Operating system (e.g. Windows, macOS):
+        - c8ctl version (`c8ctl --version`):
+        - Affected skill(s):

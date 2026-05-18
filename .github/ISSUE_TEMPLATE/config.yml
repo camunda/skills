@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Camunda Forum
+    url: https://forum.camunda.io
+    about: General Camunda 8 questions not specific to a skill in this repo.
+  - name: c8ctl issue tracker
+    url: https://github.com/camunda/c8ctl/issues
+    about: Issues with the c8ctl CLI itself (not the skill wrapping it).
