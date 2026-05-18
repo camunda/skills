@@ -66,7 +66,7 @@ Clone this repository and copy `skills/<skill-name>/` directories into your agen
 
 1. Install c8ctl and start a local cluster:
    ```bash
-   npm install -g @camunda8/cli
+   npm install -g @camunda8/cli@3.0.0-alpha.1
    c8ctl cluster start          # downloads c8run on first run
    ```
 
