@@ -3,11 +3,11 @@ name: camunda-c8ctl
 description: |
   Use this skill to install, configure, and operate c8ctl (the Camunda 8 CLI), the foundation the other camunda-* skills build on.
 
-  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed, managing connection profiles, installing c8ctl plugins, managing connector secrets for the local cluster, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
+  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed via already-configured profiles, switching between connection profiles, managing connector secrets for the local cluster, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
 
   Do not use for: writing BPMN (use camunda-bpmn), writing FEEL (use camunda-feel), or deploying and operating running processes (use camunda-process-mgmt — that skill builds on c8ctl).
 
-  **Utility skill** — the foundation other camunda-* skills build on. Covers c8ctl cluster, c8ctl add/use profile, c8ctl load plugin.
+  **Utility skill** — the foundation other camunda-* skills build on. Covers c8ctl cluster, c8ctl use profile, and the four default c8ctl plugins.
 ---
 
 # Camunda c8ctl CLI
@@ -107,15 +107,13 @@ For full c8ctl cluster command reference (list, install, list-remote, delete, ca
 
 ### Connect: Profiles
 
-Profiles store cluster connection details. A `local` profile shipped with c8ctl already points at `http://localhost:8080/v2`, so no setup is needed for local c8run work — just pass `--profile=local`. Configure additional profiles for SaaS or Self-Managed clusters:
+Profiles store cluster connection details. A `local` profile shipped with c8ctl already points at `http://localhost:8080/v2`, so no setup is needed for local c8run work — just pass `--profile=local`. Camunda Desktop Modeler profiles are auto-imported with a `modeler:` prefix.
+
+For OAuth-secured clusters (SaaS or Self-Managed), profile setup is a one-time human task — see the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) for `add profile` flags and credential handling. Don't run `add profile` on the agent's initiative; ask the user to configure profiles before using this skill.
+
+Use already-configured profiles:
 
 ```bash
-# OAuth-secured cluster (SaaS or Self-Managed)
-c8ctl add profile prod \
-  --baseUrl=https://camunda.example.com \
-  --clientId=your-client-id \
-  --clientSecret=your-client-secret
-
 # Switch the active profile
 c8ctl use profile prod
 
@@ -132,7 +130,7 @@ c8ctl use profile "modeler:Local Dev"
 c8ctl list pi --profile=staging
 ```
 
-For full profile management — OAuth audience/endpoint, default tenants, multi-tenancy, Modeler integration locations, credential resolution order, environment variables — see `references/profiles.md`.
+For multi-tenancy, credential resolution order, and Modeler integration details, see `references/profiles.md`.
 
 ### Safety: target the right cluster
 
@@ -198,37 +196,22 @@ Prefer the per-invocation `--json` flag over `c8ctl output json` — the latter 
 
 ### Plugins
 
-c8ctl can be extended with npm packages that add commands. The `cluster`, `bpmn`, `element-template`, and `feel` commands are default plugins shipped with c8ctl. To add more:
+Default plugins (`cluster`, `bpmn`, `feel`, `element-template`) ship pre-loaded with c8ctl — no install step needed. List them with `c8ctl list plugins`. For installing or managing additional plugins, see the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/).
 
-```bash
-# List installed plugins
-c8ctl list plugins
-
-# Load a plugin from npm
-c8ctl load plugin <package-name>
-
-# Load a plugin from a Git URL or local path
-c8ctl load plugin --from https://github.com/camunda/c8ctl-plugin-diagram-renderer
-c8ctl load plugin --from file:///path/to/local/plugin
-
-# Upgrade / unload
-c8ctl upgrade plugin <package-name>
-c8ctl unload plugin <package-name>
-```
-
-For plugin lifecycle (init, sync, version pinning) and the storage layout, see [command-reference.md](references/command-reference.md) § Plugin Lifecycle.
+Don't run `c8ctl load plugin` on the agent's initiative — plugin code runs in the c8ctl runtime with full access to the active profile. Ask the user to install plugins themselves.
 
 ### Troubleshooting
 
 - **`c8ctl: command not found`** (or `c8: command not found`) — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
 - **`Node.js version too old`** — c8ctl requires Node ≥ 22.18.0 for native TypeScript support. Use `nvm` or `asdf` to upgrade.
 - **Local cluster won't start** — check `c8ctl cluster status` and `c8ctl cluster logs`. Common causes: port 8080 already in use, Java not installed (c8run needs JRE 21+), insufficient disk space for the binary download.
-- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — you're likely running inside a sandboxed or otherwise restricted environment (some coding-agent harnesses, container modes with restricted networking, macOS App Sandbox, etc.) that blocks the underlying c8run from binding listen sockets. Run `c8ctl cluster start` directly on the user's machine outside any sandbox. If you're an AI coding agent operating in a restricted mode, escalate the command out of the sandbox or ask the user to run it themselves once; subsequent read-only commands against the running cluster usually work fine inside the sandbox.
-- **OAuth errors against SaaS** — verify `--clientId`, `--clientSecret`, and (if your cluster requires it) `--audience` and `--oAuthUrl`. The cluster URL for SaaS is the *Zeebe REST address*, not the dashboard URL.
+- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Run `c8ctl cluster start` on the host directly.
+- **c8ctl can't write to its default data directory** (sandboxed agents, restricted filesystems) — set `C8CTL_DATA_DIR=<writable-path>` before invoking c8ctl.
+- **OAuth errors against SaaS** — verify the profile is configured correctly. The cluster URL for SaaS is the *Zeebe REST address*, not the dashboard URL. See the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) for OAuth flags.
 
 ## References
 
 For detailed reference material, read from `references/`:
 - [local-cluster.md](references/local-cluster.md) — full `c8ctl cluster` command reference, version aliases (stable/alpha/rolling), cache locations, connector-secrets bootstrap flow
 - [profiles.md](references/profiles.md) — profile management, OAuth flags, Modeler integration, tenant resolution, credential resolution order, environment variables
-- [command-reference.md](references/command-reference.md) — verb/resource matrix, plugin command shape, resource aliases, search flags, global flags, and plugin lifecycle (install, upgrade, custom plugins)
+- [command-reference.md](references/command-reference.md) — verb/resource matrix, plugin command shape, resource aliases, search flags, global flags, default plugins
