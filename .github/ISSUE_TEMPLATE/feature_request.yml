@@ -6,6 +6,6 @@ body:
     id: what
     attributes:
       label: What you'd like to do
-      description: A new capability, a new skill, or a change to an existing skill — and what it would unblock for you.
+      description: A new capability, a new skill, or a change to an existing skill and what it would unblock for you.
     validations:
       required: true
