@@ -7,7 +7,7 @@ description: |
 
   Do not use for: applying an OOTB connector (use camunda-connectors), worker-vs-connector decisions (use camunda-development), or job-worker handlers (use camunda-job-workers).
 
-  **Build skill** — pick a path, write the template (and Java if Path B), register, host. Java 17+ on Path B.
+  **Workflow skill** — pick a path, write the template (and Java if Path B), register, host. Java 17+ on Path B.
 ---
 
 # Camunda Connectors Development
