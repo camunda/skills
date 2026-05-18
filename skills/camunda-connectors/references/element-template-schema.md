@@ -358,28 +358,3 @@ Resulting BPMN XML for a GET request with bearer auth:
   </bpmn:extensionElements>
 </bpmn:serviceTask>
 ```
-
-### Secrets
-
-Credentials should always use the Camunda secrets syntax rather than hardcoded values:
-
-```xml
-<zeebe:input source="{{secrets.SLACK_OAUTH_TOKEN}}" target="token" />
-<zeebe:input source="{{secrets.AWS_ACCESS_KEY}}" target="authentication.accessKey" />
-```
-
-The `{{secrets.NAME}}` syntax is resolved at runtime by the Camunda platform. The URL constraint pattern `^(=|(http://|https://|secrets|\\{\\{).*$)` explicitly allows this syntax.
-
-### Placeholder Values
-
-When the actual value is not yet known, use clearly identifiable placeholders:
-
-```xml
-<!-- Good: clearly indicates what needs to be replaced -->
-<zeebe:input source="TODO_REPLACE_WITH_API_URL" target="url" />
-<zeebe:input source="TODO_REPLACE_WITH_CHANNEL_ID" target="data.channel" />
-
-<!-- Bad: ambiguous or could be mistaken for real values -->
-<zeebe:input source="" target="url" />
-<zeebe:input source="test" target="data.channel" />
-```
