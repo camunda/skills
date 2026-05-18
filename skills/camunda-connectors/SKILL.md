@@ -53,8 +53,6 @@ Each result shows the template name, ID (e.g. `io.camunda.connectors.HttpJson.v2
 
 Inbound integrations typically ship as a *family* of templates — one per BPMN element type the inbound event can attach to (message-start event, intermediate-catch event, boundary event, receive task, …). `search` returns each variant; pick the one that matches the BPMN shape you're modelling.
 
-**Templates outside the OOTB catalog** (custom-built, vendor-published, in-development) don't need to be in the local cache — `apply` also accepts a local file path or an `https://` URL pointing to the template JSON (GitHub blob URLs are auto-rewritten to raw content). See "Applying a Template to a BPMN Element" below for the argument forms.
-
 ### Inspecting a Template
 
 Two commands cover the questions you'll ask before applying:
