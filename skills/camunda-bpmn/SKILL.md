@@ -24,7 +24,8 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 - **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
 - **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
 - **camunda-connectors**: Use for configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates
-- **camunda-process-mgmt**: Use for deploying BPMN to a Camunda cluster and managing running instances via c8ctl
+- **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
+- **camunda-process-mgmt**: Use for deploying to a cluster and running instances
 - **camunda-ai-agent**: Use when modeling an AI agent — ad-hoc subprocess hosting tools driven by the AI Agent connector
 
 ## Instructions
@@ -127,9 +128,9 @@ BPMN files can be large. Follow these rules:
 - Include BPMN DI section for visual layout (see `references/layout-rules.md`)
 - Include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
 
-### Lint loop — mandatory exit gate
+### Lint loop — structural exit gate
 
-A BPMN edit is **not done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing step of every BPMN task — generation, modification, refactor, or merge.
+A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing structural step of every BPMN task — generation, modification, refactor, or merge.
 
 1. Run the linter against the file you touched:
 
@@ -147,9 +148,13 @@ A BPMN edit is **not done** until `c8ctl bpmn lint` reports zero errors AND zero
    - **no-implicit-split** — exclusive gateway outgoing flows need conditions + a default
    - **superfluous-gateway** — drop pass-through gateways with one in, one out
 
-3. Loop until the linter is clean. Do not declare the task done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
+3. Loop until the linter is clean. Do not declare the task structurally done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
+
+### Behavioural validation
+
+Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
 
 ## References
 
