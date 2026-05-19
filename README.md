@@ -22,7 +22,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-job-workers** | Implement job workers in Java, Camunda Spring Boot, or TypeScript |
 | **camunda-connectors-development** | Build custom Camunda 8 connectors — JSON-only template on a protocol connector, or custom Java connector via the Connectors SDK (outbound + inbound) |
 | **camunda-process-mgmt** | Deploy resources, start/inspect instances, resolve incidents, complete tasks — via c8ctl |
-| **camunda-ai-agent** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
+| **camunda-ai-agents** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
 
 ## Prerequisites
 
