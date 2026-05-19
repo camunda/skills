@@ -91,7 +91,7 @@ Edges connect shapes via waypoints. Simple horizontal connections need two waypo
 - **From gateway right**: `x = gatewayX + gatewayWidth`, `y = gatewayY + gatewayHeight/2`
 - **From gateway bottom**: `x = gatewayX + gatewayWidth/2`, `y = gatewayY + gatewayHeight`
 
-For flows that change direction (e.g., from gateway down to a branch), use intermediate waypoints:
+**Orthogonal segments only.** Every segment between two adjacent waypoints must be **purely horizontal or purely vertical** (∆x = 0 or ∆y = 0). When a flow needs to change direction (e.g., from a gateway down to a branch, or from outside an ad-hoc subprocess into an inner activity), add intermediate waypoints to turn the path 90°:
 
 ```xml
 <bpmndi:BPMNEdge id="Flow_Down_di" bpmnElement="Flow_Down">
@@ -125,6 +125,19 @@ Subprocess bounds must enclose all internal elements with padding:
 ```
 
 Internal elements use coordinates relative to the diagram (not the subprocess). Ensure all internal shapes fall within the subprocess bounds with ≥50px padding.
+
+### Centring expanded subprocesses inline with adjacent tasks
+
+When an expanded subprocess (taller than a task — e.g. 200px) sits in the same horizontal track as regular tasks (80px tall, typically at `y=80` → centre `y=120`), line up the **vertical centres**, not the top edges. The subprocess `y` is `taskCentreY − subprocessHeight/2` — for a 200-tall subprocess on a 120-centre track, that's `y=20`.
+
+```xml
+<!-- Regular task at y=80, centre y=120 -->
+<bpmndi:BPMNShape id="Task_di" bpmnElement="Task"><dc:Bounds x="240" y="80" width="100" height="80"/></bpmndi:BPMNShape>
+<!-- Expanded subprocess centred on the same y=120 line -->
+<bpmndi:BPMNShape id="Sub_di" bpmnElement="Sub_Process" isExpanded="true"><dc:Bounds x="390" y="20" width="400" height="200"/></bpmndi:BPMNShape>
+```
+
+Aligning the top edges instead leaves the subprocess visually hanging — the connecting sequence-flow waypoints end up at `y=120` (task centre) but enter the subprocess at its left edge mid-height, which is fine, but the diagram reads cleaner when shapes share a baseline at their centres.
 
 ## Incremental Layout
 

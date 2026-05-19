@@ -65,6 +65,20 @@ Control which variables propagate to parent scope AFTER execution:
 
 When output mappings are defined, ONLY mapped variables propagate. Unmapped local variables are discarded.
 
+#### End events accept `<zeebe:ioMapping>` too
+
+Useful when the final structure of a process variable needs to be reshaped right before completion without adding a downstream script task. The output mapping fires when the end event completes and writes to the enclosing scope (process instance, or parent subprocess for nested end events).
+
+```xml
+<bpmn:endEvent id="End_OrderProcessed">
+  <bpmn:extensionElements>
+    <zeebe:ioMapping>
+      <zeebe:output source='={ status: orderStatus, total: orderTotal }' target="orderSummary" />
+    </zeebe:ioMapping>
+  </bpmn:extensionElements>
+</bpmn:endEvent>
+```
+
 ### Variable Context by Element Type
 
 | Context | Access |
