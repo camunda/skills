@@ -88,6 +88,33 @@ Triggers a BPMN error boundary on a service task.
 
 `errorCode` must match the `errorCode` on the `<bpmn:error>` referenced by the boundary event exactly. Mismatch → process continues to the happy path, assertion fails.
 
+Optional fields: `errorMessage` (surfaced on the incident), `variables` (set on completion).
+
+### `COMPLETE_JOB_AD_HOC_SUB_PROCESS`
+
+Completes the worker job for an ad-hoc sub-process that runs in **job-worker mode** (has a `<zeebe:taskDefinition type="…">`, e.g. the AI Agent Sub-process connector). The job's result picks which inner activities to launch next or marks the AHSP completion condition fulfilled.
+
+```json
+{
+  "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+  "jobSelector": { "elementId": "AhsAgent" },
+  "activateElements": [
+    { "elementId": "Tool_FetchOrder", "variables": { "orderId": "ORD-1" } }
+  ]
+}
+```
+
+Optional fields:
+
+- `variables` — variables set on the outer AHSP scope when the job completes.
+- `activateElements` — list of inner activities to start; each carries `elementId` and optional `variables`. Order matches the order specified.
+- `completionConditionFulfilled` (boolean, default `false`) — set `true` once the agent decides it is done; the AHSP terminates after the activated elements finish.
+- `cancelRemainingInstances` (boolean, default `false`) — set `true` to cancel still-running inner activities when the AHSP completes.
+
+A plain `COMPLETE_JOB` against the AHSP outer job will hang — the worker contract is `complete-with-result`, not `complete-with-variables`. The internal-mode vs. job-worker-mode distinction is covered in **camunda-bpmn**; the Java equivalent (`context.completeJobOfAdHocSubProcess`) is in [test-context.md § Ad-hoc sub-process completion](test-context.md#ad-hoc-sub-process-completion-89).
+
+For ad-hoc *internal* mode (no `<zeebe:taskDefinition>`, declarative `activeElementsCollection` / `completionCondition`), there is no outer job — drive routing through the AHSP's input variables on `CREATE_PROCESS_INSTANCE` and complete each inner activity directly.
+
 ### `ASSERT_ELEMENT_INSTANCES`
 
 Asserts an element was reached.
@@ -164,6 +191,171 @@ Replaces a real DMN evaluation with a fixed output. Use to isolate BPMN-flow tes
 
 Mocking and asserting are complementary, not interchangeable: mock the DMN in BPMN-flow tests; assert the DMN directly in decision-focused tests.
 
+### `MOCK_JOB_WORKER_COMPLETE_JOB`
+
+Standing stub: every job of `jobType` is auto-completed with the same `variables`. Cleaner than repeating `COMPLETE_JOB` per iteration in multi-instance loops or polling worker tests.
+
+```json
+{ "type": "MOCK_JOB_WORKER_COMPLETE_JOB", "jobType": "fetch-rate", "variables": { "rate": 0.05 } }
+```
+
+Optional `useExampleData` (boolean) — use the BPMN element's `example` data property instead of `variables`.
+
+### `MOCK_JOB_WORKER_THROW_BPMN_ERROR`
+
+Standing stub: every job of `jobType` throws a BPMN error. Optional `errorMessage`, `variables`.
+
+```json
+{ "type": "MOCK_JOB_WORKER_THROW_BPMN_ERROR", "jobType": "send-email", "errorCode": "EMAIL_FAILED" }
+```
+
+### `MOCK_CHILD_PROCESS`
+
+Replaces a called process with a no-op that completes immediately. Optional `variables` for the mocked output.
+
+```json
+{ "type": "MOCK_CHILD_PROCESS", "processDefinitionId": "payment-process", "variables": { "paid": true } }
+```
+
+### `COMPLETE_JOB_USER_TASK_LISTENER`
+
+Completes a user-task listener job (`creating`/`assigning`/`updating`/`completing`/`canceling`). Optional `denied` (boolean), `deniedReason`, `corrections` (`assignee`, `dueDate`, `followUpDate`, `priority`, `candidateGroups`, `candidateUsers`).
+
+```json
+{
+  "type": "COMPLETE_JOB_USER_TASK_LISTENER",
+  "jobSelector": { "elementId": "Approve" },
+  "corrections": { "assignee": "manager-1" }
+}
+```
+
+### `EVALUATE_CONDITIONAL_START_EVENT`
+
+Triggers conditional start events against the given variables.
+
+```json
+{ "type": "EVALUATE_CONDITIONAL_START_EVENT", "variables": { "stock": 0 } }
+```
+
+### `PUBLISH_MESSAGE`
+
+Buffers a message — correlates lazily when a matching subscription appears.
+
+```json
+{ "type": "PUBLISH_MESSAGE", "name": "order-paid", "correlationKey": "ORD-1", "variables": {} }
+```
+
+Optional `timeToLive` (ms), `messageId` (de-duplication).
+
+### `CORRELATE_MESSAGE`
+
+Correlates a message immediately — fails if no subscription is waiting. Use when the test must assert the subscription is open before the message lands.
+
+```json
+{ "type": "CORRELATE_MESSAGE", "name": "order-paid", "correlationKey": "ORD-1" }
+```
+
+### `BROADCAST_SIGNAL`
+
+```json
+{ "type": "BROADCAST_SIGNAL", "signalName": "shutdown", "variables": {} }
+```
+
+### `INCREASE_TIME` / `SET_TIME`
+
+```json
+{ "type": "INCREASE_TIME", "duration": "PT25H" }
+{ "type": "SET_TIME", "time": "2026-05-19T00:00:00Z" }
+```
+
+`duration` is ISO 8601 (`PT…H/M/S`, `P…D`). `time` is ISO 8601 instant.
+
+### `UPDATE_VARIABLES`
+
+Creates or updates variables on a process instance or element scope mid-test. Optional `elementSelector` for element-local scope. Use sparingly — driving routing via real instructions is closer to production.
+
+```json
+{
+  "type": "UPDATE_VARIABLES",
+  "processInstanceSelector": { "processDefinitionId": "expense-approval" },
+  "variables": { "amount": 1500 }
+}
+```
+
+### `RESOLVE_INCIDENT`
+
+Resolves a matching incident; if the incident is on a job, retries are increased by 1 first.
+
+```json
+{ "type": "RESOLVE_INCIDENT", "incidentSelector": { "elementId": "Task_CallAPI" } }
+```
+
+### `ASSERT_VARIABLES`
+
+```json
+{
+  "type": "ASSERT_VARIABLES",
+  "processInstanceSelector": { "processDefinitionId": "expense-approval" },
+  "variables": { "approved": true }
+}
+```
+
+Optional `elementSelector` (local scope), `variableNames` (existence-only check).
+
+> Only assert variables that feed a downstream gateway or DMN — see [§ What not to write](#what-not-to-write).
+
+### `ASSERT_USER_TASK`
+
+State values: `IS_CREATED`, `IS_COMPLETED`, `IS_CANCELED`, `IS_FAILED`. Other optional fields: `assignee`, `candidateGroups`, `priority`, `elementId`, `name`, `dueDate`, `followUpDate`.
+
+```json
+{
+  "type": "ASSERT_USER_TASK",
+  "userTaskSelector": { "taskName": "Review invoice" },
+  "state": "IS_CREATED"
+}
+```
+
+### `ASSERT_PROCESS_INSTANCE_MESSAGE_SUBSCRIPTION`
+
+Asserts that a message subscription exists on a process instance in the given state — useful before a `CORRELATE_MESSAGE` to confirm the engine is actually waiting. State values: `IS_WAITING`, `IS_NOT_WAITING`, `IS_CORRELATED`.
+
+```json
+{
+  "type": "ASSERT_PROCESS_INSTANCE_MESSAGE_SUBSCRIPTION",
+  "processInstanceSelector": { "processDefinitionId": "expense-approval" },
+  "messageSelector": { "messageName": "order-paid" },
+  "state": "IS_WAITING"
+}
+```
+
+### `ASSERT_ELEMENT_INSTANCE`
+
+Single-instance variant of `ASSERT_ELEMENT_INSTANCES` — use when the assertion is about exactly one element instance. Optional `amount` (default `1`).
+
+```json
+{
+  "type": "ASSERT_ELEMENT_INSTANCE",
+  "processInstanceSelector": { "processDefinitionId": "expense-approval" },
+  "elementSelector": { "elementId": "Task_ManagerReview" },
+  "state": "IS_COMPLETED"
+}
+```
+
+### Selectors
+
+Most instructions accept a selector object instead of a plain id. Fields are mutually exclusive — supply one. Available across selectors (subset depends on the instruction):
+
+| Selector | Fields |
+|----------|--------|
+| `jobSelector` | `jobType`, `elementId`, `processDefinitionId` |
+| `userTaskSelector` | `elementId`, `taskName`, `processDefinitionId` |
+| `incidentSelector` | `elementId`, `processDefinitionId` |
+| `processInstanceSelector` | `processDefinitionId` |
+| `elementSelector` | `elementId`, `elementName` |
+| `messageSelector` | `messageName`, `correlationKey` |
+| `decisionDefinitionSelector` | `decisionDefinitionId` |
+
 ## Segment pattern
 
 A scenario for a non-happy-path segment typically looks like:
@@ -195,7 +387,10 @@ Java tests are not rendered by Web Modeler — business analysts cannot read the
 - The scenario needs a Spring bean mocked (`@MockBean`) — a worker that calls an external system in production.
 - Parameterized data tables — same flow, many input rows. `@ParameterizedTest` + `@CsvSource` beats N near-duplicate JSON entries.
 - Assertions that don't map to `ASSERT_*` instructions — message correlation timing, specific `incident` payloads, custom `CamundaAssert` matchers.
+- Non-deterministic runtime races — `context.when(condition).then(action)` (8.9+) registers background watchers for parallel branch races, ad-hoc tool activation, message vs. timer races. See [test-context.md § Conditional behavior](test-context.md#conditional-behavior-89).
 - Setup logic across many tests — `@BeforeAll`, shared fixtures, custom `Duration` assertion timeouts.
+
+The full Java context API surface (`mockJobWorker`, `completeJobOfAdHocSubProcess`, `when().then()`, decision and selector assertions, time control) lives in [test-context.md](test-context.md). The class shape and a worked example follow.
 
 ### Class shape
 
@@ -239,8 +434,8 @@ public class ExpenseApprovalJavaTest {
 
 - `CamundaAssert.assertThat(processInstance).hasActiveElements("…")` — equivalent to `ASSERT_ELEMENT_INSTANCES … IS_ACTIVE`.
 - `CamundaAssert.assertThat(processInstance).isCompleted()` — equivalent to `ASSERT_PROCESS_INSTANCE … IS_COMPLETED`.
-- `CamundaAssert.setAssertionTimeout(Duration.ofMinutes(5))` — bump the polling timeout for slow external workers (LLMs, multi-second connectors). The CPT default is short (10s as of 8.9 (assumption); confirm via `CamundaAssert` source for the version on your classpath).
-- `CamundaAssert.assertThatDecision(DecisionSelectors.byId("dish"))` — DMN decision-instance assertion. Methods: `.isEvaluated()`, `.hasOutput(value)`, `.hasMatchedRules(int...)`, `.hasNotMatchedRules(int...)`, `.hasNoMatchedRules()`. `DecisionSelectors`: `byId`, `byName`, `byProcessInstanceKey`, `byResponse` (for standalone evaluations via `camundaClient.newEvaluateDecisionCommand()...`). See **camunda-dmn** § testing-decisions for what to assert per hit policy.
+- `CamundaAssert.setAssertionTimeout(Duration.ofMinutes(5))` — bump the polling timeout for slow external workers (LLMs, multi-second connectors). The CPT default is 10s (`CamundaAssert.DEFAULT_ASSERTION_TIMEOUT`).
+- `CamundaAssert.assertThatDecision(DecisionSelectors.byId("dish"))` — DMN decision-instance assertion. See [test-context.md § DMN-instance assertions](test-context.md#dmn-instance-assertions) for the full surface (`isEvaluated`, `hasOutput`, `hasMatchedRules`, selector factories `byId`/`byName`/`byProcessInstanceKey`/`byResponse`) and **camunda-dmn** § testing-decisions for what to assert per hit policy.
 
 ### Mocking workers
 

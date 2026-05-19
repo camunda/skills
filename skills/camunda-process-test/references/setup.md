@@ -4,31 +4,13 @@ Prerequisites and one-time test-harness scaffold for `camunda-process-test-sprin
 
 ## Prerequisites
 
-### Java 21+
+- Java 21+
+- Maven
+- Docker runtime (required because CPT runs Zeebe in a Testcontainers container)
 
-```bash
-java -version
-```
+See **camunda-development** for installing these locally.
 
-If below 21, install JDK 21 first. If `java` is missing, check `asdf list java` or `mise list java`; pin a 21+ version in `.tool-versions` at the repo root.
-
-### Maven
-
-Prefer `./mvnw` if the project ships a wrapper. Otherwise `mvn -version`. If missing, `brew install maven` (macOS).
-
-### Docker runtime
-
-CPT uses Testcontainers to spin up Zeebe in a container. One of these must be running:
-
-| Runtime | Check | Start |
-|---------|-------|-------|
-| OrbStack | `orb status` | `open -a OrbStack` |
-| Docker Desktop | `docker info` | Open Docker Desktop and wait for the whale icon |
-| Rancher Desktop | `docker info` | Open Rancher Desktop |
-
-Do not run `mvn test` while Docker is down — the failure surfaces as a Spring context start-up error and looks like a code problem.
-
-> Testcontainers pulls the correct Zeebe image automatically on first run (~500MB). Do not pre-pull `camunda/zeebe:latest` — the tag may not match the CPT version on the classpath.
+> Testcontainers pulls the matching Zeebe image automatically on first run (~500MB). Do not pre-pull `camunda/zeebe:latest` — the tag may not match the CPT version on the classpath.
 
 ## CPT dependency
 
@@ -56,6 +38,18 @@ Required entry in the project (or test harness) `pom.xml`:
 ```
 
 Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
+
+### Spring Boot 4.x pin (CPT 8.9.x only)
+
+CPT 8.9.x ships against Spring Boot 4.x. If the project already imports `spring-boot-dependencies` (e.g. via a parent BOM), pin the version explicitly or omit the BOM:
+
+```xml
+<properties>
+  <spring-boot.version>4.0.5</spring-boot.version>
+</properties>
+```
+
+The mismatch surfaces as `NoClassDefFoundError` on `AdditionalPathsMapper` or `HealthEndpointConfiguration` when the Spring `ApplicationContext` starts — it looks like a code problem but is purely a dependency-resolution issue. CPT 8.8.x ran against Spring Boot 3.x; do not carry a 3.x pin forward when upgrading.
 
 ## Scaffold layout
 
