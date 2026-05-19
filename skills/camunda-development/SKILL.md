@@ -1,13 +1,13 @@
 ---
 name: camunda-development
 description: |
-  Use this skill to choose the right Camunda 8 development surface (OOTB connector, custom connector template, custom Java connector, or job worker) before writing any integration code.
+  Use this skill to choose the right Camunda 8 development surface (OOTB connector, custom connector template, custom Java connector, or job worker) and to see what local tooling (JDK, Maven, Node.js, Docker) each surface needs.
 
-  Use for: orienting between out-of-the-box connectors, JSON-only templates on protocol connectors, custom Java connectors via the Connectors SDK, and job workers (Java / Spring / TypeScript); understanding the trade-offs (language reach, secrets handling, intrinsic functions, Camunda Documents, inbound support, low-level Zeebe APIs); deciding whether a piece of integration logic belongs in a reusable connector or in your application as a worker.
+  Use for: orienting between out-of-the-box connectors, JSON-only templates on protocol connectors, custom Java connectors via the Connectors SDK, and job workers (Java / Spring / TypeScript); understanding the trade-offs (language reach, secrets, intrinsic functions, inbound support); getting a per-workflow overview of which tools each path needs locally and how to verify them.
 
-  Do not use for: actually building a worker (use camunda-job-workers), building a custom connector (use camunda-connectors-development), or configuring an already-published OOTB connector (use camunda-connectors).
+  Do not use for: actually building a worker (use camunda-job-workers), building a custom connector (use camunda-connectors-development), or configuring an OOTB connector (use camunda-connectors).
 
-  **Utility skill** — decision matrix only. Read this first, then jump into the focused build skill it points you to.
+  **Utility skill** — decision matrix plus a local-prereqs overview. Read this first, then jump into the focused build skill it points you to.
 ---
 
 # Camunda Development
@@ -94,3 +94,11 @@ The SDK supports three inbound flavours, and the choice drives which BPMN elemen
 - **Polling** — the runtime polls an external endpoint on a schedule.
 
 If the integration is inbound, paths A and B in the decision matrix are the only options; path C does not apply. See **camunda-connectors-development**.
+
+## Local prerequisites
+
+The decision matrix points at a path; that path needs a working local toolchain. See [`references/prerequisites.md`](references/prerequisites.md) for the per-workflow overview (which tools each path expects — Node.js, JRE, JDK + Maven, Docker), OS-agnostic verification one-liners, and the cross-cutting gotchas (`JAVA_HOME` vs `PATH`, Docker daemon vs CLI, why not to pre-pull `camunda/zeebe:latest`). Specific minimum versions live in the linked skill for each path — they move with each Camunda release.
+
+## References
+
+- [prerequisites.md](references/prerequisites.md) — Local dev environment matrix (JDK / Node.js / Maven / Docker per workflow), verification one-liners, and tooling gotchas.
