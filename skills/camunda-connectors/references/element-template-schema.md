@@ -84,6 +84,21 @@ Resulting BPMN (the `data:image/svg+xml;base64,...` icon blob is elided here for
 
 Validate with `c8ctl bpmn lint process.bpmn` after applying.
 
+## Multi-line FEEL context literal values
+
+For any `feel: required` property that takes a structured value (the REST connector's `body` is the typical case), pass a FEEL **context literal**, not a JSON object:
+
+```bash
+c8ctl element-template apply -i <id> <element> process.bpmn \
+  --set 'body=={
+    orderId: orderId,
+    amount: amount
+  }'
+```
+
+- Keys are unquoted (`{ orderId: ... }`); `{ "orderId": ... }` is rejected by the FEEL parser.
+- `--set 'key==<value>'` (compact `==`) is the multi-line-friendly form; `--set key='=<value>'` is the canonical single-line form. Either works.
+
 ## Where to look next
 
 - Full element-template authoring schema (property types, all binding types, inbound variants, FEEL features, the field-ordering rule): `camunda-connectors-development/references/element-template-json.md`
