@@ -22,6 +22,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 ## Cross-References
 
 - **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
+- **camunda-dmn**: Use for authoring the DMN decision behind a business rule task — `<zeebe:calledDecision decisionId="..." resultVariable="..."/>`
 - **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
 - **camunda-connectors**: Use for configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates
 - **camunda-development**: Use to decide whether a service task should be backed by an OOTB connector, a custom connector, or a job worker

@@ -115,6 +115,55 @@ Asserts overall process state. Use only when the segment runs to an end event.
 }
 ```
 
+### Instructions for DMN
+
+The instructions above test the *process*; these test the *decision*. A BPMN-completes test passes even if every DMN output is wrong — assert the decision directly when its rules matter. See **camunda-dmn** § testing-decisions for what to assert per hit policy.
+
+The three DMN instructions below are part of the 8.9 `.test.json` grammar. The equivalent Java API (`assertThatDecision`, `DecisionSelectors`, `mockDmnDecision`) shipped with CPT itself and is available on 8.8+.
+
+#### `EVALUATE_DECISION`
+
+Runs a DMN decision without a process instance. The leaf of a chained DRG (`B requires A`) auto-evaluates upstream decisions, so one call exercises the whole graph.
+
+```json
+{
+  "type": "EVALUATE_DECISION",
+  "decisionDefinitionSelector": { "decisionDefinitionId": "dish" },
+  "variables": { "season": "Winter" }
+}
+```
+
+#### `ASSERT_DECISION`
+
+Asserts which rules fired and what the decision output. Fields: `output`, `matchedRules: [int]` (1-based ordinals in rule order, **not** BPMN ids), `notMatchedRules: [int]`, `noMatchedRules: boolean`.
+
+```json
+{
+  "type": "ASSERT_DECISION",
+  "decisionSelector": { "decisionDefinitionId": "dish" },
+  "output": ["Tortellini", "Roastbeef"],
+  "matchedRules": [1, 2]
+}
+```
+
+For UNIQUE/ANY/FIRST: single ordinal. For RULE ORDER/COLLECT: all matched ordinals as a list. For "no rule should match": `"noMatchedRules": true`.
+
+Pair with `EVALUATE_DECISION` for standalone decision tests, or place after the process scenario completes to assert what fired in-process.
+
+#### `MOCK_DMN_DECISION`
+
+Replaces a real DMN evaluation with a fixed output. Use to isolate BPMN-flow tests from DMN logic — BPMN scenarios stay stable when a rule changes.
+
+```json
+{
+  "type": "MOCK_DMN_DECISION",
+  "decisionDefinitionId": "dish",
+  "output": ["Tortellini"]
+}
+```
+
+Mocking and asserting are complementary, not interchangeable: mock the DMN in BPMN-flow tests; assert the DMN directly in decision-focused tests.
+
 ## Segment pattern
 
 A scenario for a non-happy-path segment typically looks like:
@@ -191,6 +240,7 @@ public class ExpenseApprovalJavaTest {
 - `CamundaAssert.assertThat(processInstance).hasActiveElements("…")` — equivalent to `ASSERT_ELEMENT_INSTANCES … IS_ACTIVE`.
 - `CamundaAssert.assertThat(processInstance).isCompleted()` — equivalent to `ASSERT_PROCESS_INSTANCE … IS_COMPLETED`.
 - `CamundaAssert.setAssertionTimeout(Duration.ofMinutes(5))` — bump the polling timeout for slow external workers (LLMs, multi-second connectors). The CPT default is short (10s as of 8.9 (assumption); confirm via `CamundaAssert` source for the version on your classpath).
+- `CamundaAssert.assertThatDecision(DecisionSelectors.byId("dish"))` — DMN decision-instance assertion. Methods: `.isEvaluated()`, `.hasOutput(value)`, `.hasMatchedRules(int...)`, `.hasNotMatchedRules(int...)`, `.hasNoMatchedRules()`. `DecisionSelectors`: `byId`, `byName`, `byProcessInstanceKey`, `byResponse` (for standalone evaluations via `camundaClient.newEvaluateDecisionCommand()...`). See **camunda-dmn** § testing-decisions for what to assert per hit policy.
 
 ### Mocking workers
 
