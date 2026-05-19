@@ -115,9 +115,11 @@ Asserts overall process state. Use only when the segment runs to an end event.
 }
 ```
 
-### Instructions for DMN *(8.9+)*
+### Instructions for DMN
 
 The instructions above test the *process*; these test the *decision*. A BPMN-completes test passes even if every DMN output is wrong — assert the decision directly when its rules matter. See **camunda-dmn** § testing-decisions for what to assert per hit policy.
+
+The three DMN instructions below are part of the 8.9 `.test.json` grammar. The equivalent Java API (`assertThatDecision`, `DecisionSelectors`, `mockDmnDecision`) shipped with CPT itself and is available on 8.8+.
 
 #### `EVALUATE_DECISION`
 
@@ -238,7 +240,7 @@ public class ExpenseApprovalJavaTest {
 - `CamundaAssert.assertThat(processInstance).hasActiveElements("…")` — equivalent to `ASSERT_ELEMENT_INSTANCES … IS_ACTIVE`.
 - `CamundaAssert.assertThat(processInstance).isCompleted()` — equivalent to `ASSERT_PROCESS_INSTANCE … IS_COMPLETED`.
 - `CamundaAssert.setAssertionTimeout(Duration.ofMinutes(5))` — bump the polling timeout for slow external workers (LLMs, multi-second connectors). The CPT default is short (10s as of 8.9 (assumption); confirm via `CamundaAssert` source for the version on your classpath).
-- `CamundaAssert.assertThatDecision(DecisionSelectors.byId("dish"))` *(8.9+)* — DMN decision-instance assertion. Methods: `.isEvaluated()`, `.hasOutput(value)`, `.hasMatchedRules(int...)`, `.hasNotMatchedRules(int...)`, `.hasNoMatchedRules()`. `DecisionSelectors`: `byId`, `byName`, `byProcessInstanceKey`, `byResponse` (for standalone evaluations via `camundaClient.newEvaluateDecisionCommand()...`). See **camunda-dmn** § testing-decisions for what to assert per hit policy.
+- `CamundaAssert.assertThatDecision(DecisionSelectors.byId("dish"))` — DMN decision-instance assertion. Methods: `.isEvaluated()`, `.hasOutput(value)`, `.hasMatchedRules(int...)`, `.hasNotMatchedRules(int...)`, `.hasNoMatchedRules()`. `DecisionSelectors`: `byId`, `byName`, `byProcessInstanceKey`, `byResponse` (for standalone evaluations via `camundaClient.newEvaluateDecisionCommand()...`). See **camunda-dmn** § testing-decisions for what to assert per hit policy.
 
 ### Mocking workers
 

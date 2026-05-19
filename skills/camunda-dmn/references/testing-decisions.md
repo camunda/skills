@@ -17,7 +17,7 @@ var response = camundaClient.newEvaluateDecisionCommand()
     .send().join();
 ```
 
-JSON instruction *(CPT 8.9+)*:
+JSON instruction *(`.test.json` grammar, 8.9+)*:
 
 ```json
 {
@@ -29,7 +29,7 @@ JSON instruction *(CPT 8.9+)*:
 
 Pair with an assertion (`ASSERT_DECISION` in JSON, `CamundaAssert.assertThatDecision(...)` in Java).
 
-## Decision-instance assertions *(CPT 8.9+)*
+## Decision-instance assertions
 
 ```java
 import io.camunda.process.test.api.CamundaAssert;
@@ -41,9 +41,9 @@ CamundaAssert.assertThatDecision(DecisionSelectors.byId("season"))
     .hasMatchedRules(1);
 ```
 
-`DecisionSelectors`: `byId`, `byName`, `byProcessInstanceKey`, `byResponse` (for the standalone variant). Available since CPT 8.9.
+`DecisionSelectors`: `byId`, `byName`, `byProcessInstanceKey`, `byResponse` (for the standalone variant). The Java decision-assertion API shipped with CPT itself (8.8+).
 
-JSON equivalent *(CPT 8.9+)*:
+JSON equivalent *(`.test.json` grammar, 8.9+)*:
 
 ```json
 {
@@ -95,7 +95,7 @@ The leaf evaluation pulls the upstream in transparently; both decision instances
 
 ## Mocking vs testing
 
-`processTestContext.mockDmnDecision(decisionId, output)` *(CPT 8.9+)* replaces a real DMN evaluation with a fixed output. Two distinct uses:
+`processTestContext.mockDmnDecision(decisionId, output)` replaces a real DMN evaluation with a fixed output. Two distinct uses:
 
 - **Mock**: in a BPMN flow test where DMN logic is not the unit under test — keeps the BPMN scenario stable when a rule changes.
 - **Test**: with `assertThatDecision` against the real DMN — validates the rules themselves.
