@@ -18,7 +18,7 @@ Build a custom Camunda 8 connector when the OOTB catalog doesn't cover the integ
 
 - Camunda 8.8+ cluster reachable for testing (local c8run, SaaS, or Self-Managed — see **camunda-c8ctl**)
 - Path A: Web Modeler access (Desktop or SaaS) to use *Save as Template* and edit the generated JSON
-- Path B: Java 17+, Maven 3.8+ (or Gradle equivalent), and a JVM hosting option for the resulting connector JAR
+- Path B: Java 17+, Maven 3.8+ (or Gradle equivalent), and a JVM hosting option for the resulting connector JAR — see **camunda-development** for installing the JDK / Maven toolchain locally
 
 ## Cross-References
 

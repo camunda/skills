@@ -18,7 +18,7 @@ Implement job workers for Camunda 8.8+ in Java, Camunda Spring Boot, or TypeScri
 
 - Camunda 8.8+ cluster reachable from the worker process (local c8run, SaaS, or Self-Managed — see **camunda-c8ctl**)
 - A BPMN process with at least one element that has `<zeebe:taskDefinition type="..."/>` matching the worker's job type (see **camunda-bpmn**)
-- Toolchain for the chosen SDK — OpenJDK 17+ and Maven/Gradle for Java and Spring; Node.js 18+ for TypeScript. SDK-specific version constraints (e.g. Spring Boot 4 vs 3, browser support) are in each SDK's reference.
+- Toolchain for the chosen SDK — OpenJDK 17+ and Maven/Gradle for Java and Spring; Node.js 18+ for TypeScript. SDK-specific version constraints (e.g. Spring Boot 4 vs 3, browser support) are in each SDK's reference. See **camunda-development** for installing these locally.
 
 ## Cross-References
 

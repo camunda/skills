@@ -16,7 +16,7 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 
 ## Prerequisites
 
-- **Node.js ≥ 22.18.0** (required for native TypeScript support)
+- **Node.js ≥ 22.18.0** (required for native TypeScript support) — see **camunda-development** for installing it locally
 
 ## Cross-References
 
