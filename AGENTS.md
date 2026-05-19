@@ -18,7 +18,7 @@ AI skills for Camunda 8.8+ development. Use these skills to create, deploy, and 
 | **camunda-connectors-development** | Building custom Camunda 8 connectors — JSON-only template on a protocol connector (Path A) or custom Java connector via the Connectors SDK (Path B, outbound + inbound) |
 | **camunda-process-mgmt** | Deploying resources, starting/inspecting instances, resolving incidents, completing user tasks — all via c8ctl |
 | **camunda-process-test** | Authoring and running Camunda Process Test (CPT) suites that reach 100% BPMN coverage with segment-based scenarios — `.test.json` instructions, `mvn test`, coverage report parsing |
-| **camunda-ai-agent** | Building AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tool modeling, `fromAi()` parameters, prompts, sub-flow tools |
+| **camunda-ai-agents** | Building AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tool modeling, `fromAi()` parameters, prompts, sub-flow tools |
 
 ## Design goal: c8ctl is the programmatic API
 
@@ -128,3 +128,10 @@ the target skill's rules. Keep cross-ref bullets to a one-line topical pointer
 Use [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <subject>`,
 with the skill name as the scope (e.g. `feat(camunda-dmn): …`, `fix(camunda-bpmn): …`).
 See [CONTRIBUTING.md § Commit Messages](CONTRIBUTING.md#commit-messages) for the full list of types and examples.
+
+### Pull Requests and Issues
+
+Use the repo's GitHub templates as-is — don't substitute a custom shape:
+
+- **PRs**: `.github/pull_request_template.md`.
+- **Issues**: `.github/ISSUE_TEMPLATE/`.
