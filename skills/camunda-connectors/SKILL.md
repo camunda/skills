@@ -119,6 +119,8 @@ Note the `string(userId)` wrapper — `userId` is a number and FEEL does not aut
 
 **FEEL value syntax.** `feel: required` values must start with `=`. Use `--set key='=value'` (outer quotes make `=` obvious) or `--set 'key==value'` (compact). Avoid `--set 'key== value'` — the space writes `source="= ..."` and Modeler shows the property as un-set. `c8ctl` writes verbatim; check `get-properties --detailed <name>` when unsure.
 
+**Defaults bake in.** `apply` materializes every active property with a default into the BPMN — `<zeebe:input>`, `<zeebe:output>`, `<zeebe:taskHeaders>`, and `<zeebe:property>` entries — not just the keys you `--set`. The defaults are captured at apply time — if the template later ships a new default, this BPMN keeps the old value.
+
 **Re-apply.** Omitted `--set` keys keep their current XML value, so single-property re-applies don't disturb the rest. Exception: dropdowns reset to the template default on every re-apply.
 
 ### Result Mapping — `resultVariable` and `resultExpression`
