@@ -103,6 +103,8 @@ With a custom request timeout:
 c8ctl await pi --id MyProcess --requestTimeout 60000
 ```
 
+**Not for long-running activities.** `await pi` uses the cluster's start-and-wait REST endpoint, which times out before any single activity that runs longer than the request timeout (LLM agents, slow HTTP calls, user tasks). The timed-out response carries no instance key, so you can't follow up on the partial run. For those processes, use `c8ctl create pi` and poll `c8ctl get pi <key>` until terminal state, or fall back to `c8ctl search pi --state=ACTIVE` to recover the orphaned instance after a failed `await`.
+
 ### Watch Mode (Development)
 
 Auto-redeploy on file changes during local development:
@@ -148,6 +150,18 @@ c8ctl get pd <key> --xml
 ### Resolving Incidents
 
 Incidents are the cluster's way of pausing an instance when something fails non-recoverably (FEEL error, missing variable, connector failure, job timeout exceeded retries). Always inspect before resolving.
+
+**First-response triage** — when a user reports "instance X is stuck", run these four in sequence to assess before deciding to resolve:
+
+```bash
+PI=<instanceKey>
+c8ctl get pi $PI                                              # state (ACTIVE = stuck on a step), processDefinitionId
+c8ctl search inc --processInstanceKey=$PI                     # any incidents on this PI, with errorType
+c8ctl search variables --processInstanceKey=$PI --fullValue   # variables at the failure point
+c8ctl get inc <incidentKey> --json                            # full error message
+```
+
+The four together usually localise the cause without needing to open Operate.
 
 List active incidents:
 
