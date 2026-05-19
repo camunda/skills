@@ -25,7 +25,7 @@ Build a candidate list. Walk the model:
 | Candidate type | Root | End | Notes |
 |----------------|------|-----|-------|
 | Each gateway branch (incl. `default`) | The gateway | First rejoin or end event | One candidate per outgoing flow |
-| Each DMN rule (incl. `default`) | The business-rule task | First rejoin or end event | Variables chosen to match the rule's input entries |
+| Each DMN rule (incl. `default`) | The business-rule task **or** a standalone `EVALUATE_DECISION` | First rejoin or end event (process-driven) / decision response (standalone) | Process-driven for rules whose inputs map 1:1 to a BPMN gateway; standalone (`EVALUATE_DECISION` + `ASSERT_DECISION`) when the input partition doesn't — isolates the failure cause. See **camunda-dmn** § testing-decisions. |
 | Each error boundary event | The activity it attaches to (use `THROW_BPMN_ERROR_FROM_JOB` with matching `errorCode`) | The boundary's outgoing path end event | |
 | Each timer / escalation / message boundary | The activity it attaches to | The boundary's outgoing path end event | Timer uses `INCREASE_TIME` past the cycle |
 | Each alternate end event | A gateway / branch combination that reaches it | The end event | |
