@@ -27,6 +27,7 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 - **camunda-dmn**: Use when a DMN decision is the unit under test — CPT exercises it via the calling business rule task; pair with `npx dmnlint` for structural checks.
 - **camunda-job-workers**: Use when the handler code that backs a service task is itself under test — CPT drives BPMN reachability; worker unit tests drive handler behaviour.
 - **camunda-connectors-development**: Use when a custom connector is the unit under test — CPT exercises it from the BPMN side; SDK-side tests cover the connector class directly.
+- **camunda-ai-agents**: Use when testing an AI Agent Sub-process — drives the BPMN shape that `COMPLETE_JOB_AD_HOC_SUB_PROCESS` and `context.when().then()` orchestrate.
 - **camunda-process-mgmt**: CPT runs against an **embedded** Zeebe engine — it does **not** use the c8ctl-managed cluster or any profile. No `c8ctl` call deploys a process under test.
 
 ## Scope boundaries
@@ -66,7 +67,7 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 For each segment, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-Use the Java fallback (covered in the same `authoring.md`) only when the segment needs Spring bean mocking, parameterized data tables, or assertions richer than the JSON instruction set offers — accept that Java tests are invisible to Web Modeler.
+Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). Accept that Java tests are invisible to Web Modeler.
 
 ### 5. Run
 
@@ -172,7 +173,9 @@ Duplicates flagged: 0
 
 ## References
 
-- [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout
-- [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type
-- [authoring.md](references/authoring.md) — `.test.json` schema, instruction reference, Java fallback
+- [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
+- [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
+- [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
+- [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
+- [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)

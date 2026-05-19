@@ -30,6 +30,7 @@ Build a candidate list. Walk the model:
 | Each timer / escalation / message boundary | The activity it attaches to | The boundary's outgoing path end event | Timer uses `INCREASE_TIME` past the cycle |
 | Each alternate end event | A gateway / branch combination that reaches it | The end event | |
 | Multi-instance loop | `CREATE_PROCESS_INSTANCE` with a collection input | First post-loop join | |
+| Each inner activity of an `<bpmn:adHocSubProcess>` | The AHSP itself | The activity completing | Inner activities have no inbound sequence flow — they look like dead code to a naive walker but are reachable via dynamic activation. See § Ad-hoc subprocess and tool activation below. |
 | Happy path (baseline) | Start event | Most common end event | Choose the most common branch at every gateway and DMN |
 
 For each candidate, **statically predict the visited set**: walk the BPMN forward from root through the chosen branch to the end condition, collecting every element id and sequence flow id along the way. Store as `(name, root, predicted_ids)`.
@@ -99,6 +100,34 @@ Run `mvn test`. Parse `target/coverage-report/report.html` (the page embeds the 
 If aggregate runtime coverage equals predicted coverage, done. If it does not, the gap is a **prediction miss** — the static walk for one of the chosen candidates did not match the engine's actual path. Common causes: gateway condition the parser couldn't evaluate, FEEL expression depending on a variable the planner did not set, non-interrupting boundary that creates a parallel branch the walker missed.
 
 Treat misses as planner bugs, not just gaps to patch. Add the missing candidates to chosen, but also fix the prediction rule so the next BPMN does not hit the same miss.
+
+## Ad-hoc subprocess and tool activation
+
+Inner activities of an `<bpmn:adHocSubProcess>` have **no inbound sequence flow** — they are activated dynamically, either declaratively (internal mode, via `activeElementsCollection`) or programmatically (job-worker mode, via the worker's `activateElements` result). A static walker treats them as dead code and drops them from coverage. They are not dead code: the AHSP itself is the entry point, and each inner activity must show up in the segment plan.
+
+**Planner rule.** For every inner activity of an AHSP, add one candidate segment rooted at the AHSP and ending when that inner activity completes. The candidate's predicted set includes the inner activity, its outgoing internal flow (if any), and the AHSP itself.
+
+**Authoring** depends on the AHSP mode (the internal-mode vs. job-worker-mode distinction is covered in **camunda-bpmn**):
+
+- **Internal mode** (no `<zeebe:taskDefinition>` on the AHSP): pass `activeElementsCollection` and any tool inputs as variables on `CREATE_PROCESS_INSTANCE`; each inner activity then becomes a normal job — `COMPLETE_JOB` against `jobSelector.elementId` for each. No outer AHSP job exists.
+- **Job-worker mode** (has `<zeebe:taskDefinition>`, e.g. the AI Agent Sub-process connector): the AHSP is itself a job. Stub the agent loop with a Java orchestrator — `context.mockJobWorker(ahsType).withHandler(handler)` returns activation results, and `context.when(condition).then(action)` *(8.9+)* completes each activated tool once it becomes active. A plain `COMPLETE_JOB_AD_HOC_SUB_PROCESS` JSON instruction can drive a single activation cycle but cannot react to per-iteration state.
+
+Worked stub-orchestrator pattern (Java, AI-agent-style AHSP):
+
+```java
+context.mockJobWorker("io.camunda.agenticai:aiagent:1").withHandler((client, job) -> {
+    // 1. Inspect job variables to decide which tools to activate next.
+    // 2. Build an ad-hoc result with .activateElement("Tool_X").variables(...).
+    // 3. Mark .completionConditionFulfilled(true) when the agent decides it is done.
+});
+
+context
+    .when(() -> CamundaAssert.assertThat(processInstance).hasActiveElements("Tool_FetchOrder"))
+    .then(() -> context.completeJob(JobSelectors.byElementId("Tool_FetchOrder"),
+                                    Map.of("toolCallResult", Map.of("status", "ok"))));
+```
+
+Cross-links: **camunda-ai-agents** for the BPMN shape and tool-modelling rules; [authoring.md § COMPLETE_JOB_AD_HOC_SUB_PROCESS](authoring.md#complete_job_ad_hoc_sub_process) for the JSON instruction; [test-context.md § Conditional behavior](test-context.md#conditional-behavior-89) for `when().then()` semantics.
 
 ## Anti-patterns
 
