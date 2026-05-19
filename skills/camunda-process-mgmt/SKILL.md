@@ -21,7 +21,7 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 
 ## Cross-References
 
-- **camunda-c8ctl**: Use for c8ctl install, profile management, local cluster operations, and cluster-safety rules
+- **camunda-c8ctl**: Use for c8ctl setup, cluster safety, and shared conventions (flags, profiles, output modes)
 - **camunda-bpmn**: Use for fixing BPMN process issues found during debugging
 - **camunda-dmn**: Use for fixing DMN decision issues — `EXTRACT_VALUE_ERROR` / `DECISION_EVALUATION_FAILED` incidents typically trace back to the decision file
 - **camunda-connectors**: Use for fixing connector configuration issues found during debugging
@@ -240,17 +240,12 @@ c8ctl cancel pi <instanceKey>
 
 ### JSON Output for Scripting
 
-Switch to structured output globally:
+Pass `--json` per call, optionally narrowed with `--fields`. Don't toggle session-wide output mode — see **camunda-c8ctl** for the why.
 
 ```bash
-c8ctl output json
-```
-
-Reduce noise by limiting fields:
-
-```bash
-c8ctl list pi --fields Key,State,ProcessDefinitionId
-c8ctl list pd --fields Key,Name,Version
+c8ctl list pi --json --fields=key,state,bpmnProcessId
+c8ctl list pd --json --fields=key,bpmnProcessId,version
+c8ctl get inc <key> --json
 ```
 
 ### Troubleshooting
