@@ -30,10 +30,10 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 
 ### Install
 
-Install c8ctl globally from npm. The other camunda-* skills depend on the `bpmn`, `element-template`, and `feel` plugins, which require **c8ctl ≥ 3.0.0-alpha.1**. Pin the alpha explicitly — npm's `latest` tag still points at the 2.x line, which ships without these plugins:
+Install c8ctl globally from npm. The other camunda-* skills depend on the `bpmn`, `element-template`, and `feel` plugins, which require **c8ctl ≥ 3.0.0**:
 
 ```bash
-npm install -g @camunda8/cli@3.0.0-alpha.1
+npm install -g @camunda8/cli
 ```
 
 After installation, both `c8ctl` and the shorter alias `c8` are available. The other camunda-* skills use the `c8ctl` form for clarity.
@@ -47,7 +47,7 @@ c8ctl help
 
 ### Verify default plugins
 
-The other camunda-* skills depend on three plugins that ship with c8ctl ≥ 3.0.0-alpha.1: `bpmn`, `element-template`, and `feel`. Verify each is available:
+The other camunda-* skills depend on three plugins that ship with c8ctl ≥ 3.0.0: `bpmn`, `element-template`, and `feel`. Verify each is available:
 
 ```bash
 c8ctl bpmn --help              # camunda-bpmn
@@ -55,10 +55,10 @@ c8ctl element-template --help  # camunda-connectors, camunda-ai-agent
 c8ctl feel --help              # camunda-feel
 ```
 
-If any command exits non-zero, the installed c8ctl is older than 3.0.0-alpha.1 and lacks these plugins. **Ask the user to confirm before installing** — don't run the install unprompted — then run:
+If any command exits non-zero, the installed c8ctl is older than 3.0.0 and lacks these plugins. **Ask the user to confirm before installing** — don't run the install unprompted — then run:
 
 ```bash
-npm install -g @camunda8/cli@3.0.0-alpha.1
+npm install -g @camunda8/cli
 ```
 
 ### Pick a Cluster

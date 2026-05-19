@@ -29,10 +29,10 @@ Why: c8ctl is versioned, tested, and shared across skills. Ad-hoc scripts drift,
 
 c8ctl is a **hard prerequisite** for every skill below. The dedicated **camunda-c8ctl** skill walks through installation, picking a cluster (incl. starting a local one via `c8ctl cluster start`), profile setup, and plugin management.
 
-Quick start. The `bpmn`, `element-template`, and `feel` plugins the skills below depend on require **c8ctl ≥ 3.0.0-alpha.1** — pin the alpha explicitly, since npm's `latest` still points at 2.x:
+Quick start. The `bpmn`, `element-template`, and `feel` plugins the skills below depend on require **c8ctl ≥ 3.0.0**. Install the latest version:
 
 ```bash
-npm install -g @camunda8/cli@3.0.0-alpha.1
+npm install -g @camunda8/cli
 c8ctl cluster start         # spin up a local cluster (downloads c8run on first run)
 c8ctl get topology --json   # confirm it's alive (use --json per command for scripting/AI use)
 ```

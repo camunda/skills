@@ -71,7 +71,7 @@ make try
 
 1. Install c8ctl and start a local cluster:
    ```bash
-   npm install -g @camunda8/cli@3.0.0-alpha.1
+   npm install -g @camunda8/cli
    c8ctl cluster start          # downloads c8run on first run
    ```
 
