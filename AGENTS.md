@@ -58,6 +58,7 @@ All skill tooling is unified under c8ctl plugin commands:
 - **BPMN naming**: Sentence case, tasks as "verb + object" (e.g., "Review invoice"), gateways as questions (e.g., "Amount exceeds limit?")
 - **BPMN IDs**: Descriptive PascalCase (e.g., `ReviewInvoice`, `AmountExceedsLimit`)
 - **Minimum version**: Camunda 8.8+
+- **Version-tagged features**: Skill content tags features above the 8.8 floor with their introduction version inline (e.g. `*(8.9+)*`). Before recommending a tagged feature, check the user's cluster version against the tag; if the cluster version is unknown, ask. Untagged features are 8.8 baseline. When you're unsure whether an API exists at a given version, verify via **camunda-docs**.
 
 ---
 
