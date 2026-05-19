@@ -89,7 +89,9 @@ c8ctl element-template apply <id> <element> process.bpmn > new-process.bpmn     
 c8ctl element-template apply <id> <element> process.bpmn | c8ctl bpmn lint        # apply and lint in one pipeline
 ```
 
-Apply writes `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:modelerTemplateIcon`, `zeebe:taskDefinition`, the `zeebe:input` mappings, and the `zeebe:taskHeaders` onto the element. All of those must stay consistent — `apply` owns them.
+Apply writes `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:modelerTemplateIcon`, `zeebe:taskDefinition`, the **entire `zeebe:ioMapping` block (inputs *and* outputs)**, and the `zeebe:taskHeaders` onto the element. All of those must stay consistent — `apply` owns them. In particular, custom `<zeebe:output>` mappings hand-added to a connector element will be wiped on the next `apply` — put downstream extraction on a separate activity, or on the next flow element's `<zeebe:ioMapping>` (end events accept it too).
+
+`apply` auto-resolves the latest OOTB template version compatible with the BPMN's `executionPlatformVersion`. The discovery commands (`search`, `info`, `get-properties`) are **not** engine-aware and always show the absolute latest template version, which may declare an engine constraint above your BPMN's version. Pin with `@<version>` (e.g. `io.camunda.connectors.HttpJson.v2@12`) on those commands to inspect what `apply` would actually pick.
 
 ### Setting Property Values at Apply Time
 
@@ -115,6 +117,10 @@ Note the `string(userId)` wrapper — `userId` is a number and FEEL does not aut
 
 `apply` errors with a helpful list of valid names if you pass an unknown property, and with the qualified-name list if a bare key is ambiguous.
 
+**FEEL value syntax.** `feel: required` values must start with `=`. Use `--set key='=value'` (outer quotes make `=` obvious) or `--set 'key==value'` (compact). Avoid `--set 'key== value'` — the space writes `source="= ..."` and Modeler shows the property as un-set. `c8ctl` writes verbatim; check `get-properties --detailed <name>` when unsure.
+
+**Re-apply.** Omitted `--set` keys keep their current XML value, so single-property re-applies don't disturb the rest. Exception: dropdowns reset to the template default on every re-apply.
+
 ### Result Mapping — `resultVariable` and `resultExpression`
 
 Connectors expose two properties under the **Output mapping** group that control what gets written back into the process scope when the connector completes:
@@ -130,6 +136,8 @@ Both can be set together — `resultVariable` captures the raw response, `result
 ```
 
 The same mechanism applies to **inbound connectors** — e.g. the Slack inbound connector surfaces `resultVariable` + `resultExpression` under the same Output mapping group. The engine writes the incoming event payload into the process scope when the trigger fires, identically to how outbound writes the response when the service task completes.
+
+When a connector is used as an **AI-Agent tool**, its output must surface under a `toolCallResult` variable (see **camunda-ai-agent** for the concept). REST connectors typically use `resultExpression='={toolCallResult: response.body}'`; other connectors apply the same `resultExpression`/`resultVariable` mechanics shaped to their own response.
 
 ### Example — HTTP REST Connector
 
@@ -177,8 +185,7 @@ After applying, validate with `c8ctl bpmn lint process.bpmn`.
 
 ### Common Pitfalls
 
-- **`apply` is the only writer.** It owns `zeebe:modelerTemplate{,Version,Icon}`, `zeebe:taskDefinition`, the `zeebe:input` mappings, and the `zeebe:taskHeaders` — they identify the template and the runtime that handles the job and must stay consistent. Don't hand-edit the BPMN to add, change, or remove connector properties; don't strip the icon attribute. Re-run `apply` with different `--set` values instead.
-- **`feel: required` values must start with `=`.** A bare value is treated as a literal string, not a FEEL expression. Confirm with `get-properties --detailed <name>` if unsure.
+- **`<bpmn:documentation>` is not settable via `--set`.** It's a separate BPMN child element, not a template property — hand-edit it in after `apply`. Matters most when a connector is used as a **camunda-ai-agent** tool.
 - **Set only active properties.** Conditional properties (e.g. `authentication.token` only applies when `authentication.type=bearer`) are silently skipped if their gating property isn't set in the same call. Decide the parent value first, then set the children.
 - **Outbound and inbound connectors both need `resultVariable` and/or `resultExpression`.** Omitting both means the connector's response is discarded.
 - **Use `{{secrets.NAME}}` for credentials.** Never hardcode tokens, API keys, or webhook URLs in `--set`. See **camunda-c8ctl** for the secrets bootstrap on local clusters.
