@@ -105,8 +105,11 @@ Common rules: `label-required` (add a `name`), `no-duplicate-requirements` (drop
 - Preferred — write or extend a CPT scenario that exercises each `UNIQUE` partition / `FIRST` cascade / `COLLECT` path. See **camunda-process-test**.
 - Fallback — deploy `c8ctl deploy decision.dmn process.bpmn --profile=local` and start an instance with `c8ctl await pi --id MyProcess --variables '{...}' --profile=local`. Incidents surface as `EXTRACT_VALUE_ERROR` (FEEL problem) or `DECISION_EVALUATION_FAILED` (hit-policy violation). See **camunda-process-mgmt**.
 
+A green BPMN-completes test only proves the decision didn't fail — not that the right rules fired. For *behavioural correctness* assertions (`assertThatDecision`, rule-ordinal matching per hit policy, DRG coverage), see [references/testing-decisions.md](references/testing-decisions.md).
+
 ## References
 
-- [decision-tables.md](references/decision-tables.md) — input/output clause shapes, unary-test forms, worked examples per hit policy, type table, pitfalls
+- [decision-tables.md](references/decision-tables.md) — input/output clause shapes, unary-test forms, worked examples per hit policy, decision-level `<variable>` rules, type table, pitfalls
 - [feel-in-dmn.md](references/feel-in-dmn.md) — FEEL contexts in DMN, unary-tests vs full FEEL, scope across linked decisions
 - [dmnlint.md](references/dmnlint.md) — `dmnlint:recommended` rules, rule → fix mapping, common pitfalls beyond what the linter catches
+- [testing-decisions.md](references/testing-decisions.md) — `assertThatDecision`, rule-ordinal matching, strategy by hit policy, DRG coverage, mock-vs-test

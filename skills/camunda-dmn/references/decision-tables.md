@@ -153,6 +153,36 @@ Returns all matching rules' outputs in **arbitrary order** as a list. Functional
 
 For amount 15000, both rules match; result is a list `["sales", "management"]` (order not guaranteed).
 
+### Worked example: BPMN-calls-COLLECT
+
+End-to-end pattern when a process needs a list of dishes routed by season:
+
+DMN (single output, no decision-level `<variable>` — see the next section for why):
+
+```xml
+<decision id="dish" name="Dish">
+  <decisionTable id="dt_dish" hitPolicy="COLLECT">
+    <input id="i_season"><inputExpression typeRef="string"><text>season</text></inputExpression></input>
+    <output id="o_dish" label="Dish" name="dishName" typeRef="string"/>
+    <rule><inputEntry><text>"Winter"</text></inputEntry><outputEntry><text>"Tortellini"</text></outputEntry></rule>
+    <rule><inputEntry><text>"Winter"</text></inputEntry><outputEntry><text>"Roastbeef"</text></outputEntry></rule>
+    <rule><inputEntry><text>"Summer"</text></inputEntry><outputEntry><text>"Gazpacho"</text></outputEntry></rule>
+  </decisionTable>
+</decision>
+```
+
+BPMN business rule task:
+
+```xml
+<bpmn:businessRuleTask id="ChooseDishes" name="Choose dishes">
+  <bpmn:extensionElements>
+    <zeebe:calledDecision decisionId="dish" resultVariable="candidateDishes"/>
+  </bpmn:extensionElements>
+</bpmn:businessRuleTask>
+```
+
+After evaluation with `season = "Winter"`, the process variable is `candidateDishes: ["Tortellini", "Roastbeef"]` — a list, in arbitrary order. Downstream FEEL can iterate, e.g. `=candidateDishes[1]` (first element) or `=count(candidateDishes)`.
+
 ### COLLECT with aggregators
 
 Add `aggregation="SUM" | "MIN" | "MAX" | "COUNT"` to collapse the list into a single value:
@@ -174,6 +204,24 @@ For 4 years, rules 1 and 2 match; `SUM` aggregator returns `300`.
 ### Hit policies Camunda does NOT support
 
 The DMN spec defines `PRIORITY` and `OUTPUT ORDER`. **Camunda 8 does not support these.** If you need priority-based selection, use `COLLECT` and post-process the list in the calling BPMN — e.g. with a FEEL script task that selects by a priority field.
+
+## Decision-level `<variable>` declarations
+
+A decision can carry a `<variable name="..." typeRef="..."/>` element that declares the result name and type. The rules differ between literal expressions and decision tables — getting the shape wrong is a `DECISION_EVALUATION_ERROR` at runtime, not a lint warning.
+
+**Literal expressions:** `<variable>` is mandatory. `typeRef` is the type of the single value the expression evaluates to.
+
+**Decision tables:** `<variable>` is optional. If present, `typeRef` must match the actual return shape:
+
+| Hit policy | Single-output return | Multi-output return |
+|---|---|---|
+| `UNIQUE` / `ANY` / `FIRST` | scalar (`string`, `number`, …) | context |
+| `RULE ORDER` / `COLLECT` (no aggregator) | **list** — DMN has no `list<T>` syntax, so omit `typeRef` or define a custom itemDefinition | list of contexts |
+| `COLLECT` with `aggregation="SUM"\|"MIN"\|"MAX"\|"COUNT"` | scalar (the aggregated value) | n/a (aggregators require single output) |
+
+A scalar `typeRef` on a list-returning policy raises `expected '<typeRef>' but found '[...]'` at evaluation time. The fix is either to drop the `<variable>` element on the decision table (the BPMN `resultVariable` mapping handles naming) or to remove the `typeRef` attribute so the engine accepts the list.
+
+Default recommendation: omit `<variable>` on decision tables unless you have a concrete reason to declare it.
 
 ## DMN data types
 

@@ -51,7 +51,7 @@ Example — `seasonalMenu` depends on `season`:
 ```xml
 <decision id="season">
   <variable name="season" typeRef="string"/>
-  <literalExpression><text>if month(today()) in [12, 1, 2] then "Winter" else "Other"</text></literalExpression>
+  <literalExpression><text>if today().month in [12, 1, 2] then "Winter" else "Other"</text></literalExpression>
 </decision>
 
 <decision id="seasonalMenu">
@@ -76,5 +76,6 @@ Only the root decision is invoked from BPMN; required decisions are evaluated tr
 - **Context literals**: `{ status: "ok", details: { code: 200 } }` — produce a structured output entry without a separate decision.
 - **`get value(context, "key")`** / **`get entries(context)`**: navigate context maps without dot notation; handy when keys are dynamic.
 - **Date arithmetic**: `today() - person.birthDate` produces a `dayTimeDuration` you can compare in unary tests.
+- **Date components are properties, not functions.** `someDate.month`, `someDate.year`, `someDate.day`, `someDate.weekday`. There is no `month(date)` function — `month(today())` raises `NO_FUNCTION_FOUND` at runtime and the decision returns `null`.
 
 For full FEEL reference and gotchas (number/string coercion, `null` handling), see **camunda-feel**.
