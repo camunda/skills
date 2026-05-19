@@ -1,5 +1,5 @@
 ---
-name: camunda-ai-agent
+name: camunda-ai-agents
 description: |
   Use this skill to model and configure AI agents in Camunda 8 BPMN using the AI Agent Sub-process connector — an LLM driver applied to an ad-hoc subprocess with tools as BPMN activities.
 

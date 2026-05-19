@@ -30,7 +30,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 - **camunda-connectors-development**: Use to build a custom connector (JSON-only template or Java SDK) that attaches to a service task or event element
 - **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
 - **camunda-process-mgmt**: Use for deploying to a cluster and running instances
-- **camunda-ai-agent**: Use when modeling an AI agent — ad-hoc subprocess hosting tools driven by the AI Agent connector
+- **camunda-ai-agents**: Use when modeling an AI agent — ad-hoc subprocess hosting tools driven by the AI Agent connector
 
 ## Instructions
 

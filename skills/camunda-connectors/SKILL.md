@@ -137,7 +137,7 @@ Both can be set together — `resultVariable` captures the raw response, `result
 
 The same mechanism applies to **inbound connectors** — e.g. the Slack inbound connector surfaces `resultVariable` + `resultExpression` under the same Output mapping group. The engine writes the incoming event payload into the process scope when the trigger fires, identically to how outbound writes the response when the service task completes.
 
-When a connector is used as an **AI-Agent tool**, its output must surface under a `toolCallResult` variable (see **camunda-ai-agent** for the concept). REST connectors typically use `resultExpression='={toolCallResult: response.body}'`; other connectors apply the same `resultExpression`/`resultVariable` mechanics shaped to their own response.
+When a connector is used as an **AI-Agent tool**, its output must surface under a `toolCallResult` variable (see **camunda-ai-agents** for the concept). REST connectors typically use `resultExpression='={toolCallResult: response.body}'`; other connectors apply the same `resultExpression`/`resultVariable` mechanics shaped to their own response.
 
 ### Example — HTTP REST Connector
 
@@ -185,7 +185,7 @@ After applying, validate with `c8ctl bpmn lint process.bpmn`.
 
 ### Common Pitfalls
 
-- **`<bpmn:documentation>` is not settable via `--set`.** It's a separate BPMN child element, not a template property — hand-edit it in after `apply`. Matters most when a connector is used as a **camunda-ai-agent** tool.
+- **`<bpmn:documentation>` is not settable via `--set`.** It's a separate BPMN child element, not a template property — hand-edit it in after `apply`. Matters most when a connector is used as a **camunda-ai-agents** tool.
 - **Set only active properties.** Conditional properties (e.g. `authentication.token` only applies when `authentication.type=bearer`) are silently skipped if their gating property isn't set in the same call. Decide the parent value first, then set the children.
 - **Outbound and inbound connectors both need `resultVariable` and/or `resultExpression`.** Omitting both means the connector's response is discarded.
 - **Use `{{secrets.NAME}}` for credentials.** Never hardcode tokens, API keys, or webhook URLs in `--set`. See **camunda-c8ctl** for the secrets bootstrap on local clusters.

@@ -12,7 +12,7 @@ description: |
 
 # Camunda c8ctl CLI
 
-Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-dependency CLI for Camunda 8.8+ — for connecting to clusters, deploying resources, and managing process automation. c8ctl is the foundation for the other camunda-* skills (`camunda-bpmn`, `camunda-connectors`, `camunda-feel`, `camunda-process-mgmt`, `camunda-ai-agent`).
+Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-dependency CLI for Camunda 8.8+ — for connecting to clusters, deploying resources, and managing process automation. c8ctl is the foundation for the other camunda-* skills (`camunda-bpmn`, `camunda-connectors`, `camunda-feel`, `camunda-process-mgmt`, `camunda-ai-agents`).
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 - **camunda-connectors**: Uses `c8ctl element-template search/info/get-properties/apply`
 - **camunda-feel**: Uses `c8ctl feel evaluate`
 - **camunda-process-mgmt**: Uses `c8ctl deploy`, `c8ctl run`, `c8ctl watch`, `c8ctl list pi`, `c8ctl search inc`, `c8ctl complete ut`, `c8ctl resolve inc`, etc.
-- **camunda-ai-agent**: Uses `c8ctl element-template search/apply` to apply the AI Agent connector template
+- **camunda-ai-agents**: Uses `c8ctl element-template search/apply` to apply the AI Agent connector template
 
 ## Instructions
 
@@ -51,7 +51,7 @@ The other camunda-* skills depend on three plugins that ship with c8ctl ≥ 3.0.
 
 ```bash
 c8ctl bpmn --help              # camunda-bpmn
-c8ctl element-template --help  # camunda-connectors, camunda-ai-agent
+c8ctl element-template --help  # camunda-connectors, camunda-ai-agents
 c8ctl feel --help              # camunda-feel
 ```
 
