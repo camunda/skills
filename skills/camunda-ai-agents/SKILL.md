@@ -98,6 +98,8 @@ Three things determine whether the LLM picks a tool correctly:
 
    > "Look up a customer by ID. Returns the customer's name, tier, and account status. Call this when the user mentions a customer ID or name. Do not call for anonymous queries."
 
+   The LLM sees the description verbatim — keep it free of vendor names, internal URLs, or anything you wouldn't want quoted back. `c8ctl element-template apply` does not write `<bpmn:documentation>`; hand-edit it in after applying a tool connector template.
+
 3. **Input schema** — derived automatically from `fromAi()` calls inside the activity's input mappings. No `fromAi()` calls → empty schema → the LLM can't pass parameters.
 
 A tool can be a **single activity** (service task, script task, user task) or a **sub-flow** rooted at a `bpmn:subProcess` containing further activities. In both cases the LLM only sees the root node — descriptions, inputs, and schema are read from there. The internal sub-flow steps are invisible to the LLM; they execute in sequence per normal BPMN semantics and propagate variables up when the sub-process completes.
@@ -155,6 +157,22 @@ For long, structured prompts, build the string in a script task upstream and pas
 
 The tool feedback loop is **internal**: the agent job worker repeatedly calls the LLM, activates the tools it chose, collects results, and re-prompts until the LLM produces a final response or `data.limits.maxModelCalls` is reached. You don't model the loop — only the tools.
 
+## Reading the Agent Response
+
+The agent writes its output to a single context variable named by the connector's **Result Variable** field — default `agent`. With multiple agents in the same process, give each a unique result variable name (e.g. `mySecondAgent`) and re-align the agent-context input field accordingly (`mySecondAgent.context`) to avoid interference between agents.
+
+Which fields the result context contains depends on the response settings (examples below use the default `agent`):
+
+- `agent.responseText` — when `data.response.format.type=text` (the default).
+- `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.parseJson=true`.
+- `agent.context` — when `data.response.includeAgentContext=true`. Needed for the Response Interaction pattern below.
+
+**Provider × `format=json` compat.** Only OpenAI and Google Vertex AI support `data.response.format.type=json` natively. For Anthropic, Amazon Bedrock, Azure OpenAI, and OpenAI-compatible providers, use `format=text` + `parseJson=true` and read `agent.responseJson`.
+
+**Schema is a FEEL context literal.** When `format=json`, `data.response.format.schema` is `feel: required` — write it as `={ type: "object", properties: { ... } }`, not a quoted JSON string.
+
+**When JSON parsing fails.** Behavior differs between the two paths: `parseJson=true` on `format=text` omits `responseJson` and still populates `responseText` with the raw (unparseable) text — no incident. Native `format=json` raises an incident with error code `FAILED_TO_PARSE_RESPONSE_CONTENT`; handle it with an error boundary event if you need graceful fallback.
+
 ## Response Interaction (User Feedback Loop)
 
 After the agent produces its final response, you may want a user (or another agent acting as a judge) to review or amend it and bounce it back in. The pattern is to route from the ad-hoc subprocess to a user task that collects `followUpInput`, then back to the same agent ad-hoc subprocess. The user-prompt FEEL switches between the initial and the follow-up input:
@@ -192,7 +210,7 @@ c8ctl bpmn lint process.bpmn
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by hand:
 
 - Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
-- Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element.
+- Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it by hand).
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.
 - `data.limits.maxModelCalls` is set.
