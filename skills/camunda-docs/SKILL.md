@@ -113,9 +113,9 @@ Don't loop more than 2-3 refinements. If still nothing, switch to the MCP path (
 
 The Algolia search-only API key is public — Algolia ships it in the browser JS bundle of docs.camunda.io, so every visitor already has it. It's hardcoded at the top of `scripts/docs-search.sh` with a comment explaining why it's safe to commit. No env vars, no auth, safe in CI.
 
-### If curl/jq aren't available
+### Without the wrapper script
 
-The script needs `curl` and `jq`. If either is missing in your environment (e.g. Windows without WSL, sandbox without `jq`), replicate the request directly:
+If you can't or don't want to run `scripts/docs-search.sh` (e.g. `jq` missing, restricted sandbox, or you just need the raw API), call the Algolia endpoint directly:
 
 ```bash
 curl -sf -X POST \
@@ -126,7 +126,7 @@ curl -sf -X POST \
   -d '{"query":"YOUR QUERY","hitsPerPage":10,"facetFilters":[["version:8.9"]]}'
 ```
 
-Substitute the `version:` facet for the version you want (`current` for `next`, omit `facetFilters` entirely for `all`). The response shape is Algolia's raw hits — useful fields per hit are `url`, `hierarchy.lvl0..lvl5`, and `content`. If `curl` is also unavailable, use any HTTP client that can POST JSON (Python `urllib`, Node `fetch`, PowerShell `Invoke-RestMethod`); the endpoint, headers, and body are the same. The credentials in the snippet are public by design (see "No credentials needed" above).
+Substitute the `version:` facet for the version you want (`current` for `next`, omit `facetFilters` entirely for `all`). The response shape is Algolia's raw hits — useful fields per hit are `url`, `hierarchy.lvl0..lvl5`, and `content`. If `curl` itself isn't available either, use any HTTP client that can POST JSON (Python `urllib`, Node `fetch`, PowerShell `Invoke-RestMethod`); the endpoint, headers, and body are the same. The credentials in the snippet are public by design (see "No credentials needed" above).
 
 ## Fallback: llms.txt (docs index)
 
