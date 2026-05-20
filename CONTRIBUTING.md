@@ -96,14 +96,16 @@ When a script is genuinely warranted, it must be:
 
 ## Commit Messages
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/). Format: `<type>(<scope>): <subject>`. Scope is the skill name (`camunda-bpmn`, `camunda-feel`, …) or a repo-wide area (`ci`, `contributing`, `lint`). Common types:
+Follow [Conventional Commits](https://www.conventionalcommits.org/). Format: `<type>(<scope>): <subject>`. Scope is the skill name (`camunda-bpmn`, `camunda-feel`, …) or a repo-wide area (`ci`, `contributing`, `lint`, `repo`). Common types:
 
 - `feat` — new skill or new capability within a skill
 - `fix` — correction to existing skill content or tooling
-- `docs` — README / CONTRIBUTING / AGENTS.md changes
+- `docs` — **repo-level docs only**: README.md, AGENTS.md, CONTRIBUTING.md, issue/PR templates. *Not* for SKILL.md or `references/` edits
 - `refactor` — restructuring without behavioural change (e.g., moving content into `references/`)
 - `chore` — versioning, lint config, dependency bumps
 - `test` — eval suites or test infrastructure
+
+**`SKILL.md` and `references/` files are the product, not documentation.** Adding guidance, tightening wording, fixing an example, or restructuring a reference all change what the skill does — pick `feat` / `fix` / `refactor` based on the nature of the change. Reserve `docs` for the repo-level files listed above. When in doubt: if the change ships to skill consumers, it isn't `docs`.
 
 Examples:
 
@@ -112,6 +114,14 @@ feat(camunda-dmn): add decision-table hit-policy reference
 fix(camunda-connectors): correct sync caveat duplication
 refactor(camunda-connectors): move post-apply concerns into references/
 docs(contributing): document conventional commit format
+docs(repo): require PR and issue templates in AGENTS.md
+```
+
+Wrong vs. right for skill content:
+
+```
+docs(camunda-bpmn): cover ad-hoc subprocess and end-event ioMapping   # ❌ ships new skill guidance
+feat(camunda-bpmn): cover ad-hoc subprocess and end-event ioMapping   # ✅
 ```
 
 Keep the subject under ~70 characters. Use the body for the *why*, not the *what*.
