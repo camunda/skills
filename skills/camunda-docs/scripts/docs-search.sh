@@ -144,7 +144,7 @@ RAW=$(curl -sf -X POST "$URL" \
 # Algolia's relevance ranking. The reduce-based form below keeps the first
 # occurrence of each stem in the original order.
 if [ "$VERSION" = "all" ]; then
-  echo "$RAW" | jq --arg q "$QUERY" --argjson lim "$LIMIT" '
+  printf '%s' "$RAW" | jq --arg q "$QUERY" --argjson lim "$LIMIT" '
     . as $raw
     | [ .hits[] | {
           url,
@@ -166,7 +166,7 @@ if [ "$VERSION" = "all" ]; then
         hits: .
       }'
 else
-  echo "$RAW" | jq --arg q "$QUERY" --arg v "$VERSION" --arg av "$ALGOLIA_VERSION" '
+  printf '%s' "$RAW" | jq --arg q "$QUERY" --arg v "$VERSION" --arg av "$ALGOLIA_VERSION" '
     {
       query: $q,
       version: $v,
