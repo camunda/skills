@@ -118,7 +118,7 @@ The Algolia search-only API key is public — Algolia ships it in the browser JS
 If you can't or don't want to run `scripts/docs-search.sh` (e.g. `jq` missing, restricted sandbox, or you just need the raw API), call the Algolia endpoint directly:
 
 ```bash
-curl -sf -X POST \
+curl -sS -f -X POST \
   "https://6KYF3VMCXZ-dsn.algolia.net/1/indexes/camunda-v2/query" \
   -H "X-Algolia-API-Key: 68db7725a8410eace68419c29385ad1e" \
   -H "X-Algolia-Application-Id: 6KYF3VMCXZ" \

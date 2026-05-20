@@ -72,7 +72,7 @@ require_cmd jq
 # Max-version selection runs entirely in jq so the script's runtime deps
 # stay limited to curl + jq (no coreutils sort/tail needed).
 resolve_stable() {
-  curl -sf -X POST "$URL" \
+  curl -sS -f -X POST "$URL" \
     -H "X-Algolia-API-Key: $API_KEY" \
     -H "X-Algolia-Application-Id: $APP_ID" \
     -H "Content-Type: application/json" \
@@ -127,7 +127,7 @@ else
     '{query: $q, hitsPerPage: $n}')
 fi
 
-RAW=$(curl -sf -X POST "$URL" \
+RAW=$(curl -sS -f -X POST "$URL" \
   -H "X-Algolia-API-Key: $API_KEY" \
   -H "X-Algolia-Application-Id: $APP_ID" \
   -H "Content-Type: application/json" \
