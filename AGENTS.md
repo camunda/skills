@@ -127,6 +127,12 @@ the target skill's rules. Keep cross-ref bullets to a one-line topical pointer
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <subject>`,
 with the skill name as the scope (e.g. `feat(camunda-dmn): …`, `fix(camunda-bpmn): …`).
+
+**`SKILL.md` and `references/` files are the product, not docs.** Changes that ship new
+guidance, tighten wording, fix an example, or restructure a reference all change what the
+skill does — use `feat` / `fix` / `refactor`, not `docs`. `docs` is reserved for repo-level
+files (README.md, AGENTS.md, CONTRIBUTING.md, issue/PR templates).
+
 See [CONTRIBUTING.md § Commit Messages](CONTRIBUTING.md#commit-messages) for the full list of types and examples.
 
 ### Pull Requests and Issues
