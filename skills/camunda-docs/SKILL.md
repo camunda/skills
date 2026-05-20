@@ -60,7 +60,7 @@ Default `--version stable` resolves to the highest numeric version in the index 
 1. **Pick a version** (see table below). Default `stable`.
 2. Run the script.
 3. Inspect the hits — each has `url`, `hierarchy`, `title`, `snippet`.
-4. **Open the most relevant page(s) with WebFetch** to read full context. Snippets are short; don't answer from them alone if the question needs detail.
+4. **Fetch the most relevant page(s)** directly by URL to read full context. Snippets are short; don't answer from them alone if the question needs detail.
 5. **Refine if insufficient** — see refinement strategy below.
 
 ### Version handling

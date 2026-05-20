@@ -69,14 +69,21 @@ require_cmd jq
 
 # Resolve "stable" to the highest numeric version reported by the index.
 # This keeps the script working when 9.0 ships without a code change.
+# Max-version selection runs entirely in jq so the script's runtime deps
+# stay limited to curl + jq (no coreutils sort/tail needed).
 resolve_stable() {
   curl -sf -X POST "$URL" \
     -H "X-Algolia-API-Key: $API_KEY" \
     -H "X-Algolia-Application-Id: $APP_ID" \
     -H "Content-Type: application/json" \
     -d '{"query":"","hitsPerPage":0,"facets":["version"]}' \
-    | jq -r '.facets.version | keys[] | select(test("^[0-9]+\\.[0-9]+$"))' \
-    | sort -t. -k1,1n -k2,2n | tail -1
+    | jq -r '
+        .facets.version
+        | keys
+        | map(select(test("^[0-9]+\\.[0-9]+$")))
+        | sort_by(split(".") | map(tonumber))
+        | last // empty
+      '
 }
 
 if [ "$VERSION" = "stable" ]; then
