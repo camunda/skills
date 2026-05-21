@@ -1,10 +1,13 @@
 # Sandbox compose — base archetype.
 #
-# Selected by `lib/sandboxes.sandbox_for(METADATA)` when
-# `metadata.image == "base"` and no verifier service is needed.
+# Referenced directly from a scenario's task.py via
+# ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")))``.
 #
 # Used by the c8ctl-bootstrap scenario, which exercises the
-# camunda-c8ctl install path from a clean container.
+# camunda-c8ctl install path from a clean container. The agent loop
+# runs in the Inspect host process (react() with bash_session +
+# text_editor + skill); only the tool calls execute inside this
+# container, so no model API keys need to be passed through.
 
 services:
   default:

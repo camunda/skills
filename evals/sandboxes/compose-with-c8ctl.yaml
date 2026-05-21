@@ -1,8 +1,9 @@
 # Sandbox compose — with-c8ctl archetype.
 #
-# Selected by `lib/sandboxes.sandbox_for(METADATA)` when
-# `metadata.image == "with-c8ctl"` and no verifier service is needed
-# (verifier kinds: exit-code, transcript, judge, or a composite that
+# Referenced directly from a scenario's task.py via
+# ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")))``.
+# Used by scenarios that need c8ctl pre-installed but no separate
+# verifier service (exit-code, transcript, judge, or a composite that
 # doesn't include CPT).
 
 services:
