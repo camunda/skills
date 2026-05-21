@@ -40,7 +40,7 @@ def _skill_path(skill: str) -> str:
 
 @scorer(metrics=[])
 def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
-    """Score 1.0 iff the agent read every named SKILL.md.
+    """Score 1.0 when the agent read every named SKILL.md; 0.0 otherwise.
 
     A skill is considered loaded when the transcript records a
     file-read (or equivalent tool call) whose target ends in
@@ -70,7 +70,8 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
 
 @scorer(metrics=[])
 def assert_tool_called(tool: str, subcommand: str | None = None) -> Scorer:
-    """Score 1.0 iff the agent invoked ``tool`` (optionally with ``subcommand``).
+    """Score 1.0 when the agent invoked ``tool`` (optionally with
+    ``subcommand``); 0.0 otherwise.
 
     For Bash-shaped invocations, matches when the rendered command
     line starts with ``tool [subcommand]``. Subcommand is checked

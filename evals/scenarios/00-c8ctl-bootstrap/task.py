@@ -33,8 +33,8 @@ METADATA = ScenarioMetadata.for_scenario(
 
 @scorer(metrics=[])
 def topology_reachable():
-    """Score 1.0 iff ``c8ctl get topology --json`` returns valid JSON
-    with at least one broker.
+    """Score 1.0 when ``c8ctl get topology --json`` returns valid JSON
+    with at least one broker; 0.0 otherwise.
     """
 
     async def score(state: TaskState, target: Target) -> Score:

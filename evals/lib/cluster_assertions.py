@@ -22,8 +22,8 @@ from inspect_ai.util import sandbox
 
 @scorer(metrics=[])
 def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
-    """Score 1.0 iff a process definition with ``bpmn_process_id`` is
-    deployed on the cluster the agent worked against.
+    """Score 1.0 when a process definition with ``bpmn_process_id`` is
+    deployed on the cluster the agent worked against; 0.0 otherwise.
 
     Uses ``c8ctl get process-definition --json``. The agent's deploy
     may have created multiple versions; we only check existence, not
