@@ -5,6 +5,7 @@ description = "Qualitative evaluation suite for camunda/skills. See ../docs/plan
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=0.104.0",
     "inspect-ai>=0.3.158",
 ]
 
