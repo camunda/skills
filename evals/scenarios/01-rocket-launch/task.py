@@ -27,16 +27,16 @@ from inspect_ai.solver import Generate, TaskState, generate, solver
 from evals.lib.boot_cluster import boot_cluster
 from evals.lib.cluster_assertions import process_deployed_on_cluster
 from evals.lib.inspect_transcript import assert_tool_called
+from evals.lib.metadata import BaselineConfig, ScenarioMetadata
 from evals.lib.run_cpt import cpt_scorer
 
-METADATA = {
-    "skills": ["camunda-bpmn", "camunda-process-mgmt"],
-    "image": "with-c8ctl",
-    "epochs": 1,
-    "tier": "pr",
-    "verifier": "composite",
-    "baseline": {"mode": "without-skill", "exclude": ["camunda-bpmn"]},
-}
+METADATA = ScenarioMetadata(
+    skills=["camunda-bpmn", "camunda-process-mgmt"],
+    image="with-c8ctl",
+    tier="pr",
+    verifier="composite",
+    baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
+)
 
 
 @solver
@@ -80,6 +80,6 @@ def rocket_launch() -> Task:
             process_deployed_on_cluster("RocketLaunch"),
             cpt_scorer(),
         ],
-        metadata=METADATA,
+        metadata=METADATA.model_dump(),
     )
 

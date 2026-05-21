@@ -4,8 +4,9 @@ Imports every ``task.py`` under ``evals/scenarios/`` and exposes a
 flat JSON view for CI consumers (path-filtered workflow, PR comment
 summarizer, nightly orchestration, assertion-hygiene cron).
 
-Single source of truth: ``@task(metadata={...})`` declared inside
-each scenario's ``task.py``. No YAML sidecars.
+Single source of truth: ``METADATA: ScenarioMetadata`` declared at the
+top of each scenario's ``task.py``. Schema lives in ``lib/metadata.py``
+(Pydantic) — no manual validation here.
 
 Run as a script to dump the registry:
 
@@ -18,75 +19,33 @@ import argparse
 import importlib.util
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
+
+from evals.lib.metadata import ScenarioMetadata
 
 SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
 
-# Schema for metadata. Validated explicitly here so violations surface
-# at registry-load time rather than at scenario-run time.
-ALLOWED_IMAGES = {"base", "with-c8ctl", "with-c8ctl+verifier"}
-ALLOWED_TIERS = {"pr", "nightly", "release"}
-ALLOWED_VERIFIERS = {"cpt", "exit-code", "transcript", "judge", "composite"}
-ALLOWED_BASELINE_MODES = {"without-skill", "none"}
-
 
 @dataclass(frozen=True)
-class ScenarioMeta:
+class ScenarioEntry:
+    """A scenario discovered by ``load_all()``.
+
+    Wraps ``ScenarioMetadata`` with the on-disk id + path so CI
+    consumers can address the scenario without re-deriving them.
+    """
+
     id: str
     path: Path
-    skills: list[str]
-    image: Literal["base", "with-c8ctl", "with-c8ctl+verifier"]
-    epochs: int
-    tier: Literal["pr", "nightly", "release"]
-    verifier: Literal["cpt", "exit-code", "transcript", "judge", "composite"]
-    baseline: dict[str, Any] = field(default_factory=dict)
+    metadata: ScenarioMetadata
 
     def to_json(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "path": str(self.path.relative_to(SCENARIOS_DIR.parent.parent)),
-            "skills": list(self.skills),
-            "image": self.image,
-            "epochs": self.epochs,
-            "tier": self.tier,
-            "verifier": self.verifier,
-            "baseline": self.baseline,
+            **self.metadata.model_dump(),
         }
-
-
-def _validate(scenario_id: str, meta: dict[str, Any]) -> None:
-    missing = {"skills", "image", "epochs", "tier", "verifier", "baseline"} - meta.keys()
-    if missing:
-        raise ValueError(f"{scenario_id}: missing metadata fields: {sorted(missing)}")
-
-    if not isinstance(meta["skills"], list) or not all(isinstance(s, str) for s in meta["skills"]):
-        raise ValueError(f"{scenario_id}: 'skills' must be list[str]")
-    if meta["image"] not in ALLOWED_IMAGES:
-        raise ValueError(f"{scenario_id}: image must be one of {sorted(ALLOWED_IMAGES)}")
-    if not isinstance(meta["epochs"], int) or meta["epochs"] < 1:
-        raise ValueError(f"{scenario_id}: epochs must be int >= 1")
-    if meta["tier"] not in ALLOWED_TIERS:
-        raise ValueError(f"{scenario_id}: tier must be one of {sorted(ALLOWED_TIERS)}")
-    if meta["verifier"] not in ALLOWED_VERIFIERS:
-        raise ValueError(f"{scenario_id}: verifier must be one of {sorted(ALLOWED_VERIFIERS)}")
-
-    baseline = meta["baseline"]
-    if not isinstance(baseline, dict) or "mode" not in baseline:
-        raise ValueError(f"{scenario_id}: baseline must be a dict with a 'mode' key")
-    if baseline["mode"] not in ALLOWED_BASELINE_MODES:
-        raise ValueError(
-            f"{scenario_id}: baseline.mode must be one of {sorted(ALLOWED_BASELINE_MODES)}"
-        )
-    if baseline["mode"] == "without-skill":
-        exclude = baseline.get("exclude")
-        if exclude != "all" and not (
-            isinstance(exclude, list) and all(isinstance(s, str) for s in exclude)
-        ):
-            raise ValueError(
-                f"{scenario_id}: baseline.exclude must be 'all' or list[str] when mode='without-skill'"
-            )
 
 
 def _import_task_module(task_py: Path):
@@ -105,29 +64,21 @@ def _import_task_module(task_py: Path):
     return module
 
 
-def _extract_meta(module) -> dict[str, Any] | None:
-    """Find the @task-decorated callable and return its metadata dict.
-
-    Inspect AI attaches metadata via the @task decorator. We invoke
-    the task callable to read the resulting Task object's metadata,
-    falling back to a module-level ``METADATA`` dict when invoking
-    isn't safe (e.g., during static scenario discovery in CI).
-    """
-    if hasattr(module, "METADATA") and isinstance(module.METADATA, dict):
-        return module.METADATA
-    for attr in vars(module).values():
-        if callable(attr) and hasattr(attr, "__wrapped__"):
-            # Best-effort: read metadata from the @task decorator
-            # closure. Inspect AI exposes it on the resulting Task,
-            # so prefer the module-level METADATA convention above.
-            meta = getattr(attr, "metadata", None)
-            if isinstance(meta, dict):
-                return meta
-    return None
+def _extract_meta(scenario_id: str, module) -> ScenarioMetadata:
+    meta = getattr(module, "METADATA", None)
+    if isinstance(meta, ScenarioMetadata):
+        return meta
+    if isinstance(meta, dict):
+        # Backwards-compat: legacy dict-shaped METADATA still validates
+        # through the typed model.
+        return ScenarioMetadata.model_validate(meta)
+    raise RuntimeError(
+        f"{scenario_id}: task.py must define METADATA: ScenarioMetadata"
+    )
 
 
-def load_all() -> list[ScenarioMeta]:
-    scenarios: list[ScenarioMeta] = []
+def load_all() -> list[ScenarioEntry]:
+    scenarios: list[ScenarioEntry] = []
     if not SCENARIOS_DIR.exists():
         return scenarios
 
@@ -136,36 +87,22 @@ def load_all() -> list[ScenarioMeta]:
         if not task_py.exists():
             continue
         module = _import_task_module(task_py)
-        meta = _extract_meta(module)
-        if meta is None:
-            raise RuntimeError(
-                f"{scenario_dir.name}: task.py must define METADATA or a @task with metadata"
-            )
-        _validate(scenario_dir.name, meta)
+        meta = _extract_meta(scenario_dir.name, module)
         scenarios.append(
-            ScenarioMeta(
-                id=scenario_dir.name,
-                path=scenario_dir,
-                skills=meta["skills"],
-                image=meta["image"],
-                epochs=meta["epochs"],
-                tier=meta["tier"],
-                verifier=meta["verifier"],
-                baseline=meta["baseline"],
-            )
+            ScenarioEntry(id=scenario_dir.name, path=scenario_dir, metadata=meta)
         )
     return scenarios
 
 
 def filter_by_changed_skills(
-    scenarios: list[ScenarioMeta], changed_skills: list[str]
-) -> list[ScenarioMeta]:
-    """Return scenarios where ``metadata.skills`` intersects ``changed_skills``.
+    scenarios: list[ScenarioEntry], changed_skills: list[str]
+) -> list[ScenarioEntry]:
+    """Return scenarios whose ``metadata.skills`` intersects ``changed_skills``.
 
     Used by the path-filtered PR workflow to scope the run.
     """
     changed = set(changed_skills)
-    return [s for s in scenarios if changed.intersection(s.skills)]
+    return [s for s in scenarios if changed.intersection(s.metadata.skills)]
 
 
 def main() -> None:
@@ -190,10 +127,11 @@ def main() -> None:
     if not scenarios:
         print("(no scenarios)")
         return
-    print(f"{'id':<35} {'image':<22} {'tier':<10} {'verifier':<12} skills")
+    print(f"{'id':<35} {'image':<14} {'tier':<10} {'verifier':<12} skills")
     for s in scenarios:
+        m = s.metadata
         print(
-            f"{s.id:<35} {s.image:<22} {s.tier:<10} {s.verifier:<12} {','.join(s.skills)}"
+            f"{s.id:<35} {m.image:<14} {m.tier:<10} {m.verifier:<12} {','.join(m.skills)}"
         )
 
 

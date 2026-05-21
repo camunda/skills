@@ -19,14 +19,15 @@ from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.util import sandbox
 
-METADATA = {
-    "skills": ["camunda-c8ctl"],
-    "image": "base",
-    "epochs": 1,
-    "tier": "pr",
-    "verifier": "exit-code",
-    "baseline": {"mode": "without-skill", "exclude": ["camunda-c8ctl"]},
-}
+from evals.lib.metadata import BaselineConfig, ScenarioMetadata
+
+METADATA = ScenarioMetadata(
+    skills=["camunda-c8ctl"],
+    image="base",
+    tier="pr",
+    verifier="exit-code",
+    baseline=BaselineConfig(mode="without-skill", exclude=["camunda-c8ctl"]),
+)
 
 
 @scorer(metrics=[])
@@ -91,5 +92,5 @@ def c8ctl_bootstrap() -> Task:
         ],
         solver=[agent_solves_bootstrap(), generate()],
         scorer=topology_reachable(),
-        metadata=METADATA,
+        metadata=METADATA.model_dump(),
     )
