@@ -1,5 +1,5 @@
 > [!NOTE]
-> Technical preview. Skills will be subject to change.
+> Technical preview. Skills are under heavy development and are subject to change.
 
 # Camunda Skills
 
