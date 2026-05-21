@@ -32,17 +32,19 @@ SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
 class ScenarioEntry:
     """A scenario discovered by ``load_all()``.
 
-    Wraps ``ScenarioMetadata`` with the on-disk id + path so CI
-    consumers can address the scenario without re-deriving them.
+    Wraps ``ScenarioMetadata`` with the on-disk path; the id lives on
+    ``metadata.id`` (validated against the directory name at load time).
     """
 
-    id: str
     path: Path
     metadata: ScenarioMetadata
 
+    @property
+    def id(self) -> str:
+        return self.metadata.id
+
     def to_json(self) -> dict[str, Any]:
         return {
-            "id": self.id,
             "path": str(self.path.relative_to(SCENARIOS_DIR.parent.parent)),
             **self.metadata.model_dump(),
         }
@@ -64,17 +66,22 @@ def _import_task_module(task_py: Path):
     return module
 
 
-def _extract_meta(scenario_id: str, module) -> ScenarioMetadata:
+def _extract_meta(scenario_dir: Path, module) -> ScenarioMetadata:
     meta = getattr(module, "METADATA", None)
     if isinstance(meta, ScenarioMetadata):
-        return meta
-    if isinstance(meta, dict):
-        # Backwards-compat: legacy dict-shaped METADATA still validates
-        # through the typed model.
-        return ScenarioMetadata.model_validate(meta)
-    raise RuntimeError(
-        f"{scenario_id}: task.py must define METADATA: ScenarioMetadata"
-    )
+        validated = meta
+    elif isinstance(meta, dict):
+        validated = ScenarioMetadata.model_validate(meta)
+    else:
+        raise RuntimeError(
+            f"{scenario_dir.name}: task.py must define METADATA: ScenarioMetadata"
+        )
+    if validated.id != scenario_dir.name:
+        raise RuntimeError(
+            f"{scenario_dir.name}: METADATA.id={validated.id!r} does not match "
+            f"the directory name. Rename one to match the other."
+        )
+    return validated
 
 
 def load_all() -> list[ScenarioEntry]:
@@ -87,10 +94,8 @@ def load_all() -> list[ScenarioEntry]:
         if not task_py.exists():
             continue
         module = _import_task_module(task_py)
-        meta = _extract_meta(scenario_dir.name, module)
-        scenarios.append(
-            ScenarioEntry(id=scenario_dir.name, path=scenario_dir, metadata=meta)
-        )
+        meta = _extract_meta(scenario_dir, module)
+        scenarios.append(ScenarioEntry(path=scenario_dir, metadata=meta))
     return scenarios
 
 

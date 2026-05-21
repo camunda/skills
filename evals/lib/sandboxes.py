@@ -47,19 +47,16 @@ SCENARIOS_DIR = EVALS_DIR / "scenarios"
 _VERIFIERS_NEEDING_CPT_CONTAINER = {"cpt", "composite"}
 
 
-def sandbox_for(
-    metadata: ScenarioMetadata, scenario_id: str | None = None
-) -> tuple[str, str]:
+def sandbox_for(metadata: ScenarioMetadata) -> tuple[str, str]:
     """Return ``(provider, compose_path)`` for the scenario's metadata.
 
-    ``scenario_id`` enables the per-scenario override lookup; pass it
-    when known (the registry has it; task.py callers usually don't, so
-    omit and rely on archetype routing).
+    Uses ``metadata.id`` to look up a per-scenario ``compose.yaml``
+    override first; falls back to the archetype keyed on
+    ``(image, verifier)``.
     """
-    if scenario_id is not None:
-        override = SCENARIOS_DIR / scenario_id / "compose.yaml"
-        if override.exists():
-            return ("docker", str(override))
+    override = SCENARIOS_DIR / metadata.id / "compose.yaml"
+    if override.exists():
+        return ("docker", str(override))
 
     archetype = _archetype_for(metadata)
     return ("docker", str(SANDBOXES_DIR / archetype))

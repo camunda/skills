@@ -22,7 +22,7 @@ from inspect_ai.util import sandbox
 from evals.lib.metadata import BaselineConfig, ScenarioMetadata
 from evals.lib.sandboxes import sandbox_for
 
-METADATA = ScenarioMetadata(
+METADATA = ScenarioMetadata.for_scenario(
     skills=["camunda-c8ctl"],
     image="base",
     tier="pr",
@@ -93,6 +93,6 @@ def c8ctl_bootstrap() -> Task:
         ],
         solver=[agent_solves_bootstrap(), generate()],
         scorer=topology_reachable(),
-        sandbox=sandbox_for(METADATA, scenario_id="00-c8ctl-bootstrap"),
+        sandbox=sandbox_for(METADATA),
         metadata=METADATA.model_dump(),
     )

@@ -35,6 +35,7 @@ Fields (see `evals/lib/metadata.py` for the model):
 
 | Field | Type | Meaning |
 |---|---|---|
+| `id` | `str` | Scenario id; must match the directory name (e.g. `01-rocket-launch`). Auto-derived from the file path when you use `ScenarioMetadata.for_scenario(...)`. |
 | `skills` | `list[str]` | Which skills this scenario exercises (controls path-filtered PR CI) |
 | `image` | `"base" \| "with-c8ctl"` | Phase 1 container — verifier presence is implicit from `verifier` |
 | `epochs` | `int` | Default 1; 3 for trigger/judge-scored scenarios |
@@ -51,7 +52,8 @@ from inspect_ai.dataset import Sample
 from evals.lib.metadata import BaselineConfig, ScenarioMetadata
 from evals.lib.sandboxes import sandbox_for
 
-METADATA = ScenarioMetadata(
+METADATA = ScenarioMetadata.for_scenario(
+    # id derived from this file's parent directory
     skills=["camunda-bpmn", "camunda-process-mgmt"],
     image="with-c8ctl",
     tier="pr",
@@ -68,16 +70,16 @@ def rocket_launch() -> Task:
         ],
         solver=...,
         scorer=...,
-        sandbox=sandbox_for(METADATA, scenario_id="01-rocket-launch"),
+        sandbox=sandbox_for(METADATA),
         metadata=METADATA.model_dump(),
     )
 ```
 
-`sandbox_for(METADATA, scenario_id=...)` picks the compose file: a
-scenario-local `compose.yaml` if it exists, otherwise an archetype
-based on `(image, verifier)`. CI consumers (`lib/registry.py`,
-`scripts/summarize.py`, the workflow filter) read the metadata
-directly — don't put configuration anywhere else.
+`sandbox_for(METADATA)` picks the compose file: a scenario-local
+`compose.yaml` if it exists (looked up via `METADATA.id`), otherwise
+an archetype based on `(image, verifier)`. CI consumers
+(`lib/registry.py`, `scripts/summarize.py`, the workflow filter) read
+the metadata directly — don't put configuration anywhere else.
 
 ## How to add a new scenario
 

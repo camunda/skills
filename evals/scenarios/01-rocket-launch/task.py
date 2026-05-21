@@ -31,7 +31,7 @@ from evals.lib.metadata import BaselineConfig, ScenarioMetadata
 from evals.lib.run_cpt import cpt_scorer
 from evals.lib.sandboxes import sandbox_for
 
-METADATA = ScenarioMetadata(
+METADATA = ScenarioMetadata.for_scenario(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
     image="with-c8ctl",
     tier="pr",
@@ -81,7 +81,7 @@ def rocket_launch() -> Task:
             process_deployed_on_cluster("RocketLaunch"),
             cpt_scorer(),
         ],
-        sandbox=sandbox_for(METADATA, scenario_id="01-rocket-launch"),
+        sandbox=sandbox_for(METADATA),
         metadata=METADATA.model_dump(),
     )
 
