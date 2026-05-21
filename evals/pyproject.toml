@@ -14,15 +14,9 @@ dev = [
     "ruff>=0.8",
 ]
 
-[tool.uv]
-# Co-located in-repo tool, not a published package — the harness is
-# imported via PYTHONPATH (set in Makefile + CI workflows) so edits to
-# task.py / lib/ are picked up live without a re-sync.
-package = false
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP", "B"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/eval_harness"]

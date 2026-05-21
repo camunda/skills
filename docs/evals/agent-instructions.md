@@ -12,7 +12,7 @@ repo. Operational guide; concepts live in
 | Editing a `skills/<X>/SKILL.md` or `references/` | If a scenario in `evals/scenarios/*` lists `X` in `metadata.skills`, run it locally and check the result before pushing. |
 | Adding a new skill | Open a question: which failure mode would a scenario catch? If you have one, propose it. If you don't, **don't fabricate one** — leave evals untouched. |
 | Lint-only changes (whitespace, link fixes, frontmatter) | Skip evals. `waza check` covers it. |
-| Repo plumbing changes (`Makefile`, workflows, etc.) | Run `make eval SCENARIO=00-c8ctl-bootstrap` as a smoke test if your change could affect the harness. |
+| Repo plumbing changes (`Makefile`, workflows, etc.) | Run `make eval SCENARIO=c8ctl-bootstrap` as a smoke test if your change could affect the harness. |
 | Eval scenario / harness changes | Run the affected scenarios locally; update baselines per `scenarios.md` if intended. |
 
 If in doubt, ask the user. Don't add a scenario speculatively. A
@@ -26,7 +26,7 @@ Prerequisites: Docker, `uv` (installed via Astral; the harness will
 auto-install dependencies via `uv sync`).
 
 ```bash
-make eval SCENARIO=01-rocket-launch    # one scenario, ~1–2 min
+make eval SCENARIO=rocket-launch    # one scenario, ~1–2 min
 make eval-all                          # all scenarios, ~15–20 min
 make eval-baseline SCENARIO=<id>       # regenerate baseline.json
 ```

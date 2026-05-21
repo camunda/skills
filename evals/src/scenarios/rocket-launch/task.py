@@ -1,4 +1,4 @@
-"""Scenario 01 — Rocket Launch BPMN deploy + run.
+"""Rocket Launch BPMN deploy + run.
 
 End-to-end: agent designs a small "rocket launch" BPMN and deploys it
 via c8ctl. Three scorers in composition cover three failure modes at
@@ -24,16 +24,15 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
-from evals.lib.boot_cluster import boot_cluster
-from evals.lib.cluster_assertions import process_deployed_on_cluster
-from evals.lib.inspect_transcript import assert_tool_called
-from evals.lib.metadata import BaselineConfig, ScenarioMetadata
-from evals.lib.run_cpt import cpt_scorer
-from evals.lib.sandboxes import sandbox_for
+from eval_harness.boot_cluster import boot_cluster
+from eval_harness.cluster_assertions import process_deployed_on_cluster
+from eval_harness.inspect_transcript import assert_tool_called
+from eval_harness.metadata import BaselineConfig, ScenarioMetadata
+from eval_harness.paths import SANDBOXES_DIR
+from eval_harness.run_cpt import cpt_scorer
 
-METADATA = ScenarioMetadata.for_scenario(
+METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
-    image="with-c8ctl",
     tier="pr",
     verifier="composite",
     baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
@@ -81,7 +80,6 @@ def rocket_launch() -> Task:
             process_deployed_on_cluster("RocketLaunch"),
             cpt_scorer(),
         ],
-        sandbox=sandbox_for(METADATA),
+        sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
     )
-

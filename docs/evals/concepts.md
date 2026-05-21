@@ -149,7 +149,7 @@ support](https://github.blog/changelog/2025-12-18-github-copilot-now-supports-ag
 ## Cross-skill verification (the load-bearing piece)
 
 Inspect AI's transcript exposes every tool call and file read. A
-reusable scorer in `evals/lib/inspect_transcript.py` provides:
+reusable scorer in `evals/src/eval_harness/inspect_transcript.py` provides:
 
 - `assert_skill_loaded("camunda-bpmn")` — agent read `skills/camunda-bpmn/SKILL.md`
 - `assert_tool_called("c8ctl", subcommand="deploy")` — CLI invoked

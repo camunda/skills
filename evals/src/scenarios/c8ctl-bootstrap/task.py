@@ -1,4 +1,4 @@
-"""Scenario 00 — c8ctl bootstrap from a clean container.
+"""c8ctl bootstrap from a clean container.
 
 Exercises the camunda-c8ctl skill's install + first-cluster path
 from the ``base`` image (no c8ctl pre-installed). Success = the
@@ -19,12 +19,11 @@ from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.util import sandbox
 
-from evals.lib.metadata import BaselineConfig, ScenarioMetadata
-from evals.lib.sandboxes import sandbox_for
+from eval_harness.metadata import BaselineConfig, ScenarioMetadata
+from eval_harness.paths import SANDBOXES_DIR
 
-METADATA = ScenarioMetadata.for_scenario(
+METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],
-    image="base",
     tier="pr",
     verifier="exit-code",
     baseline=BaselineConfig(mode="without-skill", exclude=["camunda-c8ctl"]),
@@ -93,6 +92,6 @@ def c8ctl_bootstrap() -> Task:
         ],
         solver=[agent_solves_bootstrap(), generate()],
         scorer=topology_reachable(),
-        sandbox=sandbox_for(METADATA),
+        sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")),
         metadata=METADATA.model_dump(),
     )

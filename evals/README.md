@@ -9,7 +9,7 @@ signals `waza check` can't catch. Runs locally and on CI.
 Prerequisites: Docker, [uv](https://docs.astral.sh/uv/).
 
 ```bash
-make eval SCENARIO=01-rocket-launch    # one scenario
+make eval SCENARIO=rocket-launch    # one scenario
 make eval-all                          # all scenarios
 make eval-baseline SCENARIO=<id>       # regenerate baseline.json
 ```
@@ -24,16 +24,19 @@ uv run inspect view evals/logs/        # http://localhost:7575
 
 ```
 evals/
-├── pyproject.toml         # uv-managed deps (inspect-ai)
-├── uv.lock                # checked in
-├── .python-version        # pinned Python
-├── sandboxes/             # base / with-c8ctl / verifier Dockerfiles + compose.yaml
-├── lib/                   # shared solvers + scorers + metadata registry
-├── judges/                # rubric prompts for LLM-judge verifiers
-├── scripts/               # CI helpers (summarize, regen-baseline, hygiene)
-└── scenarios/
-    ├── 00-c8ctl-bootstrap/
-    └── 01-rocket-launch/
+├── pyproject.toml          # uv-managed deps (inspect-ai)
+├── uv.lock                 # checked in
+├── .python-version         # pinned Python
+├── sandboxes/              # base / with-c8ctl / verifier Dockerfiles + compose-*.yaml
+└── src/
+    ├── eval_harness/       # framework: solvers, scorers, metadata, registry
+    │   ├── metadata.py
+    │   ├── registry.py
+    │   ├── paths.py
+    │   └── scripts/
+    └── scenarios/
+        ├── c8ctl-bootstrap/
+        └── rocket-launch/
 ```
 
 ## Docs

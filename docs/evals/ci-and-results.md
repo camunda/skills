@@ -31,15 +31,15 @@ workflow changes needed.
 Posted via `peter-evans/create-or-update-comment@v4` with
 `edit-mode: replace` — one rolling comment per PR, not stacked.
 
-Shape (rendered by `evals/scripts/summarize.py`):
+Shape (rendered by `evals/src/eval_harness/scripts/summarize.py`):
 
 ```
 ### 🧪 Eval results
 
 | Scenario | with-skill | without-skill | Δ tokens | Δ duration |
 |---|---|---|---|---|
-| 00-c8ctl-bootstrap | ✅ 1/1 | — | — | — |
-| 01-rocket-launch | ✅ 1/1 (4.2k tok, 12s) | ❌ 0/1 | -- | -- |
+| c8ctl-bootstrap | ✅ 1/1 | — | — | — |
+| rocket-launch | ✅ 1/1 (4.2k tok, 12s) | ❌ 0/1 | -- | -- |
 
 **Cost**: $0.18 (budget: $1–4)
 **Logs**: [eval-<sha>.zip](workflow-artifact-url)
@@ -49,8 +49,8 @@ Shape (rendered by `evals/scripts/summarize.py`):
 
 | Scenario | Field | Baseline | Run | Status |
 |---|---|---|---|---|
-| 01-rocket-launch | tokens | 3500–6500 | 4180 | ✅ in band |
-| 01-rocket-launch | duration_s | 8–25 | 12 | ✅ in band |
+| rocket-launch | tokens | 3500–6500 | 4180 | ✅ in band |
+| rocket-launch | duration_s | 8–25 | 12 | ✅ in band |
 
 </details>
 ```

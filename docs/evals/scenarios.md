@@ -6,11 +6,11 @@ model, baseline semantics, harness choice), see
 
 ## Anatomy of a scenario
 
-A scenario lives under `evals/scenarios/<NN-slug>/`:
+A scenario lives under `evals/src/scenarios/<slug>/`:
 
 ```
-evals/scenarios/01-rocket-launch/
-├── task.py                # @task(metadata={...}) — the canonical contract
+evals/src/scenarios/rocket-launch/
+├── task.py                # @task + METADATA — the canonical contract
 ├── baseline.json          # expected pass-rate, token band, duration band
 ├── fixtures/              # input files the agent (or verifier) reads
 │   └── RocketLaunch.bpmn  # for scenarios that hand the agent a starting file
@@ -27,21 +27,24 @@ Files that may be absent depending on the verifier:
 ## The `task.py` metadata contract
 
 A Pydantic-typed `METADATA: ScenarioMetadata` at the top of each
-`task.py` is the scenario contract. No YAML sidecar. `lib/registry.py`
-imports each `task.py`, reads `METADATA`, and the model itself enforces
-the schema (`extra="forbid"` catches typos at load time).
+`task.py` is the scenario contract. No YAML sidecar.
+`eval_harness.registry` imports each `task.py`, reads `METADATA`, and
+the model enforces the schema (`extra="forbid"` catches typos at load
+time).
 
-Fields (see `evals/lib/metadata.py` for the model):
+Fields (see `evals/src/eval_harness/metadata.py` for the model):
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id` | `str` | Scenario id; must match the directory name (e.g. `01-rocket-launch`). Auto-derived from the file path when you use `ScenarioMetadata.for_scenario(...)`. |
 | `skills` | `list[str]` | Which skills this scenario exercises (controls path-filtered PR CI) |
-| `image` | `"base" \| "with-c8ctl"` | Phase 1 container — verifier presence is implicit from `verifier` |
 | `epochs` | `int` | Default 1; 3 for trigger/judge-scored scenarios |
 | `tier` | `"pr" \| "nightly" \| "release"` | When the scenario runs |
 | `verifier` | `"cpt" \| "exit-code" \| "transcript" \| "judge" \| "composite"` | Phase 2 shape |
 | `baseline` | `BaselineConfig` | `{ mode, exclude }` — comparison arm (see `concepts.md`) |
+
+The scenario id is the directory name; no `id` field on the model.
+The sandbox compose file is declared explicitly on `Task(sandbox=...)`
+per scenario; no `image` field on the model either.
 
 Example:
 
@@ -49,13 +52,11 @@ Example:
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 
-from evals.lib.metadata import BaselineConfig, ScenarioMetadata
-from evals.lib.sandboxes import sandbox_for
+from eval_harness.metadata import BaselineConfig, ScenarioMetadata
+from eval_harness.paths import SANDBOXES_DIR
 
-METADATA = ScenarioMetadata.for_scenario(
-    # id derived from this file's parent directory
+METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
-    image="with-c8ctl",
     tier="pr",
     verifier="cpt",
     baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
@@ -70,46 +71,49 @@ def rocket_launch() -> Task:
         ],
         solver=...,
         scorer=...,
-        sandbox=sandbox_for(METADATA),
+        sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
     )
 ```
 
-`sandbox_for(METADATA)` picks the compose file: a scenario-local
-`compose.yaml` if it exists (looked up via `METADATA.id`), otherwise
-an archetype based on `(image, verifier)`. CI consumers
-(`lib/registry.py`, `scripts/summarize.py`, the workflow filter) read
-the metadata directly — don't put configuration anywhere else.
+Sandbox archetypes live in `evals/sandboxes/`:
+`compose-base.yaml`, `compose-with-c8ctl.yaml`,
+`compose-cpt-verifier.yaml`. A scenario that needs custom infra
+(e.g. WireMock) can drop in its own `compose.yaml` and reference it
+directly. CI consumers (`eval_harness.registry`,
+`eval_harness.scripts.summarize`, the workflow filter) read the
+metadata directly — don't put configuration anywhere else.
 
 ## How to add a new scenario
 
-1. **Pick a number** — next free integer (e.g., `10`). Use a slug
-   that names the *failure mode* the scenario catches, not the skill
-   it exercises (`10-dmn-collect-ordering` > `10-dmn-test`).
+1. **Pick a slug** that names the *failure mode* the scenario
+   catches, not the skill it exercises
+   (`dmn-collect-ordering` > `dmn-test`). Must match
+   `^[a-z][a-z0-9-]*$` (the registry enforces this).
 
 2. **Copy the closest existing scenario**:
    ```bash
-   cp -r evals/scenarios/01-rocket-launch evals/scenarios/10-my-scenario
+   cp -r evals/src/scenarios/rocket-launch evals/src/scenarios/<your-slug>
    ```
 
-3. **Edit `task.py`** — update `@task` metadata, prompt(s), and the
-   sample list. Start with one happy path + one edge case; add more
-   as failures surface (the design supports N samples).
+3. **Edit `task.py`** — update `METADATA`, prompt(s), and the sample
+   list. Start with one happy path + one edge case; add more as
+   failures surface (the design supports N samples).
 
 4. **Write the verifier**:
    - CPT: edit `cpt-verifier/src/test/java/.../*IT.java`
    - Exit-code: declare the command in the task; no extra files
-   - Transcript: use helpers from `evals/lib/inspect_transcript.py`
+   - Transcript: use helpers from `evals/src/eval_harness/inspect_transcript.py`
    - Judge: write a Markdown rubric in `evals/judges/`
 
 5. **Run locally** to confirm it boots:
    ```bash
-   make eval SCENARIO=10-my-scenario
+   make eval SCENARIO=<your-slug>
    ```
 
 6. **Generate the baseline** once the scenario behaves correctly:
    ```bash
-   make eval-baseline SCENARIO=10-my-scenario
+   make eval-baseline SCENARIO=<your-slug>
    ```
    Review the diff in `baseline.json` before committing.
 
@@ -148,12 +152,12 @@ edge case is the one that already broke.
 
 2. **Reproduce the verifier outside the sandbox.** The verifier's
    container is reproducible. For a CPT failure, `cd
-   evals/scenarios/<id>/cpt-verifier && mvn test` runs the same test
+   evals/src/scenarios/<id>/cpt-verifier && mvn test` runs the same test
    the verifier container ran. Surefire XML is at `target/surefire-reports/`.
 
 3. **Re-run with more epochs to check flake**:
    ```bash
-   uv run inspect eval evals/scenarios/<id>/task.py --epochs 3
+   uv run inspect eval evals/src/scenarios/<id>/task.py --epochs 3
    ```
    If pass-rate is consistent at 1/3 or 3/3, the result is the result.
    If it bounces between runs, the scenario is flaky — bump its `epochs`
@@ -171,11 +175,11 @@ edge case is the one that already broke.
 last run. Never blanket-regen without diff review:
 
 ```bash
-make eval-baseline SCENARIO=01-rocket-launch
-git diff evals/scenarios/01-rocket-launch/baseline.json
+make eval-baseline SCENARIO=rocket-launch
+git diff evals/src/scenarios/rocket-launch/baseline.json
 # review the diff before committing
-git add evals/scenarios/01-rocket-launch/baseline.json
-git commit -m "feat(evals): refresh baseline for 01-rocket-launch after …"
+git add evals/src/scenarios/rocket-launch/baseline.json
+git commit -m "feat(evals): refresh baseline for rocket-launch after …"
 ```
 
 When to regenerate:

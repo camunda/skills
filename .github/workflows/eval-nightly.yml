@@ -15,9 +15,6 @@ permissions:
   issues: write
   models: read
 
-env:
-  PYTHONPATH: ${{ github.workspace }}
-
 concurrency:
   group: eval-nightly
   cancel-in-progress: false
@@ -38,7 +35,7 @@ jobs:
       - id: list
         working-directory: evals
         run: |
-          ids=$(uv run python -m evals.lib.registry --json | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
+          ids=$(uv run python -m eval_harness.registry --json | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
           echo "scenarios=$ids" >> "$GITHUB_OUTPUT"
 
   run-scenarios:

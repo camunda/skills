@@ -1,16 +1,16 @@
 """Scenario metadata registry.
 
-Imports every ``task.py`` under ``evals/scenarios/`` and exposes a
+Imports every ``task.py`` under ``src/scenarios/`` and exposes a
 flat JSON view for CI consumers (path-filtered workflow, PR comment
-summarizer, nightly orchestration, assertion-hygiene cron).
+summarizer, nightly orchestration).
 
-Single source of truth: ``METADATA: ScenarioMetadata`` declared at the
-top of each scenario's ``task.py``. Schema lives in ``lib/metadata.py``
-(Pydantic) — no manual validation here.
+Single source of truth: ``METADATA: ScenarioMetadata`` declared at
+the top of each scenario's ``task.py``. Schema lives in
+``eval_harness.metadata`` (Pydantic).
 
 Run as a script to dump the registry:
 
-    uv run python -m evals.lib.registry [--json]
+    uv run python -m eval_harness.registry [--json]
 """
 
 from __future__ import annotations
@@ -18,34 +18,34 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evals.lib.metadata import ScenarioMetadata
+from eval_harness.metadata import ScenarioMetadata
+from eval_harness.paths import SCENARIOS_DIR
 
-SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
+SCENARIO_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
 @dataclass(frozen=True)
 class ScenarioEntry:
     """A scenario discovered by ``load_all()``.
 
-    Wraps ``ScenarioMetadata`` with the on-disk path; the id lives on
-    ``metadata.id`` (validated against the directory name at load time).
+    ``id`` is the on-disk directory name. The registry validates the
+    name shape (``^[a-z][a-z0-9-]*$``) at load time.
     """
 
+    id: str
     path: Path
     metadata: ScenarioMetadata
 
-    @property
-    def id(self) -> str:
-        return self.metadata.id
-
     def to_json(self) -> dict[str, Any]:
         return {
-            "path": str(self.path.relative_to(SCENARIOS_DIR.parent.parent)),
+            "id": self.id,
+            "path": str(self.path),
             **self.metadata.model_dump(),
         }
 
@@ -56,7 +56,7 @@ def _import_task_module(task_py: Path):
     Uses the file path as a synthetic module name so multiple
     scenarios with the same function name don't clash in sys.modules.
     """
-    module_name = f"_evals_scenario_{task_py.parent.name}"
+    module_name = f"_evals_scenario_{task_py.parent.name.replace('-', '_')}"
     spec = importlib.util.spec_from_file_location(module_name, task_py)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load {task_py}")
@@ -69,19 +69,12 @@ def _import_task_module(task_py: Path):
 def _extract_meta(scenario_dir: Path, module) -> ScenarioMetadata:
     meta = getattr(module, "METADATA", None)
     if isinstance(meta, ScenarioMetadata):
-        validated = meta
-    elif isinstance(meta, dict):
-        validated = ScenarioMetadata.model_validate(meta)
-    else:
-        raise RuntimeError(
-            f"{scenario_dir.name}: task.py must define METADATA: ScenarioMetadata"
-        )
-    if validated.id != scenario_dir.name:
-        raise RuntimeError(
-            f"{scenario_dir.name}: METADATA.id={validated.id!r} does not match "
-            f"the directory name. Rename one to match the other."
-        )
-    return validated
+        return meta
+    if isinstance(meta, dict):
+        return ScenarioMetadata.model_validate(meta)
+    raise RuntimeError(
+        f"{scenario_dir.name}: task.py must define METADATA: ScenarioMetadata"
+    )
 
 
 def load_all() -> list[ScenarioEntry]:
@@ -93,9 +86,16 @@ def load_all() -> list[ScenarioEntry]:
         task_py = scenario_dir / "task.py"
         if not task_py.exists():
             continue
+        if not SCENARIO_ID_PATTERN.match(scenario_dir.name):
+            raise RuntimeError(
+                f"{scenario_dir.name}: directory name must match "
+                f"{SCENARIO_ID_PATTERN.pattern}"
+            )
         module = _import_task_module(task_py)
         meta = _extract_meta(scenario_dir, module)
-        scenarios.append(ScenarioEntry(path=scenario_dir, metadata=meta))
+        scenarios.append(
+            ScenarioEntry(id=scenario_dir.name, path=scenario_dir, metadata=meta)
+        )
     return scenarios
 
 
@@ -132,12 +132,10 @@ def main() -> None:
     if not scenarios:
         print("(no scenarios)")
         return
-    print(f"{'id':<35} {'image':<14} {'tier':<10} {'verifier':<12} skills")
+    print(f"{'id':<25} {'tier':<10} {'verifier':<12} skills")
     for s in scenarios:
         m = s.metadata
-        print(
-            f"{s.id:<35} {m.image:<14} {m.tier:<10} {m.verifier:<12} {','.join(m.skills)}"
-        )
+        print(f"{s.id:<25} {m.tier:<10} {m.verifier:<12} {','.join(m.skills)}")
 
 
 if __name__ == "__main__":
