@@ -19,6 +19,12 @@ permissions:
   pull-requests: write   # for PR comment
   models: read           # auto-injected GITHUB_TOKEN can call GitHub Models
 
+# Inspect AI loads task.py via importlib.spec_from_file_location, which
+# doesn't put the repo root on sys.path. PYTHONPATH lets `from evals.lib.*`
+# resolve without needing an installed package.
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 concurrency:
   group: eval-${{ github.ref }}
   cancel-in-progress: true

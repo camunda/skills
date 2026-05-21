@@ -64,7 +64,7 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=01-rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval scenarios/$(SCENARIO)/task.py --log-dir logs/
+	@cd $(EVALS_DIR) && PYTHONPATH=$(REPO_ROOT) uv run inspect eval scenarios/$(SCENARIO)/task.py --log-dir logs/
 
 .PHONY: eval-all
 eval-all:
@@ -72,10 +72,10 @@ eval-all:
 	@cd $(EVALS_DIR) && \
 		for s in scenarios/*/task.py; do \
 			echo "=== $$s ==="; \
-			uv run inspect eval "$$s" --log-dir logs/ || exit $$?; \
+			PYTHONPATH=$(REPO_ROOT) uv run inspect eval "$$s" --log-dir logs/ || exit $$?; \
 		done
 
 .PHONY: eval-baseline
 eval-baseline:
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run python -m evals.scripts.regen_baseline --scenario $(SCENARIO)
+	@cd $(EVALS_DIR) && PYTHONPATH=$(REPO_ROOT) uv run python -m evals.scripts.regen_baseline --scenario $(SCENARIO)

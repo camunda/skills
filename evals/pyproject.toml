@@ -15,6 +15,9 @@ dev = [
 ]
 
 [tool.uv]
+# Co-located in-repo tool, not a published package — the harness is
+# imported via PYTHONPATH (set in Makefile + CI workflows) so edits to
+# task.py / lib/ are picked up live without a re-sync.
 package = false
 
 [tool.ruff]
