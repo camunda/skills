@@ -26,20 +26,21 @@ Files that may be absent depending on the verifier:
 
 ## The `task.py` metadata contract
 
-Inspect AI's native `@task(metadata={...})` is our scenario contract.
-No custom YAML sidecar. `evals/lib/registry.py` imports all `task.py`
-files and validates the metadata against a schema.
+A Pydantic-typed `METADATA: ScenarioMetadata` at the top of each
+`task.py` is the scenario contract. No YAML sidecar. `lib/registry.py`
+imports each `task.py`, reads `METADATA`, and the model itself enforces
+the schema (`extra="forbid"` catches typos at load time).
 
-Conventional fields (see `evals/lib/registry.py` for the schema):
+Fields (see `evals/lib/metadata.py` for the model):
 
 | Field | Type | Meaning |
 |---|---|---|
 | `skills` | `list[str]` | Which skills this scenario exercises (controls path-filtered PR CI) |
-| `image` | `"base" \| "with-c8ctl" \| "with-c8ctl+verifier"` | Phase 1 container |
+| `image` | `"base" \| "with-c8ctl"` | Phase 1 container — verifier presence is implicit from `verifier` |
 | `epochs` | `int` | Default 1; 3 for trigger/judge-scored scenarios |
 | `tier` | `"pr" \| "nightly" \| "release"` | When the scenario runs |
 | `verifier` | `"cpt" \| "exit-code" \| "transcript" \| "judge" \| "composite"` | Phase 2 shape |
-| `baseline` | `{ mode: "without-skill" \| "none", exclude: list[str] \| "all" }` | Comparison arm (see `concepts.md`) |
+| `baseline` | `BaselineConfig` | `{ mode, exclude }` — comparison arm (see `concepts.md`) |
 
 Example:
 
@@ -47,28 +48,36 @@ Example:
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 
-@task(metadata={
-    "skills": ["camunda-bpmn", "camunda-process-mgmt"],
-    "image": "with-c8ctl",
-    "epochs": 1,
-    "tier": "pr",
-    "verifier": "cpt",
-    "baseline": {"mode": "without-skill", "exclude": ["camunda-bpmn"]},
-})
+from evals.lib.metadata import BaselineConfig, ScenarioMetadata
+from evals.lib.sandboxes import sandbox_for
+
+METADATA = ScenarioMetadata(
+    skills=["camunda-bpmn", "camunda-process-mgmt"],
+    image="with-c8ctl",
+    tier="pr",
+    verifier="cpt",
+    baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
+)
+
+@task
 def rocket_launch() -> Task:
     return Task(
         dataset=[
-            Sample(id="happy", input="Build a rocket-launch BPMN that …"),
-            Sample(id="edge-malformed-prompt", input="I want a thing that does …"),
+            Sample(id="happy", input="…"),
+            Sample(id="edge", input="…"),
         ],
         solver=...,
         scorer=...,
+        sandbox=sandbox_for(METADATA, scenario_id="01-rocket-launch"),
+        metadata=METADATA.model_dump(),
     )
 ```
 
-The metadata is the contract. CI consumers (`lib/registry.py`,
-`scripts/summarize.py`, the workflow filter) read it. Don't put
-configuration anywhere else.
+`sandbox_for(METADATA, scenario_id=...)` picks the compose file: a
+scenario-local `compose.yaml` if it exists, otherwise an archetype
+based on `(image, verifier)`. CI consumers (`lib/registry.py`,
+`scripts/summarize.py`, the workflow filter) read the metadata
+directly — don't put configuration anywhere else.
 
 ## How to add a new scenario
 

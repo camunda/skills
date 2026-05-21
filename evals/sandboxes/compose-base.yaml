@@ -1,0 +1,22 @@
+# Sandbox compose — base archetype.
+#
+# Selected by `lib/sandboxes.sandbox_for(METADATA)` when
+# `metadata.image == "base"` and no verifier service is needed.
+#
+# Used by the c8ctl-bootstrap scenario, which exercises the
+# camunda-c8ctl install path from a clean container.
+
+services:
+  default:
+    image: camunda-skills-evals-base:latest
+    working_dir: /workspace
+    volumes:
+      - outputs:/workspace/outputs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+
+volumes:
+  outputs:

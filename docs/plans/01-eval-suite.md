@@ -105,10 +105,24 @@ v1 uses online Maven with a `.m2` cache volume for simplicity;
 dep-tree bake-in + `mvn -o` is `FOLLOWUP-EVAL-07`.
 
 **Two base images, declared in `evals/sandboxes/`:**
-- `base.Dockerfile`: ubuntu + node + jdk-21 + mvn + jq — no c8ctl. Used only
-  for the c8ctl-bootstrap scenario (00).
+- `base.Dockerfile`: Eclipse Temurin 25 + Node 24 + Maven + jq — no c8ctl.
+  Used only for the c8ctl-bootstrap scenario (00).
 - `with-c8ctl.Dockerfile`: base + `npm i -g @camunda8/cli` + `c8ctl element-template sync`.
   Used by scenarios 1–9.
+- `verifier.Dockerfile`: same toolchain as base; used as the Phase 2
+  container for CPT-shaped verifiers.
+
+**Compose archetypes** in `evals/sandboxes/`:
+- `compose-base.yaml` — just the `default` service using the base image.
+- `compose-with-c8ctl.yaml` — `default` using the with-c8ctl image.
+- `compose-cpt-verifier.yaml` — `default` (with-c8ctl) + `verifier`
+  service for scorers that need it.
+
+`lib/sandboxes.sandbox_for(METADATA)` picks the right archetype from
+`(metadata.image, metadata.verifier)`. When a scenario needs custom
+infra (e.g. WireMock with specific mappings), it adds its own
+`scenarios/<id>/compose.yaml` that `include:`s an archetype —
+`sandbox_for` prefers the per-scenario file when present.
 
 ## Layout
 
@@ -162,14 +176,17 @@ home for non-Python configuration; we use it as our contract. A small helper
 in `evals/lib/registry.py` imports all `task.py` files and exposes a flat
 JSON view for CI consumers (PR comment, nightly summary, `analyze_assertions.py`).
 
-Conventional metadata fields (validated by `lib/registry.py` against a
-schema, not by Inspect itself):
+Metadata is a Pydantic model (`evals/lib/metadata.ScenarioMetadata`),
+not a plain dict — schema lives in code rather than narrative, and
+`extra="forbid"` catches typos at task-load time. Fields:
+
 - `skills: list[str]` — which skills this scenario exercises
-- `image: "base" | "with-c8ctl" | "with-c8ctl+verifier"`
+- `image: "base" | "with-c8ctl"` — Phase 1 container; verifier
+  presence is implicit from `verifier`, not a third image value
 - `epochs: int` — default 1; 3 for trigger/judge-scored scenarios
 - `tier: "pr" | "nightly" | "release"`
 - `verifier: "cpt" | "exit-code" | "transcript" | "judge" | "composite"`
-- `baseline: { mode: ..., exclude: [...] }` — see next section
+- `baseline: { mode, exclude }` — see next section
 
 ## `with-skill` / `without-skill` semantics
 

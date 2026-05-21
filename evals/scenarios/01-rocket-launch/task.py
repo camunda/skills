@@ -29,6 +29,7 @@ from evals.lib.cluster_assertions import process_deployed_on_cluster
 from evals.lib.inspect_transcript import assert_tool_called
 from evals.lib.metadata import BaselineConfig, ScenarioMetadata
 from evals.lib.run_cpt import cpt_scorer
+from evals.lib.sandboxes import sandbox_for
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
@@ -80,6 +81,7 @@ def rocket_launch() -> Task:
             process_deployed_on_cluster("RocketLaunch"),
             cpt_scorer(),
         ],
+        sandbox=sandbox_for(METADATA, scenario_id="01-rocket-launch"),
         metadata=METADATA.model_dump(),
     )
 

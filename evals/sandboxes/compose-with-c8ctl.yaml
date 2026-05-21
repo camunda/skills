@@ -1,0 +1,21 @@
+# Sandbox compose — with-c8ctl archetype.
+#
+# Selected by `lib/sandboxes.sandbox_for(METADATA)` when
+# `metadata.image == "with-c8ctl"` and no verifier service is needed
+# (verifier kinds: exit-code, transcript, judge, or a composite that
+# doesn't include CPT).
+
+services:
+  default:
+    image: camunda-skills-evals-with-c8ctl:latest
+    working_dir: /workspace
+    volumes:
+      - outputs:/workspace/outputs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+
+volumes:
+  outputs:

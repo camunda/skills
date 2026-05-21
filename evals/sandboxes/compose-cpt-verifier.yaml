@@ -1,0 +1,38 @@
+# Sandbox compose — with-c8ctl + CPT verifier archetype.
+#
+# Selected by `lib/sandboxes.sandbox_for(METADATA)` when
+# `metadata.image == "with-c8ctl"` and the verifier needs CPT
+# (`metadata.verifier == "cpt"` or a composite that includes it).
+#
+# Adds a `verifier` service alongside `default`; the verifier mounts
+# the agent's `outputs/` read-only and shares a Maven `.m2` cache for
+# faster repeat runs. Scorers reach the verifier via
+# `sandbox("verifier")`.
+
+services:
+  default:
+    image: camunda-skills-evals-with-c8ctl:latest
+    working_dir: /workspace
+    volumes:
+      - outputs:/workspace/outputs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+
+  verifier:
+    image: camunda-skills-evals-verifier:latest
+    working_dir: /workspace
+    volumes:
+      - outputs:/outputs:ro
+      - m2-cache:/.m2
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+
+volumes:
+  outputs:
+  m2-cache:
