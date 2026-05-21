@@ -1,0 +1,194 @@
+# Eval suite — scenarios (how-to)
+
+How to read, maintain, debug, and add scenarios. For the "why" (sandbox
+model, baseline semantics, harness choice), see
+[`concepts.md`](concepts.md).
+
+## Anatomy of a scenario
+
+A scenario lives under `evals/scenarios/<NN-slug>/`:
+
+```
+evals/scenarios/01-rocket-launch/
+├── task.py                # @task(metadata={...}) — the canonical contract
+├── baseline.json          # expected pass-rate, token band, duration band
+├── fixtures/              # input files the agent (or verifier) reads
+│   └── RocketLaunch.bpmn  # for scenarios that hand the agent a starting file
+└── cpt-verifier/          # Phase 2 — used when verifier="cpt"
+    ├── pom.xml
+    └── src/test/java/.../RocketLaunchIT.java
+```
+
+Files that may be absent depending on the verifier:
+- `cpt-verifier/` — only for `verifier: "cpt"` scenarios
+- `fixtures/` — only when the scenario hands the agent a starting file
+  (e.g. "fix this broken BPMN" rather than "build it from scratch")
+
+## The `task.py` metadata contract
+
+Inspect AI's native `@task(metadata={...})` is our scenario contract.
+No custom YAML sidecar. `evals/lib/registry.py` imports all `task.py`
+files and validates the metadata against a schema.
+
+Conventional fields (see `evals/lib/registry.py` for the schema):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `skills` | `list[str]` | Which skills this scenario exercises (controls path-filtered PR CI) |
+| `image` | `"base" \| "with-c8ctl" \| "with-c8ctl+verifier"` | Phase 1 container |
+| `epochs` | `int` | Default 1; 3 for trigger/judge-scored scenarios |
+| `tier` | `"pr" \| "nightly" \| "release"` | When the scenario runs |
+| `verifier` | `"cpt" \| "exit-code" \| "transcript" \| "judge" \| "composite"` | Phase 2 shape |
+| `baseline` | `{ mode: "without-skill" \| "none", exclude: list[str] \| "all" }` | Comparison arm (see `concepts.md`) |
+
+Example:
+
+```python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+@task(metadata={
+    "skills": ["camunda-bpmn", "camunda-process-mgmt"],
+    "image": "with-c8ctl",
+    "epochs": 1,
+    "tier": "pr",
+    "verifier": "cpt",
+    "baseline": {"mode": "without-skill", "exclude": ["camunda-bpmn"]},
+})
+def rocket_launch() -> Task:
+    return Task(
+        dataset=[
+            Sample(id="happy", input="Build a rocket-launch BPMN that …"),
+            Sample(id="edge-malformed-prompt", input="I want a thing that does …"),
+        ],
+        solver=...,
+        scorer=...,
+    )
+```
+
+The metadata is the contract. CI consumers (`lib/registry.py`,
+`scripts/summarize.py`, the workflow filter) read it. Don't put
+configuration anywhere else.
+
+## How to add a new scenario
+
+1. **Pick a number** — next free integer (e.g., `10`). Use a slug
+   that names the *failure mode* the scenario catches, not the skill
+   it exercises (`10-dmn-collect-ordering` > `10-dmn-test`).
+
+2. **Copy the closest existing scenario**:
+   ```bash
+   cp -r evals/scenarios/01-rocket-launch evals/scenarios/10-my-scenario
+   ```
+
+3. **Edit `task.py`** — update `@task` metadata, prompt(s), and the
+   sample list. Start with one happy path + one edge case; add more
+   as failures surface (the design supports N samples).
+
+4. **Write the verifier**:
+   - CPT: edit `cpt-verifier/src/test/java/.../*IT.java`
+   - Exit-code: declare the command in the task; no extra files
+   - Transcript: use helpers from `evals/lib/inspect_transcript.py`
+   - Judge: write a Markdown rubric in `evals/judges/`
+
+5. **Run locally** to confirm it boots:
+   ```bash
+   make eval SCENARIO=10-my-scenario
+   ```
+
+6. **Generate the baseline** once the scenario behaves correctly:
+   ```bash
+   make eval-baseline SCENARIO=10-my-scenario
+   ```
+   Review the diff in `baseline.json` before committing.
+
+7. **Add the scenario to the workflow matrix** if it should run on
+   PRs (in `.github/workflows/eval.yml`).
+
+## Edge cases
+
+Each scenario starts with **1 happy + 1 edge case** but the design is
+**N edge cases per scenario**. Inspect's native sample-list shape
+supports this directly; the `id` field distinguishes them in the
+trajectory viewer and PR comment.
+
+Edge-case categories (add as they surface from real failures —
+**don't pre-fabricate**):
+
+- Ambiguous prompt
+- Malformed input
+- Version-floor edge (8.8 vs 8.9 features)
+- Adversarial user (asks for an anti-pattern)
+- Large-input
+
+If you find yourself inventing edge cases, stop. The cost-effective
+edge case is the one that already broke.
+
+## How to debug a failure
+
+1. **Read the transcript first.** `.eval` artifacts contain every
+   tool call and file read:
+   ```bash
+   uv run inspect view evals/logs/
+   # opens http://localhost:7575
+   ```
+   In CI: download the `.eval` artifact from the workflow run, then
+   `uv run inspect view <downloaded-dir>` locally.
+
+2. **Reproduce the verifier outside the sandbox.** The verifier's
+   container is reproducible. For a CPT failure, `cd
+   evals/scenarios/<id>/cpt-verifier && mvn test` runs the same test
+   the verifier container ran. Surefire XML is at `target/surefire-reports/`.
+
+3. **Re-run with more epochs to check flake**:
+   ```bash
+   uv run inspect eval evals/scenarios/<id>/task.py --epochs 3
+   ```
+   If pass-rate is consistent at 1/3 or 3/3, the result is the result.
+   If it bounces between runs, the scenario is flaky — bump its `epochs`
+   in metadata and set a pass-rate threshold in `baseline.json`.
+
+4. **Compare with-skill vs without-skill arms.** A scenario where
+   both arms fail equally suggests the skill isn't the issue (or the
+   prompt is bad). A scenario where both pass equally suggests the
+   skill isn't earning its keep (or the model already knows this from
+   training — drop the scenario or strengthen it).
+
+## How to regenerate baselines safely
+
+`make eval-baseline SCENARIO=<id>` rewrites `baseline.json` from the
+last run. Never blanket-regen without diff review:
+
+```bash
+make eval-baseline SCENARIO=01-rocket-launch
+git diff evals/scenarios/01-rocket-launch/baseline.json
+# review the diff before committing
+git add evals/scenarios/01-rocket-launch/baseline.json
+git commit -m "feat(evals): refresh baseline for 01-rocket-launch after …"
+```
+
+When to regenerate:
+- After an intentional behaviour change (the new pass-rate / token
+  band is the new normal)
+- After bumping a scenario's `epochs`
+
+When **not** to regenerate:
+- After a flaky run — diagnose the flake first
+- After a regression — fix the regression, don't paper over it
+- "Just to update everything" — never. Per-scenario, with review.
+
+## Assertion hygiene checklist
+
+Run through this before merging a scenario change:
+
+- [ ] No always-pass — if pass_rate has been 1.0 for the last 50
+      runs, the assertion isn't catching anything
+- [ ] No always-fail — same logic, inverse
+- [ ] Edge cases differ meaningfully from happy path — not just
+      rewordings
+- [ ] Without-skill arm actually fails (or has materially worse
+      tokens/duration) — if the skill makes no difference, the
+      scenario isn't proving anything
+
+`FOLLOWUP-EVAL-03` adds an automated hygiene cron. Until then,
+self-review.
