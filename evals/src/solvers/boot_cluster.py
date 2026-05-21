@@ -1,12 +1,19 @@
-"""Solver: boot a local c8run cluster inside the sandbox.
+"""Solver: confirm the Camunda orchestration cluster is reachable.
 
-Used by scenarios where Phase 1 needs a live Camunda cluster for the
-agent to interact with via c8ctl. ``c8ctl cluster start`` is
-idempotent — re-running is a no-op if the cluster is already up.
+The cluster is provisioned by docker compose (``compose-*.yaml``'s
+``orchestration`` service running ``camunda/camunda:8.9`` with H2 — no
+external Elasticsearch / Postgres). Compose's
+``depends_on: condition: service_healthy`` gates the agent container
+on the orchestration healthcheck, so by the time this solver runs the
+cluster is up; we just confirm with a topology query.
 
-Wrapped as an Inspect AI solver so scenarios can compose:
+We don't use ``c8ctl cluster start`` (c8run-based) — c8run has no
+aarch64 build and ``camunda/camunda`` is multi-arch, so compose is
+the portable path.
 
-    chain(boot_cluster(), agent_prompt(...), ...)
+Scenarios that test the install path itself (c8ctl-bootstrap) should
+skip this solver — they exercise ``c8ctl get topology`` as part of
+the agent's own work.
 """
 
 from __future__ import annotations
@@ -16,24 +23,27 @@ from inspect_ai.util import sandbox
 
 
 @solver
-def boot_cluster(timeout_s: int = 180) -> Solver:
-    """Start c8run via c8ctl and wait for the cluster to be ready.
+def boot_cluster(timeout_s: int = 60) -> Solver:
+    """Confirm topology is reachable; fail fast if not.
+
+    The agent's container shares orchestration's network namespace
+    (``network_mode: "service:orchestration"`` in the compose file),
+    so ``localhost:8080`` in the agent reaches the Camunda REST API
+    directly — no profile setup needed.
 
     Assumes ``c8ctl`` is on PATH in the sandbox (image: with-c8ctl).
-    Polls ``c8ctl get topology --json`` until the cluster responds or
-    ``timeout_s`` elapses.
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         sb = sandbox()
-        start = await sb.exec(["c8ctl", "cluster", "start"], timeout=timeout_s)
-        if start.returncode != 0:
-            raise RuntimeError(f"c8ctl cluster start failed: {start.stderr}")
-        # Confirm topology is reachable. c8ctl handles its own retries
-        # when --json is used, so a single call here is fine.
-        topology = await sb.exec(["c8ctl", "get", "topology", "--json"], timeout=30)
+        topology = await sb.exec(
+            ["c8ctl", "get", "topology", "--json"], timeout=timeout_s
+        )
         if topology.returncode != 0:
-            raise RuntimeError(f"c8ctl get topology failed: {topology.stderr}")
+            raise RuntimeError(
+                f"orchestration unreachable: c8ctl get topology exit "
+                f"{topology.returncode}: {topology.stderr[-500:]}"
+            )
         state.metadata["topology"] = topology.stdout
         return state
 

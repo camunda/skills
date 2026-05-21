@@ -1,18 +1,25 @@
-"""c8ctl bootstrap from a clean container.
+"""c8ctl bootstrap: install + connect to a running cluster.
 
-Exercises the camunda-c8ctl skill's install + first-cluster path
+Exercises the camunda-c8ctl skill's install + first-connection path
 from the ``base`` image (no c8ctl pre-installed). Success = the
-agent installs c8ctl, starts a local cluster, and confirms topology.
+agent installs c8ctl and confirms the cluster is healthy via
+``c8ctl get topology --json``.
+
+The Camunda 8.9 orchestration is brought up by docker compose (H2,
+no external dependencies — see ``compose-base.yaml``). We don't use
+c8run because it has no aarch64 build; the ``camunda/camunda`` image
+is multi-arch. The agent container shares orchestration's network
+namespace, so c8ctl's default fallback (localhost:8080) just works.
 
 Verifier: exit-code + JSON-shape check on
 ``c8ctl get topology --json``. No CPT project needed — the artifact
 the skill produces is a working CLI, not a process.
 
 Agent loop: Inspect's ``react()`` driving ``bash_session`` (persistent
-shell — npm install + cluster start need stable cwd/env),
-``text_editor`` (Anthropic-native file ops, picked up by Claude
-models), and ``skill`` (all 13 skills discoverable, so trigger
-behavior falls out of agent tool-choice rather than scenario config).
+shell — npm install needs stable cwd/env), ``text_editor``
+(Anthropic-native file ops, picked up by Claude models), and
+``skill`` (all 13 skills discoverable, so trigger behavior falls out
+of agent tool-choice rather than scenario config).
 """
 
 from __future__ import annotations
@@ -72,16 +79,17 @@ def c8ctl_bootstrap() -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "I want to play with a local Camunda 8 cluster on my "
-                    "laptop — can you help me get set up?"
+                    "There's a Camunda 8 cluster running somewhere on this "
+                    "machine — can you set me up with a CLI so I can poke "
+                    "at it?"
                 ),
             ),
             Sample(
-                id="edge-already-running",
+                id="edge-health-check",
                 input=(
-                    "I think I've already got a Camunda cluster running "
-                    "locally from yesterday but I'm not sure if it's "
-                    "healthy — can you check?"
+                    "I think there's a Camunda cluster on localhost:8080 "
+                    "but I'm not sure if it's actually healthy. Set me up "
+                    "with the tooling to confirm."
                 ),
             ),
         ],
