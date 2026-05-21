@@ -1,8 +1,9 @@
 # Qualitative evaluation suite for camunda/skills
 
-> **Status:** PRs #1–#3 landed via [#29](https://github.com/camunda/skills/pull/29)
-> — plan + docs/evals/ quartet + harness foundation + scenarios 00, 01 + CI
-> workflows. Scenarios 02–09 follow per the [Execution checklist](#execution-checklist-updated-as-prs-land).
+> **Status:** plan + docs/evals/ quartet + harness foundation + scenarios
+> 00, 01 + CI workflows landed via the first PR
+> (https://github.com/camunda/skills/pull/29). Scenarios 02–09 follow per
+> the [Execution checklist](#execution-checklist-updated-as-prs-land).
 
 ## Context
 
@@ -56,7 +57,7 @@ verifiers carried by Camunda Process Test (CPT), which we already ship.
 | Judge model | **GitHub Models** (Claude Sonnet 4 via OpenAI-compatible endpoint) with Anthropic / Bedrock fallback | Single token covers local + CI; quota fits PR-gate + nightly |
 | Runtime in sandbox | **c8run** for Phase 1 (agent's tool calls); **CPT embedded testcontainers Zeebe** for Phase 2 verifier | Embedded CPT is the same Zeebe binary; faster, isolated. c8run reserved for scenarios that specifically need it. |
 | LLM mocking inside scenarios | **CPT `mockJobWorker.withHandler`** as default; WireMock-as-HTTPS-proxy as `FOLLOWUP-EVAL-01` | Job-worker-level mock is most realistic from BPMN's view (connector runtime mocked too); HTTPS proxy avoids the agent under test smelling a custom-endpoint config |
-| Untrusted code execution | Docker sandbox + network egress denied + per-task time/mem limits. (Maven dep-tree bake-in / `mvn -o` offline mode deferred to `FOLLOWUP-EVAL-07`.) | Handles scenario #7 (agent writes Java we then `mvn test`). Network denial + resource caps cover v1; offline-mode hardening is defense-in-depth |
+| Untrusted code execution | Docker sandbox + network egress denied + per-task time/mem limits. (Maven dep-tree bake-in / `mvn -o` offline mode deferred to `FOLLOWUP-EVAL-07`.) | Handles the CPT-authoring scenario (agent writes Java we then `mvn test`). Network denial + resource caps cover v1; offline-mode hardening is defense-in-depth |
 
 **Frameworks considered and rejected**: Skillgrade (no compose sandbox, no
 multi-step solver, no cost tracking — strictly weaker for our shape), Harbor
@@ -105,7 +106,7 @@ dep-tree bake-in + `mvn -o` is `FOLLOWUP-EVAL-07`.
 
 **Two base images, declared in `evals/sandboxes/`:**
 - `base.Dockerfile`: ubuntu + node + jdk-21 + mvn + jq — no c8ctl. Used only
-  for scenario #0 (c8ctl bootstrap).
+  for the c8ctl-bootstrap scenario (00).
 - `with-c8ctl.Dockerfile`: base + `npm i -g @camunda8/cli` + `c8ctl element-template sync`.
   Used by scenarios 1–9.
 
@@ -199,8 +200,9 @@ How `exclude` is enforced: the eval suite **disables** the named skill(s) for
 the without-skill arm — agent under test cannot read or invoke them. All
 *other* skills the agent might pull in (transitive cross-refs from skills not
 in `exclude`) remain available, because the question is "what does *this* skill
-add", not "what does the model do raw". A multi-skill scenario like #3
-(`ai-agents`, `bpmn`, `connectors`, `feel`) excluding only `ai-agents` measures
+add", not "what does the model do raw". A multi-skill scenario like the
+AI-agent triage one (`ai-agents`, `bpmn`, `connectors`, `feel`)
+excluding only `ai-agents` measures
 the AI-Agent skill's specific contribution; `exclude: all` measures the suite's
 collective contribution.
 
@@ -232,8 +234,9 @@ sample-list shape supports this directly; the `id` field distinguishes them
 in the trajectory viewer and PR comment. Suggested edge-case categories per
 scenario (add as they surface from real failures, don't pre-fabricate):
 ambiguous prompt, malformed input, version-floor edge (8.8 vs 8.9 features),
-adversarial user (asks for an anti-pattern), large-input. PR #1 ships 1 happy +
-1 edge case per scenario; later PRs add more as bugs surface.
+adversarial user (asks for an anti-pattern), large-input. The first
+PR ships 1 happy + 1 edge case per scenario; later PRs add more as
+bugs surface.
 
 ## Tiering
 
@@ -315,7 +318,7 @@ scorer in `evals/lib/inspect_transcript.py` provides:
 - `assert_tool_called("c8ctl", subcommand="deploy")` — asserts CLI invocation
 - `assert_skill_chain(["camunda-bpmn", "camunda-dmn"])` — asserts skills loaded in order
 
-Scenario #3 asserts `assert_skill_loaded(["camunda-ai-agents", "camunda-bpmn", "camunda-connectors", "camunda-feel"])`
+The AI-agent-triage scenario asserts `assert_skill_loaded(["camunda-ai-agents", "camunda-bpmn", "camunda-connectors", "camunda-feel"])`
 → directly tests whether cross-references in the skill bodies route the agent
 through the suite. This is the test that the prior single-skill eval attempt
 couldn't express.
@@ -366,7 +369,7 @@ execution plan, not a one-shot decision or a proposal-for-debate. Numbered
 (`01-…`) so future plans append in order. Once the suite stabilizes, completed
 plans can move to `docs/plans/archive/` — record, not roadmap.
 
-**Documentation files ship in PR #1** alongside this plan. AGENTS.md gets a
+**Documentation files ship in the foundation PR** alongside this plan. AGENTS.md gets a
 link added to `docs/evals/agent-instructions.md` so the operational guide is
 discoverable from the canonical entry point (and via the AGENTS.md ⇄ CLAUDE.md
 symlink, Claude Code finds it too).
@@ -376,27 +379,27 @@ symlink, Claude Code finds it too).
 Each PR is a self-contained deliverable that leaves the repo in a working
 state. CI gate progressively expands as scenarios land.
 
-| PR | Title | Contents |
+| Step | Title | Contents |
 |---|---|---|
-| #1 | `docs(plans): eval suite plan` | **This doc.** Shipped on its own first so subsequent PRs have something to point at. |
-| #2 | `docs(evals): concepts + scenarios + agent-instructions + ci-and-results` + AGENTS.md link | The `docs/evals/` quartet (can ship before any code lands; reviewers can engage with the design separately from the harness wiring). |
-| #3 | `feat(evals): foundation + scenarios 00 + 01 + CI` | `evals/{README,pyproject.toml,uv.lock,.python-version}`, `evals/sandboxes/{base,with-c8ctl}.Dockerfile` + `compose.yaml`, `evals/lib/*` (incl. `registry.py`), `evals/scripts/summarize.py`, scenarios `00-c8ctl-bootstrap` + `01-rocket-launch`, `Makefile` targets, both workflows gated on these two scenarios. |
-| #4 | `feat(evals): scenario 02-invoice-approval` | scenario + WireMock service + baseline; add to CI matrix |
-| #5 | `feat(evals): scenarios 03 + 04 (AI agent)` | both AI-agent scenarios share `mockJobWorker.withHandler` plumbing — ship together |
-| #6 | `feat(evals): scenario 05-payment-flow-incident` | provoke + resolve pattern, demonstrates c8ctl as agent tool |
-| #7 | `feat(evals): scenario 06-dmn-collect-regression` | DMN COLLECT + `month()` + `typeRef` traps |
-| #8 | `feat(evals): scenario 07-cpt-authoring + verifier sandbox` | sandboxed Java exec; agent's CPT test under `mvn test` |
-| #9 | `feat(evals): transcript chain scorer + scenarios 08 + 09` | extend `inspect_transcript.py` with chain assertions; ship the two trigger-shaped scenarios |
-| #10 | `feat(evals): cross-skill chain assertions on scenarios 02, 03, 05` | apply chain scorer where the cross-skill story is load-bearing |
-| #11 | `ci(evals): PR-comment polish + nightly tuning` | rolling comment refinements, nightly schedule tuning, artifact retention policy |
+| A | `docs(plans): eval suite plan` | **This doc.** Shipped on its own first so subsequent PRs have something to point at. |
+| B | `docs(evals): concepts + scenarios + agent-instructions + ci-and-results` + AGENTS.md link | The `docs/evals/` quartet (can ship before any code lands; reviewers can engage with the design separately from the harness wiring). |
+| C | `feat(evals): foundation + scenarios 00 + 01 + CI` | `evals/{README,pyproject.toml,uv.lock,.python-version}`, `evals/sandboxes/{base,with-c8ctl}.Dockerfile` + `compose.yaml`, `evals/lib/*` (incl. `registry.py`), `evals/scripts/summarize.py`, scenarios `00-c8ctl-bootstrap` + `01-rocket-launch`, `Makefile` targets, both workflows gated on these two scenarios. |
+| D | `feat(evals): scenario 02-invoice-approval` | scenario + WireMock service + baseline; add to CI matrix |
+| E | `feat(evals): scenarios 03 + 04 (AI agent)` | both AI-agent scenarios share `mockJobWorker.withHandler` plumbing — ship together |
+| F | `feat(evals): scenario 05-payment-flow-incident` | provoke + resolve pattern, demonstrates c8ctl as agent tool |
+| G | `feat(evals): scenario 06-dmn-collect-regression` | DMN COLLECT + `month()` + `typeRef` traps |
+| H | `feat(evals): scenario 07-cpt-authoring + verifier sandbox` | sandboxed Java exec; agent's CPT test under `mvn test` |
+| I | `feat(evals): transcript chain scorer + scenarios 08 + 09` | extend `inspect_transcript.py` with chain assertions; ship the two trigger-shaped scenarios |
+| J | `feat(evals): cross-skill chain assertions on scenarios 02, 03, 05` | apply chain scorer where the cross-skill story is load-bearing |
+| K | `ci(evals): PR-comment polish + nightly tuning` | rolling comment refinements, nightly schedule tuning, artifact retention policy |
 
-PRs #4–#11 are mostly independent — can land in any order — except #8 (which
-needs `verifier.Dockerfile` not in #3) and #10 (needs the chain scorer from #9).
+Steps D–K are mostly independent — can land in any order — except H (which
+needs `verifier.Dockerfile` not in C) and J (needs the chain scorer from I).
 Path-filter on `evals/scenarios/<id>/` means each PR's CI only runs what it
 added until merged to `main`.
 
 Follow-ups (`FOLLOWUP-EVAL-01` through `FOLLOWUP-EVAL-07`, listed below) are
-opened opportunistically as separate PRs once the eleven above are landed.
+opened opportunistically as separate PRs once steps A–K are landed.
 
 ## Maintaining this plan
 
@@ -409,19 +412,19 @@ moves into `docs/evals/`).
 
 ## Execution checklist (updated as PRs land)
 
-- [x] PR #1 — this plan
-- [x] PR #2 — `docs/evals/{concepts,scenarios,agent-instructions,ci-and-results}.md` + AGENTS.md link
-- [x] PR #3 — foundation + scenarios 00, 01 + CI
-- [ ] PR #4 — scenario 02 (invoice approval)
-- [ ] PR #5 — scenarios 03 + 04 (AI agent)
-- [ ] PR #6 — scenario 05 (payment flow incident)
-- [ ] PR #7 — scenario 06 (DMN COLLECT)
-- [ ] PR #8 — scenario 07 (CPT authoring, verifier sandbox)
-- [ ] PR #9 — chain scorer + scenarios 08, 09
-- [ ] PR #10 — cross-skill chain assertions on 02, 03, 05
-- [ ] PR #11 — CI/PR-comment polish
+- [x] A — this plan
+- [x] B — `docs/evals/{concepts,scenarios,agent-instructions,ci-and-results}.md` + AGENTS.md link
+- [x] C — foundation + scenarios 00, 01 + CI
+- [ ] D — scenario 02 (invoice approval)
+- [ ] E — scenarios 03 + 04 (AI agent)
+- [ ] F — scenario 05 (payment flow incident)
+- [ ] G — scenario 06 (DMN COLLECT)
+- [ ] H — scenario 07 (CPT authoring, verifier sandbox)
+- [ ] I — chain scorer + scenarios 08, 09
+- [ ] J — cross-skill chain assertions on 02, 03, 05
+- [ ] K — CI/PR-comment polish
 
-## Open follow-ups (deferred, separate PRs after PR #11)
+## Open follow-ups (deferred, separate PRs after step K)
 
 Each follow-up is written for an agent picking it up cold: what problem it
 solves, when to open it, and the rough shape of the work. Open as a PR when
@@ -432,7 +435,7 @@ the trigger fires — don't pre-fabricate.
   CPT's `mockJobWorker.withHandler`. This is realistic from BPMN's view (the
   process can't tell), but the agent under test, when authoring scenarios,
   sees the workaround in the test fixtures — a leaky abstraction.
-- **Trigger**: when an authoring scenario (#7 or similar) fails because the
+- **Trigger**: when an authoring scenario (07 or similar) fails because the
   agent emits a job-worker mock instead of trusting the connector runtime.
 - **Shape**: stand up WireMock configured as an HTTPS forward-proxy with a
   trust anchor injected into the sandbox JDK; route the AI Agent connector's
@@ -445,7 +448,7 @@ the trigger fires — don't pre-fabricate.
 - **Problem**: scenarios run against Copilot CLI by default; Claude Code is a
   manual swap. Harness-specific regressions (Copilot CLI changes skill-loading
   behaviour, Codex CLI's tool plumbing differs) can ship undetected for weeks.
-- **Trigger**: ship this once PR #11 lands *and* the nightly is reliably green
+- **Trigger**: ship this once step K lands *and* the nightly is reliably green
   for ≥2 weeks — premature matrix expansion = noise.
 - **Shape**: new workflow `.github/workflows/eval-cross-harness.yml` running
   weekly. Matrix over `INSPECT_AGENT_BRIDGE ∈ {copilot-cli, claude-code,
@@ -457,7 +460,7 @@ the trigger fires — don't pre-fabricate.
 - **Problem**: assertions rot. Always-pass scenarios stop catching anything;
   always-fail scenarios get ignored. Without periodic review the suite
   degrades into theatre.
-- **Trigger**: ~3 months after PR #11 lands, or sooner if `summarize.py`
+- **Trigger**: ~3 months after step K lands, or sooner if `summarize.py`
   shows a scenario at 100% pass-rate for 50+ runs with no false positives.
 - **Shape**: implement `evals/scripts/analyze_assertions.py` (sketched in the
   Layout section). Reads the last N nightly `.eval` logs, flags scenarios
@@ -470,7 +473,7 @@ the trigger fires — don't pre-fabricate.
   agent loads the skill in the first place. Manual rewrites can miss
   regressions in trigger behaviour.
 - **Trigger**: only open this if a skill's description ships a regression
-  that manual rewrite + the existing trigger-shaped scenarios (#8, #9) can't
+  that manual rewrite + the existing trigger-shaped scenarios (08, 09) can't
   catch. Premature = unnecessary complexity.
 - **Reference**: [agentskills.io guidance on description optimization](https://agentskills.io)
   recommends a train/validation split with a 5-iteration loop. This follow-up
@@ -505,7 +508,7 @@ the trigger fires — don't pre-fabricate.
   cache volume + network egress denial as the security boundary. If Maven
   Central is reachable from the verifier (e.g., a misconfigured network
   policy), an agent-written CPT test could exfiltrate.
-- **Trigger**: opened once scenario #7 lands (PR #8) and we have a stable
+- **Trigger**: opened once scenario 07 lands (step H) and we have a stable
   list of CPT transitive deps to bake. Also opened proactively if a security
   review flags the v1 network-denial model as insufficient.
 - **Shape**: pre-resolve the CPT POM's full dep tree at image build time

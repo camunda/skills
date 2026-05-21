@@ -63,7 +63,7 @@ def agent_solves_bootstrap():
     async def solve(state: TaskState, generate_fn: Generate) -> TaskState:
         # In a real run this delegates to Inspect AI's
         # sandbox_agent_bridge(). v1 wires generate() as a stand-in
-        # so the scenario file imports cleanly; PR #3 lands the bridge.
+        # so the scenario file imports cleanly; the bridge wiring lands later.
         return await generate_fn(state)
 
     return solve

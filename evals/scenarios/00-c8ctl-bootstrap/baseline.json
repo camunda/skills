@@ -9,5 +9,5 @@
     "pass_rate": 0.5
   },
   "cost_band_usd": [0.05, 0.30],
-  "_note": "Placeholder baseline shipped with PR #3 scaffolding. Regenerate via `make eval-baseline SCENARIO=00-c8ctl-bootstrap` once the harness runs end-to-end."
+  "_note": "Placeholder baseline shipped with the harness scaffolding. Regenerate via `make eval-baseline SCENARIO=00-c8ctl-bootstrap` once the harness runs end-to-end."
 }

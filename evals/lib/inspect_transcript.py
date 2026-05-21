@@ -3,12 +3,13 @@
 Inspect AI's transcript exposes every tool call and file read. These
 helpers turn that into testable assertions.
 
-Used by trigger-shaped scenarios (#8 docs invocation, #9 routing) and
-as a chain check on multi-skill scenarios (#2, #3, #5) to verify the
+Used by trigger-shaped scenarios (08 docs invocation, 09 routing) and
+as a chain check on multi-skill scenarios (02, 03, 05) to verify the
 cross-references actually route the agent through the suite.
 
-The full chain scorer (``assert_skill_chain``) lands in PR #9; v1
-ships ``assert_skill_loaded`` and ``assert_tool_called``.
+The full chain scorer (``assert_skill_chain``) lands with the
+trigger-scenario PR; v1 ships ``assert_skill_loaded`` and
+``assert_tool_called``.
 """
 
 from __future__ import annotations

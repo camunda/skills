@@ -1,7 +1,7 @@
 # Verifier sandbox image — runs untrusted agent-generated code (mvn test).
 #
 # Used by scenarios with `verifier: "cpt"` or scenarios where the
-# agent's own Java is the deliverable (scenario #7). Network egress is
+# agent's own Java is the deliverable (CPT-authoring scenario). Network egress is
 # denied at the compose layer (see compose.yaml); this image only needs
 # the toolchain to run `mvn test` offline against a cached .m2.
 #

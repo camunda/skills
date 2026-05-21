@@ -7,7 +7,7 @@ with observed pass rate, token band, and duration band.
 Engineer reviews the diff before committing — never blanket-regen
 across multiple scenarios in one go.
 
-This is the v1 stub. PR #4+ will tighten the diff output and add
+This is the v1 stub. Follow-up PRs will tighten the diff output and add
 ``--all`` rejection (force per-scenario invocation).
 """
 

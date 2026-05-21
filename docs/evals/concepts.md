@@ -35,7 +35,7 @@ does; Phase 2 is what **we** check.
 
 ```
 ┌────────────────────── Phase 1: Eval ───────────────────────┐
-│  Container: with-c8ctl (or base for scenario #0)           │
+│  Container: with-c8ctl (or base for the bootstrap scenario)│
 │  Services in compose: c8run (Zeebe), optionally WireMock   │
 │                                                            │
 │  Agent receives prompt → uses tools (Bash, edit, c8ctl) →  │
@@ -53,10 +53,10 @@ does; Phase 2 is what **we** check.
 └────────────────────────────────────────────────────────────┘
 ```
 
-Why two phases: untrusted agent-generated code (most acutely, scenario
-#7 where the agent writes Java we then `mvn test`) must run in an
-isolated container with network denied and resource caps, separate
-from the cluster the agent is interacting with.
+Why two phases: untrusted agent-generated code (most acutely, the
+CPT-authoring scenario where the agent writes Java we then `mvn test`)
+must run in an isolated container with network denied and resource
+caps, separate from the cluster the agent is interacting with.
 
 ## Verifier menu
 
@@ -75,7 +75,7 @@ any scenario can compose a different verifier — or stack several.
 
 Pick the **cheapest verifier that catches the failure mode you care
 about**. Deterministic (CPT, exit-code, transcript) before non-deterministic
-(judge LLM). A composite is fine — scenario #3 stacks CPT + mocked
+(judge LLM). A composite is fine — the AI-agent-triage scenario stacks CPT + mocked
 job-worker + transcript scorer.
 
 ## `with-skill` / `without-skill` semantics
@@ -103,7 +103,7 @@ cross-refs from skills not in `exclude`) remain available. The
 question is "what does *this* skill add", not "what does the model
 do raw".
 
-A multi-skill scenario like #3 (`ai-agents`, `bpmn`, `connectors`,
+A multi-skill scenario like AI-agent triage (`ai-agents`, `bpmn`, `connectors`,
 `feel`) excluding only `ai-agents` measures the AI-Agent skill's
 specific contribution; `exclude: "all"` measures the suite's
 collective contribution.
@@ -155,7 +155,7 @@ reusable scorer in `evals/lib/inspect_transcript.py` provides:
 - `assert_tool_called("c8ctl", subcommand="deploy")` — CLI invoked
 - `assert_skill_chain(["camunda-bpmn", "camunda-dmn"])` — skills loaded in order
 
-Scenario #3 asserts `assert_skill_loaded(["camunda-ai-agents",
+The AI-agent-triage scenario asserts `assert_skill_loaded(["camunda-ai-agents",
 "camunda-bpmn", "camunda-connectors", "camunda-feel"])` → directly
 tests whether cross-references in the skill bodies route the agent
 through the suite. The prior single-skill eval attempt couldn't

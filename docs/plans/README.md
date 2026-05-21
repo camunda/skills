@@ -18,4 +18,5 @@ or proposals for debate.
 ## Current plans
 
 - [`01-eval-suite.md`](01-eval-suite.md) — Qualitative evaluation suite for
-  camunda/skills. Status: approved, PR #1 (the plan itself) landing.
+  camunda/skills. Status: approved; the plan itself ships as step A of
+  the rollout.
