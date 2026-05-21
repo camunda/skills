@@ -1,5 +1,5 @@
 > [!NOTE]
-> Technical preview. Skills depend on c8ctl features not yet released in a stable version.
+> Technical preview. Skills will be subject to change.
 
 # Camunda Skills
 
