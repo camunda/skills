@@ -1,13 +1,17 @@
 # Docker Compose for eval sandboxes.
 #
 # Inspect AI's docker sandbox provider drives this file. The `default`
-# service is what the agent runs in (Phase 1). Per-scenario task.py
-# may override which image the `default` service uses via the
-# `IMAGE` env var or by passing a custom compose file path.
+# service is what the agent runs in (Phase 1); the agent boots c8run
+# inside this same container via `c8ctl cluster start`, so there is no
+# separate c8run compose service. (c8run is a CLI-managed subprocess,
+# not a Docker image.)
 #
 # Phase 2 (verifier) runs as a separate compose invocation with
 # network egress denied (see services.verifier below) — scenarios that
 # need it reference this file's verifier service.
+#
+# Images are built by `make eval-images` from the Dockerfiles next to
+# this file. Compose only references the tagged images.
 
 services:
   default:
@@ -23,17 +27,8 @@ services:
         limits:
           memory: 2G
           cpus: "2"
-    # Phase 1 needs network access (agent uses tools, c8ctl talks to c8run).
-    # No network restriction here — restrictions are on the verifier service.
-
-  c8run:
-    image: camunda/camunda:8.8
-    # c8run isn't a real published image; placeholder for the local
-    # cluster. In v1 we boot c8run inside the `default` container via
-    # `c8ctl cluster start` rather than a separate compose service —
-    # this stanza is reserved for FOLLOWUP scenarios that need an
-    # always-on cluster shared across phases.
-    profiles: ["disabled"]
+    # Phase 1 needs network access (agent uses tools, c8ctl downloads
+    # c8run on first run, etc.). Restrictions are on the verifier service.
 
   verifier:
     image: camunda-skills-evals-verifier:latest
@@ -47,9 +42,9 @@ services:
         limits:
           memory: 2G
           cpus: "2"
-    # Verifier is network-restricted. v1 allows the default bridge so
-    # online Maven can fetch deps into the .m2 cache; FOLLOWUP-EVAL-07
-    # bakes the dep tree and switches to network_mode: none.
+    # Verifier is network-restricted. Today we allow the default bridge so
+    # online Maven can fetch deps into the .m2 cache; the dep-tree
+    # bake-in follow-up (see plan) switches to network_mode: none.
     profiles: ["verifier"]
 
 volumes:

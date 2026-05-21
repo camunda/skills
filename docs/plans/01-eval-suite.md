@@ -71,8 +71,11 @@ framework (prior 5,200-line attempt was unmaintainable; explicitly out).
 Two-phase execution per scenario, both in Docker, separate containers:
 
 **Phase 1 — Eval**
-- Container: `with-c8ctl` (or `base` for scenario #0) — agent-side environment
-- Services in compose: c8run (Zeebe), optionally WireMock
+- Container: `with-c8ctl` (or `base` for the c8ctl-bootstrap scenario) — agent-side environment
+- Services in compose: the agent container itself (`default`); the
+  agent boots c8run inside that container via `c8ctl cluster start`
+  (c8run is a CLI-managed subprocess, not a Docker image). Optionally
+  WireMock as a sidecar for scenarios that need it.
 - Agent receives prompt, uses tools (Bash, file edit, c8ctl), writes artifacts
   to a mounted `outputs/` volume
 - Agent never observes Phase 2
