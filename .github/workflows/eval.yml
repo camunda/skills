@@ -7,13 +7,11 @@ name: Eval (PR)
 # See docs/evals/ci-and-results.md for the tier matrix and PR-comment
 # shape.
 
+# Disabled while the harness is under review — the scenarios depend on
+# LLM-backed runs we haven't validated end-to-end yet. Manual-only
+# (workflow_dispatch) until the first scenario passes locally. Re-enable
+# pull_request once that's solid.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'skills/**'
-      - 'evals/**'
-      - '.github/workflows/eval.yml'
   workflow_dispatch:
 
 permissions:

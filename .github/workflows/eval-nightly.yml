@@ -4,9 +4,10 @@ name: Eval (nightly)
 # main; failures open issues rather than blocking merges. See
 # docs/evals/ci-and-results.md.
 
+# Disabled while the harness is under review (see eval.yml for context).
+# Manual-only until the first scenario passes locally; cron re-enabled
+# in a follow-up.
 on:
-  schedule:
-    - cron: '0 3 * * *'   # 03:00 UTC nightly
   workflow_dispatch:
 
 permissions:
