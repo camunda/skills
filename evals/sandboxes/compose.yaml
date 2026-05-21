@@ -1,0 +1,57 @@
+# Docker Compose for eval sandboxes.
+#
+# Inspect AI's docker sandbox provider drives this file. The `default`
+# service is what the agent runs in (Phase 1). Per-scenario task.py
+# may override which image the `default` service uses via the
+# `IMAGE` env var or by passing a custom compose file path.
+#
+# Phase 2 (verifier) runs as a separate compose invocation with
+# network egress denied (see services.verifier below) — scenarios that
+# need it reference this file's verifier service.
+
+services:
+  default:
+    # Image is parameterized via IMAGE env var (set by lib/registry.py
+    # based on metadata.image). Defaults to with-c8ctl for convenience.
+    image: ${IMAGE:-camunda-skills-evals-with-c8ctl:latest}
+    working_dir: /workspace
+    # outputs/ is the artifact bridge between Phase 1 and Phase 2.
+    volumes:
+      - outputs:/workspace/outputs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    # Phase 1 needs network access (agent uses tools, c8ctl talks to c8run).
+    # No network restriction here — restrictions are on the verifier service.
+
+  c8run:
+    image: camunda/camunda:8.8
+    # c8run isn't a real published image; placeholder for the local
+    # cluster. In v1 we boot c8run inside the `default` container via
+    # `c8ctl cluster start` rather than a separate compose service —
+    # this stanza is reserved for FOLLOWUP scenarios that need an
+    # always-on cluster shared across phases.
+    profiles: ["disabled"]
+
+  verifier:
+    image: camunda-skills-evals-verifier:latest
+    working_dir: /workspace
+    volumes:
+      - outputs:/outputs:ro
+      - m2-cache:/.m2
+      # The scenario mounts its own cpt-verifier/ project at /workspace.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    # Verifier is network-restricted. v1 allows the default bridge so
+    # online Maven can fetch deps into the .m2 cache; FOLLOWUP-EVAL-07
+    # bakes the dep tree and switches to network_mode: none.
+    profiles: ["verifier"]
+
+volumes:
+  outputs:
+  m2-cache:

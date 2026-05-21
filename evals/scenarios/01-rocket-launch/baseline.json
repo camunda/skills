@@ -1,0 +1,13 @@
+{
+  "pass_rate": 1.0,
+  "with_skill": {
+    "pass_rate": 1.0,
+    "tokens": [3500, 8000],
+    "duration_s": [30, 120]
+  },
+  "without_skill": {
+    "pass_rate": 0.3
+  },
+  "cost_band_usd": [0.08, 0.40],
+  "_note": "Placeholder baseline shipped with PR #3 scaffolding. Regenerate via `make eval-baseline SCENARIO=01-rocket-launch` once the harness runs end-to-end."
+}

@@ -1,0 +1,68 @@
+name: Eval (nightly)
+
+# Nightly run of every scenario in every tier (pr + nightly). Runs on
+# main; failures open issues rather than blocking merges. See
+# docs/evals/ci-and-results.md.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC nightly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  models: read
+
+concurrency:
+  group: eval-nightly
+  cancel-in-progress: false
+
+jobs:
+  list-scenarios:
+    name: Enumerate scenarios
+    runs-on: ubuntu-latest
+    outputs:
+      scenarios: ${{ steps.list.outputs.scenarios }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version-file: evals/.python-version
+      - working-directory: evals
+        run: uv sync --frozen
+      - id: list
+        working-directory: evals
+        run: |
+          ids=$(uv run python -m evals.lib.registry --json | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
+          echo "scenarios=$ids" >> "$GITHUB_OUTPUT"
+
+  run-scenarios:
+    name: Eval ${{ matrix.scenario }}
+    needs: list-scenarios
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJson(needs.list-scenarios.outputs.scenarios) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version-file: evals/.python-version
+      - working-directory: evals
+        run: uv sync --frozen
+      - name: Build sandbox images
+        run: make eval-images
+      - name: Run scenario
+        env:
+          INSPECT_AGENT_BRIDGE: copilot-cli
+          GITHUB_TOKEN: ${{ github.token }}
+        run: make eval SCENARIO=${{ matrix.scenario }}
+      - name: Upload eval logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-logs-${{ matrix.scenario }}-${{ github.run_attempt }}
+          path: evals/logs/
+          retention-days: 14

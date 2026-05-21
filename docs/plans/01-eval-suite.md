@@ -1,8 +1,8 @@
 # Qualitative evaluation suite for camunda/skills
 
-> **Status:** approved, not yet implemented. PR #1 (this doc) lands the plan.
-> Subsequent PRs land the harness + scenarios. See [Execution checklist](#execution-checklist-updated-as-prs-land)
-> for current state.
+> **Status:** PRs #1–#3 landed via [#29](https://github.com/camunda/skills/pull/29)
+> — plan + docs/evals/ quartet + harness foundation + scenarios 00, 01 + CI
+> workflows. Scenarios 02–09 follow per the [Execution checklist](#execution-checklist-updated-as-prs-land).
 
 ## Context
 
@@ -407,8 +407,8 @@ moves into `docs/evals/`).
 ## Execution checklist (updated as PRs land)
 
 - [x] PR #1 — this plan
-- [ ] PR #2 — `docs/evals/{concepts,scenarios,agent-instructions,ci-and-results}.md` + AGENTS.md link
-- [ ] PR #3 — foundation + scenarios 00, 01 + CI
+- [x] PR #2 — `docs/evals/{concepts,scenarios,agent-instructions,ci-and-results}.md` + AGENTS.md link
+- [x] PR #3 — foundation + scenarios 00, 01 + CI
 - [ ] PR #4 — scenario 02 (invoice approval)
 - [ ] PR #5 — scenarios 03 + 04 (AI agent)
 - [ ] PR #6 — scenario 05 (payment flow incident)

@@ -23,3 +23,8 @@ results/
 
 # Logs
 *.log
+
+# Eval suite local outputs
+evals/logs/
+evals/.venv/
+**/__pycache__/

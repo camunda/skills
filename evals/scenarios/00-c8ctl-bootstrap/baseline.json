@@ -1,0 +1,13 @@
+{
+  "pass_rate": 1.0,
+  "with_skill": {
+    "pass_rate": 1.0,
+    "tokens": [2000, 6000],
+    "duration_s": [60, 240]
+  },
+  "without_skill": {
+    "pass_rate": 0.5
+  },
+  "cost_band_usd": [0.05, 0.30],
+  "_note": "Placeholder baseline shipped with PR #3 scaffolding. Regenerate via `make eval-baseline SCENARIO=00-c8ctl-bootstrap` once the harness runs end-to-end."
+}
