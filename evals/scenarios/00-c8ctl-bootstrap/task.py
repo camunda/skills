@@ -76,20 +76,16 @@ def c8ctl_bootstrap() -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "I'm on a fresh Ubuntu container with Node 22 and Java 21 "
-                    "installed but no Camunda tooling. Install c8ctl, start a "
-                    "local Camunda cluster, and confirm the cluster topology "
-                    "is reachable. When you're done, the command "
-                    "`c8ctl get topology --json` should return JSON with at "
-                    "least one broker."
+                    "I want to play with a local Camunda 8 cluster on my "
+                    "laptop — can you help me get set up?"
                 ),
             ),
             Sample(
-                id="edge-existing-cluster",
+                id="edge-already-running",
                 input=(
-                    "Same fresh container as before, but I've already got "
-                    "c8ctl installed and a cluster running. Verify the "
-                    "setup is healthy without restarting anything."
+                    "I think I've already got a Camunda cluster running "
+                    "locally from yesterday but I'm not sure if it's "
+                    "healthy — can you check?"
                 ),
             ),
         ],

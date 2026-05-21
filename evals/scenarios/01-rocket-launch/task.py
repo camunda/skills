@@ -56,25 +56,17 @@ def rocket_launch() -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "Build a BPMN process called `RocketLaunch` that models a "
-                    "simple countdown: a start event, a service task "
-                    "`PerformCountdown` (job type `countdown`), a service "
-                    "task `Liftoff` (job type `liftoff`), and an end event. "
-                    "Save it to `/workspace/outputs/process.bpmn` and deploy "
-                    "it via c8ctl. Then start one instance with the payload "
-                    "`{\"countdownSeconds\": 3}` and report the process "
-                    "instance key."
+                    "I want to model a rocket launch as a tiny BPMN — counts "
+                    "down, then lifts off. Get it running on my local cluster "
+                    "and show me the BPMN is named RocketLaunch is up."
                 ),
             ),
             Sample(
-                id="edge-missing-service-task",
+                id="edge-minimal",
                 input=(
-                    "Build a `RocketLaunch` BPMN with just a start event "
-                    "wired directly to an end event — no service tasks. "
-                    "Save it to `/workspace/outputs/process.bpmn`, deploy "
-                    "via c8ctl, and start one instance. (This is the "
-                    "minimum-viable shape; verifies you can author and "
-                    "deploy without over-engineering.)"
+                    "What's the smallest possible BPMN named RocketLaunch I "
+                    "can deploy and run? I just want to confirm my Camunda "
+                    "setup works end-to-end."
                 ),
             ),
         ],
