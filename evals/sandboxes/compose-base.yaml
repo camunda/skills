@@ -13,6 +13,11 @@ services:
   default:
     image: camunda-skills-evals-base:latest
     working_dir: /workspace
+    # Keep the container alive so Inspect can `docker exec` for each
+    # tool call — the eclipse-temurin image has no foreground CMD and
+    # would otherwise exit immediately.
+    command: ["sleep", "infinity"]
+    init: true
     volumes:
       - outputs:/workspace/outputs
     deploy:

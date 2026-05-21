@@ -14,6 +14,8 @@ services:
   default:
     image: camunda-skills-evals-with-c8ctl:latest
     working_dir: /workspace
+    command: ["sleep", "infinity"]
+    init: true
     volumes:
       - outputs:/workspace/outputs
     deploy:
@@ -25,6 +27,8 @@ services:
   verifier:
     image: camunda-skills-evals-verifier:latest
     working_dir: /workspace
+    command: ["sleep", "infinity"]
+    init: true
     volumes:
       - outputs:/outputs:ro
       - m2-cache:/.m2
