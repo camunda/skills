@@ -78,4 +78,4 @@ eval-all:
 .PHONY: eval-baseline
 eval-baseline:
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run python -m eval_harness.scripts.regen_baseline --scenario $(SCENARIO)
+	@cd $(EVALS_DIR) && uv run evals-regen-baseline --scenario $(SCENARIO)

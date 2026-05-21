@@ -130,38 +130,43 @@ instead — `include:` from an archetype to inherit base config.
 ```
 evals/
 ├── README.md                      # quickstart, links to docs/evals/
-├── pyproject.toml                 # uv-managed; inspect-ai pinned
+├── pyproject.toml                 # uv-managed; inspect-ai pinned; [project.scripts] CLIs
 ├── uv.lock                        # checked in
 ├── .python-version                # pinned (e.g., 3.12)
 ├── sandboxes/
 │   ├── base.Dockerfile
 │   ├── with-c8ctl.Dockerfile
 │   ├── verifier.Dockerfile
-│   └── compose.yaml               # parameterizable; references one image
-├── lib/                           # shared Inspect solvers
-│   ├── boot_cluster.py
-│   ├── deploy_bpmn.py
-│   ├── run_cpt.py                 # mvn test + Surefire XML parse → score
-│   ├── inspect_transcript.py      # helpers for "did agent read SKILL.md X?"
-│   └── registry.py                # imports task.py files, exposes metadata JSON for CI
+│   └── compose-{base,with-c8ctl,cpt-verifier}.yaml
 ├── judges/                        # shared rubric prompts (markdown)
 │   ├── routing_correctness.md
 │   └── version_awareness.md
-├── scripts/
-│   ├── summarize.py               # .eval logs → PR comment markdown
-│   ├── analyze_assertions.py      # always-pass/always-fail detection
-│   └── regen_baseline.py          # rewrites per-scenario baseline.json
-└── scenarios/
-    ├── 00-c8ctl-bootstrap/
-    │   ├── task.py                # @task(metadata={...}) declares skills/image/tier/baseline/verifier
-    │   ├── baseline.json
-    │   └── fixtures/
-    ├── 01-rocket-launch/
-    │   ├── task.py
-    │   ├── baseline.json
-    │   ├── cpt-verifier/          # mvn project; pom.xml + RocketLaunchIT.java
-    │   └── fixtures/
-    └── … (02–09)
+└── src/
+    ├── core/                      # paths, metadata schema, scenario registry
+    │   ├── paths.py
+    │   ├── metadata.py            # ScenarioMetadata Pydantic model
+    │   └── registry.py            # walks scenarios/, exposes JSON for CI
+    ├── scorers/                   # shared Inspect scorers
+    │   ├── transcript.py          # "did agent read SKILL.md X?" / tool-call assertions
+    │   ├── cluster.py             # live-cluster checks via c8ctl
+    │   └── cpt.py                 # mvn test + Surefire XML parse
+    ├── solvers/                   # shared Inspect solvers
+    │   ├── boot_cluster.py
+    │   └── deploy_bpmn.py
+    ├── scripts/                   # CLI entry points (evals-list, evals-summarize, …)
+    │   ├── summarize.py           # .eval logs → PR comment markdown
+    │   ├── analyze_assertions.py  # always-pass/always-fail detection
+    │   └── regen_baseline.py      # rewrites per-scenario baseline.json
+    └── scenarios/
+        ├── c8ctl-bootstrap/
+        │   ├── task.py            # @task + METADATA: ScenarioMetadata
+        │   ├── baseline.json
+        │   └── fixtures/
+        └── rocket-launch/
+            ├── task.py
+            ├── baseline.json
+            ├── cpt-verifier/      # mvn project; pom.xml + *IT.java
+            └── fixtures/
 ```
 
 **Python tooling: `uv` everywhere.** No pip, no venv-by-hand, no `requirements.txt`.
@@ -174,10 +179,10 @@ evals/
 **Scenario metadata via Inspect's native `@task(metadata={...})`** — no custom
 YAML sidecar. Inspect AI already supports per-task metadata as the canonical
 home for non-Python configuration; we use it as our contract. A small helper
-in `evals/src/eval_harness/registry.py` imports all `task.py` files and exposes a flat
+in `evals/src/core/registry.py` imports all `task.py` files and exposes a flat
 JSON view for CI consumers (PR comment, nightly summary, `analyze_assertions.py`).
 
-Metadata is a Pydantic model (`evals/src/eval_harness/metadata.ScenarioMetadata`),
+Metadata is a Pydantic model (`evals/src/core/metadata.ScenarioMetadata`),
 not a plain dict — schema lives in code rather than narrative, and
 `extra="forbid"` catches typos at task-load time. Fields:
 
@@ -320,7 +325,7 @@ identically since Copilot CLI's [Dec 2025 Agent Skills support](https://github.b
 - **`uv run inspect view <log-dir>`** for local trajectory inspection (built-in,
   port 7575). Engineers download `.eval` artifacts and inspect locally
 - **CI uploads `.eval` logs** as workflow artifacts
-- **PR comment** via ~50-line `evals/src/eval_harness/scripts/summarize.py` + `peter-evans/create-or-update-comment@v4`:
+- **PR comment** via ~50-line `evals/src/scripts/summarize.py` + `peter-evans/create-or-update-comment@v4`:
   - Per-scenario pass/fail
   - Delta vs `baseline.json` (regression highlights)
   - Cost summary
@@ -330,7 +335,7 @@ identically since Copilot CLI's [Dec 2025 Agent Skills support](https://github.b
 ## Cross-skill verification (the load-bearing piece)
 
 Inspect AI's transcript exposes every tool call and file read. A reusable
-scorer in `evals/src/eval_harness/inspect_transcript.py` provides:
+scorer in `evals/src/scorers/transcript.py` provides:
 
 - `assert_skill_loaded("camunda-bpmn")` — asserts agent read `skills/camunda-bpmn/SKILL.md`
 - `assert_tool_called("c8ctl", subcommand="deploy")` — asserts CLI invocation
@@ -401,13 +406,13 @@ state. CI gate progressively expands as scenarios land.
 |---|---|---|
 | A | `docs(plans): eval suite plan` | **This doc.** Shipped on its own first so subsequent PRs have something to point at. |
 | B | `docs(evals): concepts + scenarios + agent-instructions + ci-and-results` + AGENTS.md link | The `docs/evals/` quartet (can ship before any code lands; reviewers can engage with the design separately from the harness wiring). |
-| C | `feat(evals): foundation + scenarios 00 + 01 + CI` | `evals/{README,pyproject.toml,uv.lock,.python-version}`, `evals/sandboxes/{base,with-c8ctl}.Dockerfile` + `compose.yaml`, `evals/src/eval_harness/*` (incl. `registry.py`), `evals/src/eval_harness/scripts/summarize.py`, scenarios `00-c8ctl-bootstrap` + `01-rocket-launch`, `Makefile` targets, both workflows gated on these two scenarios. |
+| C | `feat(evals): foundation + scenarios 00 + 01 + CI` | `evals/{README,pyproject.toml,uv.lock,.python-version}`, `evals/sandboxes/{base,with-c8ctl}.Dockerfile` + `compose.yaml`, `evals/src/{core,scorers,solvers,scripts}/*` (incl. `core/registry.py` and `scripts/summarize.py`), scenarios `00-c8ctl-bootstrap` + `01-rocket-launch`, `Makefile` targets, both workflows gated on these two scenarios. |
 | D | `feat(evals): scenario 02-invoice-approval` | scenario + WireMock service + baseline; add to CI matrix |
 | E | `feat(evals): scenarios 03 + 04 (AI agent)` | both AI-agent scenarios share `mockJobWorker.withHandler` plumbing — ship together |
 | F | `feat(evals): scenario 05-payment-flow-incident` | provoke + resolve pattern, demonstrates c8ctl as agent tool |
 | G | `feat(evals): scenario 06-dmn-collect-regression` | DMN COLLECT + `month()` + `typeRef` traps |
 | H | `feat(evals): scenario 07-cpt-authoring + verifier sandbox` | sandboxed Java exec; agent's CPT test under `mvn test` |
-| I | `feat(evals): transcript chain scorer + scenarios 08 + 09` | extend `inspect_transcript.py` with chain assertions; ship the two trigger-shaped scenarios |
+| I | `feat(evals): transcript chain scorer + scenarios 08 + 09` | extend `scorers/transcript.py` with chain assertions; ship the two trigger-shaped scenarios |
 | J | `feat(evals): cross-skill chain assertions on scenarios 02, 03, 05` | apply chain scorer where the cross-skill story is load-bearing |
 | K | `ci(evals): PR-comment polish + nightly tuning` | rolling comment refinements, nightly schedule tuning, artifact retention policy |
 
@@ -480,7 +485,7 @@ the trigger fires — don't pre-fabricate.
   degrades into theatre.
 - **Trigger**: ~3 months after step K lands, or sooner if `summarize.py`
   shows a scenario at 100% pass-rate for 50+ runs with no false positives.
-- **Shape**: implement `evals/src/eval_harness/scripts/analyze_assertions.py` (sketched in the
+- **Shape**: implement `evals/src/scripts/analyze_assertions.py` (sketched in the
   Layout section). Reads the last N nightly `.eval` logs, flags scenarios
   with pass-rate ∈ {0.0, 1.0} for the entire window. Run via a scheduled
   `eval-hygiene.yml` workflow that opens an issue summarizing findings.

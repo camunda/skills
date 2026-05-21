@@ -6,11 +6,12 @@ summarizer, nightly orchestration).
 
 Single source of truth: ``METADATA: ScenarioMetadata`` declared at
 the top of each scenario's ``task.py``. Schema lives in
-``eval_harness.metadata`` (Pydantic).
+``core.metadata`` (Pydantic).
 
-Run as a script to dump the registry:
+Exposed as a console script via ``[project.scripts]`` in
+``pyproject.toml``:
 
-    uv run python -m eval_harness.registry [--json]
+    uv run evals-list [--json] [--changed-skills <skill> ...]
 """
 
 from __future__ import annotations
@@ -24,8 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from eval_harness.metadata import ScenarioMetadata
-from eval_harness.paths import SCENARIOS_DIR
+from core.metadata import ScenarioMetadata
+from core.paths import SCENARIOS_DIR
 
 SCENARIO_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 

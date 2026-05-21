@@ -29,11 +29,10 @@ evals/
 ├── .python-version         # pinned Python
 ├── sandboxes/              # base / with-c8ctl / verifier Dockerfiles + compose-*.yaml
 └── src/
-    ├── eval_harness/       # framework: solvers, scorers, metadata, registry
-    │   ├── metadata.py
-    │   ├── registry.py
-    │   ├── paths.py
-    │   └── scripts/
+    ├── core/              # paths, metadata schema, scenario registry
+    ├── scorers/           # shared scorers (transcript, cluster, cpt)
+    ├── solvers/           # shared solvers (boot_cluster, deploy_bpmn)
+    ├── scripts/           # CLI entry points (evals-list, …)
     └── scenarios/
         ├── c8ctl-bootstrap/
         └── rocket-launch/

@@ -28,11 +28,11 @@ Files that may be absent depending on the verifier:
 
 A Pydantic-typed `METADATA: ScenarioMetadata` at the top of each
 `task.py` is the scenario contract. No YAML sidecar.
-`eval_harness.registry` imports each `task.py`, reads `METADATA`, and
-the model enforces the schema (`extra="forbid"` catches typos at load
+`core.registry` imports each `task.py`, reads `METADATA`, and the
+model enforces the schema (`extra="forbid"` catches typos at load
 time).
 
-Fields (see `evals/src/eval_harness/metadata.py` for the model):
+Fields (see `evals/src/core/metadata.py` for the model):
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -52,8 +52,8 @@ Example:
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 
-from eval_harness.metadata import BaselineConfig, ScenarioMetadata
-from eval_harness.paths import SANDBOXES_DIR
+from core.metadata import BaselineConfig, ScenarioMetadata
+from core.paths import SANDBOXES_DIR
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
@@ -80,9 +80,9 @@ Sandbox archetypes live in `evals/sandboxes/`:
 `compose-base.yaml`, `compose-with-c8ctl.yaml`,
 `compose-cpt-verifier.yaml`. A scenario that needs custom infra
 (e.g. WireMock) can drop in its own `compose.yaml` and reference it
-directly. CI consumers (`eval_harness.registry`,
-`eval_harness.scripts.summarize`, the workflow filter) read the
-metadata directly — don't put configuration anywhere else.
+directly. CI consumers (`evals-list`, `evals-summarize`, the
+workflow filter) read the metadata directly — don't put configuration
+anywhere else.
 
 ## How to add a new scenario
 
@@ -103,7 +103,7 @@ metadata directly — don't put configuration anywhere else.
 4. **Write the verifier**:
    - CPT: edit `cpt-verifier/src/test/java/.../*IT.java`
    - Exit-code: declare the command in the task; no extra files
-   - Transcript: use helpers from `evals/src/eval_harness/inspect_transcript.py`
+   - Transcript: use helpers from `evals/src/scorers/transcript.py`
    - Judge: write a Markdown rubric in `evals/judges/`
 
 5. **Run locally** to confirm it boots:

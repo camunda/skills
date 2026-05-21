@@ -31,7 +31,7 @@ workflow changes needed.
 Posted via `peter-evans/create-or-update-comment@v4` with
 `edit-mode: replace` — one rolling comment per PR, not stacked.
 
-Shape (rendered by `evals/src/eval_harness/scripts/summarize.py`):
+Shape (rendered by `evals/src/scripts/summarize.py`):
 
 ```
 ### 🧪 Eval results

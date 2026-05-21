@@ -19,8 +19,8 @@ from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.util import sandbox
 
-from eval_harness.metadata import BaselineConfig, ScenarioMetadata
-from eval_harness.paths import SANDBOXES_DIR
+from core.metadata import BaselineConfig, ScenarioMetadata
+from core.paths import SANDBOXES_DIR
 
 METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],

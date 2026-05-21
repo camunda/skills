@@ -26,6 +26,8 @@ except ImportError:  # pragma: no cover
     list_eval_logs = None  # type: ignore[assignment]
     read_eval_log = None  # type: ignore[assignment]
 
+from core.paths import SCENARIOS_DIR as _DEFAULT_SCENARIOS_DIR
+
 
 def _load_baseline(scenario_dir: Path) -> dict | None:
     baseline_path = scenario_dir / "baseline.json"
@@ -134,7 +136,7 @@ def main() -> None:
     parser.add_argument("--log-dir", required=True, type=Path)
     parser.add_argument(
         "--scenarios-dir",
-        default=Path(__file__).resolve().parent.parent / "scenarios",
+        default=_DEFAULT_SCENARIOS_DIR,
         type=Path,
     )
     args = parser.parse_args()

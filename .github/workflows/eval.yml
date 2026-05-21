@@ -64,7 +64,7 @@ jobs:
         working-directory: evals
         run: |
           changed=$(tr '\n' ' ' < ../changed-skills.txt)
-          scenarios_json=$(uv run python -m eval_harness.registry --json --changed-skills $changed)
+          scenarios_json=$(uv run evals-list --json --changed-skills $changed)
           echo "$scenarios_json"
           # GitHub Actions matrix wants a JSON list. Extract scenario ids.
           ids=$(echo "$scenarios_json" | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
@@ -132,7 +132,7 @@ jobs:
         run: |
           {
             echo 'body<<COMMENT_EOF'
-            uv run python -m eval_harness.scripts.summarize --log-dir logs/
+            uv run evals-summarize --log-dir logs/
             echo 'COMMENT_EOF'
           } >> "$GITHUB_OUTPUT"
       - name: Post / update PR comment

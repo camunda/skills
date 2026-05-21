@@ -24,12 +24,12 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
-from eval_harness.boot_cluster import boot_cluster
-from eval_harness.cluster_assertions import process_deployed_on_cluster
-from eval_harness.inspect_transcript import assert_tool_called
-from eval_harness.metadata import BaselineConfig, ScenarioMetadata
-from eval_harness.paths import SANDBOXES_DIR
-from eval_harness.run_cpt import cpt_scorer
+from core.metadata import BaselineConfig, ScenarioMetadata
+from core.paths import SANDBOXES_DIR
+from scorers.cluster import process_deployed_on_cluster
+from scorers.cpt import cpt_scorer
+from scorers.transcript import assert_tool_called
+from solvers.boot_cluster import boot_cluster
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
