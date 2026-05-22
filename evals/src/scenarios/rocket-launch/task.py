@@ -40,7 +40,6 @@ from core.paths import SANDBOXES_DIR, all_skill_dirs
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
-from scorers.llm_judge import judge_bpmn_quality
 from scorers.transcript import assert_tool_called
 from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import collect_artifacts
@@ -100,7 +99,6 @@ def rocket_launch() -> Task:
             process_deployed_on_cluster("RocketLaunch"),
             bpmn_lint_clean(),
             cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
-            judge_bpmn_quality(),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
