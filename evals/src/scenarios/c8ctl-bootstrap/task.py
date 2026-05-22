@@ -48,6 +48,10 @@ INSTRUCTIONS = """\
 You're in a fresh Ubuntu container with a Camunda 8 cluster already
 running on localhost:8080.
 
+Files you create only persist for review if they're under /workspace.
+Anything you write to /tmp, the home directory, etc. is lost when the
+session ends.
+
 When you've completed the task, call submit() with a brief summary
 of what you did.
 """

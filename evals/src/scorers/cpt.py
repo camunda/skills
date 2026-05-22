@@ -3,12 +3,13 @@
 Invokes ``mvn test`` inside the verifier sandbox against the
 scenario's ``cpt-verifier/`` project (mounted read-only at
 ``/scenarios/<id>/cpt-verifier`` via compose-cpt-verifier.yaml).
-We copy the project to a writable ``/workspace`` first so mvn can
-create ``target/`` without escaping the container.
+We copy the project to a writable ``/verifier-workspace`` first so
+mvn can create ``target/`` without escaping the container.
 
-The verifier container also mounts the agent's outputs/ at
-``/outputs:ro``, so the CPT project can reference the agent's BPMN
-via that path (e.g. ``/outputs/process.bpmn``).
+The verifier container mounts the agent's whole ``/workspace`` volume
+read-only at ``/agent-workspace``, so the CPT test can pick up any
+BPMN the agent wrote — no requirement on the exact filename or
+subdirectory.
 """
 
 from __future__ import annotations
@@ -31,8 +32,8 @@ def cpt_scorer(project_dir: str) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox("verifier")
         # Copy to a writable location so mvn can create target/.
-        # /workspace starts empty in the verifier image.
-        copy = await sb.exec(["sh", "-c", f"cp -r {project_dir}/. /workspace/"])
+        # /verifier-workspace starts empty in the verifier image.
+        copy = await sb.exec(["sh", "-c", f"cp -r {project_dir}/. /verifier-workspace/"])
         if copy.returncode != 0:
             return Score(
                 value=0.0,
@@ -40,7 +41,7 @@ def cpt_scorer(project_dir: str) -> Scorer:
                 f"{copy.stderr[-500:]}",
             )
         run = await sb.exec(
-            ["mvn", "-B", "-f", "/workspace/pom.xml", "test"],
+            ["mvn", "-B", "-f", "/verifier-workspace/pom.xml", "test"],
             timeout=600,
         )
         passed = run.returncode == 0

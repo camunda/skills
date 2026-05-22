@@ -31,7 +31,7 @@ services:
     init: true
     working_dir: /workspace
     volumes:
-      - outputs:/workspace/outputs
+      - workspace:/workspace
     deploy:
       resources:
         limits:
@@ -46,4 +46,4 @@ configs:
     file: ./orchestration/application-h2.yaml
 
 volumes:
-  outputs:
+  workspace:

@@ -50,6 +50,10 @@ INSTRUCTIONS = """\
 You have access to a running Camunda 8.9 cluster on localhost:8080.
 The c8ctl CLI is installed and on PATH.
 
+Files you create only persist for review if they're under /workspace.
+Anything you write to /tmp, the home directory, etc. is lost when the
+session ends.
+
 When you've completed the task, call submit() with a brief summary
 of what you did.
 """

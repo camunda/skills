@@ -30,7 +30,7 @@ services:
     init: true
     working_dir: /workspace
     volumes:
-      - outputs:/workspace/outputs
+      - workspace:/workspace
     deploy:
       resources:
         limits:
@@ -44,13 +44,15 @@ services:
     image: camunda-skills-evals-verifier:latest
     command: ["sleep", "infinity"]
     init: true
-    working_dir: /workspace
+    working_dir: /verifier-workspace
     volumes:
-      - outputs:/outputs:ro
+      # Agent's /workspace appears here as /agent-workspace (read-only)
+      # so the CPT test can pick up the BPMN it wrote.
+      - workspace:/agent-workspace:ro
       - m2-cache:/.m2
       # Per-scenario CPT projects live under src/scenarios/<id>/cpt-verifier.
-      # Mount read-only — the scorer copies to /workspace before mvn so
-      # target/ writes don't escape the container.
+      # Mount read-only — the scorer copies to /verifier-workspace before
+      # mvn so target/ writes don't escape the container.
       - ../src/scenarios:/scenarios:ro
     deploy:
       resources:
@@ -63,5 +65,5 @@ configs:
     file: ./orchestration/application-h2.yaml
 
 volumes:
-  outputs:
+  workspace:
   m2-cache:
