@@ -11,7 +11,7 @@ The same pattern works for specialising any OOTB connector (not just protocol on
 ## Canonical workflow
 
 1. **Discover the base template.** `c8ctl element-template search "<keyword>"` to find the protocol connector (e.g. *REST Outbound*), then `c8ctl element-template get <id>` to fetch its JSON. This is the starting point — every property, binding, and default is already shaped correctly for the underlying job worker.
-2. **Author the customised template.** Copy the fetched JSON into a new file under `resources/element-templates/` (or wherever your project stores templates). Give it a new `id` and `name`. Hide infrastructure properties (`"type": "Hidden"`), pre-fill them with FEEL, expose only the domain inputs, group them into custom groups.
+2. **Author the customised template.** Copy the fetched JSON into a new file under `resources/element-templates/` (or wherever your project stores templates). Give it a new `id` and `name`. Hide infrastructure properties (`"type": "Hidden"`), pre-fill them with FEEL, and group what remains into custom groups. You can also *add* new domain-specific inputs that map — via FEEL on the existing properties — to the data contract the underlying job worker expects (e.g. a `country` input that feeds into a hidden URL `=concat("https://.../", country)`).
 3. **Validate.** Run `c8ctl element-template apply -i <template> <element-id> <bpmn>` against a test BPMN to confirm the bindings produce the expected XML, and run `c8ctl bpmn lint` on the result.
 4. **Hand off.** The `.json` file is the deliverable. The user uploads it to their Modeler project (SaaS) or drops it under `resources/element-templates/` (Desktop) to apply it to elements.
 
@@ -206,7 +206,7 @@ The hidden `zeebe:taskDefinition` `type` is what binds the element to the underl
 
 ## Tools that generate templates from API specs
 
-When the OpenAPI / Postman spec for the target system is the starting point, **`congen-cli`** (Postman collection → REST connector template; CLI in the `camunda/connectors` repository, not currently distributed as a standalone binary — verify availability before recommending) can produce a draft template that you then refine using the same JSON edits described above.
+When the OpenAPI / Postman spec for the target system is the starting point, [**`congen-cli`**](https://github.com/camunda/connectors/tree/main/element-template-generator/congen-cli) (Postman collection → REST connector template; lives in the `camunda/connectors` repository, not currently distributed as a standalone binary) can produce a draft template that you then refine using the same JSON edits described above.
 
 ## Validating the template
 
