@@ -1,37 +1,55 @@
 """Transcript-shaped scorers: assert what the agent loaded / called.
 
-Inspect AI's transcript exposes every tool call and file read. These
-helpers turn that into testable assertions.
+Walks ``state.messages`` (the proper Inspect API) and inspects
+``ChatMessageAssistant.tool_calls`` to test claims about agent
+behaviour.
 
-Used by trigger-shaped scenarios (08 docs invocation, 09 routing) and
-as a chain check on multi-skill scenarios (02, 03, 05) to verify the
-cross-references actually route the agent through the suite.
-
-The full chain scorer (``assert_skill_chain``) lands with the
-trigger-scenario PR; v1 ships ``assert_skill_loaded`` and
-``assert_tool_called``.
+Used by trigger-shaped scenarios (docs invocation, routing) and as a
+chain check on multi-skill scenarios to verify the cross-references
+actually route the agent through the suite.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
 
 
-def _iter_events(state: TaskState):
-    """Iterate transcript events robustly across Inspect AI versions."""
-    # Inspect AI's transcript shape stabilized in 0.3.x but field
-    # access still varies between minor versions. Try the documented
-    # path first, then fall back.
-    transcript = getattr(state, "transcript", None)
-    if transcript is None:
-        return []
-    events = getattr(transcript, "events", None)
-    if events is None and callable(transcript):
-        events = transcript()
-    return events or []
+def _iter_tool_calls(state: TaskState):
+    """Yield (function_name, arguments_dict) for every tool call in
+    the transcript.
+
+    Iterates assistant messages — those are the only ones that emit
+    tool calls. Returns the arguments dict directly; callers can
+    stringify or pull specific keys as needed.
+    """
+    for msg in state.messages:
+        tool_calls = getattr(msg, "tool_calls", None) or []
+        for tc in tool_calls:
+            yield tc.function, (tc.arguments or {})
+
+
+def _arguments_text(arguments: dict) -> str:
+    """Render a tool call's arguments to a single searchable string.
+
+    bash_session / bash typically expose ``command`` or ``input``;
+    text_editor uses ``command`` + ``path`` + ``file_text``; the
+    skill tool uses ``name``. Joining values covers all of them
+    without per-tool knowledge.
+    """
+    parts: list[str] = []
+    for value in arguments.values():
+        if isinstance(value, (str, int, float, bool)):
+            parts.append(str(value))
+        else:
+            try:
+                parts.append(json.dumps(value))
+            except (TypeError, ValueError):
+                parts.append(repr(value))
+    return " ".join(parts)
 
 
 def _skill_path(skill: str) -> str:
@@ -40,20 +58,24 @@ def _skill_path(skill: str) -> str:
 
 @scorer(metrics=[])
 def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
-    """Score 1.0 when the agent read every named SKILL.md; 0.0 otherwise.
+    """Score 1.0 when the agent loaded every named skill via the
+    skill tool (or read its SKILL.md directly); 0.0 otherwise.
 
-    A skill is considered loaded when the transcript records a
-    file-read (or equivalent tool call) whose target ends in
-    ``skills/<skill>/SKILL.md``.
+    Matches both shapes:
+    - Inspect's ``skill`` tool was called with ``name="camunda-X"``
+    - The agent read ``skills/camunda-X/SKILL.md`` via any tool whose
+      arguments include that path
     """
     expected = [skill] if isinstance(skill, str) else list(skill)
 
     async def score(state: TaskState, target: Target) -> Score:
         seen: set[str] = set()
-        for event in _iter_events(state):
-            payload = str(event)
+        for function, arguments in _iter_tool_calls(state):
+            args_text = _arguments_text(arguments)
             for skill_name in expected:
-                if _skill_path(skill_name) in payload:
+                if function == "skill" and arguments.get("name") == skill_name:
+                    seen.add(skill_name)
+                elif _skill_path(skill_name) in args_text:
                     seen.add(skill_name)
         missing = [s for s in expected if s not in seen]
         return Score(
@@ -70,29 +92,30 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
 
 @scorer(metrics=[])
 def assert_tool_called(tool: str, subcommand: str | None = None) -> Scorer:
-    """Score 1.0 when the agent invoked ``tool`` (optionally with
-    ``subcommand``); 0.0 otherwise.
+    """Score 1.0 when the agent's tool calls reference ``tool`` (and
+    ``subcommand`` if provided); 0.0 otherwise.
 
-    For Bash-shaped invocations, matches when the rendered command
-    line starts with ``tool [subcommand]``. Subcommand is checked
-    as the next word after the tool name, ignoring intervening flags.
+    Matches on substring within tool-call arguments — covers both
+    "agent called bash_session with command='c8ctl deploy ...'" and
+    direct function-name calls. Useful for "did the agent reach for
+    c8ctl deploy" without coupling to the specific tool wrapper.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
-        for event in _iter_events(state):
-            payload = str(event)
-            if tool not in payload:
+        for function, arguments in _iter_tool_calls(state):
+            haystack = f"{function} {_arguments_text(arguments)}"
+            if tool not in haystack:
                 continue
-            if subcommand is None or subcommand in payload:
+            if subcommand is None or subcommand in haystack:
                 return Score(
                     value=1.0,
                     answer=f"{tool} {subcommand or ''}".strip(),
-                    explanation=f"matched tool call: {tool} {subcommand or ''}".strip(),
+                    explanation=f"matched tool call: {function}({arguments})",
                 )
         return Score(
             value=0.0,
             answer=None,
-            explanation=f"no transcript event matched {tool} {subcommand or ''}".strip(),
+            explanation=f"no tool call matched {tool} {subcommand or ''}".strip(),
         )
 
     return score

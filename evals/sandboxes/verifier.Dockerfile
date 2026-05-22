@@ -12,11 +12,14 @@ FROM camunda-skills-evals-base:latest
 
 USER root
 
-# The verifier reads agent artifacts mounted read-only at /outputs and
-# writes Surefire reports under /workspace/target. The Maven local
-# repo lives at /.m2 (volume) so deps don't redownload per scenario.
-RUN mkdir -p /outputs /.m2 \
-    && chown -R agent:agent /outputs /.m2
+# The verifier reads agent artifacts mounted read-only at
+# /agent-workspace and writes Surefire reports under /verifier-workspace.
+# The Maven local repo lives at /.m2 (volume) so deps don't redownload
+# per scenario. All three dirs need to be writable by the `agent`
+# user; the compose-level `working_dir: /verifier-workspace` would
+# otherwise create that path root-owned at startup.
+RUN mkdir -p /agent-workspace /.m2 /verifier-workspace \
+    && chown -R agent:agent /agent-workspace /.m2 /verifier-workspace
 
 USER agent
 
