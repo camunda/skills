@@ -13,6 +13,7 @@ dependencies = [
 evals-list = "core.registry:main"
 evals-regen-baseline = "scripts.regen_baseline:main"
 evals-summarize = "scripts.summarize:main"
+evals-extract-artifacts = "scripts.extract_artifacts:main"
 
 [dependency-groups]
 dev = [

@@ -25,6 +25,7 @@ help:
 	@echo "  eval            Run one eval scenario (SCENARIO=<id> required, e.g. rocket-launch)."
 	@echo "  eval-all        Run all eval scenarios."
 	@echo "  eval-baseline   Regenerate baseline.json for one scenario (SCENARIO=<id> required)."
+	@echo "  eval-extract    Extract agent artifacts from the most recent eval log to logs/artifacts/."
 	@echo "  eval-images     Build the sandbox Docker images (base, with-c8ctl, verifier)."
 	@echo ""
 	@echo "Variables:"
@@ -69,7 +70,8 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/src/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ $(ARGS)
+	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ $(ARGS) \
+		&& uv run evals-extract-artifacts
 
 .PHONY: eval-all
 eval-all:
@@ -78,7 +80,12 @@ eval-all:
 		for s in src/scenarios/*/task.py; do \
 			echo "=== $$s ==="; \
 			uv run inspect eval "$$s" --log-dir logs/ $(ARGS) || exit $$?; \
+			uv run evals-extract-artifacts || exit $$?; \
 		done
+
+.PHONY: eval-extract
+eval-extract:
+	@cd $(EVALS_DIR) && uv run evals-extract-artifacts
 
 .PHONY: eval-baseline
 eval-baseline:
