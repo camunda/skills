@@ -141,7 +141,7 @@ Hard blockers that terminate the loop:
 
 Do not declare the suite done while ids remain uncovered and no hard blocker applies.
 
-> **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios manually to confirm coverage in that case.
+> **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios from source to confirm coverage in that case.
 
 ### 7. Verify no redundancy slipped through
 
