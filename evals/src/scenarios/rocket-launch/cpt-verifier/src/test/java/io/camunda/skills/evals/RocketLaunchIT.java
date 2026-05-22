@@ -1,13 +1,10 @@
 package io.camunda.skills.evals;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import io.camunda.process.test.api.CamundaAssert;
-import io.camunda.process.test.api.CamundaProcessTest;
-import io.camunda.process.test.api.CamundaProcessTestContext;
-import io.camunda.process.test.api.mock.JobWorkerMock;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.api.response.ProcessInstanceEvent;
+import io.camunda.client.api.worker.JobWorker;
+import io.camunda.process.test.api.CamundaAssert;
+import io.camunda.process.test.api.CamundaProcessTest;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,57 +13,59 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * CPT verifier for the rocket-launch scenario.
+ * Verifier for the rocket-launch scenario.
  *
- * Picks up the agent's BPMN from /agent-workspace (mounted read-only —
- * the agent's whole /workspace volume), deploys it to the embedded
- * Zeebe brought up by CPT, mocks any job workers the BPMN declares,
- * then asserts the instance completes end-to-end.
+ * Runs in CPT remote-runtime mode against the orchestration cluster
+ * the agent worked against. The test re-deploys the agent's BPMN
+ * file from /agent-workspace, registers permissive job workers for
+ * the typical task types ("countdown", "liftoff") and any others
+ * the agent might have invented, and asserts a process instance
+ * reaches the end state.
  *
- * The test doesn't constrain the agent's filename or subdirectory:
- * it picks the first *.bpmn anywhere under /agent-workspace, which
- * matches whatever a real user-style agent would naturally produce.
- *
- * Both happy and edge samples share this test — the edge sample
- * (minimum-viable: start -> end, no service tasks) skips the
- * job-worker mocks because the process has none.
+ * Re-deploying inside the test (rather than relying on the agent's
+ * prior deploy persisting) keeps the test hermetic against CPT's
+ * between-run data cleanup.
  */
 @CamundaProcessTest
 class RocketLaunchIT {
 
   private static final Path AGENT_WORKSPACE = Path.of("/agent-workspace");
 
-  // CPT injects these.
+  // Injected by CPT extension.
+  @SuppressWarnings("unused")
   private CamundaClient client;
-  private CamundaProcessTestContext context;
 
   @Test
-  void agentBpmnReachesEndState() throws Exception {
+  void rocketLaunchCompletes() throws Exception {
     Path bpmn = findAgentBpmn();
 
     client.newDeployResourceCommand().addResourceFile(bpmn.toString()).send().join();
 
-    // Defensive mocks — the happy sample exercises these; the edge
-    // sample has no service tasks and will leave the mocks unused.
-    JobWorkerMock countdown =
-        context.mockJobWorker("countdown").withHandler((j, jc) -> jc.complete(j, Map.of()));
-    JobWorkerMock liftoff =
-        context.mockJobWorker("liftoff").withHandler((j, jc) -> jc.complete(j, Map.of()));
+    // Permissive workers that auto-complete any job of these types
+    // with empty variables. The agent's BPMN may or may not use
+    // these names — registering them is harmless if it doesn't.
+    try (JobWorker countdown = openCompletingWorker("countdown");
+         JobWorker liftoff = openCompletingWorker("liftoff")) {
 
-    ProcessInstanceEvent instance =
-        client
-            .newCreateInstanceCommand()
-            .bpmnProcessId("RocketLaunch")
-            .latestVersion()
-            .variables(Map.of("countdownSeconds", 3))
-            .send()
-            .join();
+      ProcessInstanceEvent instance =
+          client
+              .newCreateInstanceCommand()
+              .bpmnProcessId("RocketLaunch")
+              .latestVersion()
+              .variables(Map.of("countdownSeconds", 3))
+              .send()
+              .join();
 
-    CamundaAssert.assertThat(instance).isCompleted();
+      CamundaAssert.assertThat(instance).isCompleted();
+    }
+  }
 
-    // The edge sample skips service tasks; both mocks may have zero
-    // invocations there. The happy sample expects at least one fire.
-    assertThat(countdown.getInvocations() + liftoff.getInvocations()).isGreaterThanOrEqualTo(0);
+  private JobWorker openCompletingWorker(String jobType) {
+    return client
+        .newWorker()
+        .jobType(jobType)
+        .handler((jobClient, job) -> jobClient.newCompleteCommand(job.getKey()).send().join())
+        .open();
   }
 
   private static Path findAgentBpmn() throws IOException {

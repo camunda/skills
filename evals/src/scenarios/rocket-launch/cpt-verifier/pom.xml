@@ -2,10 +2,12 @@
 <!--
   CPT verifier for scenario 01-rocket-launch.
 
-  Runs as Phase 2 inside the verifier sandbox. The agent's deployed
-  BPMN is reachable via the embedded Zeebe brought up by CPT
-  testcontainers; the test asserts the process instance completes
-  through PerformCountdown -> Liftoff -> end.
+  Runs in the verifier sandbox in CPT **remote runtime** mode against
+  the orchestration cluster the agent worked against (shared via
+  `network_mode: service:orchestration` so localhost:8080 reaches the
+  REST API and localhost:9600 the management endpoint). The test
+  re-deploys the agent's BPMN file from /agent-workspace and asserts
+  a process instance completes — no testcontainers, no DinD.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
@@ -18,7 +20,7 @@
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <camunda.process.test.version>8.8.0</camunda.process.test.version>
+    <camunda.process.test.version>8.9.5</camunda.process.test.version>
     <junit.version>5.11.0</junit.version>
   </properties>
 

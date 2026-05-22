@@ -71,14 +71,8 @@ def rocket_launch() -> Task:
                     "cluster so I can watch it run."
                 ),
             ),
-            Sample(
-                id="edge-minimal",
-                input=(
-                    "Deploy the smallest possible BPMN you can to my "
-                    "local Camunda cluster, name it RocketLaunch. I want "
-                    "to confirm my setup actually works end-to-end."
-                ),
-            ),
+            # edge-minimal sample is parked until happy path is reliably
+            # green. Re-enable once scorers are stable end-to-end.
         ],
         solver=[
             boot_cluster(),

@@ -42,6 +42,10 @@ services:
 
   verifier:
     image: camunda-skills-evals-verifier:latest
+    # Share the orchestration cluster's network namespace so CPT can
+    # reach the REST API on localhost:8080 and the management endpoint
+    # on localhost:9600 (remote-runtime mode).
+    network_mode: "service:orchestration"
     command: ["sleep", "infinity"]
     init: true
     working_dir: /verifier-workspace
@@ -59,6 +63,9 @@ services:
         limits:
           memory: 2G
           cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
 
 configs:
   orchestration-config:

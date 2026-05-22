@@ -20,8 +20,11 @@ from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 # Field names where a process definition's BPMN id might live.
-# Different c8ctl versions / output modes have shuffled these.
+# c8ctl emits human-readable column headers for `list pd --json`:
+# `"Process ID"` (with a space). Older / underlying shapes used
+# `bpmnProcessId` etc.; keep them so this works across versions.
 _PROCESS_ID_KEYS = (
+    "Process ID",
     "bpmnProcessId",
     "processDefinitionId",
     "bpmn_process_id",
