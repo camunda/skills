@@ -41,6 +41,7 @@ from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.transcript import assert_tool_called
 from solvers.boot_cluster import boot_cluster
+from solvers.collect_artifacts import collect_artifacts
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
@@ -90,6 +91,7 @@ def rocket_launch() -> Task:
                     skill(all_skill_dirs()),
                 ],
             ),
+            collect_artifacts(),
         ],
         scorer=[
             assert_tool_called("c8ctl", subcommand="deploy"),
