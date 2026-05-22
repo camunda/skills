@@ -6,11 +6,14 @@ Three scorers compose to cover three failure modes at three costs:
 
 1. Transcript — did the agent *attempt* ``c8ctl deploy`` at all?
 2. Cluster — did the deploy actually land on the cluster?
-3. CPT (Phase 2) — does the deployed BPMN behave correctly?
+3. CPT — does the deployed process actually run to completion?
 
-The CPT verifier brings up its own embedded Zeebe and does its own
-deploy from the agent's BPMN file (mounted read-only); the cluster
-scorer hits the Phase 1 cluster the agent worked against.
+The CPT verifier runs in **remote runtime mode** against the same
+orchestration cluster the agent worked against (shared via
+``network_mode: service:orchestration``). It starts a process
+instance against the agent's already-deployed process and asserts it
+completes. The prompt asks for a self-contained BPMN (timers, no
+external workers), so the verifier doesn't need to mock anything.
 
 Load-bearing skills: camunda-bpmn (design), camunda-process-mgmt
 (deploy). Baseline excludes camunda-bpmn (single load-bearing skill —
@@ -66,9 +69,12 @@ def rocket_launch() -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "Build me a tiny BPMN called RocketLaunch — counts "
-                    "down, then lifts off — and deploy it to my local "
-                    "cluster so I can watch it run."
+                    "Build me a tiny BPMN called RocketLaunch that "
+                    "counts down 3, 2, 1 with a one-second pause "
+                    "between each number, then lifts off, then ends. "
+                    "Make it self-contained — no service tasks or "
+                    "external workers. Deploy it to my local cluster "
+                    "so I can watch it run."
                 ),
             ),
             # edge-minimal sample is parked until happy path is reliably

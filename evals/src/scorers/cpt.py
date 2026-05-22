@@ -45,19 +45,42 @@ def cpt_scorer(project_dir: str) -> Scorer:
             timeout=600,
         )
         passed = run.returncode == 0
-        # Surefire XML lives under /workspace/target/surefire-reports.
-        # mvn's stderr/stdout already surface failures; surface them
-        # directly rather than re-parse the XML for v1.
-        explanation = (
-            "mvn test passed"
-            if passed
-            else f"mvn exit {run.returncode}: {(run.stderr or run.stdout)[-2000:]}"
-        )
+        combined = "\n".join(filter(None, [run.stdout, run.stderr]))
+        if passed:
+            explanation = "mvn test passed"
+        else:
+            # mvn output is dominated by download chatter; filter to the
+            # lines that actually explain the failure so the scorer's
+            # 2000-char window goes to signal, not noise.
+            interesting = [
+                line for line in combined.splitlines()
+                if any(
+                    marker in line
+                    for marker in (
+                        "[ERROR]",
+                        "BUILD FAILURE",
+                        "Tests run:",
+                        "FAILED!",
+                        "<<< FAILURE",
+                        "<<< ERROR",
+                        "ConditionTimeoutException",
+                        "Caused by:",
+                    )
+                )
+            ]
+            tail = "\n".join(interesting[-60:]) if interesting else combined[-2000:]
+            explanation = f"mvn exit {run.returncode}\n{tail}"
         return Score(
             value=1.0 if passed else 0.0,
             answer=None,
             explanation=explanation,
-            metadata={"mvn_returncode": run.returncode},
+            metadata={
+                "mvn_returncode": run.returncode,
+                # Keep a short prefix of raw output for cases where the
+                # filter misses the real signal (e.g. CPT setup errors
+                # that don't carry an [ERROR] marker).
+                "raw_tail": combined[-2000:],
+            },
         )
 
     return score
