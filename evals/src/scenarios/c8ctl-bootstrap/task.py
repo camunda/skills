@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 
 from inspect_ai import Task, task
-from inspect_ai.agent import react
+from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import TaskState
@@ -43,6 +43,14 @@ METADATA = ScenarioMetadata(
     verifier="exit-code",
     baseline=BaselineConfig(mode="without-skill", exclude=["camunda-c8ctl"]),
 )
+
+INSTRUCTIONS = """\
+You're in a fresh Ubuntu container with a Camunda 8 cluster already
+running on localhost:8080.
+
+When you've completed the task, call submit() with a brief summary
+of what you did.
+"""
 
 
 @scorer(metrics=[])
@@ -94,6 +102,7 @@ def c8ctl_bootstrap() -> Task:
             ),
         ],
         solver=react(
+            prompt=AgentPrompt(instructions=INSTRUCTIONS),
             tools=[
                 bash_session(timeout=300),
                 text_editor(timeout=60),

@@ -1,8 +1,8 @@
 """Rocket Launch BPMN deploy + run.
 
 End-to-end: agent designs a small "rocket launch" BPMN and deploys it
-via c8ctl. Three scorers in composition cover three failure modes at
-three costs:
+to a running Camunda 8.9 cluster (provisioned by docker compose).
+Three scorers compose to cover three failure modes at three costs:
 
 1. Transcript — did the agent *attempt* ``c8ctl deploy`` at all?
 2. Cluster — did the deploy actually land on the cluster?
@@ -10,22 +10,30 @@ three costs:
 
 The CPT verifier brings up its own embedded Zeebe and does its own
 deploy from the agent's BPMN file (mounted read-only); the cluster
-scorer hits the Phase 1 c8run cluster the agent worked against.
+scorer hits the Phase 1 cluster the agent worked against.
 
 Load-bearing skills: camunda-bpmn (design), camunda-process-mgmt
 (deploy). Baseline excludes camunda-bpmn (single load-bearing skill —
 without-skill arm tests whether the model can produce a deployable
 BPMN without the skill's element-template guidance).
+
+Agent loop: ``react()`` with ``bash_session`` + ``text_editor`` +
+``skill`` (all 13 skills discoverable). The system prompt only states
+environment facts (cluster running, c8ctl on PATH) — it doesn't tell
+the agent which skill to load or what order to do things in. Whether
+the agent reaches for the skill tool is part of what the eval
+measures.
 """
 
 from __future__ import annotations
 
 from inspect_ai import Task, task
+from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.tool import bash_session, skill, text_editor
 
 from core.metadata import BaselineConfig, ScenarioMetadata
-from core.paths import SANDBOXES_DIR
+from core.paths import SANDBOXES_DIR, all_skill_dirs
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.transcript import assert_tool_called
@@ -38,15 +46,13 @@ METADATA = ScenarioMetadata(
     baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
 )
 
+INSTRUCTIONS = """\
+You have access to a running Camunda 8.9 cluster on localhost:8080.
+The c8ctl CLI is installed and on PATH.
 
-@solver
-def agent_builds_rocket_launch():
-    """Delegates the prompt to the bridged agent."""
-
-    async def solve(state: TaskState, generate_fn: Generate) -> TaskState:
-        return await generate_fn(state)
-
-    return solve
+When you've completed the task, call submit() with a brief summary
+of what you did.
+"""
 
 
 @task
@@ -56,24 +62,30 @@ def rocket_launch() -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "I want to model a rocket launch as a tiny BPMN — counts "
-                    "down, then lifts off. Get it running on my local cluster "
-                    "and show me the BPMN is named RocketLaunch is up."
+                    "Build me a tiny BPMN called RocketLaunch — counts "
+                    "down, then lifts off — and deploy it to my local "
+                    "cluster so I can watch it run."
                 ),
             ),
             Sample(
                 id="edge-minimal",
                 input=(
-                    "What's the smallest possible BPMN named RocketLaunch I "
-                    "can deploy and run? I just want to confirm my Camunda "
-                    "setup works end-to-end."
+                    "Deploy the smallest possible BPMN you can to my "
+                    "local Camunda cluster, name it RocketLaunch. I want "
+                    "to confirm my setup actually works end-to-end."
                 ),
             ),
         ],
         solver=[
             boot_cluster(),
-            agent_builds_rocket_launch(),
-            generate(),
+            react(
+                prompt=AgentPrompt(instructions=INSTRUCTIONS),
+                tools=[
+                    bash_session(timeout=300),
+                    text_editor(timeout=60),
+                    skill(all_skill_dirs()),
+                ],
+            ),
         ],
         scorer=[
             assert_tool_called("c8ctl", subcommand="deploy"),
