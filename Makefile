@@ -7,6 +7,9 @@
 
 SKILL ?=
 SCENARIO ?=
+# Arbitrary extra flags forwarded to `inspect eval`.
+# Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--model anthropic/claude-sonnet-4-6 --epochs 3"
+ARGS ?=
 
 REPO_ROOT = $(CURDIR)
 EVALS_DIR = $(REPO_ROOT)/evals
@@ -27,6 +30,8 @@ help:
 	@echo "Variables:"
 	@echo "  SKILL     Skill name (e.g. camunda-feel). Empty = all where applicable."
 	@echo "  SCENARIO  Eval scenario id (e.g. rocket-launch)."
+	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval / eval-all targets)."
+	@echo "            Example: ARGS=\"--model anthropic/claude-sonnet-4-6 --epochs 3\""
 
 .PHONY: try
 try:
@@ -64,7 +69,7 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/src/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/
+	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ $(ARGS)
 
 .PHONY: eval-all
 eval-all:
@@ -72,7 +77,7 @@ eval-all:
 	@cd $(EVALS_DIR) && \
 		for s in src/scenarios/*/task.py; do \
 			echo "=== $$s ==="; \
-			uv run inspect eval "$$s" --log-dir logs/ || exit $$?; \
+			uv run inspect eval "$$s" --log-dir logs/ $(ARGS) || exit $$?; \
 		done
 
 .PHONY: eval-baseline
