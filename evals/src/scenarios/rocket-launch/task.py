@@ -90,7 +90,7 @@ def rocket_launch() -> Task:
         scorer=[
             assert_tool_called("c8ctl", subcommand="deploy"),
             process_deployed_on_cluster("RocketLaunch"),
-            cpt_scorer(),
+            cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),

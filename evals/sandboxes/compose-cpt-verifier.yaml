@@ -48,6 +48,10 @@ services:
     volumes:
       - outputs:/outputs:ro
       - m2-cache:/.m2
+      # Per-scenario CPT projects live under src/scenarios/<id>/cpt-verifier.
+      # Mount read-only — the scorer copies to /workspace before mvn so
+      # target/ writes don't escape the container.
+      - ../src/scenarios:/scenarios:ro
     deploy:
       resources:
         limits:

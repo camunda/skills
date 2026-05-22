@@ -25,21 +25,21 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
     """Score 1.0 when a process definition with ``bpmn_process_id`` is
     deployed on the cluster the agent worked against; 0.0 otherwise.
 
-    Uses ``c8ctl get process-definition --json``. The agent's deploy
-    may have created multiple versions; we only check existence, not
-    version count.
+    Uses ``c8ctl list pd --json`` (``pd`` = process-definition). The
+    agent's deploy may have created multiple versions; we only check
+    existence, not version count.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox()
         result = await sb.exec(
-            ["c8ctl", "get", "process-definition", "--json"],
+            ["c8ctl", "list", "pd", "--json"],
             timeout=30,
         )
         if result.returncode != 0:
             return Score(
                 value=0.0,
-                explanation=f"c8ctl get process-definition exit {result.returncode}: "
+                explanation=f"c8ctl list pd exit {result.returncode}: "
                 f"{result.stderr[-500:]}",
             )
         try:
