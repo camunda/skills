@@ -123,14 +123,7 @@ PY
 
 Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_]+"' <bpmn>`, exclude `_di`, `BPMNDiagram`, `BPMNPlane`, `Definitions_`, `ErrorDef_`, `TimerDef_`, `Signal_`, `Message_`).
 
-**Open the HTML report in the user's browser as soon as `mvn test` exits — pass or fail.** Default command (macOS):
-
-```bash
-REPORT="target/coverage-report/report.html"
-[ -f "$REPORT" ] && open "$REPORT"
-```
-
-On Linux substitute `xdg-open`; on Windows substitute `start`. Default behavior, not opt-in — every run ends with the report visible.
+**Surface the HTML report path to the user as soon as `mvn test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
 
 **Patch-loop on prediction misses — default behavior.** Set-cover planning in step 3 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
 
