@@ -1,17 +1,19 @@
 # Path A — JSON-only template on a protocol connector
 
-Customise an existing protocol connector (REST, SOAP, GraphQL, Kafka, RabbitMQ, AWS SQS/SNS/EventBridge) into a domain-specific template by editing JSON only. No Java, no extra runtime, no separate deployment — the customised template lives in your repo as a single `.json` file and is uploaded to Web Modeler.
+Customise an existing protocol connector (REST, SOAP, GraphQL, Kafka, RabbitMQ, AWS SQS/SNS/EventBridge) into a domain-specific template by editing JSON only. No Java, no extra runtime, no separate deployment — the customised template lives in your repo as a single `.json` file.
 
 ## When this path applies
 
 The integration is a single call over one of the protocols above, AND you want a polished domain-specific UI in Modeler (named fields, hidden infrastructure, sensible defaults). Multi-step orchestration, proprietary protocols, or non-HTTP/non-messaging I/O require Path B.
 
+The same pattern works for specialising any OOTB connector (not just protocol ones) — see SKILL.md § *Specialising any OOTB template*.
+
 ## Canonical workflow
 
-1. **Model the call once in Web Modeler.** Drop the OOTB protocol connector (e.g. *REST Outbound*) onto a service task and fill in URL, method, headers, body, auth — everything the call needs.
-2. **Save as Template.** Right-click the configured element → *Save as Template* (Web Modeler Desktop and SaaS). Modeler emits a JSON file mirroring the configured connector with the same property structure.
-3. **Edit the JSON.** Hide infrastructure properties, pre-fill them with FEEL, expose only the domain inputs, group them into custom groups.
-4. **Upload as a template** to the Modeler project (SaaS) or place under `resources/element-templates/` (Desktop), then attach it to elements in a process.
+1. **Discover the base template.** `c8ctl element-template search "<keyword>"` to find the protocol connector (e.g. *REST Outbound*), then `c8ctl element-template get <id>` to fetch its JSON. This is the starting point — every property, binding, and default is already shaped correctly for the underlying job worker.
+2. **Author the customised template.** Copy the fetched JSON into a new file under `resources/element-templates/` (or wherever your project stores templates). Give it a new `id` and `name`. Hide infrastructure properties (`"type": "Hidden"`), pre-fill them with FEEL, and group what remains into custom groups. You can also *add* new domain-specific inputs that map — via FEEL on the existing properties — to the data contract the underlying job worker expects (e.g. a `country` input that feeds into a hidden URL `=concat("https://.../", country)`).
+3. **Validate.** Run `c8ctl element-template apply -i <template> <element-id> <bpmn>` against a test BPMN to confirm the bindings produce the expected XML, and run `c8ctl bpmn lint` on the result.
+4. **Hand off.** The `.json` file is the deliverable. The user uploads it to their Modeler project (SaaS) or drops it under `resources/element-templates/` (Desktop) to apply it to elements.
 
 ## Hiding infrastructure properties
 
@@ -204,24 +206,17 @@ The hidden `zeebe:taskDefinition` `type` is what binds the element to the underl
 
 ## Tools that generate templates from API specs
 
-Sometimes the OpenAPI / Postman spec for the target system is the starting point, not Web Modeler. Two tools in the connectors ecosystem produce REST templates from specs:
-
-- **`congen-cli`** — Postman collection → REST connector template. CLI tool in the `camunda/connectors` repository, not currently distributed as a standalone binary. Verify availability before recommending.
-- **Web Modeler's OpenAPI/Swagger/Postman generator** — the SaaS / Desktop UI has a *Create from REST API* flow that ingests a spec and produces an initial template.
-
-Both produce a template you then refine using the same JSON edits described above. Treat their output as the *Save as Template* starting point, not a finished artefact.
+When the OpenAPI / Postman spec for the target system is the starting point, [**`congen-cli`**](https://github.com/camunda/connectors/tree/main/element-template-generator/congen-cli) (Postman collection → REST connector template; lives in the `camunda/connectors` repository, not currently distributed as a standalone binary) can produce a draft template that you then refine using the same JSON edits described above.
 
 ## Validating the template
 
-Upload to Modeler and apply it to a service task; the Modeler validates the schema and surfaces errors inline. For repo-side validation, the JSON schema linked via `$schema` is the same one Modeler uses — most JSON-schema-aware editors will flag malformed properties without needing to round-trip through Modeler.
-
-To round-trip a template against `c8ctl`:
+The JSON schema linked via `$schema` lets any JSON-schema-aware editor flag malformed properties. To verify the bindings actually produce the expected BPMN XML, round-trip through `c8ctl`:
 
 ```bash
 c8ctl element-template apply -i my-template.json <element-id> <bpmn-file>
 ```
 
-prints the resulting BPMN (omit `-i` to print, include `-i` to write back). Confirms the binding writes the expected `zeebe:taskDefinition` + `zeebe:input` + `zeebe:taskHeaders` XML.
+Omit `-i` to print the result to stdout, include `-i` to write back. Confirms the binding writes the expected `zeebe:taskDefinition` + `zeebe:input` + `zeebe:taskHeaders` XML. Follow with `c8ctl bpmn lint` on the resulting BPMN.
 
 ## Where to look next
 

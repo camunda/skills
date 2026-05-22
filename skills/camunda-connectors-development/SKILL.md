@@ -17,7 +17,7 @@ Build a custom Camunda 8 connector when the OOTB catalog doesn't cover the integ
 ## Prerequisites
 
 - Camunda 8.8+ cluster reachable for testing (local c8run, SaaS, or Self-Managed — see **camunda-c8ctl**)
-- Path A: Web Modeler access (Desktop or SaaS) to use *Save as Template* and edit the generated JSON
+- Path A: none beyond the cluster — the JSON template is hand-authored, using `c8ctl element-template get <id>` to fetch the base OOTB template as a starting point
 - Path B: Java 17+, Maven 3.8+ (or Gradle equivalent), and a JVM hosting option for the resulting connector JAR — see **camunda-development** for installing the JDK / Maven toolchain locally
 
 ## Cross-References
@@ -66,8 +66,21 @@ A JSON template is also the natural way to give a job worker a polished Modeler 
 
 Both paths produce an element template JSON file. The schema is the same; what differs is how the file gets written:
 
-- **Path A**: start from the protocol connector's published template (`*Save as Template*` in Web Modeler is the canonical entry point), then customise — hide infrastructure properties (URL, method, auth) with `"type": "Hidden"`, pre-fill them with FEEL, and expose only the domain-specific inputs.
+- **Path A**: fetch the protocol connector's published template with `c8ctl element-template get <id>` as the starting point, then customise — hide infrastructure properties (URL, method, auth) with `"type": "Hidden"`, pre-fill them with FEEL, and expose only the domain-specific inputs.
 - **Path B**: annotate the connector class with `@ElementTemplate` and let the Maven plugin generate the JSON during build (`references/element-template-generator.md`), or hand-author it.
+
+### Specialising any OOTB template, not just protocol connectors
+
+The "hide infrastructure, expose only domain inputs" pattern works for *any* OOTB template, not just the generic protocol ones. As long as the customised template still writes the input mappings the underlying job worker expects (the `zeebe:taskDefinition type` and `zeebe:input` shape are the data contract), the worker sees the same payload — only the Modeler UI differs.
+
+Concrete examples in `camunda/connectors`:
+
+- `connectors/openai/element-templates/openai-connector.json` — full OpenAI template; a specialised version could hide the system prompt or model picker and expose only domain inputs.
+- `connectors/github/element-templates/github-connector.json` — specialised UI over the underlying job worker.
+- `connectors/github/element-templates/github-webhook-connector-receive.json` — the *generic webhook inbound* connector exposed as a GitHub-specific webhook UI.
+- `connectors/hugging-face/element-templates/hugging-face-connector.json` — Hugging Face-shaped UI over an underlying REST call.
+
+Use `c8ctl element-template get <id>` to pull the base template, then hide / hardcode / rename properties while preserving the bindings the worker reads.
 
 `references/element-template-json.md` is the schema reference for both — property types, binding types, FEEL/constraints/condition/generatedValue features, and the template variants for each BPMN attachment.
 
@@ -108,7 +121,7 @@ When Path B will run via the standalone runtime against a SaaS cluster (Hybrid h
 
 For detail, read from `references/`:
 
-- [protocol-connector-templates.md](references/protocol-connector-templates.md) — Path A walkthrough: *Save as Template*, hiding URL/method/auth, FEEL pre-fill, custom groups, a REST Countries worked example, and a brief link to template-generator tools
+- [protocol-connector-templates.md](references/protocol-connector-templates.md) — Path A walkthrough: fetching the base template via c8ctl, hiding URL/method/auth, FEEL pre-fill, custom groups, a REST Countries worked example, and a brief link to template-generator tools
 - [connector-sdk-outbound.md](references/connector-sdk-outbound.md) — `OutboundConnectorProvider` + `@Operation` (modern), `OutboundConnectorFunction` (legacy), `@Variable` / `@Header`, `ConnectorException`, Jakarta Validation
 - [connector-sdk-inbound.md](references/connector-sdk-inbound.md) — `InboundConnectorExecutable`, three flavours, lifecycle, `correlateWithResult` / `CorrelationResult`
 - [element-template-json.md](references/element-template-json.md) — schema reference: top-level fields, property types, binding types, property features, template variants per BPMN attachment

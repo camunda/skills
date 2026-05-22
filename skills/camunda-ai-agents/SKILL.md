@@ -81,7 +81,7 @@ bpmn:adHocSubProcess  (template applied here)
     bpmn:subProcess    — multi-step or async tool
 ```
 
-Hard rules that the lint loop does NOT catch — verify by hand:
+Hard rules that the lint loop does NOT catch — verify by reading the BPMN:
 
 - The element type must be `bpmn:adHocSubProcess`. A regular `bpmn:subProcess` or a service task will not host the connector.
 - A tool's **root node** is the entry activity that the LLM picks. A root node has **no incoming sequence flow** and is **not a boundary event**. An incoming flow turns the node into a regular flow step and the agent never sees it.
@@ -207,10 +207,10 @@ Run the BPMN lint loop (see **camunda-bpmn**) before declaring the agent process
 c8ctl bpmn lint process.bpmn
 ```
 
-Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by hand:
+Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by reading the BPMN:
 
 - Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
-- Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it by hand).
+- Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it via a direct edit).
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.
 - `data.limits.maxModelCalls` is set.

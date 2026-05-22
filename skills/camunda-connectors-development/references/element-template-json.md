@@ -184,7 +184,7 @@ Modeler offers the template only on matching elements; one connector class can b
 
 > Properties referenced by another property's FEEL `value` or `condition.property` must be declared *earlier* in the `properties` array.
 
-Out-of-order references silently evaluate to `null` at runtime (FEEL) or always-false (condition). Modeler does not flag this. When customising a Path A template, double-check ordering after edits — `Save as Template` preserves it, but manual reorders can break it.
+Out-of-order references silently evaluate to `null` at runtime (FEEL) or always-false (condition). Modeler does not flag this. When customising a Path A template, double-check ordering after edits — the OOTB template fetched via `c8ctl element-template get` is ordered correctly, but manual reorders can break it.
 
 The Maven plugin orders by annotation source order; if hand-authored templates need to mix generated and manual sections, put computed `Hidden` properties last.
 

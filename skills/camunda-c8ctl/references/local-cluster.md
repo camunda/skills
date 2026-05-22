@@ -67,7 +67,7 @@ After `c8ctl cluster start`, the local cluster exposes:
 
 c8ctl's default localhost fallback (`http://localhost:8080/v2`) means commands work without a profile against a freshly-started local cluster.
 
-Open the web apps via:
+For interactive local sessions where the user can see a browser, `c8ctl open` launches the web apps:
 
 ```bash
 c8ctl open operate
@@ -75,6 +75,8 @@ c8ctl open tasklist
 c8ctl open modeler   # opens Camunda Modeler in the browser if available
 c8ctl open optimize
 ```
+
+An agent should *offer* these to the user rather than run them unprompted — in sandboxed or remote sessions `open` has no effect. A typical pattern: after starting a process instance, surface the Operate URL and ask the user whether to open it.
 
 ## Common Workflows
 
