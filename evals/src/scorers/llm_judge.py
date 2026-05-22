@@ -92,7 +92,9 @@ BPMN
 {bpmn}
 """
 
-_DEFAULT_JUDGE = "anthropic/claude-opus-4-7"
+# Sonnet handles structured-rubric grading reliably at ~5× lower cost
+# than Opus. Override per-scenario if a harder case needs more juice.
+_DEFAULT_JUDGE = "anthropic/claude-sonnet-4-6"
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
