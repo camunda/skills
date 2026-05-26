@@ -1,40 +1,39 @@
-"""c8ctl bootstrap: install + connect to a running cluster.
+"""c8ctl bootstrap: install c8ctl from a fresh container.
 
-Exercises the camunda-c8ctl skill's install + first-connection path
-from the ``base`` image (no c8ctl pre-installed). The compose stack
-brings up Camunda 8.9 orchestration before the agent runs, so the
-cluster is healthy at task start — the scenario measures the
-*agent's* install action, not the cluster boot.
+Exercises the camunda-c8ctl skill's install path from the ``base``
+image (no c8ctl pre-installed). Outcome: ``c8ctl --version`` runs
+cleanly in the sandbox after the agent finishes.
 
-Two scorers, two failure modes:
+We previously scored on ``c8ctl get topology --json`` returning a
+broker list, but that mixed two concerns: "agent installed c8ctl"
+AND "the cluster is responsive." The agent only owns the first;
+cluster responsiveness is a downstream concern owned by the compose
+stack. A clean install with a cluster blip would have scored 0.0
+under the old check, which is a false negative.
 
-1. Transcript — did the agent reach for ``@camunda8/cli``? Catches
-   the case where ``topology_reachable`` passes only because the
-   image had c8ctl pre-baked (regression guard if the base image
-   ever changes).
-2. Cluster reachable — does ``c8ctl get topology --json`` return a
-   valid topology with at least one broker? End-to-end proof the
-   install worked, c8ctl is on PATH, and the default
-   localhost:8080 fallback connects to the compose orchestration.
+The compose stack still brings up Camunda 8.9 orchestration (other
+scenarios use it, and the base image inherits the same compose
+file), but this scenario's outcome no longer depends on cluster
+state — only on whether c8ctl is on PATH and runs.
 
 We don't use c8run as the runtime because it has no aarch64 build;
 ``camunda/camunda`` is multi-arch. The agent container shares
 orchestration's network namespace, so c8ctl's default fallback
-(localhost:8080) just works.
+(localhost:8080) would just work if the agent did configure it —
+but we don't require that here.
 
 Agent loop: Inspect's ``react()`` driving ``bash_session`` (persistent
 shell — npm install needs stable cwd/env), ``text_editor``
-(Anthropic-native file ops, picked up by Claude models), and
-``skill`` (all 13 skills discoverable, so trigger behavior falls out
-of agent tool-choice rather than scenario config). INSTRUCTIONS
-carries only Inspect-harness conventions (workspace persistence,
-``submit()``); the cluster's existence and the install path are
-*discoveries* the skill is supposed to drive, not pre-loads.
+(Anthropic-native file ops, picked up by Claude models),
+``grep`` + ``list_files`` (Claude-Code-shaped exploration tools),
+and ``skill`` (all 13 skills discoverable, so trigger behavior
+falls out of agent tool-choice rather than scenario config).
+INSTRUCTIONS carries only Inspect-harness conventions (workspace
+persistence, ``submit()``); the install path is a discovery the
+skill is supposed to drive, not a pre-load.
 """
 
 from __future__ import annotations
-
-import json
 
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
@@ -46,7 +45,6 @@ from inspect_ai.util import sandbox
 
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
-from scorers.transcript import assert_tool_called
 
 METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],
@@ -65,27 +63,30 @@ of what you did.
 
 
 @scorer(metrics=[mean(), stderr()])
-def topology_reachable():
-    """Score 1.0 when ``c8ctl get topology --json`` returns valid JSON
-    with at least one broker; 0.0 otherwise.
+def c8ctl_installed():
+    """Score 1.0 when ``c8ctl --version`` exits 0 in the sandbox.
+
+    The base image ships without c8ctl, so a successful exit from
+    ``c8ctl --version`` is direct proof the agent's install action
+    landed. No cluster involvement; just "is the binary on PATH and
+    does it run".
     """
 
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox()
-        result = await sb.exec(["c8ctl", "get", "topology", "--json"], timeout=30)
-        if result.returncode != 0:
-            return Score(value=0.0, explanation=f"exit {result.returncode}: {result.stderr[-500:]}")
-        try:
-            topology = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            return Score(value=0.0, explanation=f"non-JSON topology: {exc}")
-        brokers = topology.get("brokers") or topology.get("Brokers") or []
-        if not brokers:
-            return Score(value=0.0, explanation=f"no brokers in topology: {topology}")
+        result = await sb.exec(["c8ctl", "--version"], timeout=10)
+        if result.returncode == 0:
+            return Score(
+                value=1.0,
+                explanation=f"c8ctl --version → {result.stdout.strip()}",
+                metadata={"version_output": result.stdout},
+            )
         return Score(
-            value=1.0,
-            explanation=f"{len(brokers)} broker(s) reachable",
-            metadata={"topology": topology},
+            value=0.0,
+            explanation=(
+                f"c8ctl --version exit {result.returncode}: "
+                f"{(result.stderr or result.stdout)[-300:]}"
+            ),
         )
 
     return score
@@ -115,10 +116,7 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
                 *([skill(skill_dirs)] if skill_dirs else []),
             ],
         ),
-        scorer=[
-            assert_tool_called("@camunda8/cli"),
-            topology_reachable(),
-        ],
+        scorer=c8ctl_installed(),
         sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")),
         metadata=METADATA.model_dump(),
         # Bounded so a flailing without-skill arm can't burn unbounded
