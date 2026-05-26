@@ -24,18 +24,18 @@ uv run inspect view evals/logs/        # http://localhost:7575
 
 ```
 evals/
-├── pyproject.toml          # uv-managed deps (inspect-ai)
+├── pyproject.toml          # uv-managed deps (inspect-ai, anthropic, openai, boto3, ...)
 ├── uv.lock                 # checked in
 ├── .python-version         # pinned Python
-├── sandboxes/              # base / with-c8ctl / verifier Dockerfiles + compose-*.yaml
+├── sandboxes/              # base / with-c8ctl / verifier Dockerfiles + compose-*.yaml + orchestration application.yaml
 └── src/
     ├── core/              # paths, metadata schema, scenario registry
-    ├── scorers/           # shared scorers (transcript, cluster, cpt)
-    ├── solvers/           # shared solvers (boot_cluster, deploy_bpmn)
-    ├── scripts/           # CLI entry points (evals-list, …)
+    ├── scorers/           # shared scorers: transcript, cluster, cpt, lint, llm_judge
+    ├── solvers/           # shared solvers: boot_cluster, collect_artifacts, deploy_bpmn
+    ├── scripts/           # CLI entry points: evals-list, evals-summarize, evals-extract-artifacts
     └── scenarios/
         ├── c8ctl-bootstrap/
-        └── rocket-launch/
+        └── rocket-launch/   # incl. cpt-verifier/ (Spring CPT, remote-runtime)
 ```
 
 ## Docs

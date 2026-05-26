@@ -14,9 +14,11 @@ evals/src/scenarios/rocket-launch/
 ├── baseline.json          # expected pass-rate, token band, duration band
 ├── fixtures/              # input files the agent (or verifier) reads
 │   └── RocketLaunch.bpmn  # for scenarios that hand the agent a starting file
-└── cpt-verifier/          # Phase 2 — used when verifier="cpt"
-    ├── pom.xml
-    └── src/test/java/.../RocketLaunchIT.java
+└── cpt-verifier/          # Phase 2 — used when verifier="cpt" (or composite-incl-CPT)
+    ├── pom.xml            # Spring CPT (camunda-process-test-spring) + remote-runtime
+    └── src/test/
+        ├── java/.../RocketLaunchIT.java
+        └── resources/application.yml   # camunda.process-test.runtime-mode: remote
 ```
 
 Files that may be absent depending on the verifier:
@@ -101,10 +103,20 @@ anywhere else.
    failures surface (the design supports N samples).
 
 4. **Write the verifier**:
-   - CPT: edit `cpt-verifier/src/test/java/.../*IT.java`
-   - Exit-code: declare the command in the task; no extra files
-   - Transcript: use helpers from `evals/src/scorers/transcript.py`
-   - Judge: write a Markdown rubric in `evals/judges/`
+   - CPT: edit `cpt-verifier/src/test/java/.../*IT.java` (Spring CPT,
+     remote-runtime — see `rocket-launch/cpt-verifier/` for the
+     reference shape)
+   - Exit-code: write the assertion inline in the scenario's `task.py`
+     as a small `@scorer` (see `c8ctl-bootstrap/task.py`)
+   - Transcript: use `assert_tool_called` / `assert_skill_loaded` from
+     `evals/src/scorers/transcript.py`
+   - Lint: `bpmn_lint_clean()` from `scorers/lint.py` (BPMN);
+     `form_lint_clean()` (forms — once vendored)
+   - Judge: use `judge_bpmn_quality()` / equivalent from
+     `evals/src/scorers/llm_judge.py`. The rubric lives inline in
+     that module (one-prompt + score regex); no separate Markdown
+     file. Override `judge_model=` per scenario if you need a
+     different judge.
 
 5. **Run locally** to confirm it boots:
    ```bash
@@ -117,8 +129,12 @@ anywhere else.
    ```
    Review the diff in `baseline.json` before committing.
 
-7. **Add the scenario to the workflow matrix** if it should run on
-   PRs (in `.github/workflows/eval.yml`).
+7. **No workflow edit needed.** PR-tier inclusion is automatic from
+   `metadata.skills` — `eval.yml`'s `detect-scenarios` job intersects
+   the changed skills with each scenario's `metadata.skills` via
+   `evals-list --changed-skills`. (CI is currently
+   `workflow_dispatch`-only; once credentials land, the path-filter
+   path turns on without per-scenario workflow edits.)
 
 ## Edge cases
 

@@ -24,9 +24,12 @@ Two distinct signals, two distinct gates:
 | Does the agent produce a deployable, working artifact? | eval suite |
 | Do cross-references route the agent through the right chain of skills? | eval suite (transcript scorer) |
 
-Both run on every PR touching `skills/`. Lint is cheap and fast (< 1 min,
-$0). Evals are filtered to scenarios touching the changed skills
-(~5–10 min, ~$1–4 per PR).
+Lint runs on every PR touching `skills/` today. The eval workflow is
+currently `workflow_dispatch`-only — it turns on as a PR gate once
+credentials are provisioned and more than one scenario has been
+validated end-to-end. Plan-era target: lint < 1 min / $0; evals
+filtered to scenarios touching the changed skills, ~5–10 min, ~$1–4
+per PR.
 
 ## Two-phase sandbox model
 
@@ -36,27 +39,38 @@ does; Phase 2 is what **we** check.
 ```
 ┌────────────────────── Phase 1: Eval ───────────────────────┐
 │  Container: with-c8ctl (or base for the bootstrap scenario)│
-│  Services in compose: c8run (Zeebe), optionally WireMock   │
+│  Services in compose: orchestration (camunda/camunda:8.9.x │
+│  with H2), default (agent), optionally a connectors-bundle │
+│  or WireMock sidecar per scenario                          │
 │                                                            │
-│  Agent receives prompt → uses tools (Bash, edit, c8ctl) →  │
-│  writes artifacts to mounted outputs/ volume               │
+│  default shares orchestration's network namespace, so      │
+│  localhost:8080 / :9600 just work from the agent's shell   │
+│                                                            │
+│  Agent receives prompt → uses tools (bash_session,         │
+│  text_editor, skill via Inspect react()) → writes          │
+│  artifacts to a shared /workspace volume                   │
 │  (agent never sees Phase 2)                                │
 └────────────────────────────────────────────────────────────┘
                           │
-                          ▼ outputs/ (read-only mount)
+                          ▼ /workspace mounted as /agent-workspace:ro
 ┌────────────────────── Phase 2: Verify ─────────────────────┐
 │  Container: per-scenario choice (see Verifier menu below)  │
 │  Network: egress denied; time/memory caps                  │
 │                                                            │
-│  Runs CPT, c8ctl, mvn test, transcript scorer, judge LLM,  │
-│  or composite. Returns pass/fail + score per sample.       │
+│  CPT runs in remote-runtime (Spring CPT) against the same  │
+│  orchestration cluster the agent worked against; the       │
+│  verifier re-deploys the agent's BPMN from /agent-workspace│
+│  and asserts behaviour. Other verifier shapes: c8ctl       │
+│  exit-code, mvn compile + judge, transcript scorer,        │
+│  WireMock journal, composite.                              │
 └────────────────────────────────────────────────────────────┘
 ```
 
 Why two phases: untrusted agent-generated code (most acutely, the
-CPT-authoring scenario where the agent writes Java we then `mvn test`)
-must run in an isolated container with network denied and resource
-caps, separate from the cluster the agent is interacting with.
+CPT-authoring scenario where the agent writes Java we then compile
++ code-review) must run in an isolated container with network denied
+and resource caps, separate from the cluster the agent is interacting
+with.
 
 ## Verifier menu
 
@@ -66,17 +80,20 @@ any scenario can compose a different verifier — or stack several.
 
 | Verifier | Used for | Example scenarios |
 |---|---|---|
-| **CPT** (`mvn test` over a `.test.json` we authored) | Behaviour of a deployed process | 1, 2, 3, 4, 5, 6 |
+| **CPT remote-runtime** (Spring CPT — `mvn test` over an `*IT.java`; verifier shares orchestration's network namespace) | Behaviour of a deployed process | 1, 2, 5, 6 |
 | **c8ctl + exit-code / JSON assertion** | Tool-shaped skills (does the artifact reach the cluster) | 0 |
-| **`mvn test` over agent-written Java** | Agent's *code* is the deliverable | 7 |
-| **Inspect transcript scorer** | "Did the agent route / fetch / cite as the skill instructs" | 8, 9 (+ chain checks on 2, 3, 5) |
-| **Judge LLM** (Haiku, structured rubric) | Free-form text, routing rationale, prompt quality | 8, 9 |
+| **`bpmn_lint_clean`** (`c8ctl bpmn lint` in the agent sandbox) | Cheap deterministic structural check on every `.bpmn` artifact | 1, 2, 5 (any BPMN scenario) |
+| **`form_lint_clean`** (validate against vendored `@bpmn-io/form-json-schema`) | Cheap deterministic structural check on every `.form` artifact | 2 |
+| **`mvn compile` + LLM-judge code-review** over agent-written Java | CPT-authoring scenario where running the test would risk Docker-in-Docker; compile gates valid CPT-API usage, judge gates quality | 7 |
+| **Inspect transcript scorer** (`assert_tool_called`, `assert_skill_loaded`, `assert_skill_chain`) | "Did the agent route / fetch / cite as the skill instructs" | 8, 9 (+ chain checks on 2, 5) |
+| **Judge LLM** (Sonnet 4.6, single-score rubric — `src/scorers/llm_judge.py`) | Free-form answer correctness; currently unused, re-enabled with scenarios 7, 8 | 7, 8 |
 | **WireMock journal** | "Did the agent's process hit the right HTTP endpoint" | 2 |
 
 Pick the **cheapest verifier that catches the failure mode you care
-about**. Deterministic (CPT, exit-code, transcript) before non-deterministic
-(judge LLM). A composite is fine — the AI-agent-triage scenario stacks CPT + mocked
-job-worker + transcript scorer.
+about**. Deterministic (CPT, lint, exit-code, transcript) before
+non-deterministic (judge LLM). A composite is fine — scenario 1
+already stacks transcript + cluster + lint + CPT, each catching a
+different failure mode at a different cost.
 
 ## `with-skill` / `without-skill` semantics
 
@@ -127,51 +144,63 @@ hygiene cron, A/B comparison, etc.) are deferred — see the plan's
 
 ## Harness model
 
-**Default agent**: Copilot CLI (`INSPECT_AGENT_BRIDGE=copilot-cli`)
+**Agent loop**: Inspect's `react()` with `bash_session` + `text_editor`
++ `skill(all_skill_dirs())` tools. Model selected via Inspect's
+`--model` flag (e.g. `--model anthropic/claude-sonnet-4-6`).
 
-- CI auth: the workflow's auto-injected `GITHUB_TOKEN` with
-  `permissions: models: read` — no new repo/org secret to provision
-- Local auth: `gh auth login` (one-time)
-- Billing: Copilot quota (single line item; same quota as the judge)
-- Underlying model: Claude Sonnet 4 (configurable)
+No CLI-style harness bridge today: there's no upstream Copilot CLI
+bridge for Inspect AI, so `sandbox_agent_bridge()` isn't a path yet.
+`react()` is the v1 agent loop — the `skill()` tool surfaces all 13
+skills to the model, and cross-skill routing falls out of which
+skills the model loads (transcript signal).
 
-**Swap to Claude Code** (`INSPECT_AGENT_BRIDGE=claude-code`)
+**Local credentials**: provide whatever Inspect's chosen model
+provider needs (`ANTHROPIC_API_KEY` for Anthropic direct, AWS creds
+for Bedrock). The user typically wraps the eval invocation in
+`dotenvx run -f ~/.config/...` to inject credentials without writing
+them to disk.
 
-- CI auth: `ANTHROPIC_API_KEY` repo secret
-- Local auth: `claude login` or `ANTHROPIC_API_KEY` env var
-- Billing: Anthropic API direct
-
-Inspect AI's `sandbox_agent_bridge()` is the primitive — same scenario
-files run against either harness with no other change. Both speak
-SKILL.md identically since [Copilot CLI's Dec 2025 Agent Skills
-support](https://github.blog/changelog/2025-12-18-github-copilot-now-supports-agent-skills/).
+**CI credentials**: deferred. GitHub Models free tier was rejected
+during validation — per-request token caps (gpt-5: 4000, gpt-4.1:
+16000) are too tight for the `react()` loop with `skill()` + 13
+skills. Paid GH Models, direct Anthropic, or Bedrock credentials get
+wired into the workflow once the suite has more than one validated
+scenario.
 
 ## Cross-skill verification (the load-bearing piece)
 
 Inspect AI's transcript exposes every tool call and file read. A
 reusable scorer in `evals/src/scorers/transcript.py` provides:
 
-- `assert_skill_loaded("camunda-bpmn")` — agent read `skills/camunda-bpmn/SKILL.md`
 - `assert_tool_called("c8ctl", subcommand="deploy")` — CLI invoked
-- `assert_skill_chain(["camunda-bpmn", "camunda-dmn"])` — skills loaded in order
+  (shipped)
+- `assert_skill_loaded("camunda-bpmn")` — agent read
+  `skills/camunda-bpmn/SKILL.md` or invoked the `skill` tool with that
+  name (shipped)
+- `assert_skill_chain(["camunda-bpmn", "camunda-dmn"])` — skills
+  loaded in order (planned with scenario 09; see plan step I)
 
-The AI-agent-triage scenario asserts `assert_skill_loaded(["camunda-ai-agents",
-"camunda-bpmn", "camunda-connectors", "camunda-feel"])` → directly
-tests whether cross-references in the skill bodies route the agent
-through the suite. The prior single-skill eval attempt couldn't
-express this; it's the new signal evals exist to catch.
+Once the chain scorer lands, multi-skill scenarios can assert
+`assert_skill_chain(["camunda-ai-agents", "camunda-bpmn",
+"camunda-connectors", "camunda-feel"])` → directly tests whether
+cross-references in the skill bodies route the agent through the
+suite. The prior single-skill eval attempt couldn't express this;
+it's the new signal evals exist to catch.
 
 ## Cost & quota model
 
-- **PR budget**: ~$1–4 per PR (scenarios filtered by path)
+- **PR budget** (when CI is wired up): ~$1–4 per PR, scenarios filtered by path
 - **Nightly budget**: ~$5–15
-- **Single token**: GitHub Models covers agent under test (Copilot
-  CLI) + judge model. One quota line in CI.
-- **Local iteration**: free Copilot quota for engineers with a Copilot
-  subscription; ANTHROPIC_API_KEY if using Claude Code locally.
+- **Local iteration**: whatever provider the engineer points Inspect's
+  `--model` flag at — Anthropic direct, Bedrock, etc. Credentials
+  typically come from a local dotenvx file.
+- **CI credentials**: deferred. GitHub Models free tier doesn't fit
+  the `react()` loop (token caps). Paid GH Models, direct Anthropic,
+  or Bedrock credentials need to be provisioned before CI gating turns
+  on.
 
 If a scenario systematically blows its cost band, that's a regression
-signal — `summarize.py` surfaces it in the PR comment.
+signal — `summarize.py` surfaces it in the PR comment once CI is on.
 
 ## What the eval suite is **not**
 

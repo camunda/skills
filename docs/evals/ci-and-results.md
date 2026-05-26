@@ -5,22 +5,25 @@ a failure from a CI artifact.
 
 ## Workflows
 
-| Workflow | Trigger | Scope |
+| Workflow | Today's trigger | Designed scope |
 |---|---|---|
 | `.github/workflows/lint.yml` (existing) | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
-| `.github/workflows/eval.yml` | PR touching `skills/<X>/**` or `evals/**`, or PR labeled `evals:run` | Scenarios where `metadata.skills ∩ changed-skills ≠ ∅` |
-| `.github/workflows/eval-nightly.yml` | Schedule (nightly) on `main` | All scenarios in all tiers |
+| `.github/workflows/eval.yml` | **`workflow_dispatch` only** (gated until credentials land) | When turned on: PR touching `skills/<X>/**` or `evals/**`, or PR labeled `evals:run`; runs scenarios where `metadata.skills ∩ changed-skills ≠ ∅` |
+| `.github/workflows/eval-nightly.yml` | **`workflow_dispatch` only** (gated until credentials land) | When turned on: nightly schedule on `main`; runs all scenarios in all tiers |
 
 PR filter via `dorny/paths-filter`. Path-filter inclusion is
-automatic from `metadata.skills` — there's no separate workflow
-matrix to keep in sync.
+automatic from `metadata.skills` (resolved by `evals-list
+--changed-skills`); no separate workflow matrix to keep in sync. The
+workflows live in the repo today so the wiring is reviewable, but
+they don't fire on PRs until credentials are provisioned and at least
+one more scenario validates against the harness.
 
 ## Tier matrix
 
-| Tier | Runs on | What |
+| Tier | Runs on (when CI is enabled) | What |
 |---|---|---|
-| `pr` | PR + nightly | All scenarios in v1 are PR-tier |
-| `nightly` | Nightly only | Reserved for slow/expensive scenarios as they appear |
+| `pr` | PR + nightly | Default for fast / low-cost scenarios |
+| `nightly` | Nightly only | Slow / expensive / deferred scenarios (e.g. AI-agent scenarios pending mocking + cost decisions) |
 | `release` | On `v*` tags (future) | Full release-gate suite |
 
 To add a scenario to a tier, set `metadata.tier` in `task.py`. No
@@ -97,13 +100,22 @@ evals/logs/
 
 ## Credentials & secrets
 
-- **Copilot CLI** (default agent): no repo secret needed. The
-  workflow grants `permissions: { models: read }` and the
-  auto-injected `GITHUB_TOKEN` covers both the agent and the judge.
-- **Claude Code** (`INSPECT_AGENT_BRIDGE=claude-code`): requires
-  `ANTHROPIC_API_KEY` repo secret. Currently used only for the
-  weekly cross-harness matrix (`FOLLOWUP-EVAL-02`); not wired up
-  in v1.
+The eval workflows are currently `workflow_dispatch`-only because the
+credential path isn't decided yet. Options:
+
+- **Anthropic direct** — `ANTHROPIC_API_KEY` as a repo secret; Inspect
+  invoked with `--model anthropic/claude-sonnet-4-6`.
+- **AWS Bedrock** — `AWS_*` secrets (or OIDC role assumption) for the
+  Bedrock provider; Inspect with `--model bedrock/<inference-profile>`.
+- **GitHub Models (paid)** — `models: read` permission on
+  `GITHUB_TOKEN` covers the agent + judge in a single line item. The
+  free tier was tested and rejected (per-request token caps too tight
+  for the `react()` loop with `skill()` + 13 skills).
+
+Whichever path is picked, the workflows' `on:` block flips from
+`workflow_dispatch` to `pull_request` / `schedule` and the
+`Run scenario` step injects the credentials via env. The shape of
+`detect-scenarios` and `summarize` doesn't change.
 
 ## Cost controls
 
