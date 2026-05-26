@@ -39,6 +39,11 @@ help:
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
 	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval / eval-all targets)."
 	@echo "            Example: ARGS=\"--model anthropic/claude-sonnet-4-6 --epochs 3\""
+	@echo ""
+	@echo "Notes:"
+	@echo "  eval / eval-all default to --max-samples 1 (sequential)."
+	@echo "  Concurrent Camunda 8.9 JVMs starve each other on a laptop;"
+	@echo "  override via ARGS=\"--max-samples 3\" if you've got the headroom."
 
 .PHONY: try
 try:
@@ -76,7 +81,7 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/src/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ -T arm=$(ARM) $(ARGS) \
+	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) \
 		&& uv run evals-extract-artifacts
 
 .PHONY: eval-all
@@ -85,7 +90,7 @@ eval-all:
 	@cd $(EVALS_DIR) && \
 		for s in src/scenarios/*/task.py; do \
 			echo "=== $$s ==="; \
-			uv run inspect eval "$$s" --log-dir logs/ -T arm=$(ARM) $(ARGS) || exit $$?; \
+			uv run inspect eval "$$s" --log-dir logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) || exit $$?; \
 			uv run evals-extract-artifacts || exit $$?; \
 		done
 

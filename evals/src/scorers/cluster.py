@@ -52,9 +52,13 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
 
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox()
+        # 60s is generous for a cluster query (single REST call), but
+        # Camunda 8.9's gRPC/REST surface can pause briefly under
+        # local-machine contention (other epochs / verifier JVM
+        # warming up). 30s was tripping false-timeouts on epochs runs.
         result = await sb.exec(
             ["c8ctl", "list", "pd", "--json"],
-            timeout=30,
+            timeout=60,
         )
         if result.returncode != 0:
             return Score(
