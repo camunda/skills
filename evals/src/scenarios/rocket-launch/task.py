@@ -36,7 +36,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.tool import bash_session, skill, text_editor
 
 from core.metadata import BaselineConfig, ScenarioMetadata
-from core.paths import SANDBOXES_DIR, all_skill_dirs
+from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
@@ -65,7 +65,8 @@ of what you did.
 
 
 @task
-def rocket_launch() -> Task:
+def rocket_launch(arm: Arm = "with_skill") -> Task:
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
     return Task(
         dataset=[
             Sample(
@@ -89,7 +90,7 @@ def rocket_launch() -> Task:
                 tools=[
                     bash_session(timeout=300),
                     text_editor(timeout=60),
-                    skill(all_skill_dirs()),
+                    *([skill(skill_dirs)] if skill_dirs else []),
                 ],
             ),
             collect_artifacts(),

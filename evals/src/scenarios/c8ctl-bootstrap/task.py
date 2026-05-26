@@ -35,7 +35,7 @@ from inspect_ai.tool import bash_session, skill, text_editor
 from inspect_ai.util import sandbox
 
 from core.metadata import BaselineConfig, ScenarioMetadata
-from core.paths import SANDBOXES_DIR, all_skill_dirs
+from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 
 METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],
@@ -85,7 +85,8 @@ def topology_reachable():
 
 
 @task
-def c8ctl_bootstrap() -> Task:
+def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
     return Task(
         dataset=[
             Sample(
@@ -110,7 +111,7 @@ def c8ctl_bootstrap() -> Task:
             tools=[
                 bash_session(timeout=300),
                 text_editor(timeout=60),
-                skill(all_skill_dirs()),
+                *([skill(skill_dirs)] if skill_dirs else []),
             ],
         ),
         scorer=topology_reachable(),
