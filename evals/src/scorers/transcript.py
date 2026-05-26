@@ -73,7 +73,7 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
         for function, arguments in _iter_tool_calls(state):
             args_text = _arguments_text(arguments)
             for skill_name in expected:
-                if function == "skill" and arguments.get("name") == skill_name:
+                if function == "skill" and arguments.get("command") == skill_name:
                     seen.add(skill_name)
                 elif _skill_path(skill_name) in args_text:
                     seen.add(skill_name)
