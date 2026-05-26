@@ -16,6 +16,13 @@ camunda:
   system:
     cpu-thread-count: "3"
     io-thread-count: "3"
+    # Allow the CPT verifier to pin / advance / reset the cluster clock
+    # via the orchestration REST API. Without this, the cluster's clock
+    # is immutable and `mvn test` errors with "Expected to reset the
+    # clock, but the clock is immutable" before the rocket-launch test
+    # can fast-forward the 3s of timer waits. Default ticking is
+    # unchanged — the clock advances normally until a test pins it.
+    clock-controlled: true
   security:
     authentication:
       method: "basic"
