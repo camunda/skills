@@ -36,7 +36,7 @@ from __future__ import annotations
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.tool import bash_session, skill, text_editor
+from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor
 
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
@@ -71,12 +71,12 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "Build me a tiny BPMN called RocketLaunch that "
-                    "counts down 3, 2, 1 with a one-second pause "
-                    "between each number, then lifts off, then ends. "
-                    "Make it self-contained — no service tasks or "
-                    "external workers. Deploy it to my local cluster "
-                    "so I can watch it run."
+                    "I want a BPMN process called RocketLaunch on my "
+                    "local Camunda cluster — counts down 3, 2, 1 with "
+                    "one-second pauses, then lifts off, then ends. "
+                    "Just the BPMN file, please — self-contained, no "
+                    "service tasks or workers, no Spring Boot or Java "
+                    "glue. Deploy it and show me it running."
                 ),
             ),
             # edge-minimal sample is parked until happy path is reliably
@@ -89,6 +89,8 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
                 tools=[
                     bash_session(timeout=300),
                     text_editor(timeout=60),
+                    grep(timeout=30),
+                    list_files(timeout=30),
                     *([skill(skill_dirs)] if skill_dirs else []),
                 ],
             ),
@@ -103,9 +105,9 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
         sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
         # Bounded so a flailing without-skill arm can't burn unbounded
-        # quota. With-skill arm landed at ~3 min / 330k tokens; caps are
-        # ~6x that to allow generous slack while still terminating.
-        time_limit=1200,
-        token_limit=1_500_000,
-        message_limit=150,
+        # quota. With-skill arm landed at ~3 min / 330k tokens; caps
+        # are tight enough to terminate a no-progress loop quickly.
+        time_limit=360,
+        token_limit=800_000,
+        message_limit=100,
     )

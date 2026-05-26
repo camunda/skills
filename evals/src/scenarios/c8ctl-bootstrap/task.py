@@ -41,7 +41,7 @@ from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import TaskState
-from inspect_ai.tool import bash_session, skill, text_editor
+from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor
 from inspect_ai.util import sandbox
 
 from core.metadata import BaselineConfig, ScenarioMetadata
@@ -110,6 +110,8 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
             tools=[
                 bash_session(timeout=300),
                 text_editor(timeout=60),
+                grep(timeout=30),
+                list_files(timeout=30),
                 *([skill(skill_dirs)] if skill_dirs else []),
             ],
         ),
@@ -122,7 +124,7 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
         # Bounded so a flailing without-skill arm can't burn unbounded
         # quota. Simpler scenario than rocket-launch (no CPT, no BPMN
         # design) so caps sit lower.
-        time_limit=600,
-        token_limit=750_000,
-        message_limit=100,
+        time_limit=240,
+        token_limit=500_000,
+        message_limit=60,
     )
