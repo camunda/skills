@@ -45,6 +45,7 @@ from inspect_ai.util import sandbox
 
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
+from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],
@@ -108,16 +109,18 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
                 ),
             ),
         ],
-        solver=react(
-            prompt=AgentPrompt(instructions=INSTRUCTIONS),
-            tools=[
-                bash_session(timeout=300),
-                text_editor(timeout=60),
-                grep(timeout=30),
-                list_files(timeout=30),
-                web_search(),
-                *([skill(skill_dirs)] if skill_dirs else []),
-            ],
+        solver=with_artifact_collection(
+            react(
+                prompt=AgentPrompt(instructions=INSTRUCTIONS),
+                tools=[
+                    bash_session(timeout=300),
+                    text_editor(timeout=60),
+                    grep(timeout=30),
+                    list_files(timeout=30),
+                    web_search(),
+                    *([skill(skill_dirs)] if skill_dirs else []),
+                ],
+            ),
         ),
         scorer=c8ctl_installed(),
         sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")),

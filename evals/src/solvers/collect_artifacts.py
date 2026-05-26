@@ -11,8 +11,22 @@ Filters: only files whose extension is in ``EXTENSIONS`` are captured
 ``.class`` files or core dumps out of the log). Files larger than
 ``MAX_BYTES`` are recorded with a placeholder so the log doesn't bloat.
 
-Wire after ``react()`` in a scenario's solver chain:
+Two ways to wire it in:
 
+- ``with_artifact_collection(agent)`` — wraps an agent solver so
+  collection runs in a ``try/finally`` regardless of how the agent
+  exits (clean submit, limit-hit, exception). Preferred — Inspect
+  aborts the solver chain on a sample limit, so a plain downstream
+  ``collect_artifacts()`` is skipped precisely when we most need
+  visibility (the run that went sideways).
+
+- ``collect_artifacts()`` — bare solver, chained after the agent.
+  Only runs when the agent exits cleanly without hitting a limit.
+
+    # Preferred — wrap the agent
+    solver=[boot_cluster(), with_artifact_collection(react(...))]
+
+    # Bare — only runs on clean exits
     solver=[boot_cluster(), react(...), collect_artifacts()]
 """
 
@@ -102,6 +116,40 @@ def collect_artifacts(root: str = "/workspace") -> Solver:
                 artifacts[path] = f"<read failed: {exc}>"
 
         state.store.set("artifacts", artifacts)
+        return state
+
+    return solve
+
+
+@solver
+def with_artifact_collection(
+    agent: Solver, root: str = "/workspace"
+) -> Solver:
+    """Wrap an agent solver so artifact collection runs whatever happens.
+
+    Inspect aborts the solver chain when a sample limit (token,
+    message, time) is hit during a solver. A downstream
+    ``collect_artifacts()`` is then skipped — which is the worst time
+    to lose visibility, because limit-hit runs are exactly the runs
+    you want to inspect.
+
+    This wraps any agent solver in a ``try/finally`` so the artifact
+    snapshot fires after the agent regardless of how it exits: clean
+    submit, sample-limit, or raised exception. The exception (if any)
+    propagates after cleanup, so Inspect's downstream scoring + log
+    bookkeeping still see the failure.
+
+    Agent-agnostic by design — works equally with ``react(...)``,
+    ``inspect_swe.claude_code_agent(...)``, or any custom agent
+    solver.
+    """
+    cleanup = collect_artifacts(root=root)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            state = await agent(state, generate)
+        finally:
+            state = await cleanup(state, generate)
         return state
 
     return solve

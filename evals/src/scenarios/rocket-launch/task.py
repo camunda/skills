@@ -51,7 +51,7 @@ from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
 from solvers.boot_cluster import boot_cluster
-from solvers.collect_artifacts import collect_artifacts
+from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
@@ -92,18 +92,19 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
         ],
         solver=[
             boot_cluster(),
-            react(
-                prompt=AgentPrompt(instructions=INSTRUCTIONS),
-                tools=[
-                    bash_session(timeout=300),
-                    text_editor(timeout=60),
-                    grep(timeout=30),
-                    list_files(timeout=30),
-                    web_search(),
-                    *([skill(skill_dirs)] if skill_dirs else []),
-                ],
+            with_artifact_collection(
+                react(
+                    prompt=AgentPrompt(instructions=INSTRUCTIONS),
+                    tools=[
+                        bash_session(timeout=300),
+                        text_editor(timeout=60),
+                        grep(timeout=30),
+                        list_files(timeout=30),
+                        web_search(),
+                        *([skill(skill_dirs)] if skill_dirs else []),
+                    ],
+                ),
             ),
-            collect_artifacts(),
         ],
         scorer=[
             process_deployed_on_cluster("RocketLaunch"),
