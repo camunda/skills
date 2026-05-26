@@ -109,12 +109,12 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
             Sample(
                 id="happy",
                 input=(
-                    "I want a BPMN process called RocketLaunch on my "
-                    "local Camunda cluster — counts down 3, 2, 1 with "
-                    "one-second pauses, then lifts off, then ends. "
-                    "Just the BPMN file, please — self-contained, no "
-                    "service tasks or workers, no Spring Boot or Java "
-                    "glue. Deploy it and show me it running."
+                    "I want a BPMN process with id `RocketLaunch` on "
+                    "my local Camunda cluster — counts down 3, 2, 1 "
+                    "with one-second pauses, then lifts off, then "
+                    "ends. Just the BPMN file, please — self-contained, "
+                    "no service tasks or workers, no Spring Boot or "
+                    "Java glue. Deploy it and show me it running."
                 ),
             ),
             # edge-minimal sample is parked until happy path is reliably
