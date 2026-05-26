@@ -39,7 +39,7 @@ import json
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Target, scorer
+from inspect_ai.scorer import Score, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor
 from inspect_ai.util import sandbox
@@ -64,7 +64,7 @@ of what you did.
 """
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def topology_reachable():
     """Score 1.0 when ``c8ctl get topology --json`` returns valid JSON
     with at least one broker; 0.0 otherwise.

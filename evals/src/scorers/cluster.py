@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
@@ -40,7 +40,7 @@ def _extract_process_id(definition: dict) -> str | None:
     return None
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
     """Score 1.0 when a process definition with ``bpmn_process_id`` is
     deployed on the cluster the agent worked against; 0.0 otherwise.

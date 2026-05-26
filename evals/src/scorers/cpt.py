@@ -14,12 +14,12 @@ subdirectory.
 
 from __future__ import annotations
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def cpt_scorer(project_dir: str) -> Scorer:
     """Run ``mvn test`` and score 1.0 on success, 0.0 on any failure.
 

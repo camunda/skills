@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
 # Sonnet is plenty for a coarse 0-10 rating; override per-scenario if needed.
@@ -46,7 +46,7 @@ SCORE: <integer 0-10>
 _SCORE_RE = re.compile(r"SCORE:\s*(\d+)", re.IGNORECASE)
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def judge_bpmn_quality(
     judge_model: str = _DEFAULT_JUDGE,
     max_tokens: int = 400,

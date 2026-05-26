@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
 
@@ -56,7 +56,7 @@ def _skill_path(skill: str) -> str:
     return f"skills/{skill}/SKILL.md"
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
     """Score 1.0 when the agent loaded every named skill via the
     skill tool (or read its SKILL.md directly); 0.0 otherwise.
@@ -90,7 +90,7 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
     return score
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def assert_tool_called(tool: str, subcommand: str | None = None) -> Scorer:
     """Score 1.0 when the agent's tool calls reference ``tool`` (and
     ``subcommand`` if provided); 0.0 otherwise.

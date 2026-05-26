@@ -12,12 +12,12 @@ Scope: BPMN files one or two levels deep under ``workspace`` (default
 
 from __future__ import annotations
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean(), stderr()])
 def bpmn_lint_clean(workspace: str = "/workspace") -> Scorer:
     """Score 1.0 when every BPMN under ``workspace`` lints clean.
 
