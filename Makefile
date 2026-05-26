@@ -7,6 +7,11 @@
 
 SKILL ?=
 SCENARIO ?=
+# Comparison arm. Always passed as `-T arm=$(ARM)` so the value shows up
+# in Inspect's TASK ARGS column for every run (not just non-default ones).
+# Override on the command line for the baseline arm:
+#   make eval SCENARIO=rocket-launch ARM=without_skill
+ARM ?= with_skill
 # Arbitrary extra flags forwarded to `inspect eval`.
 # Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--model anthropic/claude-sonnet-4-6 --epochs 3"
 ARGS ?=
@@ -31,6 +36,7 @@ help:
 	@echo "Variables:"
 	@echo "  SKILL     Skill name (e.g. camunda-feel). Empty = all where applicable."
 	@echo "  SCENARIO  Eval scenario id (e.g. rocket-launch)."
+	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
 	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval / eval-all targets)."
 	@echo "            Example: ARGS=\"--model anthropic/claude-sonnet-4-6 --epochs 3\""
 
@@ -70,7 +76,7 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/src/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ $(ARGS) \
+	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ -T arm=$(ARM) $(ARGS) \
 		&& uv run evals-extract-artifacts
 
 .PHONY: eval-all
@@ -79,7 +85,7 @@ eval-all:
 	@cd $(EVALS_DIR) && \
 		for s in src/scenarios/*/task.py; do \
 			echo "=== $$s ==="; \
-			uv run inspect eval "$$s" --log-dir logs/ $(ARGS) || exit $$?; \
+			uv run inspect eval "$$s" --log-dir logs/ -T arm=$(ARM) $(ARGS) || exit $$?; \
 			uv run evals-extract-artifacts || exit $$?; \
 		done
 
