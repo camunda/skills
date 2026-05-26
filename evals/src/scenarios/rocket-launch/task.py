@@ -2,11 +2,18 @@
 
 End-to-end: agent designs a small "rocket launch" BPMN and deploys it
 to a running Camunda 8.9 cluster (provisioned by docker compose).
-Three scorers compose to cover three failure modes at three costs:
+Three scorers compose to cover three outcome failure modes:
 
-1. Transcript — did the agent *attempt* ``c8ctl deploy`` at all?
-2. Cluster — did the deploy actually land on the cluster?
+1. Cluster — did the deploy actually land on the cluster?
+2. Lint — is the deployed BPMN well-formed (`c8ctl bpmn lint`)?
 3. CPT — does the deployed process actually run to completion?
+
+No transcript / tool-call scorer: how the agent gets the BPMN onto
+the cluster (``c8ctl deploy``, ``c8 deploy`` via the npm alias,
+direct Zeebe REST POST, etc.) is implementation detail. The outcome
+scorers carry the signal. See feedback memory
+``feedback_skill_loaded_is_trigger_scorer`` for the broader
+trigger-vs-outcome framing.
 
 The CPT verifier runs in **remote runtime mode** against the same
 orchestration cluster the agent worked against (shared via
@@ -43,7 +50,6 @@ from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
-from scorers.transcript import assert_tool_called
 from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import collect_artifacts
 
@@ -97,7 +103,6 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
             collect_artifacts(),
         ],
         scorer=[
-            assert_tool_called("c8ctl", subcommand="deploy"),
             process_deployed_on_cluster("RocketLaunch"),
             bpmn_lint_clean(),
             cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
