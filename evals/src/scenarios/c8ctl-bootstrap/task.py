@@ -53,6 +53,8 @@ METADATA = ScenarioMetadata(
 )
 
 INSTRUCTIONS = """\
+A local Camunda cluster is already running. Don't start a new one.
+
 Files you create only persist for review if they're under /workspace.
 Anything you write to /tmp, the home directory, etc. is lost when the
 session ends.
