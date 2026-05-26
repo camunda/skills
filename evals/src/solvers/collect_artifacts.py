@@ -13,7 +13,8 @@ Filters: only files whose extension is in ``EXTENSIONS`` are captured
 
 Two ways to wire it in:
 
-- ``with_artifact_collection(agent)`` — wraps an agent solver so
+- ``with_artifact_collection(agent)`` — wraps an Inspect agent
+  (``react``, ``claude_code_agent``, any ``@agent`` function) so
   collection runs in a ``try/finally`` regardless of how the agent
   exits (clean submit, limit-hit, exception). Preferred — Inspect
   aborts the solver chain on a sample limit, so a plain downstream
@@ -32,6 +33,7 @@ Two ways to wire it in:
 
 from __future__ import annotations
 
+from inspect_ai.agent import Agent, as_solver
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 
@@ -123,9 +125,9 @@ def collect_artifacts(root: str = "/workspace") -> Solver:
 
 @solver
 def with_artifact_collection(
-    agent: Solver, root: str = "/workspace"
+    agent: Agent, root: str = "/workspace"
 ) -> Solver:
-    """Wrap an agent solver so artifact collection runs whatever happens.
+    """Wrap an Inspect agent so artifact collection runs whatever happens.
 
     Inspect aborts the solver chain when a sample limit (token,
     message, time) is hit during a solver. A downstream
@@ -133,21 +135,23 @@ def with_artifact_collection(
     to lose visibility, because limit-hit runs are exactly the runs
     you want to inspect.
 
-    This wraps any agent solver in a ``try/finally`` so the artifact
-    snapshot fires after the agent regardless of how it exits: clean
-    submit, sample-limit, or raised exception. The exception (if any)
-    propagates after cleanup, so Inspect's downstream scoring + log
-    bookkeeping still see the failure.
+    This converts the agent to a Solver (via ``as_solver``) and runs
+    it inside ``try/finally`` so the artifact snapshot fires
+    regardless of how it exits: clean submit, sample-limit, or raised
+    exception. The exception (if any) propagates after cleanup, so
+    Inspect's downstream scoring + log bookkeeping still see the
+    failure.
 
-    Agent-agnostic by design — works equally with ``react(...)``,
-    ``inspect_swe.claude_code_agent(...)``, or any custom agent
-    solver.
+    Agent-agnostic by design — works with ``react(...)``,
+    ``inspect_swe.claude_code_agent(...)``, or any ``@agent``
+    function.
     """
+    agent_solver = as_solver(agent)
     cleanup = collect_artifacts(root=root)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         try:
-            state = await agent(state, generate)
+            state = await agent_solver(state, generate)
         finally:
             state = await cleanup(state, generate)
         return state
