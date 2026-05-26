@@ -99,6 +99,10 @@ An empty `<bpmn:errorEventDefinition/>` catches ANY error (wildcard).
 
 ## Tasks
 
+**Child-element order is XSD-enforced.** Inside every task element (`scriptTask`, `serviceTask`, `userTask`, `businessRuleTask`, etc.), children must appear in this order: `<bpmn:extensionElements>` → `<bpmn:incoming>` → `<bpmn:outgoing>`. Putting `<extensionElements>` after `<outgoing>` makes Zeebe reject the deployment with `cvc-complex-type.2.4.a: Invalid content was found starting with element 'extensionElements'` — even if `c8ctl bpmn lint` passed.
+
+The examples below omit `<bpmn:incoming>` / `<bpmn:outgoing>` for brevity; when you add them, they go *after* `<bpmn:extensionElements>`, never before.
+
 ### User Task
 ```xml
 <bpmn:userTask id="Task_Review" name="Review application">
@@ -133,6 +137,8 @@ For connectors (REST, Slack, etc.), use the **camunda-connectors** skill to appl
   </bpmn:extensionElements>
 </bpmn:scriptTask>
 ```
+
+Do NOT use the Camunda 7 `<bpmn:script>` child element — Camunda 8 only consumes `<zeebe:script />` inside `<extensionElements>`, and mixing both styles deploys-rejects with `cvc-complex-type` errors.
 
 ### Business Rule Task
 ```xml
