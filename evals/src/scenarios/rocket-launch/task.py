@@ -48,7 +48,7 @@ from __future__ import annotations
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Scorer, at_least, mean, multi_scorer, scorer, stderr
+from inspect_ai.scorer import Scorer, mean, multi_scorer, scorer, stderr
 from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
 
 from core.metadata import BaselineConfig, ScenarioMetadata
@@ -56,6 +56,7 @@ from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
+from scorers.reducers import all_passed
 from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
 
@@ -64,10 +65,13 @@ def rocket_launch_outcome() -> Scorer:
     """Aggregate the three rocket-launch outcome checks via `multi_scorer`.
 
     Headline scores 1.0 iff the deploy landed AND the BPMN lints
-    clean AND the CPT verifier ran the process to completion. Each
-    sub-scorer's sandbox actions stay visible in the per-sample
-    transcript, so a failure remains diagnosable by mode (cluster vs.
-    lint vs. CPT) even though the dashboard surfaces only the AND.
+    clean AND the CPT verifier ran the process to completion. The
+    ``all_passed`` reducer keeps per-sub-score detail in the reduced
+    Score's explanation (``deploy=PASS | lint=PASS | cpt=FAIL: ...``)
+    and metadata, so a reviewer sees the breakdown right on the
+    sample card — they don't have to drill into the transcript to
+    figure out which check failed. Names mirror the ``scorers=[...]``
+    list order; ``multi_scorer`` runs them in that order.
 
     Inspect's bare ``multi_scorer`` returns an unregistered scoring
     function; wrapping it in ``@scorer`` registers it so the Task
@@ -79,7 +83,7 @@ def rocket_launch_outcome() -> Scorer:
             bpmn_lint_clean(),
             cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
         ],
-        reducer=at_least(k=3),
+        reducer=all_passed(names=["deploy", "lint", "cpt"]),
     )
 
 
