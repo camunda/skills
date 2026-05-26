@@ -4,6 +4,10 @@ Reads the latest ``.eval`` log for ``--scenario <id>`` from
 ``evals/logs/`` and rewrites ``evals/scenarios/<id>/baseline.json``
 with observed pass rate, token band, and duration band.
 
+Filters by arm (default ``with_skill``) because both arms write to
+the same log directory — picking simply the most-recent log without
+an arm filter would conflate them.
+
 Engineer reviews the diff before committing — never blanket-regen
 across multiple scenarios in one go.
 
@@ -32,6 +36,7 @@ LOGS_DIR = EVALS_ROOT / "logs"
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenario", required=True)
+    parser.add_argument("--arm", default="with_skill")
     parser.add_argument("--log-dir", default=LOGS_DIR, type=Path)
     args = parser.parse_args()
 
@@ -44,17 +49,36 @@ def main() -> int:
         print("inspect-ai not installed; cannot read logs", file=sys.stderr)
         return 2
 
-    logs = [p for p in list_eval_logs(str(args.log_dir)) if args.scenario in str(p)]
-    if not logs:
+    infos = [
+        info for info in list_eval_logs(str(args.log_dir))
+        if args.scenario in info.name
+    ]
+    if not infos:
         print(f"no logs found under {args.log_dir} for scenario {args.scenario}", file=sys.stderr)
         return 2
 
-    latest = max(logs, key=lambda p: Path(str(p)).stat().st_mtime)
-    log = read_eval_log(latest)
+    # Sort newest-first; pick the first one matching the target arm so
+    # that re-running the script after a multi-arm sweep still lands on
+    # the right run.
+    infos.sort(key=lambda i: i.mtime, reverse=True)
+    chosen = None
+    for info in infos:
+        log = read_eval_log(info.name, header_only=True)
+        arm = (log.eval.task_args or {}).get("arm")
+        if arm == args.arm:
+            chosen = info
+            break
+    if chosen is None:
+        print(
+            f"no {args.scenario} logs found for arm={args.arm} under {args.log_dir}",
+            file=sys.stderr,
+        )
+        return 2
 
+    log = read_eval_log(chosen.name)
     baseline = {
         "pass_rate": _pass_rate(log),
-        "with_skill": {
+        args.arm: {
             "pass_rate": _pass_rate(log),
             "tokens": _band(_total_tokens(log), 0.85, 1.15),
             "duration_s": _band(_duration_s(log), 0.7, 1.3),
@@ -64,7 +88,7 @@ def main() -> int:
     }
     target = scenario_dir / "baseline.json"
     target.write_text(json.dumps(baseline, indent=2) + "\n")
-    print(f"wrote {target}")
+    print(f"wrote {target} (from {Path(chosen.name).name}, arm={args.arm})")
     return 0
 
 

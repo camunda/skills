@@ -116,7 +116,12 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
         # Bounded so a flailing without-skill arm can't burn unbounded
         # quota. With-skill arm landed at ~3 min / 330k tokens; caps
         # are tight enough to terminate a no-progress loop quickly.
-        time_limit=360,
+        # time_limit covers the whole sample (solver + scoring), and
+        # Inspect allots scoring half of it (`time_limit / 2`). The
+        # CPT scorer runs `mvn test` (~30-90s on a working BPMN, +30s
+        # ConditionTimeout on a broken one), so we set 720s → scoring
+        # gets 360s, comfortably above mvn worst-case.
+        time_limit=720,
         token_limit=800_000,
         message_limit=100,
     )
