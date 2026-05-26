@@ -24,8 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
         gnupg \
         jq \
+        python3 \
+        python3-lxml \
+        python3-pip \
+        python3-requests \
+        python3-yaml \
         unzip \
         xz-utils \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 # Node 24 (binaries + global npm) from the official node:24 image.
