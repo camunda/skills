@@ -119,4 +119,10 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")),
         metadata=METADATA.model_dump(),
+        # Bounded so a flailing without-skill arm can't burn unbounded
+        # quota. Simpler scenario than rocket-launch (no CPT, no BPMN
+        # design) so caps sit lower.
+        time_limit=600,
+        token_limit=750_000,
+        message_limit=100,
     )

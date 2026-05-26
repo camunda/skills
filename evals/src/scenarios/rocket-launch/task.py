@@ -102,4 +102,10 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
+        # Bounded so a flailing without-skill arm can't burn unbounded
+        # quota. With-skill arm landed at ~3 min / 330k tokens; caps are
+        # ~6x that to allow generous slack while still terminating.
+        time_limit=1200,
+        token_limit=1_500_000,
+        message_limit=150,
     )
