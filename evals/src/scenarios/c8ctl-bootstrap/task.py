@@ -40,7 +40,7 @@ from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
-from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor
+from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
 from inspect_ai.util import sandbox
 
 from core.metadata import BaselineConfig, ScenarioMetadata
@@ -113,6 +113,7 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
                 text_editor(timeout=60),
                 grep(timeout=30),
                 list_files(timeout=30),
+                web_search(),
                 *([skill(skill_dirs)] if skill_dirs else []),
             ],
         ),

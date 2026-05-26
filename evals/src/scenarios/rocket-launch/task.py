@@ -43,7 +43,7 @@ from __future__ import annotations
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor
+from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
 
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
@@ -97,6 +97,7 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
                     text_editor(timeout=60),
                     grep(timeout=30),
                     list_files(timeout=30),
+                    web_search(),
                     *([skill(skill_dirs)] if skill_dirs else []),
                 ],
             ),
