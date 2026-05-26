@@ -16,6 +16,7 @@ evals-list = "core.registry:main"
 evals-regen-baseline = "scripts.regen_baseline:main"
 evals-summarize = "scripts.summarize:main"
 evals-extract-artifacts = "scripts.extract_artifacts:main"
+evals-pass-fail = "scripts.pass_fail:main"
 
 [dependency-groups]
 dev = [
