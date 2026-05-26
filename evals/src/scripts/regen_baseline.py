@@ -2,7 +2,9 @@
 
 Reads the latest ``.eval`` log for ``--scenario <id>`` from
 ``evals/logs/`` and rewrites ``evals/scenarios/<id>/baseline.json``
-with observed pass rate, token band, and duration band.
+with the run's model, observed pass rate, token band, and duration
+band. Baselines are model-specific — the file records which model
+produced it.
 
 Filters by arm (default ``with_skill``) because both arms write to
 the same log directory — picking simply the most-recent log without
@@ -76,7 +78,14 @@ def main() -> int:
         return 2
 
     log = read_eval_log(chosen.name)
+    # Capture the model the run used. Baselines are model-specific —
+    # re-running the same scenario on a different model is a different
+    # baseline (rewrite, not blend). A future enhancement can store
+    # one file per (scenario, model); v1 stores the latest model and
+    # leaves the comparison loop to read this field.
+    model = getattr(log.eval, "model", None) or "unknown"
     baseline = {
+        "model": model,
         "pass_rate": _pass_rate(log),
         args.arm: {
             "pass_rate": _pass_rate(log),
@@ -88,7 +97,7 @@ def main() -> int:
     }
     target = scenario_dir / "baseline.json"
     target.write_text(json.dumps(baseline, indent=2) + "\n")
-    print(f"wrote {target} (from {Path(chosen.name).name}, arm={args.arm})")
+    print(f"wrote {target} (from {Path(chosen.name).name}, arm={args.arm}, model={model})")
     return 0
 
 

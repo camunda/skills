@@ -1,10 +1,11 @@
 {
-  "pass_rate": 0.6666666666666666,
+  "model": "anthropic/claude-haiku-4-5",
+  "pass_rate": 0.0,
   "with_skill": {
-    "pass_rate": 0.6666666666666666,
+    "pass_rate": 0.0,
     "tokens": [
-      1692100.95,
-      2289313.05
+      682143.7,
+      922900.3
     ],
     "duration_s": [
       0.0,

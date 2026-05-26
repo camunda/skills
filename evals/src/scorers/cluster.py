@@ -62,6 +62,15 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
                 explanation=f"c8ctl list pd exit {result.returncode}: "
                 f"{result.stderr[-500:]}",
             )
+        # `c8ctl list pd --json` exits 0 with empty stdout when the
+        # cluster has no process definitions. Surface that distinctly
+        # from a malformed response so reviewers don't chase a c8ctl
+        # output-shape regression that isn't one.
+        if not result.stdout.strip():
+            return Score(
+                value=0.0,
+                explanation=f"{bpmn_process_id} not deployed; cluster has no process definitions",
+            )
         try:
             payload = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
