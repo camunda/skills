@@ -21,8 +21,9 @@ evals/src/scenarios/rocket-launch/
         └── resources/application.yml   # camunda.process-test.runtime-mode: remote
 ```
 
-Files that may be absent depending on the verifier:
-- `cpt-verifier/` — only for `verifier: "cpt"` scenarios
+Files that may be absent depending on the scorer mix:
+- `cpt-verifier/` — only for scenarios whose scorer list includes
+  `cpt_scorer(...)`
 - `fixtures/` — only when the scenario hands the agent a starting file
   (e.g. "fix this broken BPMN" rather than "build it from scratch")
 
@@ -38,15 +39,17 @@ Fields (see `evals/src/core/metadata.py` for the model):
 
 | Field | Type | Meaning |
 |---|---|---|
-| `skills` | `list[str]` | Which skills this scenario exercises (controls path-filtered PR CI) |
-| `epochs` | `int` | Default 1; 3 for trigger/judge-scored scenarios |
-| `tier` | `"pr" \| "nightly" \| "release"` | When the scenario runs |
-| `verifier` | `"cpt" \| "exit-code" \| "transcript" \| "judge" \| "composite"` | Phase 2 shape |
+| `skills` | `list[str]` | CI-orchestration only — drives the PR path-filter (a PR touching `skills/<X>/` runs scenarios where `X in metadata.skills`) and documents the load-bearing dependencies. Does **not** restrict the skill tool surface at runtime. |
+| `epochs` | `int` | Default 1; ≥3 for trigger/judge-scored scenarios where pass-rate flake matters |
+| `tier` | `"pr" \| "nightly" \| "release"` | When CI runs this scenario; local `make eval` ignores it |
 | `baseline` | `BaselineConfig` | `{ mode, exclude }` — comparison arm (see `concepts.md`) |
 
 The scenario id is the directory name; no `id` field on the model.
 The sandbox compose file is declared explicitly on `Task(sandbox=...)`
-per scenario; no `image` field on the model either.
+per scenario; no `image` field on the model either. The scorer list
+also lives on the `Task`; the metadata doesn't duplicate it (one
+source of truth — read `Task(scorer=...)` to see what a scenario
+checks).
 
 Example:
 
@@ -60,8 +63,7 @@ from core.paths import SANDBOXES_DIR
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
     tier="pr",
-    verifier="cpt",
-    baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
+    baseline=BaselineConfig(mode="without-skill", exclude="all"),
 )
 
 @task

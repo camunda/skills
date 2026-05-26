@@ -16,16 +16,19 @@ completes. The prompt asks for a self-contained BPMN (timers, no
 external workers), so the verifier doesn't need to mock anything.
 
 Load-bearing skills: camunda-bpmn (design), camunda-process-mgmt
-(deploy). Baseline excludes camunda-bpmn (single load-bearing skill —
-without-skill arm tests whether the model can produce a deployable
-BPMN without the skill's element-template guidance).
+(deploy). Baseline arm drops every skill (``exclude="all"``) — the
+v1 question is whether the suite as a whole earns its keep over the
+model's training-time knowledge, not what any single skill adds in
+isolation (that's a v2 ablation, once the suite-level signal is
+positive).
 
 Agent loop: ``react()`` with ``bash_session`` + ``text_editor`` +
-``skill`` (all 13 skills discoverable). The system prompt only states
-environment facts (cluster running, c8ctl on PATH) — it doesn't tell
-the agent which skill to load or what order to do things in. Whether
-the agent reaches for the skill tool is part of what the eval
-measures.
+``skill`` (all 13 skills discoverable). The INSTRUCTIONS block
+carries only the Inspect-harness conventions (workspace persistence,
+``submit()``) — every Camunda fact the agent needs is either in the
+user prompt or discoverable via the skill tool. We deliberately
+don't pre-load "a cluster is running" or "c8ctl is installed";
+those are exactly the discoveries the skills are supposed to drive.
 """
 
 from __future__ import annotations
@@ -47,14 +50,10 @@ from solvers.collect_artifacts import collect_artifacts
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
     tier="pr",
-    verifier="composite",
-    baseline=BaselineConfig(mode="without-skill", exclude=["camunda-bpmn"]),
+    baseline=BaselineConfig(mode="without-skill", exclude="all"),
 )
 
 INSTRUCTIONS = """\
-You have access to a running Camunda 8.9 cluster on localhost:8080.
-The c8ctl CLI is installed and on PATH.
-
 Files you create only persist for review if they're under /workspace.
 Anything you write to /tmp, the home directory, etc. is lost when the
 session ends.

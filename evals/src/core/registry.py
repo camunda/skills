@@ -133,10 +133,10 @@ def main() -> None:
     if not scenarios:
         print("(no scenarios)")
         return
-    print(f"{'id':<25} {'tier':<10} {'verifier':<12} skills")
+    print(f"{'id':<25} {'tier':<10} skills")
     for s in scenarios:
         m = s.metadata
-        print(f"{s.id:<25} {m.tier:<10} {m.verifier:<12} {','.join(m.skills)}")
+        print(f"{s.id:<25} {m.tier:<10} {','.join(m.skills)}")
 
 
 if __name__ == "__main__":

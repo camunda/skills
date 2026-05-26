@@ -1,25 +1,35 @@
 """c8ctl bootstrap: install + connect to a running cluster.
 
 Exercises the camunda-c8ctl skill's install + first-connection path
-from the ``base`` image (no c8ctl pre-installed). Success = the
-agent installs c8ctl and confirms the cluster is healthy via
-``c8ctl get topology --json``.
+from the ``base`` image (no c8ctl pre-installed). The compose stack
+brings up Camunda 8.9 orchestration before the agent runs, so the
+cluster is healthy at task start — the scenario measures the
+*agent's* install action, not the cluster boot.
 
-The Camunda 8.9 orchestration is brought up by docker compose (H2,
-no external dependencies — see ``compose-base.yaml``). We don't use
-c8run because it has no aarch64 build; the ``camunda/camunda`` image
-is multi-arch. The agent container shares orchestration's network
-namespace, so c8ctl's default fallback (localhost:8080) just works.
+Two scorers, two failure modes:
 
-Verifier: exit-code + JSON-shape check on
-``c8ctl get topology --json``. No CPT project needed — the artifact
-the skill produces is a working CLI, not a process.
+1. Transcript — did the agent reach for ``@camunda8/cli``? Catches
+   the case where ``topology_reachable`` passes only because the
+   image had c8ctl pre-baked (regression guard if the base image
+   ever changes).
+2. Cluster reachable — does ``c8ctl get topology --json`` return a
+   valid topology with at least one broker? End-to-end proof the
+   install worked, c8ctl is on PATH, and the default
+   localhost:8080 fallback connects to the compose orchestration.
+
+We don't use c8run as the runtime because it has no aarch64 build;
+``camunda/camunda`` is multi-arch. The agent container shares
+orchestration's network namespace, so c8ctl's default fallback
+(localhost:8080) just works.
 
 Agent loop: Inspect's ``react()`` driving ``bash_session`` (persistent
 shell — npm install needs stable cwd/env), ``text_editor``
 (Anthropic-native file ops, picked up by Claude models), and
 ``skill`` (all 13 skills discoverable, so trigger behavior falls out
-of agent tool-choice rather than scenario config).
+of agent tool-choice rather than scenario config). INSTRUCTIONS
+carries only Inspect-harness conventions (workspace persistence,
+``submit()``); the cluster's existence and the install path are
+*discoveries* the skill is supposed to drive, not pre-loads.
 """
 
 from __future__ import annotations
@@ -36,18 +46,15 @@ from inspect_ai.util import sandbox
 
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
+from scorers.transcript import assert_tool_called
 
 METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],
     tier="pr",
-    verifier="exit-code",
-    baseline=BaselineConfig(mode="without-skill", exclude=["camunda-c8ctl"]),
+    baseline=BaselineConfig(mode="without-skill", exclude="all"),
 )
 
 INSTRUCTIONS = """\
-You're in a fresh Ubuntu container with a Camunda 8 cluster already
-running on localhost:8080.
-
 Files you create only persist for review if they're under /workspace.
 Anything you write to /tmp, the home directory, etc. is lost when the
 session ends.
@@ -97,14 +104,6 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
                     "at it?"
                 ),
             ),
-            Sample(
-                id="edge-health-check",
-                input=(
-                    "I think there's a Camunda cluster on localhost:8080 "
-                    "but I'm not sure if it's actually healthy. Set me up "
-                    "with the tooling to confirm."
-                ),
-            ),
         ],
         solver=react(
             prompt=AgentPrompt(instructions=INSTRUCTIONS),
@@ -114,7 +113,10 @@ def c8ctl_bootstrap(arm: Arm = "with_skill") -> Task:
                 *([skill(skill_dirs)] if skill_dirs else []),
             ],
         ),
-        scorer=topology_reachable(),
+        scorer=[
+            assert_tool_called("@camunda8/cli"),
+            topology_reachable(),
+        ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")),
         metadata=METADATA.model_dump(),
     )
