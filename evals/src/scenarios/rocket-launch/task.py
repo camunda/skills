@@ -48,7 +48,7 @@ from __future__ import annotations
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import at_least, multi_scorer
+from inspect_ai.scorer import Scorer, at_least, mean, multi_scorer, scorer, stderr
 from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
 
 from core.metadata import BaselineConfig, ScenarioMetadata
@@ -58,6 +58,30 @@ from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
 from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
+
+@scorer(metrics=[mean(), stderr()])
+def rocket_launch_outcome() -> Scorer:
+    """Aggregate the three rocket-launch outcome checks via `multi_scorer`.
+
+    Headline scores 1.0 iff the deploy landed AND the BPMN lints
+    clean AND the CPT verifier ran the process to completion. Each
+    sub-scorer's sandbox actions stay visible in the per-sample
+    transcript, so a failure remains diagnosable by mode (cluster vs.
+    lint vs. CPT) even though the dashboard surfaces only the AND.
+
+    Inspect's bare ``multi_scorer`` returns an unregistered scoring
+    function; wrapping it in ``@scorer`` registers it so the Task
+    loader accepts it and the metrics line up.
+    """
+    return multi_scorer(
+        scorers=[
+            process_deployed_on_cluster("RocketLaunch"),
+            bpmn_lint_clean(),
+            cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
+        ],
+        reducer=at_least(k=3),
+    )
+
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
@@ -112,19 +136,7 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
                 ),
             ),
         ],
-        # Three sub-scorers reduced via Inspect's native `multi_scorer`
-        # with the `at_least(k=3)` reducer: the headline scores 1.0 iff
-        # all three pass for that sample (deploy AND lint AND CPT).
-        # Per-mode breakdown is still visible per-sample in the
-        # transcript (each sub-scorer's sandbox calls are recorded).
-        scorer=multi_scorer(
-            scorers=[
-                process_deployed_on_cluster("RocketLaunch"),
-                bpmn_lint_clean(),
-                cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
-            ],
-            reducer=at_least(k=3),
-        ),
+        scorer=rocket_launch_outcome(),
         sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
         # Bounded so a flailing without-skill arm can't burn unbounded
