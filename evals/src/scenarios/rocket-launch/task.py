@@ -30,19 +30,10 @@ model's training-time knowledge, not what any single skill adds in
 isolation (that's a v2 ablation, once the suite-level signal is
 positive).
 
-Agent loop is selectable via the ``agent`` task arg:
-
-- ``react`` (default) — Inspect's ``react()`` with ``bash_session``,
-  ``text_editor``, ``grep``, ``list_files``, ``web_search``, and the
-  ``skill`` tool (all 13 skills discoverable).
-- ``claude_code`` — ``inspect_swe.claude_code()`` bridge: runs the
-  real Claude Code CLI inside the sandbox, brings its own native
-  Bash/Edit/Read/Grep/Glob/WebSearch toolset, accepts ``skills`` as a
-  list of directories.
-
-The INSTRUCTIONS block carries only Inspect-harness conventions
-(workspace persistence). Every Camunda fact the agent needs is either
-in the user prompt or discoverable via the skill tool — we
+Agent loop is selectable via the ``agent`` task arg — see
+``core.agents`` for the react/claude_code switch and the shared
+INSTRUCTIONS conventions. Every Camunda fact the agent needs is
+either in the user prompt or discoverable via the skill tool — we
 deliberately don't pre-load "a cluster is running" or "c8ctl is
 installed"; those are exactly the discoveries the skills are
 supposed to drive.
@@ -50,14 +41,10 @@ supposed to drive.
 
 from __future__ import annotations
 
-from typing import Literal
-
 from inspect_ai import Task, task
-from inspect_ai.agent import Agent, AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
-from inspect_swe import claude_code
 
+from core.agents import AgentKind, build_agent
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
@@ -72,51 +59,6 @@ METADATA = ScenarioMetadata(
     tier="pr",
     baseline=BaselineConfig(mode="without-skill", exclude="all"),
 )
-
-AgentKind = Literal["react", "claude_code"]
-
-# react() needs an explicit submit() instruction; claude_code()
-# completes when the agent stops calling tools.
-INSTRUCTIONS_REACT = """\
-A local Camunda cluster is already running. Don't start a new one.
-
-Files you create only persist for review if they're under /workspace.
-Anything you write to /tmp, the home directory, etc. is lost when the
-session ends.
-
-When you've completed the task, call submit() with a brief summary
-of what you did.
-"""
-
-INSTRUCTIONS_CLAUDE_CODE = """\
-A local Camunda cluster is already running. Don't start a new one.
-
-Files you create only persist for review if they're under /workspace.
-Anything you write to /tmp, the home directory, etc. is lost when the
-session ends.
-"""
-
-
-def _build_agent(kind: AgentKind, skill_dirs: list) -> Agent:
-    if kind == "react":
-        return react(
-            prompt=AgentPrompt(instructions=INSTRUCTIONS_REACT),
-            tools=[
-                bash_session(timeout=300),
-                text_editor(timeout=60),
-                grep(timeout=30),
-                list_files(timeout=30),
-                web_search(),
-                *([skill(skill_dirs)] if skill_dirs else []),
-            ],
-        )
-    if kind == "claude_code":
-        return claude_code(
-            system_prompt=INSTRUCTIONS_CLAUDE_CODE,
-            skills=[str(p) for p in skill_dirs] if skill_dirs else None,
-            cwd="/workspace",
-        )
-    raise ValueError(f"unknown agent: {kind!r} (expected 'react' or 'claude_code')")
 
 
 @task
@@ -140,7 +82,7 @@ def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         ],
         solver=[
             boot_cluster(),
-            with_artifact_collection(_build_agent(agent, skill_dirs)),
+            with_artifact_collection(build_agent(agent, skill_dirs)),
         ],
         scorer=[
             process_deployed_on_cluster("RocketLaunch"),
