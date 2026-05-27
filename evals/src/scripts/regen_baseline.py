@@ -152,13 +152,24 @@ def _total_tokens(log) -> float:
 
 
 def _duration_s(log) -> float:
-    stats = getattr(log, "stats", None)
-    return float(getattr(stats, "duration", 0) or 0) if stats else 0.0
+    """Average per-sample wall time (sample.total_time, in seconds).
+
+    Inspect tracks duration per sample, not on the log-level stats
+    object — `stats.duration` doesn't exist. With max-samples=1 (our
+    default) this is just the run's wall time.
+    """
+    samples = getattr(log, "samples", None) or []
+    if not samples:
+        return 0.0
+    times = [float(getattr(s, "total_time", 0) or 0) for s in samples]
+    return sum(times) / len(times)
 
 
 def _cost_usd(log) -> float:
-    stats = getattr(log, "stats", None)
-    return float(getattr(stats, "cost", 0) or 0) if stats else 0.0
+    # Inspect doesn't expose a cost field on the log; would need a
+    # per-model price table to derive from token usage. Left at 0 for
+    # now; baseline downstream readers should treat this as unknown.
+    return 0.0
 
 
 if __name__ == "__main__":
