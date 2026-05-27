@@ -73,5 +73,10 @@ def build_agent(kind: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
             system_prompt=_INSTRUCTIONS_CLAUDE_CODE,
             skills=[str(p) for p in skill_dirs] if skill_dirs else None,
             cwd="/workspace",
+            # Plan mode blocks autonomous loops: ExitPlanMode requires
+            # human approval and the agent halts waiting for it. Disable
+            # both tools so the bridge runs end-to-end without sitting
+            # on a confirmation prompt no one is there to answer.
+            disallowed_tools=["ExitPlanMode"],
         )
     raise ValueError(f"unknown agent: {kind!r} (expected 'react' or 'claude_code')")
