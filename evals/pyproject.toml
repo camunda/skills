@@ -8,6 +8,7 @@ dependencies = [
     "aioboto3>=15.5.0",
     "anthropic>=0.104.0",
     "inspect-ai>=0.3.158",
+    "inspect-swe>=0.2.55",
     "openai>=2.38.0",
 ]
 
