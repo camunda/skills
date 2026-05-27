@@ -133,18 +133,23 @@ def _band(value: float, lo_mult: float, hi_mult: float) -> list[float]:
 
 
 def _pass_rate(log) -> float:
+    """Mean of all per-scorer values across all samples.
+
+    For a multi-scorer task (e.g. rocket-launch with cluster + lint +
+    CPT), this averages every scorer's value across every sample —
+    matching what the Inspect dashboard reports per scorer column,
+    then collapsed to one arm-level number. With max-samples=1 and N
+    scorers, it's (sum of N values) / N.
+    """
     samples = getattr(log, "samples", None) or []
-    if not samples:
-        return 0.0
-    return sum(_score_value(s) for s in samples) / len(samples)
-
-
-def _score_value(sample) -> float:
-    score = getattr(sample, "score", None)
-    if score is None:
-        return 0.0
-    value = getattr(score, "value", None)
-    return float(value) if isinstance(value, (int, float)) else 0.0
+    values = []
+    for sample in samples:
+        scores = getattr(sample, "scores", None) or {}
+        for score in scores.values():
+            v = getattr(score, "value", None)
+            if isinstance(v, (int, float)):
+                values.append(float(v))
+    return sum(values) / len(values) if values else 0.0
 
 
 def _total_tokens(log) -> float:
