@@ -47,9 +47,10 @@ of what you did.
 _INSTRUCTIONS_CLAUDE_CODE = """\
 A local Camunda cluster is already running. Don't start a new one.
 
-Files you create only persist for review if they're under /workspace.
-Anything you write to /tmp, the home directory, etc. is lost when the
-session ends.
+Always create files under /workspace — never under /tmp, the home
+directory, or any other location. /workspace is the scratch dir for
+this session; anything outside it is invisible to scoring and lost
+when the session ends.
 """
 
 
