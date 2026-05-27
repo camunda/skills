@@ -51,6 +51,29 @@ Skills use three tiers to manage context:
 
 Keep SKILL.md lean. If a section exceeds ~500 words of reference material, move it to `references/`.
 
+## Linting
+
+**Always run `make lint SKILL=<name>` after modifying a skill.** CI runs the same check on PRs touching `skills/` (`.github/workflows/lint.yml`) and will fail on hard violations.
+
+```bash
+make lint SKILL=camunda-feel        # check one skill (use after editing it)
+make lint                           # check all skills
+waza check <skill>                  # equivalent direct invocation
+```
+
+`waza check` covers: agentskills.io spec compliance (description length, required sections), token budget (per `.waza.yaml`), link health, frontmatter quality advisories. Returns non-zero on hard violations; warnings are advisory.
+
+`waza` ships as an Azure Developer CLI (`azd`) extension, not a standalone binary. One-time install:
+
+```bash
+brew install azd
+azd config set alpha.extensions on
+azd ext source add -n waza -t url -l https://raw.githubusercontent.com/microsoft/waza/main/registry.json
+azd ext install microsoft.azd.waza
+```
+
+After install, the `azd waza` command is on PATH and `make lint` works. The Makefile's "Install it from https://github.com/microsoft/waza" message refers to this extension flow, not a direct binary download.
+
 ## Evals
 
 No eval suites are checked in right now. The waza migration replaced a custom
@@ -71,18 +94,7 @@ content surfaced that the patterns we had didn't earn their cost yet:
 The honest conclusion: until we have a concrete hypothesis about *what* an
 eval should measure that `waza check` doesn't already prove (and that the
 model can't fake from training), running expensive evals just produces noise.
-We'll add suites back per-skill as we identify those hypotheses.
-
-Linting is the enforcement bar for now:
-
-```bash
-make lint                    # waza check across all skills
-make lint SKILL=camunda-feel # one skill
-waza check <skill>           # direct invocation
-```
-
-CI runs `waza check` on every PR that touches `skills/`
-(`.github/workflows/eval.yml`).
+We'll add suites back per-skill as we identify those hypotheses. Until then, linting (see [Linting](#linting) above) is the enforcement bar.
 
 ## Scripts
 
@@ -134,4 +146,4 @@ Keep the subject under ~70 characters. Use the body for the *why*, not the *what
 2. Add/modify skills following the structure above
 3. **Run `make lint SKILL=<name>` after every change** and fix any hard violations before pushing (CI runs the same check)
 4. Use Conventional Commits (see above) for every commit on the branch
-5. Submit PR with description of changes
+5. Submit a PR using the repo's [pull request template](.github/pull_request_template.md) as-is — don't substitute a custom shape. Issue templates live in `.github/ISSUE_TEMPLATE/`.
