@@ -73,10 +73,15 @@ def build_agent(kind: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
             system_prompt=_INSTRUCTIONS_CLAUDE_CODE,
             skills=[str(p) for p in skill_dirs] if skill_dirs else None,
             cwd="/workspace",
-            # Plan mode blocks autonomous loops: ExitPlanMode requires
-            # human approval and the agent halts waiting for it. Disable
-            # both tools so the bridge runs end-to-end without sitting
-            # on a confirmation prompt no one is there to answer.
+            # ExitPlanMode tarpits the headless bridge: invoking it
+            # returns the literal prompt "Exit plan mode?" as the tool
+            # result rather than transitioning the agent out of plan
+            # mode. The agent then loops on it or halts without
+            # producing artifacts. Empirically observed in early CC
+            # runs; root cause (bridge missing approval hook? CLI bug?
+            # by design?) not documented. Disabling it sidesteps the
+            # tarpit — when ExitPlanMode is unavailable, the agent
+            # tends not to call EnterPlanMode either.
             disallowed_tools=["ExitPlanMode"],
         )
     raise ValueError(f"unknown agent: {kind!r} (expected 'react' or 'claude_code')")
