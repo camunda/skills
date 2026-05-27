@@ -138,7 +138,7 @@ For connectors (REST, Slack, etc.), use the **camunda-connectors** skill to appl
 </bpmn:scriptTask>
 ```
 
-Do NOT use the Camunda 7 `<bpmn:script>` child element — Camunda 8 only consumes `<zeebe:script />` inside `<extensionElements>`, and mixing both styles deploys-rejects with `cvc-complex-type` errors.
+All `zeebe:*` extensions (including `<zeebe:script />`) must be wrapped in `<bpmn:extensionElements>` — Zeebe rejects them as direct children of the task with `cvc-complex-type` errors at deploy, even though `c8ctl bpmn lint` may pass. Do not use the Camunda 7 `<bpmn:script>` element either; Camunda 8 consumes only the zeebe-namespaced form.
 
 ### Business Rule Task
 ```xml
