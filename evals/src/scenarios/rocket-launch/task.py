@@ -2,16 +2,12 @@
 
 End-to-end: agent designs a small "rocket launch" BPMN and deploys it
 to a running Camunda 8.9 cluster (provisioned by docker compose).
-Three sub-scorers cover three outcome failure modes:
+Three independent scorers — each its own column on the Inspect
+dashboard — cover three outcome failure modes:
 
 1. Cluster — did the deploy actually land on the cluster?
 2. Lint — is the deployed BPMN well-formed (`c8ctl bpmn lint`)?
 3. CPT — does the deployed process actually run to completion?
-
-They're combined via Inspect's ``multi_scorer`` with ``at_least(k=3)``
-so the headline score is 1.0 iff all three pass (AND semantics).
-The per-mode sandbox actions remain visible in each sample's
-transcript, so a failed run is still diagnosable by mode.
 
 No transcript / tool-call scorer: how the agent gets the BPMN onto
 the cluster (``c8ctl deploy``, ``c8 deploy`` via the npm alias,
@@ -48,7 +44,6 @@ from __future__ import annotations
 from inspect_ai import Task, task
 from inspect_ai.agent import AgentPrompt, react
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Scorer, mean, multi_scorer, scorer, stderr
 from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
 
 from core.metadata import BaselineConfig, ScenarioMetadata
@@ -56,35 +51,8 @@ from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.lint import bpmn_lint_clean
-from scorers.reducers import all_passed
 from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
-
-@scorer(metrics=[mean(), stderr()])
-def rocket_launch_outcome() -> Scorer:
-    """Aggregate the three rocket-launch outcome checks via `multi_scorer`.
-
-    Headline scores 1.0 iff the deploy landed AND the BPMN lints
-    clean AND the CPT verifier ran the process to completion. The
-    ``all_passed`` reducer keeps per-sub-score detail in the reduced
-    Score's explanation (``deploy=PASS | lint=PASS | cpt=FAIL: ...``)
-    and metadata, so a reviewer sees the breakdown right on the
-    sample card — they don't have to drill into the transcript to
-    figure out which check failed. Names mirror the ``scorers=[...]``
-    list order; ``multi_scorer`` runs them in that order.
-
-    Inspect's bare ``multi_scorer`` returns an unregistered scoring
-    function; wrapping it in ``@scorer`` registers it so the Task
-    loader accepts it and the metrics line up.
-    """
-    return multi_scorer(
-        scorers=[
-            process_deployed_on_cluster("RocketLaunch"),
-            bpmn_lint_clean(),
-            cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
-        ],
-        reducer=all_passed(names=["deploy", "lint", "cpt"]),
-    )
 
 
 METADATA = ScenarioMetadata(
@@ -140,7 +108,11 @@ def rocket_launch(arm: Arm = "with_skill") -> Task:
                 ),
             ),
         ],
-        scorer=rocket_launch_outcome(),
+        scorer=[
+            process_deployed_on_cluster("RocketLaunch"),
+            bpmn_lint_clean(),
+            cpt_scorer(project_dir="/scenarios/rocket-launch/cpt-verifier"),
+        ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
         # Bounded so a flailing without-skill arm can't burn unbounded
