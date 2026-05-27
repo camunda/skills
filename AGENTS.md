@@ -70,7 +70,6 @@ The sections below are for developers maintaining this skills repository.
 
 ```
 skills/           - Skill definitions (each skill = SKILL.md + references/)
-examples/         - Reference BPMN/form files
 .waza.yaml        - Project-wide waza config (token limits, defaults)
 .github/workflows/lint.yml - CI: runs `waza check` on PRs touching skills/
 ```
@@ -122,6 +121,13 @@ Cross-reference other skills by name only (`**camunda-X**`). No section anchors
 (`§ "…"`), no links into another skill's `references/`, no inline-restating of
 the target skill's rules. Keep cross-ref bullets to a one-line topical pointer
 (`**camunda-X**: Use for …`). See [CONTRIBUTING.md § SKILL.md Format](CONTRIBUTING.md#skillmd-format).
+
+Skills are self-contained: `SKILL.md` and files under it may only reference
+paths inside their own skill directory or cross-reference other skills by name.
+Don't reach into sibling skills' `references/`/`scripts/`/`assets/` or any
+repo-level path — installers copy `skills/<name>/` into the consuming agent's
+skills path, and nothing else travels with it. See
+[CONTRIBUTING.md § Skill Structure](CONTRIBUTING.md#skill-structure).
 
 ### Commits
 

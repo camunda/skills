@@ -19,6 +19,8 @@ skills/camunda-<name>/
 └── assets/               # Optional — templates, schemas, static resources
 ```
 
+**Skills must be self-contained.** A skill directory is the unit of distribution — installers copy `skills/<name>/` into the consuming agent's skills path, and nothing else travels with it. `SKILL.md` and files under it may only reference paths inside their own skill directory or cross-reference other skills by name (see [SKILL.md Format](#skillmd-format)). Do not reach into sibling skills' `references/`/`scripts/`/`assets/`, and do not depend on any repo-level path. If two skills need the same asset, duplicate it or promote the shared content into a third skill that both cross-reference. This is what the [Agent Skills](https://agentskills.io) spec assumes, and it's why these skills work in Claude Code, Cursor, Copilot, Codex, Gemini CLI, and other compatible agents without modification.
+
 Eval suites are intentionally not checked in right now — see "Evals" below.
 
 ## SKILL.md Format
