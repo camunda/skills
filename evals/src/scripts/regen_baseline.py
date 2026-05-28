@@ -132,14 +132,27 @@ def _band(value: float, lo_mult: float, hi_mult: float) -> list[float]:
     return [round(value * lo_mult, 2), round(value * hi_mult, 2)]
 
 
+# Inspect's letter-grade scorers (model_graded_qa, model_graded_fact)
+# emit "C" / "P" / "I" as the raw per-sample score; the accuracy()
+# metric converts to 1.0 / 0.5 / 0.0. Mirror that here so the
+# arm-level pass_rate properly blends numeric scorers (mean) with
+# letter scorers (accuracy). NOTE: Inspect already stores the
+# computed metric values at log.results.scores[*].metrics[*].value
+# — reading those directly is even cleaner than re-aggregating from
+# raw sample values, but we keep the raw-sample path for now so a
+# single function handles all scorer shapes.
+_LETTER_TO_FLOAT = {"C": 1.0, "P": 0.5, "I": 0.0}
+
+
 def _pass_rate(log) -> float:
     """Mean of all per-scorer values across all samples.
 
     For a multi-scorer task (e.g. rocket-launch with cluster + lint +
-    CPT), this averages every scorer's value across every sample —
-    matching what the Inspect dashboard reports per scorer column,
-    then collapsed to one arm-level number. With max-samples=1 and N
-    scorers, it's (sum of N values) / N.
+    CPT, or dev-routing with skill-load + model_graded_qa), this
+    averages every scorer's value across every sample — matching
+    what the Inspect dashboard reports per scorer column, then
+    collapsed to one arm-level number. With max-samples=N and M
+    scorers, it's (sum of N*M values) / (N*M).
     """
     samples = getattr(log, "samples", None) or []
     values = []
@@ -149,6 +162,8 @@ def _pass_rate(log) -> float:
             v = getattr(score, "value", None)
             if isinstance(v, (int, float)):
                 values.append(float(v))
+            elif isinstance(v, str) and v.upper() in _LETTER_TO_FLOAT:
+                values.append(_LETTER_TO_FLOAT[v.upper()])
     return sum(values) / len(values) if values else 0.0
 
 
