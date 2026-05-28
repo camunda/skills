@@ -36,6 +36,7 @@ from inspect_ai.scorer import model_graded_qa
 from core.agents import AgentKind, build_agent
 from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
+from core.scorers import diagnostic
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
@@ -298,11 +299,12 @@ def dev_routing(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             # Diagnostic: did the meta-router skill fire? Surfaced as
-            # its own column on the dashboard. The judge is the
-            # primary gate — a 0.0 here on a passing judge tells us
-            # the agent reached the right answer without the meta-
-            # router (likely pattern-matching from training).
-            assert_skill_loaded("camunda-development"),
+            # its own column on the dashboard, but tagged
+            # ``gating=False`` via ``diagnostic()`` so the eval still
+            # passes when the agent reaches the right recommendation
+            # without ever loading camunda-development (e.g. claude_code
+            # bridge's skill-listing truncation hides the meta-skill).
+            diagnostic(assert_skill_loaded("camunda-development")),
             # Strict pass/fail against the per-sample rubric in
             # Sample.target. Custom instructions disable partial
             # credit; "right family, wrong path" gets I.
