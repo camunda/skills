@@ -12,8 +12,14 @@ SCENARIO ?=
 # Override on the command line for the baseline arm:
 #   make eval SCENARIO=rocket-launch ARM=without_skill
 ARM ?= with_skill
+# Model + agent loop, passed to every `inspect eval`. Override on the
+# command line, e.g. MODEL=anthropic/claude-sonnet-4-6 or AGENT=claude_code.
+# The default model is served via AWS — export AWS_ACCESS_KEY_ID,
+# AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION before running.
+MODEL ?= global.anthropic.claude-sonnet-4-6
+AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
-# Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--model anthropic/claude-sonnet-4-6 --epochs 3"
+# Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--epochs 3"
 ARGS ?=
 
 REPO_ROOT = $(CURDIR)
@@ -37,8 +43,10 @@ help:
 	@echo "  SKILL     Skill name (e.g. camunda-feel). Empty = all where applicable."
 	@echo "  SCENARIO  Eval scenario id (e.g. rocket-launch)."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
+	@echo "  MODEL     Inspect model id (default global.anthropic.claude-sonnet-4-6; needs AWS creds in env)."
+	@echo "  AGENT     Agent loop: react (default) or claude_code."
 	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval / eval-all targets)."
-	@echo "            Example: ARGS=\"--model anthropic/claude-sonnet-4-6 --epochs 3\""
+	@echo "            Example: ARGS=\"--epochs 3\""
 	@echo ""
 	@echo "Notes:"
 	@echo "  eval / eval-all default to --max-samples 1 (sequential)."
@@ -85,7 +93,7 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@uv run inspect eval $(EVALS_DIR)/scenarios/$(SCENARIO)/task.py --log-dir $(EVALS_DIR)/logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) \
+	@uv run inspect eval $(EVALS_DIR)/scenarios/$(SCENARIO)/task.py --log-dir $(EVALS_DIR)/logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) \
 		&& uv run evals-extract-artifacts
 
 .PHONY: eval-all
@@ -93,7 +101,7 @@ eval-all:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@for s in $(EVALS_DIR)/scenarios/*/task.py; do \
 		echo "=== $$s ==="; \
-		uv run inspect eval "$$s" --log-dir $(EVALS_DIR)/logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) || exit $$?; \
+		uv run inspect eval "$$s" --log-dir $(EVALS_DIR)/logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 

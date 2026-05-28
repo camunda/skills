@@ -109,43 +109,39 @@ evals/logs/
 
 ## Credentials & secrets
 
-Model runs go to **AWS Bedrock** (Sonnet 4.6). `eval.yml` reads:
+The model is served via AWS (default
+`global.anthropic.claude-sonnet-4-6`, set as `MODEL` in the Makefile).
+`eval.yml` reads:
 
 | Kind | Name | Purpose |
 |---|---|---|
-| Secret | `AWS_ACCESS_KEY_ID` | Bedrock auth |
-| Secret | `AWS_SECRET_ACCESS_KEY` | Bedrock auth |
-| Secret | `AWS_SESSION_TOKEN` | only if using temporary STS credentials |
-| Variable | `AWS_REGION` | Bedrock region (defaults to `us-east-1`) |
-| Variable | `EVAL_BEDROCK_MODEL` | Inspect model id, e.g. `bedrock/<inference-profile-id>` |
+| Secret | `AWS_ACCESS_KEY_ID` | model auth |
+| Secret | `AWS_SECRET_ACCESS_KEY` | model auth |
+| Variable | `AWS_DEFAULT_REGION` | region (defaults to `us-east-1`) |
 
 Add the secrets under **Settings → Secrets and variables → Actions →
-Secrets**, the variables under the **Variables** tab. Because the
+Secrets**, the variable under the **Variables** tab. Because the
 workflow triggers on `pull_request` (not `pull_request_target`), these
 secrets are exposed only to runs on branches in this repo — never to
 fork PRs.
 
-`EVAL_BEDROCK_MODEL` is the Bedrock model id / inference-profile id
-exactly as Inspect's `bedrock/` provider expects it (it varies by
-account and region). Set it to the same value you smoke-test with
-locally (below) so CI and local runs match.
+To run a different model, override `MODEL` (e.g.
+`make eval … MODEL=anthropic/claude-sonnet-4-6`).
 
-### Local smoke test against Bedrock
+### Local smoke test
 
-Build the images once (`make eval-images`), then point a single-sample
-run at Bedrock with your AWS credentials in the environment:
+Build the images once (`make eval-images`), then run the cheapest
+scenario with your AWS credentials in the environment:
 
 ```bash
-AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_REGION=us-east-1 \
-  uv run inspect eval evals/scenarios/dev-routing/task.py \
-    --model bedrock/<inference-profile-id> \
-    --max-samples 1 -T arm=with_skill -T agent=react \
-    --log-dir evals/logs/
+AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_DEFAULT_REGION=us-east-1 \
+  make eval SCENARIO=dev-routing
 ```
 
 `dev-routing` is the cheapest smoke — advisory, no cluster boot, one
-sample. A clean exit with a scored sample confirms the credentials and
-model id resolve. Swap the model id into `EVAL_BEDROCK_MODEL` for CI.
+sample (the `eval` target already passes `--max-samples 1`, the default
+`MODEL`, and `-T agent=react`). A clean exit with a scored sample
+confirms the credentials and model resolve.
 
 ## Cost controls
 

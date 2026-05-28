@@ -158,17 +158,14 @@ skills to the model, and cross-skill routing falls out of which
 skills the model loads (transcript signal).
 
 **Local credentials**: provide whatever Inspect's chosen model
-provider needs (`ANTHROPIC_API_KEY` for Anthropic direct, AWS creds
-for Bedrock). The user typically wraps the eval invocation in
-`dotenvx run -f ~/.config/...` to inject credentials without writing
-them to disk.
+provider needs. The default `MODEL` is served via AWS, so export
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION`
+(or point `MODEL` at another provider and supply its key). Credentials
+are read from the environment — don't write them to disk.
 
-**CI credentials**: deferred. GitHub Models free tier was rejected
-during validation — per-request token caps (gpt-5: 4000, gpt-4.1:
-16000) are too tight for the `react()` loop with `skill()` + 13
-skills. Paid GH Models, direct Anthropic, or Bedrock credentials get
-wired into the workflow once the suite has more than one validated
-scenario.
+**CI credentials**: the workflow authenticates via AWS secrets — see
+[`ci-and-results.md`](ci-and-results.md) for the exact secret/variable
+names.
 
 ## Cross-skill verification (the load-bearing piece)
 
@@ -194,13 +191,10 @@ it's the new signal evals exist to catch.
 
 - **PR budget** (when CI is wired up): ~$1–4 per PR, scenarios filtered by path
 - **Nightly budget**: ~$5–15
-- **Local iteration**: whatever provider the engineer points Inspect's
-  `--model` flag at — Anthropic direct, Bedrock, etc. Credentials
-  typically come from a local dotenvx file.
-- **CI credentials**: deferred. GitHub Models free tier doesn't fit
-  the `react()` loop (token caps). Paid GH Models, direct Anthropic,
-  or Bedrock credentials need to be provisioned before CI gating turns
-  on.
+- **Local iteration**: whatever provider the engineer points the
+  `MODEL` variable at; credentials come from the environment.
+- **CI credentials**: provisioned as AWS secrets (see
+  [`ci-and-results.md`](ci-and-results.md)).
 
 If a scenario systematically blows its cost band, that's a regression
 signal — `summarize.py` surfaces it in the PR comment once CI is on.
