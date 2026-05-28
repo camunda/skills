@@ -1,16 +1,21 @@
 name: Eval (PR)
 
-# Non-blocking PR eval signal. Runs the scenarios whose metadata.skills
-# intersect the changed skills, then posts the outcome + baseline deltas
-# as a PR comment. It does NOT gate merge (keep it out of required
-# status checks).
+# Non-blocking PR eval signal. Posts the outcome + baseline deltas as a
+# PR comment. It does NOT gate merge (keep it out of required status
+# checks).
 #
-# Maintainer-gated and opt-in: it runs only when a maintainer adds the
-# `evals:run` label (or triggers it via the Actions tab). The `authorize`
-# job verifies the triggering actor has write access. The model is
-# configurable via the EVAL_MODEL repo variable (CI defaults to a
-# Bedrock Claude profile) — see docs/evals/ci-and-results.md for
-# secrets/vars.
+# Opt-in and maintainer-gated by labels (only triage+ collaborators can
+# label a PR, so the label itself is the gate; fork PRs never receive
+# the secrets because this is `pull_request`, not `pull_request_target`):
+#   - `evals:run`      → scenarios whose metadata.skills ∩ changed skills
+#   - `evals:run-all`  → every scenario (integration check of the suite)
+# Can also be launched from the Actions tab (workflow_dispatch already
+# requires write access); a dispatch run with no PR context runs every
+# scenario and skips the comment.
+#
+# The model is configurable via the EVAL_MODEL repo variable (CI
+# defaults to a Bedrock Claude profile) — see
+# docs/evals/ci-and-results.md for secrets/vars.
 on:
   workflow_dispatch:
   pull_request:
@@ -25,36 +30,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  authorize:
-    name: Authorize (maintainers only)
-    runs-on: ubuntu-latest
-    outputs:
-      ok: ${{ steps.check.outputs.ok }}
-    steps:
-      - id: check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            if (context.eventName === 'workflow_dispatch') {
-              core.setOutput('ok', 'true');  // dispatch already needs write access
-              return;
-            }
-            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              username: context.actor,
-            });
-            const ok = ['admin', 'maintain', 'write'].includes(data.permission);
-            core.info(`${context.actor} permission=${data.permission} → authorized=${ok}`);
-            core.setOutput('ok', ok ? 'true' : 'false');
-
   detect-scenarios:
     name: Detect affected scenarios
-    needs: authorize
+    # Label application requires triage+ on the repo, so the label is the
+    # maintainer gate; workflow_dispatch already requires write access.
     if: >-
-      needs.authorize.outputs.ok == 'true' &&
-      (github.event_name == 'workflow_dispatch' ||
-       contains(github.event.pull_request.labels.*.name, 'evals:run'))
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'evals:run') ||
+      contains(github.event.pull_request.labels.*.name, 'evals:run-all')
     runs-on: ubuntu-latest
     outputs:
       scenarios: ${{ steps.filter.outputs.scenarios }}
@@ -70,22 +53,27 @@ jobs:
         run: uv sync --frozen
       - name: Compute changed skills
         id: changed-skills
+        env:
+          RUN_ALL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'evals:run-all') }}
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
-          # Skills appear as skills/<name>/...; extract unique <name> values.
-          if [ -n "$base" ]; then
+          # `evals:run-all` (or a dispatch with no PR context) runs the
+          # whole suite — emit every skill so the registry yields all
+          # scenarios. Useful for an end-to-end integration check.
+          if [ "$RUN_ALL" = "true" ] || [ -z "$base" ]; then
+            ls skills > changed-skills.txt
+          else
+            # Skills appear as skills/<name>/...; extract unique <name> values.
             git diff --name-only "$base..$head" \
               | awk -F/ '$1=="skills" && NF>1 {print $2}' \
               | sort -u > changed-skills.txt
-          else
-            ls skills > changed-skills.txt
-          fi
-          # When the harness itself changed (evals/ tree or the root
-          # Python project), run everything by emitting all skills.
-          if git diff --name-only "$base..$head" 2>/dev/null \
-               | grep -qE '^evals/|^pyproject\.toml$|^uv\.lock$|^\.python-version$'; then
-            ls skills > changed-skills.txt
+            # When the harness itself changed (evals/ tree or the root
+            # Python project), run everything by emitting all skills.
+            if git diff --name-only "$base..$head" 2>/dev/null \
+                 | grep -qE '^evals/|^pyproject\.toml$|^uv\.lock$|^\.python-version$'; then
+              ls skills > changed-skills.txt
+            fi
           fi
           echo "Changed skills:"
           cat changed-skills.txt

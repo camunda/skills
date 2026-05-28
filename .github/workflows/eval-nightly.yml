@@ -1,18 +1,19 @@
 name: Eval (nightly)
 
-# Nightly run of every scenario. Runs on main; failures open issues
-# rather than blocking merges. See docs/evals/ci-and-results.md.
+# Nightly run of every scenario — the broad regression sweep that
+# complements eval.yml's affected-subset PR signal. Runs against main
+# and uploads the .eval logs as artifacts; it never blocks merges.
+# See docs/evals/ci-and-results.md.
 
 # Disabled while the harness is under review (see eval.yml for context).
 # Manual-only until the first scenario passes locally; cron re-enabled
-# in a follow-up.
+# in a follow-up. Can also be dispatched against a branch to run the
+# full suite there (e.g. an integration check of a PR branch).
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
-  models: read
 
 concurrency:
   group: eval-nightly

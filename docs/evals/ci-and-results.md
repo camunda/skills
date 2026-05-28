@@ -8,26 +8,37 @@ a failure from a CI artifact.
 | Workflow | Trigger | Scope |
 |---|---|---|
 | `.github/workflows/lint.yml` (existing) | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
-| `.github/workflows/eval.yml` | `evals:run` label on a PR (maintainer-applied), or the Actions tab (`workflow_dispatch`) | Runs scenarios where `metadata.skills ∩ changed-skills ≠ ∅`; posts a PR comment. **Non-blocking** (signal only). |
-| `.github/workflows/eval-nightly.yml` | **`workflow_dispatch` only** (cron re-enabled in a follow-up) | Nightly schedule on `main`; runs every scenario |
+| `.github/workflows/eval.yml` | `evals:run` / `evals:run-all` label on a PR, or the Actions tab (`workflow_dispatch`) | Runs affected (or all) scenarios; posts a PR comment. **Non-blocking** (signal only). |
+| `.github/workflows/eval-nightly.yml` | **`workflow_dispatch` only** (cron re-enabled in a follow-up) | Runs every scenario; uploads logs as artifacts |
 
-`eval.yml` is **opt-in and maintainer-gated**, not automatic on every
-PR:
+`eval.yml` is **opt-in and maintainer-gated by labels**, not automatic
+on every PR. There's no separate authorization job: only collaborators
+with **triage or higher** can label a PR, so the label *is* the gate,
+and `workflow_dispatch` already requires write access. Because it uses
+the `pull_request` event (not `pull_request_target`), a fork PR never
+receives the AWS secrets — model runs only happen on branches in this
+repo.
 
-- An `authorize` job checks the triggering actor's permission via
-  `repos.getCollaboratorPermissionLevel`; only `admin` / `maintain` /
-  `write` proceed. (`workflow_dispatch` already requires write access.)
-- It runs only when a maintainer adds the **`evals:run`** label (and
-  re-runs on subsequent pushes while the label is present). Removing
-  the label stops further runs.
-- It uses the `pull_request` event (not `pull_request_target`), so a
-  fork PR never gets the AWS secrets — model runs only happen on
-  maintainer branches in this repo.
+Two labels select the scope (re-runs on each push while the label is
+present; remove it to stop):
 
-Scenario selection is automatic from `metadata.skills` (resolved by
-`evals-list --changed-skills`); no separate workflow matrix to keep in
-sync. The run is non-blocking — keep it out of required status checks;
-the PR comment is the signal.
+- **`evals:run`** — scenarios where `metadata.skills ∩ changed-skills ≠ ∅`
+  (resolved by `evals-list --changed-skills`); the targeted PR signal.
+- **`evals:run-all`** — every scenario, to integration-test the whole
+  suite against the branch.
+
+### Running the full suite on a branch
+
+Two ways, depending on whether you want the PR comment:
+
+- **`evals:run-all` label** on the PR — runs every scenario through the
+  same pipeline and posts the comment.
+- **Dispatch `eval-nightly.yml`** (Actions tab → Run workflow → pick the
+  branch) — runs every scenario and uploads logs as artifacts, no
+  comment. Equivalent to a manual nightly against that ref.
+
+The run is non-blocking — keep it out of required status checks; the
+PR comment (or the artifacts) is the signal.
 
 ## Scenario selection
 
