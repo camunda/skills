@@ -215,28 +215,33 @@ _RAW_SAMPLES = [
         metadata={"expected_skill": "camunda-job-workers"},
     ),
     Sample(
-        id="ts-lifecycle-control",
+        id="ts-node-stack",
         input=(
-            "Our pricing engine is a Node.js service. It keeps a hot "
-            "in-memory price book that takes about 30s to rebuild after "
-            "a deploy. A new BPMN pricing step needs to consult it. We "
-            "want our service to pull jobs from Zeebe on its own cadence, "
-            "cap concurrency at 8, and finish in-flight jobs cleanly "
-            "before shutting down when we ship a new version."
+            "Our backend is all Node.js — Express services, business "
+            "logic in TypeScript, ops team only hosts Node apps. We "
+            "don't want to spin up a JVM service just for Camunda "
+            "integration. There's a new BPMN pricing step that needs "
+            "to consult our pricing engine; how should we wire it up "
+            "without leaving our Node.js stack?"
         ),
         target=(
-            "Canonical answer: use the Camunda 8 TypeScript SDK to run a "
-            "streaming job worker inside the existing Node service. The "
-            "worker owns the gRPC stream — set its max active jobs to 8, "
-            "drive activation cadence from the service, and on shutdown "
-            "stop accepting new jobs while completing in-flight ones.\n\n"
+            "Canonical answer: implement a Camunda 8 job worker in "
+            "TypeScript inside (or next to) the existing Node service. "
+            "The Camunda 8 TypeScript SDK runs a worker process directly "
+            "from the Node runtime — no JVM dependency, no extra hosting "
+            "surface, and the worker can call straight into the pricing "
+            "engine.\n\n"
             "Anti-patterns:\n"
-            "- OOTB connector — can't expose worker-driven activation or "
-            "in-process lifecycle to the Node service.\n"
-            "- Custom outbound connector — the connector runtime owns "
-            "activation, not the worker; loses the warm price book.\n"
-            "- Polling the Camunda REST API from Node — gRPC streaming "
-            "is what the job worker pattern is for."
+            "- Custom outbound connector — the Camunda connector runtime "
+            "is JVM-based; recommending it directly contradicts the "
+            "explicit 'no JVM service' constraint.\n"
+            "- OOTB REST connector — viable in principle, but pushes "
+            "the integration outside the Node service and loses the "
+            "ability to call straight into the pricing engine from the "
+            "same process.\n"
+            "- Stand up a separate microservice (in any language) just "
+            "to consume jobs — reinvents what the TypeScript SDK already "
+            "provides for free."
         ),
         metadata={"expected_skill": "camunda-job-workers"},
     ),
