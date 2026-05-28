@@ -14,10 +14,11 @@ Two interchangeable agent paths:
 wrap with ``solvers.collect_artifacts.with_artifact_collection`` to
 keep artifact capture working regardless of which loop is selected.
 
-The INSTRUCTIONS blocks carry only Inspect-harness conventions
-(``/workspace`` persistence; submit() for the react path). Every
-Camunda fact the agent needs is either in the user prompt or
-discoverable via the skill tool.
+The system-prompt rules here are domain-agnostic — only workspace
+operation (`/workspace` durability) and the react-loop submit()
+convention. Per-scenario environment facts (e.g. "a cluster is
+already running") belong in the user prompt; implementation hints
+(port numbers, tool names) stay out so the skills carry them.
 """
 
 from __future__ import annotations
@@ -31,27 +32,28 @@ from inspect_swe import claude_code
 
 AgentKind = Literal["react", "claude_code"]
 
-# react() needs an explicit submit() instruction; claude_code()
-# completes when the agent stops calling tools.
-_INSTRUCTIONS_REACT = """\
-A local Camunda cluster is already running. Don't start a new one.
+# System-prompt rules carry only how to operate in the workspace. No
+# hint about the task domain, no hint that this is an eval — the
+# agent should treat the session as a normal user session.
+_WORKSPACE_RULES = """\
+/workspace is the only path you share with the user — anything you save
+there is what they will see and use afterwards. Save every file you
+produce to /workspace (for example, /workspace/output.json). Files
+written to /tmp, your home directory, or any other path are lost when
+the session ends and the user will never see them.
 
-Files you create only persist for review if they're under /workspace.
-Anything you write to /tmp, the home directory, etc. is lost when the
-session ends.
-
-When you've completed the task, call submit() with a brief summary
-of what you did.
+Your working directory at session start is /workspace.
 """
 
-_INSTRUCTIONS_CLAUDE_CODE = """\
-A local Camunda cluster is already running. Don't start a new one.
+# react() needs an explicit submit() instruction; claude_code() halts
+# when the agent stops calling tools.
+_INSTRUCTIONS_REACT = (
+    _WORKSPACE_RULES
+    + "\nWhen you've completed the task, call submit() with a brief "
+    "summary of what you did.\n"
+)
 
-Always create files under /workspace — never under /tmp, the home
-directory, or any other location. /workspace is the scratch dir for
-this session; anything outside it is invisible to scoring and lost
-when the session ends.
-"""
+_INSTRUCTIONS_CLAUDE_CODE = _WORKSPACE_RULES
 
 
 def build_agent(kind: AgentKind, skill_dirs: Sequence[Path]) -> Agent:

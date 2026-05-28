@@ -86,9 +86,9 @@ def c8ctl_bootstrap(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task
             Sample(
                 id="happy",
                 input=(
-                    "There's a Camunda 8 cluster running somewhere on this "
-                    "machine — can you set me up with a CLI so I can poke "
-                    "at it?"
+                    "There's a Camunda 8 cluster already running somewhere "
+                    "on this machine (don't start a new one) — can you set "
+                    "me up with a CLI so I can poke at it?"
                 ),
             ),
         ],

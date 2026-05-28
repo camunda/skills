@@ -32,11 +32,10 @@ positive).
 
 Agent loop is selectable via the ``agent`` task arg — see
 ``core.agents`` for the react/claude_code switch and the shared
-INSTRUCTIONS conventions. Every Camunda fact the agent needs is
-either in the user prompt or discoverable via the skill tool — we
-deliberately don't pre-load "a cluster is running" or "c8ctl is
-installed"; those are exactly the discoveries the skills are
-supposed to drive.
+workspace conventions. Environmental facts the agent can't discover
+(e.g. "the cluster is already running") live in the user prompt;
+implementation hints (port numbers, c8ctl install path, tool names)
+stay out so the skills get tested as the discovery surface.
 """
 
 from __future__ import annotations
@@ -70,7 +69,8 @@ def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
                 id="happy",
                 input=(
                     "I want a BPMN process with id `RocketLaunch` on "
-                    "my local Camunda cluster — counts down 3, 2, 1 "
+                    "my local Camunda cluster (it's already running — "
+                    "don't start a new one) — counts down 3, 2, 1 "
                     "with one-second pauses, then lifts off, then "
                     "ends. Just the BPMN file, please — self-contained, "
                     "no service tasks or workers, no Spring Boot or "
