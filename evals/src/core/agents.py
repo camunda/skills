@@ -56,11 +56,27 @@ _INSTRUCTIONS_REACT = (
 _INSTRUCTIONS_CLAUDE_CODE = _WORKSPACE_RULES
 
 
-def build_agent(kind: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
-    """Construct the configured agent loop with the given skill set."""
+def build_agent(
+    kind: AgentKind,
+    skill_dirs: Sequence[Path],
+    submit: bool = True,
+) -> Agent:
+    """Construct the configured agent loop with the given skill set.
+
+    ``submit=False`` removes react's submit() tool; the agent then
+    halts as soon as it stops calling tools (matching claude_code's
+    halt-on-no-tool-call behavior). Useful for advisory scenarios
+    where the agent's final text IS the deliverable and a separate
+    "submit" step would just nudge the agent toward implementation.
+    Has no effect for claude_code (no submit tool to remove).
+    """
     if kind == "react":
+        instructions = (
+            _INSTRUCTIONS_REACT if submit else _WORKSPACE_RULES
+        )
         return react(
-            prompt=AgentPrompt(instructions=_INSTRUCTIONS_REACT),
+            prompt=AgentPrompt(instructions=instructions),
+            submit=submit,
             tools=[
                 bash_session(timeout=300),
                 text_editor(timeout=60),
