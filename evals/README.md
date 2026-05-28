@@ -20,22 +20,24 @@ Logs land under `evals/logs/`. To inspect a trajectory:
 uv run inspect view evals/logs/        # http://localhost:7575
 ```
 
+The uv project lives at the repo root (`../pyproject.toml`,
+`../uv.lock`, `../.python-version`), so `uv run …` works from anywhere
+in the repo without a `cd`.
+
 ## Layout
 
 ```
 evals/
-├── pyproject.toml          # uv-managed deps (inspect-ai, anthropic, openai, boto3, ...)
-├── uv.lock                 # checked in
-├── .python-version         # pinned Python
 ├── sandboxes/              # base / with-c8ctl / verifier Dockerfiles + compose-*.yaml + orchestration application.yaml
+├── scenarios/
+│   ├── c8ctl-bootstrap/
+│   ├── dev-routing/
+│   └── rocket-launch/      # incl. cpt-verifier/ (Spring CPT, remote-runtime)
 └── src/
-    ├── core/              # paths, metadata schema, scenario registry
-    ├── scorers/           # shared scorers: transcript, cluster, cpt, lint, llm_judge
-    ├── solvers/           # shared solvers: boot_cluster, collect_artifacts, deploy_bpmn
-    ├── scripts/           # CLI entry points: evals-list, evals-summarize, evals-extract-artifacts
-    └── scenarios/
-        ├── c8ctl-bootstrap/
-        └── rocket-launch/   # incl. cpt-verifier/ (Spring CPT, remote-runtime)
+    ├── core/              # paths, metadata schema, scenario registry, metrics
+    ├── scorers/           # shared scorers: transcript, cluster, cpt, lint
+    ├── solvers/           # shared solvers: boot_cluster, collect_artifacts
+    └── scripts/           # CLI entry points: evals-list, evals-summarize, evals-extract-artifacts, evals-regen-baseline, evals-pass-fail
 ```
 
 ## Docs
@@ -44,4 +46,4 @@ evals/
 - **How (add/maintain/debug a scenario)** → [`../docs/evals/scenarios.md`](../docs/evals/scenarios.md)
 - **For AI agents working on this repo** → [`../docs/evals/agent-instructions.md`](../docs/evals/agent-instructions.md)
 - **CI & PR comment** → [`../docs/evals/ci-and-results.md`](../docs/evals/ci-and-results.md)
-- **Multi-PR rollout plan** → [`../docs/plans/01-eval-suite.md`](../docs/plans/01-eval-suite.md)
+- **Original design + roadmap (with divergences noted)** → [`../docs/plans/01-eval-suite.md`](../docs/plans/01-eval-suite.md)

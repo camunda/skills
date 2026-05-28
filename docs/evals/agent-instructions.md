@@ -94,8 +94,7 @@ without diagnosing what changed.
 - ❌ **Don't put scenario config in YAML sidecars.** The contract is
   `@task(metadata={...})` in `task.py`. One source.
 - ❌ **Don't skip the without-skill arm** because "it makes the
-  scenario slow". Slow scenarios go to nightly via
-  `metadata.tier = "nightly"`.
+  scenario slow". The with-vs-without delta is the whole signal.
 - ❌ **Don't run evals on every commit.** Local iteration: one
   scenario at a time. CI handles the matrix.
 - ❌ **Don't commit `.eval` logs.** They're CI artifacts, not source.
@@ -103,11 +102,11 @@ without diagnosing what changed.
 
 ## Where the truth lives
 
-- **What the suite is** → [`docs/plans/01-eval-suite.md`](../plans/01-eval-suite.md)
-  (cross-PR coordination point; updated as PRs land)
 - **Why** → [`concepts.md`](concepts.md)
 - **How** → [`scenarios.md`](scenarios.md)
 - **CI shape & PR comment** → [`ci-and-results.md`](ci-and-results.md)
+- **Design + roadmap (with divergences noted)** → [`../plans/01-eval-suite.md`](../plans/01-eval-suite.md)
+  — for current state read its status box, not the body
 
 If any of these disagree, the plan wins. Open a PR fixing the
 discrepancy.

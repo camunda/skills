@@ -1,16 +1,49 @@
 # Qualitative evaluation suite for camunda/skills
 
-> **Status:** plan + docs/evals/ quartet + harness foundation landed via
-> the first PR (https://github.com/camunda/skills/pull/29). Scenario 01
-> (rocket-launch) green locally against Inspect's `react()` loop +
-> `anthropic/claude-sonnet-4-6`; 00 (c8ctl-bootstrap) scaffolded but not
-> yet end-to-end-validated against a model run. CI workflows committed
-> `workflow_dispatch`-only until credentials and the remaining-scenarios
-> path settle. Scenarios 02–09 reordered to sequence around the new
-> infra realities (compose-based orchestration, remote-runtime CPT, no
-> Copilot CLI bridge yet) — see [Stack decision](#stack-decision), the
-> updated [PR sequence](#pr-sequence), and the [Execution
-> checklist](#execution-checklist-updated-as-prs-land).
+> **Status & divergences (as of PR #29 — https://github.com/camunda/skills/pull/29).**
+> This plan shipped as step A of the rollout. The body below is the
+> **original design**, kept as the roadmap for the remaining scenarios
+> and deferred work. The landed implementation diverged from it in
+> several places — **treat this box, not the body, as ground truth for
+> current state.**
+>
+> **Landed**
+> - Inspect AI harness on the `react()` loop (model via `--model`,
+>   default `anthropic/claude-sonnet-4-6`).
+> - Three scenarios: `c8ctl-bootstrap` (exit-code), `rocket-launch`
+>   (cluster + BPMN lint + CPT), `dev-routing` (7-sample advisory
+>   routing — `model_graded_qa` + `assert_skill_loaded` diagnostic).
+> - Sandboxes: `base`, `with-c8ctl`, `verifier` (CPT, Maven pre-warmed
+>   at image build), `advisory`.
+> - Per-sample baselines: `{low, high}` token + duration bands plus an
+>   arm-level `pass_rate`; `evals-pass-fail` is the CI gate.
+> - Python project at the **repo root**; scenarios at
+>   `evals/scenarios/<id>/` (not under `src/`).
+>
+> **Diverged from the design below**
+> - **Agent loop:** `react()`, not a Copilot/Claude CLI bridge — no
+>   such Inspect bridge exists yet. `claude_code()` was trialled but
+>   truncates the skill manifest past ~3 skills, so meta-skill routing
+>   is unreliable there; `react()` is the default for routing/advisory
+>   scenarios.
+> - **No `tier` field.** Selection is `metadata.skills ∩ changed-skills`
+>   on PR; nightly runs every scenario. A tier split can return if the
+>   scenario set grows enough to need it.
+> - **No `metadata.epochs` field.** Use Inspect's own `--epochs` flag
+>   ad hoc for flake checks.
+> - **`baseline` simplified to `{ exclude }`** (no `mode`).
+> - **No custom judge module.** `src/scorers/llm_judge.py` was dropped
+>   in favour of Inspect's built-in `model_graded_qa` with a per-sample
+>   rubric in `Sample.target`.
+> - **No `cost_band_usd`.** Inspect doesn't expose cost on the log;
+>   token + duration bands carry the resource signal instead.
+>
+> **Roadmap (not yet built)** — the body below still applies: remaining
+> scenarios (DMN, payment-incident, forms, AI-agents e2e, docs-invocation,
+> CPT-authoring), the connector runtime + WireMock for connector
+> scenarios, CI credentials (flip workflows off `workflow_dispatch`),
+> and the deferred follow-ups (cross-harness matrix, assertion-hygiene
+> check, A/B, GitHub Pages export).
 
 ## Context
 

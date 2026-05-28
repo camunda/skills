@@ -2,10 +2,9 @@
 
 The "why" behind `evals/`. For the "how" (adding a scenario, debugging a
 failure, regenerating a baseline), see [`scenarios.md`](scenarios.md).
-
-This doc is a digest of [`docs/plans/01-eval-suite.md`](../plans/01-eval-suite.md);
-the plan stays the source of truth while PRs are landing. Anything that
-contradicts the plan is a doc bug — open a PR.
+For the original design and the roadmap of follow-up scenarios, see
+[`../plans/01-eval-suite.md`](../plans/01-eval-suite.md) (its status box
+notes where the landed suite diverged).
 
 ## Why evals when we already have `waza check`?
 
@@ -78,22 +77,26 @@ Verifier choice is per-scenario, declared in the task's metadata.
 CPT is the workhorse for behavioural checks on a deployed BPMN, but
 any scenario can compose a different verifier — or stack several.
 
-| Verifier | Used for | Example scenarios |
+Built today (`evals/src/scorers/`):
+
+| Verifier | Used for | Scenario |
 |---|---|---|
-| **CPT remote-runtime** (Spring CPT — `mvn test` over an `*IT.java`; verifier shares orchestration's network namespace) | Behaviour of a deployed process | 1, 2, 5, 6 |
-| **c8ctl + exit-code / JSON assertion** | Tool-shaped skills (does the artifact reach the cluster) | 0 |
-| **`bpmn_lint_clean`** (`c8ctl bpmn lint` in the agent sandbox) | Cheap deterministic structural check on every `.bpmn` artifact | 1, 2, 5 (any BPMN scenario) |
-| **`form_lint_clean`** (validate against vendored `@bpmn-io/form-json-schema`) | Cheap deterministic structural check on every `.form` artifact | 2 |
-| **`mvn compile` + LLM-judge code-review** over agent-written Java | CPT-authoring scenario where running the test would risk Docker-in-Docker; compile gates valid CPT-API usage, judge gates quality | 7 |
-| **Inspect transcript scorer** (`assert_tool_called`, `assert_skill_loaded`, `assert_skill_chain`) | "Did the agent route / fetch / cite as the skill instructs" | 8, 9 (+ chain checks on 2, 5) |
-| **Judge LLM** (Sonnet 4.6, single-score rubric — `src/scorers/llm_judge.py`) | Free-form answer correctness; currently unused, re-enabled with scenarios 7, 8 | 7, 8 |
-| **WireMock journal** | "Did the agent's process hit the right HTTP endpoint" | 2 |
+| **CPT remote-runtime** (`cpt_scorer` — Spring CPT, `mvn test` over an `*IT.java`; verifier shares orchestration's network namespace) | Behaviour of a deployed process | rocket-launch |
+| **c8ctl + exit-code / JSON assertion** | Tool-shaped skills (does the artifact reach the cluster) | c8ctl-bootstrap |
+| **`bpmn_lint_clean`** (`c8ctl bpmn lint` in the agent sandbox) | Cheap deterministic structural check on every `.bpmn` artifact | rocket-launch (any BPMN scenario) |
+| **Inspect transcript scorer** (`assert_tool_called`, `assert_skill_loaded`) | "Did the agent route / fetch / cite as the skill instructs" | dev-routing |
+| **Judge LLM** (Inspect's built-in `model_graded_qa`, per-sample rubric in `Sample.target`) | Free-form answer correctness | dev-routing |
 
 Pick the **cheapest verifier that catches the failure mode you care
 about**. Deterministic (CPT, lint, exit-code, transcript) before
-non-deterministic (judge LLM). A composite is fine — scenario 1
-already stacks transcript + cluster + lint + CPT, each catching a
-different failure mode at a different cost.
+non-deterministic (judge LLM). A composite is fine — rocket-launch
+already stacks cluster + lint + CPT, each catching a different failure
+mode at a different cost.
+
+Likely additions as new scenario types land: a form-schema lint for
+`.form` artifacts, and an HTTP-journal check (e.g. WireMock) for
+connector scenarios. Not built yet — add them when a scenario needs
+them.
 
 ## `with-skill` / `without-skill` semantics
 
@@ -205,10 +208,10 @@ signal — `summarize.py` surfaces it in the PR comment once CI is on.
 ## What the eval suite is **not**
 
 - Not a replacement for `waza check` — it runs alongside.
-- Not a description-optimization loop. Manual rewrites at 13 skills.
-  See `FOLLOWUP-EVAL-04` in the plan if this changes.
-- Not a tool for blind A/B between skill versions. See
-  `FOLLOWUP-EVAL-05`.
+- Not a description-optimization loop. Skill descriptions are rewritten
+  by hand; automating that is a possible future follow-up.
+- Not a tool for blind A/B between skill versions (a possible
+  follow-up, not built).
 - Not a place to land speculative scenarios. Each scenario should
   catch a failure mode someone has actually observed or has a clear
   hypothesis about.

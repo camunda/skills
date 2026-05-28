@@ -6,26 +6,23 @@ model, baseline semantics, harness choice), see
 
 ## Anatomy of a scenario
 
-A scenario lives under `evals/src/scenarios/<slug>/`:
+A scenario lives under `evals/scenarios/<slug>/`:
 
 ```
-evals/src/scenarios/rocket-launch/
+evals/scenarios/rocket-launch/
 ├── task.py                # @task + METADATA — the canonical contract
-├── baseline.json          # expected pass-rate, token band, duration band
-├── fixtures/              # input files the agent (or verifier) reads
-│   └── RocketLaunch.bpmn  # for scenarios that hand the agent a starting file
-└── cpt-verifier/          # Phase 2 — used when verifier="cpt" (or composite-incl-CPT)
+├── baseline.json          # expected pass-rate, per-sample token + duration bands
+└── cpt-verifier/          # used when the scorer list includes cpt_scorer(...)
     ├── pom.xml            # Spring CPT (camunda-process-test-spring) + remote-runtime
     └── src/test/
         ├── java/.../RocketLaunchIT.java
         └── resources/application.yml   # camunda.process-test.runtime-mode: remote
 ```
 
-Files that may be absent depending on the scorer mix:
-- `cpt-verifier/` — only for scenarios whose scorer list includes
-  `cpt_scorer(...)`
-- `fixtures/` — only when the scenario hands the agent a starting file
-  (e.g. "fix this broken BPMN" rather than "build it from scratch")
+`cpt-verifier/` is present only for scenarios whose scorer list
+includes `cpt_scorer(...)`. A scenario that hands the agent a starting
+file (e.g. "fix this broken BPMN") can keep that file alongside
+`task.py` and reference it from the prompt.
 
 ## The `task.py` metadata contract
 
@@ -40,9 +37,7 @@ Fields (see `evals/src/core/metadata.py` for the model):
 | Field | Type | Meaning |
 |---|---|---|
 | `skills` | `list[str]` | CI-orchestration only — drives the PR path-filter (a PR touching `skills/<X>/` runs scenarios where `X in metadata.skills`) and documents the load-bearing dependencies. Does **not** restrict the skill tool surface at runtime. |
-| `epochs` | `int` | Default 1; ≥3 for trigger/judge-scored scenarios where pass-rate flake matters |
-| `tier` | `"pr" \| "nightly" \| "release"` | When CI runs this scenario; local `make eval` ignores it |
-| `baseline` | `BaselineConfig` | `{ mode, exclude }` — comparison arm (see `concepts.md`) |
+| `baseline` | `BaselineConfig` | `{ exclude }` — which skills the `without_skill` arm drops (see `concepts.md`) |
 
 The scenario id is the directory name; no `id` field on the model.
 The sandbox compose file is declared explicitly on `Task(sandbox=...)`
@@ -62,8 +57,7 @@ from core.paths import SANDBOXES_DIR
 
 METADATA = ScenarioMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
-    tier="pr",
-    baseline=BaselineConfig(mode="without-skill", exclude="all"),
+    baseline=BaselineConfig(exclude="all"),
 )
 
 @task
@@ -97,7 +91,7 @@ anywhere else.
 
 2. **Copy the closest existing scenario**:
    ```bash
-   cp -r evals/src/scenarios/rocket-launch evals/src/scenarios/<your-slug>
+   cp -r evals/scenarios/rocket-launch evals/scenarios/<your-slug>
    ```
 
 3. **Edit `task.py`** — update `METADATA`, prompt(s), and the sample
@@ -114,11 +108,10 @@ anywhere else.
      `evals/src/scorers/transcript.py`
    - Lint: `bpmn_lint_clean()` from `scorers/lint.py` (BPMN);
      `form_lint_clean()` (forms — once vendored)
-   - Judge: use `judge_bpmn_quality()` / equivalent from
-     `evals/src/scorers/llm_judge.py`. The rubric lives inline in
-     that module (one-prompt + score regex); no separate Markdown
-     file. Override `judge_model=` per scenario if you need a
-     different judge.
+   - LLM judge: for free-form answer correctness use Inspect's
+     built-in `model_graded_qa` with a per-sample rubric in
+     `Sample.target` (see `dev-routing/task.py`) — no custom judge
+     scorer is shipped.
 
 5. **Run locally** to confirm it boots:
    ```bash
@@ -131,7 +124,7 @@ anywhere else.
    ```
    Review the diff in `baseline.json` before committing.
 
-7. **No workflow edit needed.** PR-tier inclusion is automatic from
+7. **No workflow edit needed.** PR inclusion is automatic from
    `metadata.skills` — `eval.yml`'s `detect-scenarios` job intersects
    the changed skills with each scenario's `metadata.skills` via
    `evals-list --changed-skills`. (CI is currently
@@ -170,16 +163,16 @@ edge case is the one that already broke.
 
 2. **Reproduce the verifier outside the sandbox.** The verifier's
    container is reproducible. For a CPT failure, `cd
-   evals/src/scenarios/<id>/cpt-verifier && mvn test` runs the same test
+   evals/scenarios/<id>/cpt-verifier && mvn test` runs the same test
    the verifier container ran. Surefire XML is at `target/surefire-reports/`.
 
 3. **Re-run with more epochs to check flake**:
    ```bash
-   uv run inspect eval evals/src/scenarios/<id>/task.py --epochs 3
+   uv run inspect eval evals/scenarios/<id>/task.py --epochs 3
    ```
-   If pass-rate is consistent at 1/3 or 3/3, the result is the result.
-   If it bounces between runs, the scenario is flaky — bump its `epochs`
-   in metadata and set a pass-rate threshold in `baseline.json`.
+   `--epochs` is Inspect's own flag (repeat each sample N times). If
+   pass-rate is consistent at 1/3 or 3/3, the result is the result.
+   If it bounces between runs, the scenario is flaky.
 
 4. **Compare with-skill vs without-skill arms.** A scenario where
    both arms fail equally suggests the skill isn't the issue (or the
@@ -194,16 +187,16 @@ last run. Never blanket-regen without diff review:
 
 ```bash
 make eval-baseline SCENARIO=rocket-launch
-git diff evals/src/scenarios/rocket-launch/baseline.json
+git diff evals/scenarios/rocket-launch/baseline.json
 # review the diff before committing
-git add evals/src/scenarios/rocket-launch/baseline.json
+git add evals/scenarios/rocket-launch/baseline.json
 git commit -m "feat(evals): refresh baseline for rocket-launch after …"
 ```
 
 When to regenerate:
 - After an intentional behaviour change (the new pass-rate / token
   band is the new normal)
-- After bumping a scenario's `epochs`
+- After adding or removing a sample (the new sample needs a band)
 
 When **not** to regenerate:
 - After a flaky run — diagnose the flake first
@@ -223,5 +216,5 @@ Run through this before merging a scenario change:
       tokens/duration) — if the skill makes no difference, the
       scenario isn't proving anything
 
-`FOLLOWUP-EVAL-03` adds an automated hygiene cron. Until then,
+An automated hygiene check is a planned follow-up. Until then,
 self-review.
