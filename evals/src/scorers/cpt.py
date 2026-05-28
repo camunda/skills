@@ -25,7 +25,7 @@ def cpt_scorer(project_dir: str) -> Scorer:
 
     ``project_dir`` is the path inside the verifier container — e.g.
     ``/scenarios/rocket-launch/cpt-verifier``. Compose's
-    ``../src/scenarios:/scenarios:ro`` mount makes that resolve to the
+    ``../scenarios:/scenarios:ro`` mount makes that resolve to the
     scenario's CPT project in the repo.
     """
 

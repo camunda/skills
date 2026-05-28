@@ -8,10 +8,11 @@ recipes + the skills under test.
 sibling ``skills/`` directory (the skills under test).
 
 These resolve correctly when the package is installed editable (the
-common case via ``uv sync``): ``__file__`` points at the source tree,
-so ``parents[2]`` reaches ``evals/``. A non-editable wheel install
-would break this — fine because the harness is always installed
-editable from this repo.
+common case via ``uv sync``): ``__file__`` points at the source tree
+(``evals/src/core/paths.py``), so ``parents[2]`` reaches ``evals/``
+regardless of where ``pyproject.toml`` lives. A non-editable wheel
+install would break this — fine because the harness is always
+installed editable from this repo.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Literal
 
 EVALS_ROOT = Path(__file__).resolve().parents[2]
-SCENARIOS_DIR = EVALS_ROOT / "src" / "scenarios"
+SCENARIOS_DIR = EVALS_ROOT / "scenarios"
 SANDBOXES_DIR = EVALS_ROOT / "sandboxes"
 SKILLS_DIR = EVALS_ROOT.parent / "skills"
 

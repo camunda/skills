@@ -1,11 +1,10 @@
 name: Eval (PR)
 
-# PR-tier eval suite. Scoped to scenarios whose metadata.skills
+# PR eval suite. Scoped to scenarios whose metadata.skills
 # intersects the changed skills under skills/<X>/. Manual override
 # via the `evals:run` label.
 #
-# See docs/evals/ci-and-results.md for the tier matrix and PR-comment
-# shape.
+# See docs/evals/ci-and-results.md for the PR-comment shape.
 
 # Disabled while the harness is under review — the scenarios depend on
 # LLM-backed runs we haven't validated end-to-end yet. Manual-only
@@ -36,9 +35,8 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version-file: evals/.python-version
+          python-version-file: .python-version
       - name: Sync deps
-        working-directory: evals
         run: uv sync --frozen
       - name: Compute changed skills
         id: changed-skills
@@ -53,17 +51,18 @@ jobs:
           else
             ls skills > changed-skills.txt
           fi
-          # When evals/ itself changed, run everything by emitting all skills.
-          if git diff --name-only "$base..$head" 2>/dev/null | grep -q '^evals/'; then
+          # When the harness itself changed (evals/ tree or the root
+          # Python project), run everything by emitting all skills.
+          if git diff --name-only "$base..$head" 2>/dev/null \
+               | grep -qE '^evals/|^pyproject\.toml$|^uv\.lock$|^\.python-version$'; then
             ls skills > changed-skills.txt
           fi
           echo "Changed skills:"
           cat changed-skills.txt
       - name: Filter scenarios via registry
         id: filter
-        working-directory: evals
         run: |
-          changed=$(tr '\n' ' ' < ../changed-skills.txt)
+          changed=$(tr '\n' ' ' < changed-skills.txt)
           scenarios_json=$(uv run evals-list --json --changed-skills $changed)
           echo "$scenarios_json"
           # GitHub Actions matrix wants a JSON list. Extract scenario ids.
@@ -88,9 +87,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version-file: evals/.python-version
+          python-version-file: .python-version
       - name: Sync deps
-        working-directory: evals
         run: uv sync --frozen
       - name: Build sandbox images
         run: make eval-images
@@ -116,9 +114,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version-file: evals/.python-version
+          python-version-file: .python-version
       - name: Sync deps
-        working-directory: evals
         run: uv sync --frozen
       - name: Download all logs
         uses: actions/download-artifact@v4
@@ -128,11 +125,10 @@ jobs:
           merge-multiple: true
       - name: Render summary
         id: summary
-        working-directory: evals
         run: |
           {
             echo 'body<<COMMENT_EOF'
-            uv run evals-summarize --log-dir logs/
+            uv run evals-summarize --log-dir evals/logs/
             echo 'COMMENT_EOF'
           } >> "$GITHUB_OUTPUT"
       - name: Post / update PR comment

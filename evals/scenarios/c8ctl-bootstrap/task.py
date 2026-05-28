@@ -43,8 +43,7 @@ from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = ScenarioMetadata(
     skills=["camunda-c8ctl"],
-    tier="pr",
-    baseline=BaselineConfig(mode="without-skill", exclude="all"),
+    baseline=BaselineConfig(exclude="all"),
 )
 
 

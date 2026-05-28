@@ -26,5 +26,6 @@ results/
 
 # Eval suite local outputs
 evals/logs/
-evals/.venv/
+.venv/
+.ruff_cache/
 **/__pycache__/

@@ -45,12 +45,12 @@ from typing import Any
 from inspect_ai.log import list_eval_logs, read_eval_log
 
 from core.metrics import (
-    _LETTER_TO_FLOAT,
     is_gating,
     pass_rate,
     sample_duration_s,
     sample_tokens,
     scenario_id,
+    score_to_float,
     task_arg,
 )
 from core.paths import EVALS_ROOT, SCENARIOS_DIR
@@ -84,11 +84,10 @@ def _summarize_log(log, threshold: float) -> tuple[list[dict], bool]:
             if not is_gating(score):
                 diagnostic_scorers.add(scorer_name)
             value = score.value if hasattr(score, "value") else score
-            if isinstance(value, (int, float)):
-                scorer_values[scorer_name] = float(value)
-            elif isinstance(value, str) and value.upper() in _LETTER_TO_FLOAT:
-                # Convert C/P/I per Inspect's accuracy() convention.
-                scorer_values[scorer_name] = _LETTER_TO_FLOAT[value.upper()]
+            if isinstance(value, (int, float, str, bool)):
+                # Inspect's Value→float: numbers pass through, C/P/I map
+                # to 1.0/0.5/0.0 per the accuracy() convention.
+                scorer_values[scorer_name] = score_to_float(value)
             else:
                 scorer_values[scorer_name] = 0.0
         # Only gating scorers contribute to the per-sample pass bit.

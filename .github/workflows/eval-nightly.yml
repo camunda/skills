@@ -1,8 +1,7 @@
 name: Eval (nightly)
 
-# Nightly run of every scenario in every tier (pr + nightly). Runs on
-# main; failures open issues rather than blocking merges. See
-# docs/evals/ci-and-results.md.
+# Nightly run of every scenario. Runs on main; failures open issues
+# rather than blocking merges. See docs/evals/ci-and-results.md.
 
 # Disabled while the harness is under review (see eval.yml for context).
 # Manual-only until the first scenario passes locally; cron re-enabled
@@ -29,11 +28,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version-file: evals/.python-version
-      - working-directory: evals
-        run: uv sync --frozen
+          python-version-file: .python-version
+      - run: uv sync --frozen
       - id: list
-        working-directory: evals
         run: |
           ids=$(uv run evals-list --json | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
           echo "scenarios=$ids" >> "$GITHUB_OUTPUT"
@@ -50,9 +47,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
-          python-version-file: evals/.python-version
-      - working-directory: evals
-        run: uv sync --frozen
+          python-version-file: .python-version
+      - run: uv sync --frozen
       - name: Build sandbox images
         run: make eval-images
       - name: Run scenario

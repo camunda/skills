@@ -57,7 +57,7 @@ def _skill_path(skill: str) -> str:
 
 
 @scorer(metrics=[mean(), stderr()])
-def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
+def assert_skill_loaded(skill: str | Sequence[str], gating: bool = True) -> Scorer:
     """Score 1.0 when the agent loaded every named skill via the
     skill tool (or read its SKILL.md directly); 0.0 otherwise.
 
@@ -68,6 +68,11 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
       (capital S — Claude Code names tools with leading uppercase),
       arguments={"skill": "camunda-X", "args": "..."}
     - Any tool whose arguments include the path ``skills/camunda-X/SKILL.md``
+
+    ``gating=False`` tags the Score ``metadata["gating"] = False`` so
+    ``core.metrics`` / ``scripts.pass_fail`` surface it but keep it out
+    of the pass/fail gate. Skill-load measures routing, not task
+    success — on an outcome scenario it's a diagnostic, not a gate.
     """
     expected = [skill] if isinstance(skill, str) else list(skill)
 
@@ -92,7 +97,7 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
             explanation=(
                 f"missing skills: {missing}" if missing else f"loaded: {sorted(seen)}"
             ),
-            metadata={"expected": expected, "loaded": sorted(seen)},
+            metadata={"expected": expected, "loaded": sorted(seen), "gating": gating},
         )
 
     return score

@@ -14,16 +14,16 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Tier = Literal["pr", "nightly", "release"]
-
 
 class BaselineConfig(BaseModel):
     """Comparison-arm config. See docs/evals/concepts.md § baseline."""
 
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["without-skill", "none"]
     exclude: list[str] | Literal["all"] | None = None
+    """Which skills the ``without_skill`` arm drops. ``"all"`` removes
+    every skill; a list removes the named ones; ``None`` keeps the full
+    menu (rarely useful for a baseline arm)."""
 
 
 class ScenarioMetadata(BaseModel):
@@ -45,17 +45,6 @@ class ScenarioMetadata(BaseModel):
     of the load-bearing dependencies. Does NOT restrict the skill tool
     surface at runtime; the agent sees every installed skill modulo
     the without-skill arm's ``baseline.exclude``.
-    """
-
-    epochs: int = Field(default=1, ge=1)
-    """Inspect's per-sample repetition count. Bump to ≥3 for
-    trigger / judge-scored scenarios where pass-rate flake matters.
-    """
-
-    tier: Tier
-    """When CI runs this scenario. ``pr`` = on PR (when CI is on);
-    ``nightly`` = scheduled main run only; ``release`` = on ``v*``
-    tags. Local ``make eval`` ignores this — runs whatever you ask for.
     """
 
     baseline: BaselineConfig

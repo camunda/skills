@@ -1,8 +1,8 @@
 [project]
 name = "camunda-skills-evals"
 version = "0.1.0"
-description = "Qualitative evaluation suite for camunda/skills. See ../docs/plans/01-eval-suite.md."
-readme = "README.md"
+description = "Qualitative evaluation suite for camunda/skills. See docs/evals/concepts.md."
+readme = "evals/README.md"
 requires-python = ">=3.12"
 dependencies = [
     "aioboto3>=15.5.0",
@@ -31,8 +31,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = [
-    "src/core",
-    "src/scorers",
-    "src/solvers",
-    "src/scripts",
+    "evals/src/core",
+    "evals/src/scorers",
+    "evals/src/solvers",
+    "evals/src/scripts",
 ]

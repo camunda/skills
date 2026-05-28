@@ -6,7 +6,7 @@
 # can run in airgapped / network-denied sandboxes.
 #
 # Built with build context = evals/ (see the eval-images Make target),
-# so the RUN below can bind-mount src/scenarios in place without
+# so the RUN below can bind-mount scenarios in place without
 # COPYing it into a layer.
 
 FROM camunda-skills-evals-base:latest
@@ -27,6 +27,6 @@ ENV MAVEN_OPTS="-Dmaven.repo.local=/.m2"
 # resolve every CPT verifier pom into /.m2. No files leak into the
 # image — only the populated Maven cache. New scenarios with their own
 # cpt-verifier/pom.xml are picked up automatically.
-RUN --mount=type=bind,source=src/scenarios,target=/scenarios,ro \
+RUN --mount=type=bind,source=scenarios,target=/scenarios,ro \
     find /scenarios -path '*/cpt-verifier/pom.xml' -print0 | \
         xargs -0 -I{} mvn -B -q -f {} dependency:go-offline

@@ -7,21 +7,23 @@ scenario-specific shaping lives here.
 
 from __future__ import annotations
 
-# Inspect's letter-grade scorers (model_graded_qa, model_graded_fact)
-# emit "C" / "P" / "I" as the raw per-sample score; the accuracy()
-# metric converts to 1.0 / 0.5 / 0.0. Mirror that here so callers
-# can mix numeric scorers (mean) with letter scorers (accuracy)
-# without conditional-casting at every site.
-_LETTER_TO_FLOAT = {"C": 1.0, "P": 0.5, "I": 0.0}
+from inspect_ai.scorer import value_to_float
+
+# Inspect's own Value→float conversion: letter grades C/P/I map to
+# 1.0/0.5/0.0, numbers pass through, and bool / "true" / "false" /
+# numeric strings are handled too. Using the framework helper keeps us
+# aligned with how ``accuracy()`` scores the same values, instead of
+# hand-rolling a letter map.
+score_to_float = value_to_float()
 
 
 def is_gating(score) -> bool:
     """Whether a Score contributes to the gating pass_rate.
 
-    Scores wrapped via ``core.scorers.diagnostic()`` carry
-    ``metadata["gating"] = False`` — those are surfaced for visibility
-    but excluded from gating decisions. Scores without the tag default
-    to gating.
+    A scorer can mark its Scores non-gating by setting
+    ``metadata["gating"] = False`` (e.g. ``assert_skill_loaded`` in its
+    diagnostic mode) — those are surfaced for visibility but excluded
+    from gating decisions. Scores without the tag default to gating.
     """
     meta = getattr(score, "metadata", None) or {}
     return meta.get("gating", True) is not False
@@ -33,9 +35,9 @@ def pass_rate(log) -> float:
     For a multi-scorer task (e.g. rocket-launch with cluster + lint +
     CPT, or dev-routing with skill-load + model_graded_qa), this
     averages every gating scorer's value across every sample —
-    diagnostic scorers (tagged via ``core.scorers.diagnostic()``) are
-    skipped so the arm-level pass_rate reflects only the metrics
-    that actually gate the eval.
+    non-gating scorers (``metadata["gating"] = False``) are skipped so
+    the arm-level pass_rate reflects only the metrics that actually
+    gate the eval.
     """
     samples = getattr(log, "samples", None) or []
     values: list[float] = []
@@ -45,10 +47,8 @@ def pass_rate(log) -> float:
             if not is_gating(score):
                 continue
             v = getattr(score, "value", None)
-            if isinstance(v, (int, float)):
-                values.append(float(v))
-            elif isinstance(v, str) and v.upper() in _LETTER_TO_FLOAT:
-                values.append(_LETTER_TO_FLOAT[v.upper()])
+            if isinstance(v, (int, float, str, bool)):
+                values.append(score_to_float(v))
     return sum(values) / len(values) if values else 0.0
 
 

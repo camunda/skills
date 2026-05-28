@@ -75,7 +75,7 @@ eval-images:
 		docker build -t camunda-skills-evals-base:latest -f base.Dockerfile . && \
 		docker build -t camunda-skills-evals-with-c8ctl:latest -f with-c8ctl.Dockerfile .
 	@# Verifier image builds from the evals/ root so its Dockerfile can
-	@# bind-mount src/scenarios/*/cpt-verifier/pom.xml during build to
+	@# bind-mount scenarios/*/cpt-verifier/pom.xml during build to
 	@# pre-warm Maven (see verifier.Dockerfile).
 	@cd $(EVALS_DIR) && \
 		docker build -t camunda-skills-evals-verifier:latest -f sandboxes/verifier.Dockerfile .
@@ -84,25 +84,24 @@ eval-images:
 eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
-	@if [ ! -d "$(EVALS_DIR)/src/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval src/scenarios/$(SCENARIO)/task.py --log-dir logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) \
+	@if [ ! -d "$(EVALS_DIR)/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
+	@uv run inspect eval $(EVALS_DIR)/scenarios/$(SCENARIO)/task.py --log-dir $(EVALS_DIR)/logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) \
 		&& uv run evals-extract-artifacts
 
 .PHONY: eval-all
 eval-all:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@cd $(EVALS_DIR) && \
-		for s in src/scenarios/*/task.py; do \
-			echo "=== $$s ==="; \
-			uv run inspect eval "$$s" --log-dir logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) || exit $$?; \
-			uv run evals-extract-artifacts || exit $$?; \
-		done
+	@for s in $(EVALS_DIR)/scenarios/*/task.py; do \
+		echo "=== $$s ==="; \
+		uv run inspect eval "$$s" --log-dir $(EVALS_DIR)/logs/ --max-samples 1 -T arm=$(ARM) $(ARGS) || exit $$?; \
+		uv run evals-extract-artifacts || exit $$?; \
+	done
 
 .PHONY: eval-extract
 eval-extract:
-	@cd $(EVALS_DIR) && uv run evals-extract-artifacts
+	@uv run evals-extract-artifacts
 
 .PHONY: eval-baseline
 eval-baseline:
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run evals-regen-baseline --scenario $(SCENARIO)
+	@uv run evals-regen-baseline --scenario $(SCENARIO)

@@ -1,6 +1,6 @@
 """Scenario metadata registry.
 
-Imports every ``task.py`` under ``src/scenarios/`` and exposes a
+Imports every ``task.py`` under ``scenarios/`` and exposes a
 flat JSON view for CI consumers (path-filtered workflow, PR comment
 summarizer, nightly orchestration).
 
@@ -133,10 +133,9 @@ def main() -> None:
     if not scenarios:
         print("(no scenarios)")
         return
-    print(f"{'id':<25} {'tier':<10} skills")
+    print(f"{'id':<25} skills")
     for s in scenarios:
-        m = s.metadata
-        print(f"{s.id:<25} {m.tier:<10} {','.join(m.skills)}")
+        print(f"{s.id:<25} {','.join(s.metadata.skills)}")
 
 
 if __name__ == "__main__":
