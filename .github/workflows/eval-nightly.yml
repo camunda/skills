@@ -1,0 +1,72 @@
+name: Eval (nightly)
+
+# Nightly run of every scenario — the broad regression sweep that
+# complements eval.yml's affected-subset PR signal. Runs against main
+# and uploads the .eval logs as artifacts; it never blocks merges.
+# See docs/evals/ci-and-results.md.
+
+# Disabled while the harness is under review (see eval.yml for context).
+# Manual-only until the first scenario passes locally; cron re-enabled
+# in a follow-up. Can also be dispatched against a branch to run the
+# full suite there (e.g. an integration check of a PR branch).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-nightly
+  cancel-in-progress: false
+
+jobs:
+  list-scenarios:
+    name: Enumerate scenarios
+    runs-on: ubuntu-latest
+    outputs:
+      scenarios: ${{ steps.list.outputs.scenarios }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version-file: .python-version
+      - run: uv sync --frozen
+      - id: list
+        run: |
+          ids=$(uv run evals-list --json | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
+          echo "scenarios=$ids" >> "$GITHUB_OUTPUT"
+
+  run-scenarios:
+    name: Eval ${{ matrix.scenario }}
+    needs: list-scenarios
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJson(needs.list-scenarios.outputs.scenarios) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version-file: .python-version
+      - run: uv sync --frozen
+      - name: Build sandbox images
+        run: make eval-images
+      - name: Run scenario
+        # CI defaults to the Bedrock global Claude profile; override via
+        # the `EVAL_MODEL` repo variable with no code change. The creds
+        # below are that default provider's wiring.
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+        run: |
+          make eval SCENARIO=${{ matrix.scenario }} \
+            MODEL="${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}"
+      - name: Upload eval logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-logs-${{ matrix.scenario }}-${{ github.run_attempt }}
+          path: evals/logs/
+          retention-days: 14

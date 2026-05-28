@@ -76,25 +76,13 @@ After install, the `azd waza` command is on PATH and `make lint` works. The Make
 
 ## Evals
 
-No eval suites are checked in right now. The waza migration replaced a custom
-~5,200-line Python eval framework, and our first attempt at porting eval
-content surfaced that the patterns we had didn't earn their cost yet:
+An eval suite is being built up under `evals/` to verify skills produce deployable, working artifacts and that cross-skill orchestration routes correctly — signals `waza check` can't catch. `waza check` remains the fast/cheap gate alongside.
 
-- **Trigger probes** — we built `trigger_tests.yaml` for `camunda-feel` and
-  observed precision/recall ~0% across positive prompts. The model has FEEL
-  coverage in training and answers correctly without invoking the skill, even
-  on non-trivial idiom questions. Trigger probes don't surface useful signal
-  for utility skills whose subject matter is well-represented in training.
-- **Quality tasks** — we ran the suite under `baseline: true` (with vs.
-  without skills loaded). Delta was ~0 across all tasks. The Copilot SDK
-  surfaces skill descriptions in routing context but the skill body only
-  lands in context on explicit invocation, which the model declines for the
-  same reason above.
-
-The honest conclusion: until we have a concrete hypothesis about *what* an
-eval should measure that `waza check` doesn't already prove (and that the
-model can't fake from training), running expensive evals just produces noise.
-We'll add suites back per-skill as we identify those hypotheses. Until then, linting (see [Linting](#linting) above) is the enforcement bar.
+- [`docs/evals/concepts.md`](docs/evals/concepts.md) — why evals, two-phase sandbox, verifier menu, with-skill/without-skill semantics, harness model
+- [`docs/plans/01-eval-suite.md`](docs/plans/01-eval-suite.md) — original design + roadmap for follow-up scenarios; its status box notes where the landed suite diverged
+- [`docs/evals/scenarios.md`](docs/evals/scenarios.md) — anatomy of a scenario, metadata contract, add/maintain/debug/regenerate-baseline procedures
+- [`docs/evals/agent-instructions.md`](docs/evals/agent-instructions.md) — for AI agents working on this repo: when to touch evals, how to run them, what NEVER to do
+- [`docs/evals/ci-and-results.md`](docs/evals/ci-and-results.md) — workflow shape, scenario selection, PR comment format, artifact debugging
 
 ## Scripts
 

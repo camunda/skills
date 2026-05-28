@@ -23,3 +23,9 @@ results/
 
 # Logs
 *.log
+
+# Eval suite local outputs
+evals/logs/
+.venv/
+.ruff_cache/
+**/__pycache__/
