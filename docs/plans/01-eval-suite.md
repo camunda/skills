@@ -94,7 +94,7 @@ verifiers carried by Camunda Process Test (CPT), which we already ship.
 | Lint gate | **waza** (unchanged) | Orthogonal to evals; covers spec compliance, token budget, link health |
 | Eval framework | **Inspect AI** | Multi-step solver chain, native Docker-compose sandbox, harness-agnostic agent bridge, per-task token/time limits, mature trajectory viewer (`inspect view`) |
 | Agent under test | **Inspect `react()` loop** with `bash_session` + `text_editor` + `skill(all_skill_dirs())` tools; model picked via Inspect's `--model` flag | No upstream Copilot CLI bridge for Inspect exists yet; `sandbox_agent_bridge()` was the plan-era assumption. `react()` is the path until a CLI-style bridge lands. Skill discovery falls out of `skill()` tool choice rather than direct file-system seeding, so cross-skill routing stays a transcript signal. |
-| Judge model | **Claude Sonnet 4.6** (default `global.anthropic.claude-sonnet-4-6`, served via AWS) | GitHub Models free tier rejected during validation — per-request token caps (gpt-5: 4000, gpt-4.1: 16000) are too tight for our `react()` loop with `skill()` + 13 skills. Judging now uses Inspect's built-in `model_graded_qa` (no custom judge module). |
+| Judge model | **Claude Sonnet 4.6** (local default `anthropic/claude-sonnet-4-6`; CI `bedrock/global.anthropic.claude-sonnet-4-6`) | GitHub Models free tier rejected during validation — per-request token caps (gpt-5: 4000, gpt-4.1: 16000) are too tight for our `react()` loop with `skill()` + 13 skills. Judging now uses Inspect's built-in `model_graded_qa` (no custom judge module). |
 | Runtime in sandbox | **Camunda 8.9.x via docker compose** for Phase 1 (`camunda/camunda:8.9.5`, H2 backend, no Elasticsearch / Postgres); **CPT remote-runtime mode (Spring CPT)** against the same orchestration cluster for Phase 2 | c8run dropped — no aarch64 build; `camunda/camunda` is multi-arch. Remote-runtime CPT means the verifier and the agent operate against the *same* cluster (shared via `network_mode: service:orchestration`); the verifier re-deploys the agent's BPMN and asserts behaviour. Embedded testcontainers reserved for scenarios that genuinely need per-test isolation (none in v1). |
 | LLM mocking inside scenarios | **CPT `mockJobWorker.withHandler`** against the remote cluster — plain `CamundaClient` job subscription, runtime-mode-agnostic per the [CPT docs](https://docs.camunda.io/docs/apis-tools/testing/utilities/#mock-job-workers). | The `camunda/camunda` image is the orchestration cluster only; the connector runtime ships as a separate `camunda/connectors-bundle` image. Our compose currently runs orchestration only — no competing subscriber, no race. When 02 / 03 / 04 need a connector runtime, we add the bundle as a compose service and control which connectors are active (env vars / image overlay). For scenarios where the connector itself should fire end-to-end (not just have its worker mocked), `FOLLOWUP-EVAL-01` covers WireMock-as-HTTPS-proxy as the higher-fidelity option. |
 | Untrusted code execution | Docker sandbox + network egress denied + per-task time/mem limits. (Maven dep-tree bake-in / `mvn -o` offline mode deferred to `FOLLOWUP-EVAL-07`.) | Handles the CPT-authoring scenario (agent writes Java we then `mvn test`). Network denial + resource caps cover v1; offline-mode hardening is defense-in-depth |
@@ -333,8 +333,9 @@ only scenarios where `metadata.skills` includes `camunda-bpmn`.
 
 **Agent loop**: Inspect's `react()` with `bash_session` + `text_editor`
 + `skill(all_skill_dirs())` tools. Model picked via the `MODEL`
-variable (default `global.anthropic.claude-sonnet-4-6`, served via
-AWS; override e.g. `MODEL=anthropic/claude-sonnet-4-6`).
+variable (local default `anthropic/claude-sonnet-4-6`; CI defaults to
+`bedrock/global.anthropic.claude-sonnet-4-6` and is switchable via the
+`EVAL_MODEL` repo variable).
 
 No CLI-style harness bridge today. There's no upstream Copilot CLI
 bridge for Inspect AI, so `sandbox_agent_bridge()` isn't a path yet —
@@ -342,11 +343,11 @@ bridge for Inspect AI, so `sandbox_agent_bridge()` isn't a path yet —
 the model; cross-skill routing is a transcript signal (which skills
 the model reached for), not file-system seeding.
 
-**Local credentials**: provided to Inspect via the chosen model
-provider's standard env vars (`AWS_ACCESS_KEY_ID` /
-`AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION` for the default model,
-or another provider's key if you override `MODEL`). Read from the
-environment, not checked into shells.
+**Local credentials**: provided via the chosen model provider's
+standard env vars — `ANTHROPIC_API_KEY` for the local default
+(`anthropic/claude-sonnet-4-6`), or another provider's key (e.g. the
+AWS chain for a `bedrock/<profile>` model) if you override `MODEL`.
+Read from the environment, not checked into shells.
 
 **CI credentials**: the workflows authenticate via AWS secrets (see
 `docs/evals/ci-and-results.md`). Until they're provisioned the

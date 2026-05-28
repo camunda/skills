@@ -157,15 +157,16 @@ bridge for Inspect AI, so `sandbox_agent_bridge()` isn't a path yet.
 skills to the model, and cross-skill routing falls out of which
 skills the model loads (transcript signal).
 
-**Local credentials**: provide whatever Inspect's chosen model
-provider needs. The default `MODEL` is served via AWS, so export
-`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION`
-(or point `MODEL` at another provider and supply its key). Credentials
-are read from the environment — don't write them to disk.
+**Local credentials**: provide whatever the chosen `MODEL` needs. The
+local default `anthropic/claude-sonnet-4-6` reads `ANTHROPIC_API_KEY`;
+point `MODEL` at another provider (e.g. `bedrock/<profile>`) and supply
+that provider's creds instead. Read from the environment — don't write
+them to disk.
 
-**CI credentials**: the workflow authenticates via AWS secrets — see
-[`ci-and-results.md`](ci-and-results.md) for the exact secret/variable
-names.
+**CI credentials**: CI defaults to a Bedrock Claude profile and reads
+AWS secrets; the model is switchable via the `EVAL_MODEL` repo
+variable. See [`ci-and-results.md`](ci-and-results.md) for the exact
+secret/variable names.
 
 ## Cross-skill verification (the load-bearing piece)
 

@@ -12,11 +12,13 @@ SCENARIO ?=
 # Override on the command line for the baseline arm:
 #   make eval SCENARIO=rocket-launch ARM=without_skill
 ARM ?= with_skill
-# Model + agent loop, passed to every `inspect eval`. Override on the
-# command line, e.g. MODEL=anthropic/claude-sonnet-4-6 or AGENT=claude_code.
-# The default model is served via AWS — export AWS_ACCESS_KEY_ID,
-# AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION before running.
-MODEL ?= global.anthropic.claude-sonnet-4-6
+# Model + agent loop, passed to every `inspect eval`. The suite is
+# model-agnostic; MODEL is just the default and uses the Anthropic API
+# (export ANTHROPIC_API_KEY). Override per run for another provider,
+# e.g. MODEL=bedrock/<profile> (then supply that provider's creds), or
+# AGENT=claude_code. CI defaults to its own model via the EVAL_MODEL
+# repo variable — see .github/workflows/eval.yml.
+MODEL ?= anthropic/claude-sonnet-4-6
 AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
 # Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--epochs 3"
@@ -43,7 +45,7 @@ help:
 	@echo "  SKILL     Skill name (e.g. camunda-feel). Empty = all where applicable."
 	@echo "  SCENARIO  Eval scenario id (e.g. rocket-launch)."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
-	@echo "  MODEL     Inspect model id (default global.anthropic.claude-sonnet-4-6; needs AWS creds in env)."
+	@echo "  MODEL     Inspect model id (default anthropic/claude-sonnet-4-6; needs ANTHROPIC_API_KEY)."
 	@echo "  AGENT     Agent loop: react (default) or claude_code."
 	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval / eval-all targets)."
 	@echo "            Example: ARGS=\"--epochs 3\""

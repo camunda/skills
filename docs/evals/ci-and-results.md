@@ -109,39 +109,46 @@ evals/logs/
 
 ## Credentials & secrets
 
-The model is served via AWS (default
-`global.anthropic.claude-sonnet-4-6`, set as `MODEL` in the Makefile).
-`eval.yml` reads:
+The suite is model-agnostic — the model id is just configuration:
+
+- **Local** defaults to `anthropic/claude-sonnet-4-6` (the Makefile's
+  `MODEL`); export `ANTHROPIC_API_KEY`. Override per run with `MODEL=…`.
+- **CI** defaults to `bedrock/global.anthropic.claude-sonnet-4-6`.
+  Change it for CI in one place — the `EVAL_MODEL` repo variable — with
+  no code edit.
+
+For the CI default (Bedrock), `eval.yml` reads:
 
 | Kind | Name | Purpose |
 |---|---|---|
 | Secret | `AWS_ACCESS_KEY_ID` | model auth |
 | Secret | `AWS_SECRET_ACCESS_KEY` | model auth |
 | Variable | `AWS_DEFAULT_REGION` | region (defaults to `us-east-1`) |
+| Variable | `EVAL_MODEL` | optional — overrides the CI model id |
 
-Add the secrets under **Settings → Secrets and variables → Actions →
-Secrets**, the variable under the **Variables** tab. Because the
-workflow triggers on `pull_request` (not `pull_request_target`), these
-secrets are exposed only to runs on branches in this repo — never to
-fork PRs.
-
-To run a different model, override `MODEL` (e.g.
-`make eval … MODEL=anthropic/claude-sonnet-4-6`).
+Add secrets under **Settings → Secrets and variables → Actions →
+Secrets**, variables under the **Variables** tab. Because the workflow
+triggers on `pull_request` (not `pull_request_target`), these secrets
+are exposed only to runs on branches in this repo — never to fork PRs.
+If you point `EVAL_MODEL` at a non-AWS provider, swap the credential
+env in the workflow's run step for that provider's.
 
 ### Local smoke test
 
 Build the images once (`make eval-images`), then run the cheapest
-scenario with your AWS credentials in the environment:
+scenario. To smoke-test the CI provider (Bedrock) locally, pass the
+same model id with your AWS credentials in the environment:
 
 ```bash
 AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_DEFAULT_REGION=us-east-1 \
-  make eval SCENARIO=dev-routing
+  make eval SCENARIO=dev-routing MODEL=bedrock/global.anthropic.claude-sonnet-4-6
 ```
 
 `dev-routing` is the cheapest smoke — advisory, no cluster boot, one
-sample (the `eval` target already passes `--max-samples 1`, the default
-`MODEL`, and `-T agent=react`). A clean exit with a scored sample
-confirms the credentials and model resolve.
+sample (the `eval` target already passes `--max-samples 1` and
+`-T agent=react`). A clean exit with a scored sample confirms the
+credentials and model resolve. Drop the `MODEL=` override to use the
+local default (`anthropic/claude-sonnet-4-6` + `ANTHROPIC_API_KEY`).
 
 ## Cost controls
 

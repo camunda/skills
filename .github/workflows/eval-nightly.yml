@@ -52,11 +52,16 @@ jobs:
       - name: Build sandbox images
         run: make eval-images
       - name: Run scenario
+        # CI defaults to the Bedrock global Claude profile; override via
+        # the `EVAL_MODEL` repo variable with no code change. The creds
+        # below are that default provider's wiring.
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
-        run: make eval SCENARIO=${{ matrix.scenario }}
+        run: |
+          make eval SCENARIO=${{ matrix.scenario }} \
+            MODEL="${{ vars.EVAL_MODEL || 'bedrock/global.anthropic.claude-sonnet-4-6' }}"
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4

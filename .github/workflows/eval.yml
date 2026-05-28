@@ -7,8 +7,10 @@ name: Eval (PR)
 #
 # Maintainer-gated and opt-in: it runs only when a maintainer adds the
 # `evals:run` label (or triggers it via the Actions tab). The `authorize`
-# job verifies the triggering actor has write access. The model is served
-# via AWS — see docs/evals/ci-and-results.md for the required secrets/vars.
+# job verifies the triggering actor has write access. The model is
+# configurable via the EVAL_MODEL repo variable (CI defaults to a
+# Bedrock Claude profile) — see docs/evals/ci-and-results.md for
+# secrets/vars.
 on:
   workflow_dispatch:
   pull_request:
@@ -123,12 +125,19 @@ jobs:
       - name: Run scenario (with-skill arm)
         # Non-blocking: a crashed run leaves no log → surfaced as a gap
         # in the PR comment, never a red required check.
+        #
+        # CI defaults to the Bedrock global Claude profile; override
+        # without a code change by setting the `EVAL_MODEL` repo
+        # variable. The credential env below is the wiring for that
+        # default provider; swap it if you point EVAL_MODEL elsewhere.
         continue-on-error: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
-        run: make eval SCENARIO=${{ matrix.scenario }}
+        run: |
+          make eval SCENARIO=${{ matrix.scenario }} \
+            MODEL="${{ vars.EVAL_MODEL || 'bedrock/global.anthropic.claude-sonnet-4-6' }}"
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4
