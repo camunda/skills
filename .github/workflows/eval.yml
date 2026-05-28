@@ -174,9 +174,17 @@ jobs:
       - name: Render summary
         id: summary
         run: |
+          # Capture to a file first so a non-zero exit can't abort the
+          # group before the closing delimiter is written (the step runs
+          # under `bash -e`). printf guarantees a trailing newline so the
+          # delimiter always lands on its own line.
+          if ! uv run evals-summarize --log-dir evals/logs/ > eval-summary.md; then
+            printf '_Summary generation failed — see job logs._\n' > eval-summary.md
+          fi
           {
             echo 'body<<COMMENT_EOF'
-            uv run evals-summarize --log-dir evals/logs/
+            cat eval-summary.md
+            printf '\n'
             echo 'COMMENT_EOF'
           } >> "$GITHUB_OUTPUT"
       - name: Find existing eval comment

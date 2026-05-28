@@ -119,7 +119,11 @@ def main() -> None:
         help="(unused; baselines resolve via core.paths) kept for compatibility",
     )
     args = parser.parse_args()
-    sys.stdout.write(render(args.log_dir))
+    # Trailing newline matters: the CI step feeds this into a
+    # `name<<DELIM` heredoc in $GITHUB_OUTPUT. Without it the closing
+    # delimiter glues onto the last line and GitHub reports
+    # "Matching delimiter not found".
+    sys.stdout.write(render(args.log_dir) + "\n")
 
 
 if __name__ == "__main__":
