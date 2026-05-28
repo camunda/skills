@@ -39,6 +39,7 @@ help:
 	@echo "  eval-all        Run all eval scenarios."
 	@echo "  eval-baseline   Regenerate baseline.json for one scenario (SCENARIO=<id> required)."
 	@echo "  eval-extract    Extract agent artifacts from the most recent eval log to logs/artifacts/."
+	@echo "  eval-viewer     Open the Inspect trajectory viewer over evals/logs (web UI)."
 	@echo "  eval-images     Build the sandbox Docker images (base, with-c8ctl, verifier)."
 	@echo ""
 	@echo "Variables:"
@@ -113,6 +114,11 @@ eval-all:
 .PHONY: eval-extract
 eval-extract:
 	@uv run evals-extract-artifacts
+
+.PHONY: eval-viewer
+eval-viewer:
+	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
+	@uv run inspect view --log-dir $(EVALS_DIR)/logs
 
 .PHONY: eval-baseline
 eval-baseline:
