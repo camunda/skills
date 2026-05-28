@@ -61,10 +61,13 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
     """Score 1.0 when the agent loaded every named skill via the
     skill tool (or read its SKILL.md directly); 0.0 otherwise.
 
-    Matches both shapes:
-    - Inspect's ``skill`` tool was called with ``name="camunda-X"``
-    - The agent read ``skills/camunda-X/SKILL.md`` via any tool whose
-      arguments include that path
+    Matches all three shapes:
+    - Inspect react()'s ``skill`` tool: function="skill",
+      arguments={"command": "camunda-X", ...}
+    - inspect_swe.claude_code()'s skill mechanism: function="Skill"
+      (capital S — Claude Code names tools with leading uppercase),
+      arguments={"skill": "camunda-X", "args": "..."}
+    - Any tool whose arguments include the path ``skills/camunda-X/SKILL.md``
     """
     expected = [skill] if isinstance(skill, str) else list(skill)
 
@@ -72,8 +75,13 @@ def assert_skill_loaded(skill: str | Sequence[str]) -> Scorer:
         seen: set[str] = set()
         for function, arguments in _iter_tool_calls(state):
             args_text = _arguments_text(arguments)
+            fn_lower = (function or "").lower()
+            # Either agent loop calls "the skill tool" — react names
+            # it `skill` with `command=...`, claude_code names it
+            # `Skill` with `skill=...`. Accept both.
+            invoked = arguments.get("command") or arguments.get("skill")
             for skill_name in expected:
-                if function == "skill" and arguments.get("command") == skill_name:
+                if fn_lower == "skill" and invoked == skill_name:
                     seen.add(skill_name)
                 elif _skill_path(skill_name) in args_text:
                     seen.add(skill_name)
