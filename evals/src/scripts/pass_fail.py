@@ -58,14 +58,19 @@ from core.paths import EVALS_ROOT, SCENARIOS_DIR
 DEFAULT_LOG_DIR = EVALS_ROOT / "logs"
 
 
-def _resolve_log_path(arg: str | None) -> Path:
+def _resolve_log_path(arg: str | None) -> str:
     if arg:
-        return Path(arg).resolve()
+        return str(Path(arg).resolve())
     logs = list_eval_logs(str(DEFAULT_LOG_DIR))
     if not logs:
         sys.stderr.write(f"no .eval logs found under {DEFAULT_LOG_DIR}\n")
         sys.exit(2)
-    return Path(logs[0].name).resolve()
+    # EvalLogInfo.name is an fsspec URI (e.g. file:///…/foo.eval) that
+    # read_eval_log accepts directly — do NOT Path()-wrap it, or a
+    # "file:/…" name gets treated as relative and joined onto the cwd
+    # (CI hit `…/skills/skills/file:/…/foo.eval`). Log filenames are
+    # timestamp-prefixed, so the lexically-greatest name is the newest.
+    return max(logs, key=lambda li: li.name).name
 
 
 def _summarize_log(log, threshold: float) -> tuple[list[dict], bool]:
@@ -300,7 +305,7 @@ def main() -> None:
     args = parser.parse_args()
 
     log_path = _resolve_log_path(args.log_path)
-    log = read_eval_log(str(log_path))
+    log = read_eval_log(log_path)
     rows, samples_passed = _summarize_log(log, args.threshold)
 
     scenario = scenario_id(log)
