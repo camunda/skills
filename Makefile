@@ -73,8 +73,12 @@ eval-images:
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found on PATH."; exit 2; }
 	@cd $(EVALS_DIR)/sandboxes && \
 		docker build -t camunda-skills-evals-base:latest -f base.Dockerfile . && \
-		docker build -t camunda-skills-evals-with-c8ctl:latest -f with-c8ctl.Dockerfile . && \
-		docker build -t camunda-skills-evals-verifier:latest -f verifier.Dockerfile .
+		docker build -t camunda-skills-evals-with-c8ctl:latest -f with-c8ctl.Dockerfile .
+	@# Verifier image builds from the evals/ root so its Dockerfile can
+	@# bind-mount src/scenarios/*/cpt-verifier/pom.xml during build to
+	@# pre-warm Maven (see verifier.Dockerfile).
+	@cd $(EVALS_DIR) && \
+		docker build -t camunda-skills-evals-verifier:latest -f sandboxes/verifier.Dockerfile .
 
 .PHONY: eval
 eval:

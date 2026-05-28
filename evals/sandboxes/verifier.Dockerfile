@@ -1,26 +1,32 @@
-# Verifier sandbox image — runs untrusted agent-generated code (mvn test).
+# Verifier sandbox image — runs agent-produced artifacts under `mvn test`.
 #
-# Used by scenarios with `verifier: "cpt"` or scenarios where the
-# agent's own Java is the deliverable (CPT-authoring scenario). Network egress is
-# denied at the compose layer (see compose.yaml); this image only needs
-# the toolchain to run `mvn test` offline against a cached .m2.
+# Maven local cache is pre-warmed at image build time against every CPT
+# verifier pom in the repo. At runtime, `mvn test` resolves from the
+# baked /.m2 — no Maven Central hits, no transient TLS flakes, and CPT
+# can run in airgapped / network-denied sandboxes.
 #
-# v1 uses online Maven with a .m2 cache volume. FOLLOWUP-EVAL-07 bakes
-# the dep tree and switches to `mvn -o`.
+# Built with build context = evals/ (see the eval-images Make target),
+# so the RUN below can bind-mount src/scenarios in place without
+# COPYing it into a layer.
 
 FROM camunda-skills-evals-base:latest
 
 USER root
 
-# The verifier reads agent artifacts mounted read-only at
-# /agent-workspace and writes Surefire reports under /verifier-workspace.
-# The Maven local repo lives at /.m2 (volume) so deps don't redownload
-# per scenario. All three dirs need to be writable by the `agent`
-# user; the compose-level `working_dir: /verifier-workspace` would
-# otherwise create that path root-owned at startup.
+# /agent-workspace: agent BPMN mounted read-only at run time.
+# /verifier-workspace: Surefire reports.
+# /.m2: pre-warmed Maven local repo.
 RUN mkdir -p /agent-workspace /.m2 /verifier-workspace \
     && chown -R agent:agent /agent-workspace /.m2 /verifier-workspace
 
 USER agent
 
 ENV MAVEN_OPTS="-Dmaven.repo.local=/.m2"
+
+# Pre-warm: bind-mount the scenarios tree read-only during this RUN and
+# resolve every CPT verifier pom into /.m2. No files leak into the
+# image — only the populated Maven cache. New scenarios with their own
+# cpt-verifier/pom.xml are picked up automatically.
+RUN --mount=type=bind,source=src/scenarios,target=/scenarios,ro \
+    find /scenarios -path '*/cpt-verifier/pom.xml' -print0 | \
+        xargs -0 -I{} mvn -B -q -f {} dependency:go-offline
