@@ -111,14 +111,14 @@ jobs:
       - name: Build sandbox images
         run: make eval-images
       - name: Run scenario (with-skill arm)
-        # Non-blocking: a crashed run leaves no log → surfaced as a gap
-        # in the PR comment, never a red required check.
+        # Reds the check on a real breakage (sandbox/auth/exception);
+        # a scenario that merely scores low still exits 0 here — the
+        # quality gate is the separate evals-pass-fail step below.
         #
         # CI defaults to the Bedrock global Claude profile; override
         # without a code change by setting the `EVAL_MODEL` repo
         # variable. The credential env below is the wiring for that
         # default provider; swap it if you point EVAL_MODEL elsewhere.
-        continue-on-error: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -126,6 +126,12 @@ jobs:
         run: |
           make eval SCENARIO=${{ matrix.scenario }} \
             MODEL="${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}"
+      - name: Gate (evals-pass-fail)
+        # Reds the check when the with-skill run misses its per-sample
+        # threshold or drifts outside the baseline bands. Non-blocking
+        # until this workflow is added to required status checks — the
+        # red is a signal to look, the PR comment carries the detail.
+        run: uv run evals-pass-fail
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4

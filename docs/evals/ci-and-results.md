@@ -37,8 +37,22 @@ Two ways, depending on whether you want the PR comment:
   branch) — runs every scenario and uploads logs as artifacts, no
   comment. Equivalent to a manual nightly against that ref.
 
-The run is non-blocking — keep it out of required status checks; the
-PR comment (or the artifacts) is the signal.
+### What goes red
+
+The eval job has two failure modes, both surfaced as a red ❌ check:
+
+- **Run breakage** — the `Run scenario` step (`make eval`) exits
+  non-zero on a sandbox/auth/exception failure. A scenario that merely
+  scores low does *not* red here (Inspect exits 0 on a completed run).
+- **Quality gate** — the `Gate (evals-pass-fail)` step reds when the
+  with-skill run misses its per-sample threshold or drifts outside the
+  baseline token/duration bands.
+
+Both are **non-blocking as long as this workflow stays out of required
+status checks** — a red is a signal to look, not a merge block, and the
+PR comment carries the detail. (Token/duration bands can be sensitive to
+model nondeterminism; if the gate flakes, widen the bands in the
+baseline or relax it before promoting the workflow to a required check.)
 
 ## Scenario selection
 
