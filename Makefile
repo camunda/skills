@@ -95,15 +95,18 @@ eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
 	@if [ ! -d "$(EVALS_DIR)/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@uv run inspect eval $(EVALS_DIR)/scenarios/$(SCENARIO)/task.py --log-dir $(EVALS_DIR)/logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) \
+	@# cd into evals/ and pass a path relative to it — Inspect's task
+	@# loader rejects absolute glob patterns. uv walks up to the root
+	@# pyproject; logs/ resolves to evals/logs (where the scripts read).
+	@cd $(EVALS_DIR) && uv run inspect eval scenarios/$(SCENARIO)/task.py --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) \
 		&& uv run evals-extract-artifacts
 
 .PHONY: eval-all
 eval-all:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@for s in $(EVALS_DIR)/scenarios/*/task.py; do \
+	@cd $(EVALS_DIR) && for s in scenarios/*/task.py; do \
 		echo "=== $$s ==="; \
-		uv run inspect eval "$$s" --log-dir $(EVALS_DIR)/logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
+		uv run inspect eval "$$s" --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 
