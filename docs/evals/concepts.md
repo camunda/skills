@@ -159,9 +159,9 @@ skills the model loads (transcript signal).
 
 **Local credentials**: provide whatever the chosen `MODEL` needs. The
 local default `anthropic/claude-sonnet-4-6` reads `ANTHROPIC_API_KEY`;
-point `MODEL` at another provider (e.g. `bedrock/<profile>`) and supply
-that provider's creds instead. Read from the environment — don't write
-them to disk.
+point `MODEL` at another provider (e.g. `anthropic/bedrock/<profile>`)
+and supply that provider's creds instead. Read from the environment —
+don't write them to disk.
 
 **CI credentials**: CI defaults to a Bedrock Claude profile and reads
 AWS secrets; the model is switchable via the `EVAL_MODEL` repo

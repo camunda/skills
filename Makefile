@@ -15,7 +15,7 @@ ARM ?= with_skill
 # Model + agent loop, passed to every `inspect eval`. The suite is
 # model-agnostic; MODEL is just the default and uses the Anthropic API
 # (export ANTHROPIC_API_KEY). Override per run for another provider,
-# e.g. MODEL=bedrock/<profile> (then supply that provider's creds), or
+# e.g. MODEL=anthropic/bedrock/<profile> (then supply that provider's creds), or
 # AGENT=claude_code. CI defaults to its own model via the EVAL_MODEL
 # repo variable — see .github/workflows/eval.yml.
 MODEL ?= anthropic/claude-sonnet-4-6

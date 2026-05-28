@@ -61,7 +61,7 @@ jobs:
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
         run: |
           make eval SCENARIO=${{ matrix.scenario }} \
-            MODEL="${{ vars.EVAL_MODEL || 'bedrock/global.anthropic.claude-sonnet-4-6' }}"
+            MODEL="${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}"
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4

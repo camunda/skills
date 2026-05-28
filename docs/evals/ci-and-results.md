@@ -113,9 +113,9 @@ The suite is model-agnostic — the model id is just configuration:
 
 - **Local** defaults to `anthropic/claude-sonnet-4-6` (the Makefile's
   `MODEL`); export `ANTHROPIC_API_KEY`. Override per run with `MODEL=…`.
-- **CI** defaults to `bedrock/global.anthropic.claude-sonnet-4-6`.
-  Change it for CI in one place — the `EVAL_MODEL` repo variable — with
-  no code edit.
+- **CI** defaults to `anthropic/bedrock/global.anthropic.claude-sonnet-4-6`
+  (Inspect's `anthropic` provider with the `bedrock/` qualifier). Change
+  it for CI in one place — the `EVAL_MODEL` repo variable — no code edit.
 
 For the CI default (Bedrock), `eval.yml` reads:
 
@@ -141,7 +141,7 @@ same model id with your AWS credentials in the environment:
 
 ```bash
 AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_DEFAULT_REGION=us-east-1 \
-  make eval SCENARIO=dev-routing MODEL=bedrock/global.anthropic.claude-sonnet-4-6
+  make eval SCENARIO=dev-routing MODEL=anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 ```
 
 `dev-routing` is the cheapest smoke — advisory, no cluster boot, one
