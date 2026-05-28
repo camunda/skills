@@ -51,11 +51,15 @@ jobs:
       - run: uv sync --frozen
       - name: Build sandbox images
         run: make eval-images
-      - name: Run scenario
+      - name: Run scenario (Bedrock)
         env:
-          INSPECT_AGENT_BRIDGE: copilot-cli
-          GITHUB_TOKEN: ${{ github.token }}
-        run: make eval SCENARIO=${{ matrix.scenario }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+        run: |
+          make eval SCENARIO=${{ matrix.scenario }} \
+            ARGS="--model ${{ vars.EVAL_BEDROCK_MODEL }} -T agent=react"
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4

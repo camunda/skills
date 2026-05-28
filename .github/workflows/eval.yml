@@ -1,30 +1,58 @@
 name: Eval (PR)
 
-# PR eval suite. Scoped to scenarios whose metadata.skills
-# intersects the changed skills under skills/<X>/. Manual override
-# via the `evals:run` label.
+# Non-blocking PR eval signal. Runs the scenarios whose metadata.skills
+# intersect the changed skills, then posts the outcome + baseline deltas
+# as a PR comment. It does NOT gate merge (keep it out of required
+# status checks).
 #
-# See docs/evals/ci-and-results.md for the PR-comment shape.
-
-# Disabled while the harness is under review — the scenarios depend on
-# LLM-backed runs we haven't validated end-to-end yet. Manual-only
-# (workflow_dispatch) until the first scenario passes locally. Re-enable
-# pull_request once that's solid.
+# Maintainer-gated and opt-in: it runs only when a maintainer adds the
+# `evals:run` label (or triggers it via the Actions tab). The `authorize`
+# job verifies the triggering actor has write access. Model runs go to
+# AWS Bedrock — see docs/evals/ci-and-results.md for the secrets/vars.
 on:
   workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
-  pull-requests: write   # for PR comment
-  models: read           # auto-injected GITHUB_TOKEN can call GitHub Models
+  pull-requests: write
 
 concurrency:
   group: eval-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  authorize:
+    name: Authorize (maintainers only)
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('ok', 'true');  // dispatch already needs write access
+              return;
+            }
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            const ok = ['admin', 'maintain', 'write'].includes(data.permission);
+            core.info(`${context.actor} permission=${data.permission} → authorized=${ok}`);
+            core.setOutput('ok', ok ? 'true' : 'false');
+
   detect-scenarios:
     name: Detect affected scenarios
+    needs: authorize
+    if: >-
+      needs.authorize.outputs.ok == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.pull_request.labels.*.name, 'evals:run'))
     runs-on: ubuntu-latest
     outputs:
       scenarios: ${{ steps.filter.outputs.scenarios }}
@@ -92,11 +120,18 @@ jobs:
         run: uv sync --frozen
       - name: Build sandbox images
         run: make eval-images
-      - name: Run scenario
+      - name: Run scenario (with-skill arm, Bedrock)
+        # Non-blocking: a crashed run leaves no log → surfaced as a gap
+        # in the PR comment, never a red required check.
+        continue-on-error: true
         env:
-          INSPECT_AGENT_BRIDGE: copilot-cli
-          GITHUB_TOKEN: ${{ github.token }}
-        run: make eval SCENARIO=${{ matrix.scenario }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+        run: |
+          make eval SCENARIO=${{ matrix.scenario }} \
+            ARGS="--model ${{ vars.EVAL_BEDROCK_MODEL }} -T agent=react"
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -131,10 +166,19 @@ jobs:
             uv run evals-summarize --log-dir evals/logs/
             echo 'COMMENT_EOF'
           } >> "$GITHUB_OUTPUT"
+      - name: Find existing eval comment
+        if: github.event_name == 'pull_request'
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: <!-- camunda-skills-eval-comment -->
       - name: Post / update PR comment
+        if: github.event_name == 'pull_request'
         uses: peter-evans/create-or-update-comment@v4
         with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: ${{ steps.summary.outputs.body }}
           edit-mode: replace
-          comment-author: github-actions[bot]
