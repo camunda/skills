@@ -1,15 +1,16 @@
-"""Scenario metadata registry.
+"""Eval target registry — the single source of truth for CI.
 
-Imports every ``task.py`` under ``scenarios/`` and exposes a
-flat JSON view for CI consumers (path-filtered workflow, PR comment
-summarizer, nightly orchestration).
+Discovers three kinds of eval target and exposes them as a flat JSON list
+(consumed by the path-filtered PR workflow and the nightly run):
 
-Single source of truth: ``METADATA: ScenarioMetadata`` declared at
-the top of each scenario's ``task.py``. Schema lives in
-``core.metadata`` (Pydantic).
+- ``scenario`` — ``scenarios/<id>/task.py`` (cross-skill result evals)
+- ``result``   — ``skills/<skill>/task.py`` (per-skill result evals)
+- ``trigger``  — ``skills/<skill>/triggers.yaml`` (run via the shared
+  ``skills/_triggers.py@trigger -T skill=<skill>``)
 
-Exposed as a console script via ``[project.scripts]`` in
-``pyproject.toml``:
+Each target carries the Inspect invocation (path / task / args) and the
+skills it depends on, so the CI matrix can both run it and filter by
+changed skills.
 
     uv run evals-list [--json] [--changed-skills <skill> ...]
 """
@@ -21,94 +22,106 @@ import importlib.util
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from core.metadata import ScenarioMetadata
-from core.paths import SCENARIOS_DIR
+from core.paths import EVALS_ROOT, SCENARIOS_DIR, SKILL_EVALS_DIR
+from core.triggers import load_trigger_files
 
-SCENARIO_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
+NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
+TRIGGER_TASK_FILE = "skills/_triggers.py"
 
 
 @dataclass(frozen=True)
-class ScenarioEntry:
-    """A scenario discovered by ``load_all()``.
-
-    ``id`` is the on-disk directory name. The registry validates the
-    name shape (``^[a-z][a-z0-9-]*$``) at load time.
-    """
-
-    id: str
-    path: Path
-    metadata: ScenarioMetadata
+class EvalTarget:
+    id: str  # "scenario:<id>" | "result:<skill>" | "trigger:<skill>"
+    kind: str
+    skills: list[str]
+    path: str  # relative to EVALS_ROOT
+    task: str | None = None  # explicit @task name, if any
+    args: dict[str, str] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
             "id": self.id,
-            "path": str(self.path),
-            **self.metadata.model_dump(),
+            "kind": self.kind,
+            "skills": self.skills,
+            "path": self.path,
+            "task": self.task,
+            "args": self.args,
         }
 
 
-def _import_task_module(task_py: Path):
-    """Import a scenario's task.py as a fresh module.
-
-    Uses the file path as a synthetic module name so multiple
-    scenarios with the same function name don't clash in sys.modules.
-    """
-    module_name = f"_evals_scenario_{task_py.parent.name.replace('-', '_')}"
+def _import_module(task_py: Path):
+    module_name = f"_evals_{task_py.parent.name.replace('-', '_')}_{task_py.parent.parent.name}"
     spec = importlib.util.spec_from_file_location(module_name, task_py)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load {task_py}")
+        raise RuntimeError(f"cannot load {task_py}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
 
-def _extract_meta(scenario_dir: Path, module) -> ScenarioMetadata:
-    meta = getattr(module, "METADATA", None)
+def _metadata(task_py: Path) -> ScenarioMetadata:
+    meta = getattr(_import_module(task_py), "METADATA", None)
     if isinstance(meta, ScenarioMetadata):
         return meta
     if isinstance(meta, dict):
         return ScenarioMetadata.model_validate(meta)
-    raise RuntimeError(
-        f"{scenario_dir.name}: task.py must define METADATA: ScenarioMetadata"
-    )
+    raise RuntimeError(f"{task_py}: must define METADATA: ScenarioMetadata")
 
 
-def load_all() -> list[ScenarioEntry]:
-    scenarios: list[ScenarioEntry] = []
-    if not SCENARIOS_DIR.exists():
-        return scenarios
+def _rel(path: Path) -> str:
+    return path.relative_to(EVALS_ROOT).as_posix()
 
-    for scenario_dir in sorted(p for p in SCENARIOS_DIR.iterdir() if p.is_dir()):
-        task_py = scenario_dir / "task.py"
+
+def _task_py_targets(base: Path, kind: str, id_prefix: str) -> list[EvalTarget]:
+    targets: list[EvalTarget] = []
+    if not base.exists():
+        return targets
+    for d in sorted(p for p in base.iterdir() if p.is_dir()):
+        task_py = d / "task.py"
         if not task_py.exists():
             continue
-        if not SCENARIO_ID_PATTERN.match(scenario_dir.name):
-            raise RuntimeError(
-                f"{scenario_dir.name}: directory name must match "
-                f"{SCENARIO_ID_PATTERN.pattern}"
+        if not NAME_PATTERN.match(d.name):
+            raise RuntimeError(f"{d.name}: directory name must match {NAME_PATTERN.pattern}")
+        meta = _metadata(task_py)
+        targets.append(
+            EvalTarget(
+                id=f"{id_prefix}:{d.name}",
+                kind=kind,
+                skills=list(meta.skills),
+                path=_rel(task_py),
             )
-        module = _import_task_module(task_py)
-        meta = _extract_meta(scenario_dir, module)
-        scenarios.append(
-            ScenarioEntry(id=scenario_dir.name, path=scenario_dir, metadata=meta)
         )
-    return scenarios
+    return targets
+
+
+def discover() -> list[EvalTarget]:
+    targets = _task_py_targets(SCENARIOS_DIR, "scenario", "scenario")
+    targets += _task_py_targets(SKILL_EVALS_DIR, "result", "result")
+    for spec in load_trigger_files():
+        targets.append(
+            EvalTarget(
+                id=f"trigger:{spec.target_skill}",
+                kind="trigger",
+                skills=list(spec.skills),
+                path=TRIGGER_TASK_FILE,
+                task="trigger",
+                args={"skill": spec.target_skill},
+            )
+        )
+    return targets
 
 
 def filter_by_changed_skills(
-    scenarios: list[ScenarioEntry], changed_skills: list[str]
-) -> list[ScenarioEntry]:
-    """Return scenarios whose ``metadata.skills`` intersects ``changed_skills``.
-
-    Used by the path-filtered PR workflow to scope the run.
-    """
+    targets: list[EvalTarget], changed_skills: list[str]
+) -> list[EvalTarget]:
     changed = set(changed_skills)
-    return [s for s in scenarios if changed.intersection(s.metadata.skills)]
+    return [t for t in targets if changed.intersection(t.skills)]
 
 
 def main() -> None:
@@ -118,24 +131,23 @@ def main() -> None:
         "--changed-skills",
         nargs="*",
         default=None,
-        help="filter by skills (intersection); used by CI path-filter",
+        help="filter by skills (intersection); used by the CI path-filter",
     )
     args = parser.parse_args()
 
-    scenarios = load_all()
+    targets = discover()
     if args.changed_skills is not None:
-        scenarios = filter_by_changed_skills(scenarios, args.changed_skills)
+        targets = filter_by_changed_skills(targets, args.changed_skills)
 
     if args.json:
-        print(json.dumps([s.to_json() for s in scenarios], indent=2))
+        print(json.dumps([t.to_json() for t in targets], indent=2))
         return
-
-    if not scenarios:
-        print("(no scenarios)")
+    if not targets:
+        print("(no eval targets)")
         return
-    print(f"{'id':<25} skills")
-    for s in scenarios:
-        print(f"{s.id:<25} {','.join(s.metadata.skills)}")
+    print(f"{'id':<34} {'kind':<9} skills")
+    for t in targets:
+        print(f"{t.id:<34} {t.kind:<9} {','.join(t.skills)}")
 
 
 if __name__ == "__main__":
