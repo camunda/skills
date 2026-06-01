@@ -29,18 +29,37 @@ _INSTRUCTIONS_REACT = (
 
 _INSTRUCTIONS_CLAUDE_CODE = _WORKSPACE_RULES
 
+# Routing-only: the agent has no execution tools, so it loads whichever
+# skill(s) it would reach for and then answers in text. Used by trigger
+# evals — we only score which skills loaded, so cutting the execution
+# tools stops the agent from running the task and burning tokens.
+_INSTRUCTIONS_ROUTING = (
+    "Load any skill that would help you handle this request, then reply with a "
+    "brief written recommendation. You have no execution tools — do not try to "
+    "run commands or write files."
+)
+
 
 def build_agent(
     kind: AgentKind,
     skill_dirs: Sequence[Path],
     submit: bool = True,
+    skill_only: bool = False,
 ) -> Agent:
     """Construct the configured agent loop with the given skill set.
 
     ``submit=False`` removes react's submit() tool, so the agent halts
-    when it stops calling tools. No effect for claude_code.
+    when it stops calling tools. ``skill_only=True`` gives react only the
+    skill tool (no bash/editor/grep/web) — routing-only, for trigger evals.
+    No effect for claude_code (its native toolset can't be restricted).
     """
     if kind == "react":
+        if skill_only:
+            return react(
+                prompt=AgentPrompt(instructions=_INSTRUCTIONS_ROUTING),
+                submit=submit,
+                tools=[skill(list(skill_dirs))] if skill_dirs else [],
+            )
         instructions = (
             _INSTRUCTIONS_REACT if submit else _WORKSPACE_RULES
         )
@@ -57,6 +76,11 @@ def build_agent(
             ],
         )
     if kind == "claude_code":
+        if skill_only:
+            raise ValueError(
+                "skill_only is not supported for claude_code (its native tools "
+                "can't be restricted); use agent=react for trigger evals"
+            )
         return claude_code(
             system_prompt=_INSTRUCTIONS_CLAUDE_CODE,
             skills=[str(p) for p in skill_dirs] if skill_dirs else None,

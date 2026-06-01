@@ -87,7 +87,9 @@ def trigger(skill: str, agent: AgentKind = "react") -> Task:
     return Task(
         name=f"trigger_{skill.replace('-', '_')}",
         dataset=samples,
-        solver=with_artifact_collection(build_agent(agent, all_skill_dirs(), submit=False)),
+        solver=with_artifact_collection(
+            build_agent(agent, all_skill_dirs(), submit=False, skill_only=True)
+        ),
         scorer=[skill_loaded(), skill_not_loaded()],
         sandbox=("docker", str(_ADVISORY)),
         metadata=metadata.model_dump(),
