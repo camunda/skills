@@ -1,0 +1,13 @@
+target_skill: camunda-connectors
+samples:
+  - id: slack-notification
+    prompt: "Send a Slack notification to my team's channel when a process hits an error path. Slack is already connected — what's the simplest way?"
+    should_load: [camunda-connectors]
+    should_not_load: [camunda-connectors-development, camunda-job-workers]
+  - id: public-rest-get
+    prompt: "Call the public weather API (HTTPS GET, JSON, no auth) from a BPMN service task."
+    should_load: [camunda-connectors]
+  - id: neg-reusable-custom
+    prompt: "We need a reusable connector that signs JWTs with our internal HSM and is shared across 8 teams with one retry policy."
+    should_load: [camunda-connectors-development]
+    should_not_load: [camunda-connectors]

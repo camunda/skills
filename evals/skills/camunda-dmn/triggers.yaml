@@ -1,0 +1,12 @@
+target_skill: camunda-dmn
+samples:
+  - id: decision-table
+    prompt: "I need a decision table that picks a shipping method based on package weight and destination region."
+    should_load: [camunda-dmn]
+  - id: collect-hit-policy
+    prompt: "Set up a decision table that returns all matching discounts for an order, not just the first one."
+    should_load: [camunda-dmn]
+  - id: neg-llm-routing
+    prompt: "I want an LLM to decide whether to escalate a support ticket and dynamically pick which tool to call."
+    should_load: [camunda-ai-agents]
+    should_not_load: [camunda-dmn]

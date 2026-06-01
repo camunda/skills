@@ -1,0 +1,12 @@
+target_skill: camunda-ai-agents
+samples:
+  - id: ticket-triage-agent
+    prompt: "Build a BPMN node where an LLM decides whether to escalate or auto-respond to a support ticket, dynamically calling KB-search and customer-data tools and writing a reply."
+    should_load: [camunda-ai-agents]
+  - id: tool-loop-agent
+    prompt: "I want an AI agent in my process that picks which tool to call at runtime and loops until it's done."
+    should_load: [camunda-ai-agents]
+  - id: neg-deterministic-rules
+    prompt: "I have fixed business rules mapping package weight and region to a shipping method."
+    should_load: [camunda-dmn]
+    should_not_load: [camunda-ai-agents]

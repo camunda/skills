@@ -23,6 +23,7 @@ from typing import Literal
 EVALS_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS_DIR = EVALS_ROOT / "scenarios"
 SANDBOXES_DIR = EVALS_ROOT / "sandboxes"
+SKILL_EVALS_DIR = EVALS_ROOT / "skills"
 SKILLS_DIR = EVALS_ROOT.parent / "skills"
 
 Arm = Literal["with_skill", "without_skill"]

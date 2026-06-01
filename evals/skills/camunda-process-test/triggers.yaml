@@ -1,0 +1,12 @@
+target_skill: camunda-process-test
+samples:
+  - id: write-cpt
+    prompt: "Write a Camunda Process Test that drives my approval process to completion and asserts the output variables."
+    should_load: [camunda-process-test]
+  - id: full-coverage
+    prompt: "I need CPT tests that reach full BPMN coverage for my order-fulfilment flow, including the error paths."
+    should_load: [camunda-process-test]
+  - id: neg-deploy-once
+    prompt: "Just deploy my process to the cluster and run it once so I can watch it execute."
+    should_load: [camunda-process-mgmt]
+    should_not_load: [camunda-process-test]

@@ -1,0 +1,12 @@
+target_skill: camunda-docs
+samples:
+  - id: verify-rest-endpoint
+    prompt: "I want to confirm the exact REST API endpoint to create a process instance in Camunda 8.8 — check the official docs."
+    should_load: [camunda-docs]
+  - id: verify-version-support
+    prompt: "Confirm against the official Camunda documentation whether multi-instance markers are supported on call activities."
+    should_load: [camunda-docs]
+  - id: neg-build-form
+    prompt: "Build a user task form with a name field, an email field, and an approval checkbox."
+    should_load: [camunda-forms]
+    should_not_load: [camunda-docs]
