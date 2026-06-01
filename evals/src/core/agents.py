@@ -5,8 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Sequence
 
-from inspect_ai.agent import Agent, AgentPrompt, react
-from inspect_ai.tool import bash_session, grep, list_files, skill, text_editor, web_search
+from inspect_ai.agent import Agent, AgentContinue, AgentPrompt, react
+from inspect_ai.tool import (
+    bash_session,
+    grep,
+    list_files,
+    skill,
+    text_editor,
+    web_search,
+)
 from inspect_swe import claude_code
 
 AgentKind = Literal["react", "claude_code"]
@@ -22,21 +29,18 @@ Your working directory at session start is /workspace.
 """
 
 _INSTRUCTIONS_REACT = (
-    _WORKSPACE_RULES
-    + "\nWhen you've completed the task, call submit() with a brief "
+    _WORKSPACE_RULES + "\nWhen you've completed the task, call submit() with a brief "
     "summary of what you did.\n"
 )
 
 _INSTRUCTIONS_CLAUDE_CODE = _WORKSPACE_RULES
 
 # Routing-only: the agent has no execution tools, so it loads whichever
-# skill(s) it would reach for and then answers in text. Used by trigger
-# evals — we only score which skills loaded, so cutting the execution
-# tools stops the agent from running the task and burning tokens.
+# skill(s) it would reach for. Used by trigger evals — we score only which
+# skills loaded, never what's done with them.
 _INSTRUCTIONS_ROUTING = (
-    "Load any skill that would help you handle this request, then reply with a "
-    "brief written recommendation. You have no execution tools — do not try to "
-    "run commands or write files."
+    "Load the skill(s) that would help you handle this request. You have no "
+    "execution tools — do not try to run commands or write files."
 )
 
 
@@ -45,24 +49,26 @@ def build_agent(
     skill_dirs: Sequence[Path],
     submit: bool = True,
     skill_only: bool = False,
+    on_continue: AgentContinue | None = None,
 ) -> Agent:
     """Construct the configured agent loop with the given skill set.
 
     ``submit=False`` removes react's submit() tool, so the agent halts
     when it stops calling tools. ``skill_only=True`` gives react only the
     skill tool (no bash/editor/grep/web) — routing-only, for trigger evals.
-    No effect for claude_code (its native toolset can't be restricted).
+    ``on_continue`` is react's loop hook (trigger evals pass one that stops
+    once the target skill loads). No effect for claude_code (its native
+    toolset can't be restricted).
     """
     if kind == "react":
         if skill_only:
             return react(
                 prompt=AgentPrompt(instructions=_INSTRUCTIONS_ROUTING),
                 submit=submit,
+                on_continue=on_continue,
                 tools=[skill(list(skill_dirs))] if skill_dirs else [],
             )
-        instructions = (
-            _INSTRUCTIONS_REACT if submit else _WORKSPACE_RULES
-        )
+        instructions = _INSTRUCTIONS_REACT if submit else _WORKSPACE_RULES
         return react(
             prompt=AgentPrompt(instructions=instructions),
             submit=submit,

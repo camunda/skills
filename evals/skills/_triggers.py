@@ -17,9 +17,11 @@ hand-written ``task.py`` per directory.)
 from __future__ import annotations
 
 from inspect_ai import Task, task
+from inspect_ai.agent import AgentState
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
-from inspect_ai.solver import TaskState
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import store
 
 from core.agents import AgentKind, build_agent
 from core.metadata import BaselineConfig, ScenarioMetadata
@@ -29,6 +31,42 @@ from scorers.transcript import skills_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
 _ADVISORY = SANDBOXES_DIR / "compose-advisory.yaml"
+_TARGETS_KEY = "trigger_targets"
+
+
+def _loaded_skills(state: AgentState) -> set[str]:
+    loaded: set[str] = set()
+    for msg in state.messages:
+        for call in getattr(msg, "tool_calls", None) or []:
+            if (call.function or "").lower() == "skill":
+                name = (call.arguments or {}).get("command")
+                if name:
+                    loaded.add(name)
+    return loaded
+
+
+async def _stop_when_targets_loaded(state: AgentState) -> bool | str:
+    """Stop the routing loop once every ``should_load`` target is loaded, so
+    the target's SKILL.md is never read into a follow-up generation (that
+    re-read is the bulk of a trigger's cost). Until then keep going — some
+    prompts route through ``camunda-development`` before the leaf skill."""
+    targets = set(store().get(_TARGETS_KEY) or [])
+    if targets and targets <= _loaded_skills(state):
+        return False
+    return "If a skill applies to this request, load it; otherwise reply briefly."
+
+
+@solver
+def _routing(agent) -> Solver:
+    """Stash the sample's ``should_load`` so the stop hook can read it, then
+    run the agent (artifacts collected whatever happens)."""
+    inner = with_artifact_collection(agent)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.store.set(_TARGETS_KEY, state.metadata.get("should_load") or [])
+        return await inner(state, generate)
+
+    return solve
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -79,16 +117,27 @@ def trigger(skill: str, agent: AgentKind = "react") -> Task:
         Sample(
             id=s.id,
             input=s.prompt,
-            metadata={"should_load": s.should_load, "should_not_load": s.should_not_load},
+            metadata={
+                "should_load": s.should_load,
+                "should_not_load": s.should_not_load,
+            },
         )
         for s in spec.samples
     ]
-    metadata = ScenarioMetadata(skills=spec.skills, baseline=BaselineConfig(exclude="all"))
+    metadata = ScenarioMetadata(
+        skills=spec.skills, baseline=BaselineConfig(exclude="all")
+    )
     return Task(
         name=f"trigger_{skill.replace('-', '_')}",
         dataset=samples,
-        solver=with_artifact_collection(
-            build_agent(agent, all_skill_dirs(), submit=False, skill_only=True)
+        solver=_routing(
+            build_agent(
+                agent,
+                all_skill_dirs(),
+                submit=False,
+                skill_only=True,
+                on_continue=_stop_when_targets_loaded,
+            )
         ),
         scorer=[skill_loaded(), skill_not_loaded()],
         sandbox=("docker", str(_ADVISORY)),
