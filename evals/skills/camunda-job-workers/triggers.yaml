@@ -1,12 +1,10 @@
 target_skill: camunda-job-workers
-samples:
+positive:
   - id: typescript-worker
     prompt: "Our backend is all Node.js/TypeScript and we don't want a JVM. Implement a Camunda 8 job worker for a new pricing step in our Node service."
-    should_load: [camunda-job-workers]
   - id: spring-streaming-worker
     prompt: "Embed a streaming Zeebe job worker in our existing Spring Boot credit-decisioning service so jobs activate directly into it."
-    should_load: [camunda-job-workers]
-  - id: neg-ootb-rest
+negative:
+  - id: ootb-rest
     prompt: "Call a public REST API with no auth from a service task — nothing custom."
     should_load: [camunda-connectors]
-    should_not_load: [camunda-job-workers]

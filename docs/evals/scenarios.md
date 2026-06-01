@@ -23,16 +23,22 @@ Create or edit `evals/skills/<skill>/triggers.yaml`:
 target_skill: camunda-feel        # must equal the directory name
 also_run_when_changed:            # optional, CI-only: rerun this eval when
   - camunda-bpmn                  #   these other skills change. No runtime effect.
-samples:
+positive:                         # prompts that SHOULD load camunda-feel
   - id: gateway-condition
     prompt: "What FEEL expression takes a flow only when amount > 1000?"
-    should_load: [camunda-feel]            # MUST load — gates
-    should_not_load: [camunda-bpmn]        # MUST NOT load (coexistence) — gates
+    should_not_load: [camunda-bpmn]   # optional coexistence guard
+negative:                         # prompts that should route elsewhere
+  - id: author-process
+    prompt: "Design a BPMN process for invoice approval."
+    should_load: [camunda-bpmn]       # where it should route instead
 ```
 
-Mix positive samples (the skill should fire) with negative ones (a prompt that
-belongs to a sibling skill, asserting `should_not_load: [<this skill>]`). Each
-field is optional per sample; the matching scorer no-ops when it's absent.
+The target skill is implicit: every `positive` sample asserts
+`should_load: [<target>]` and every `negative` asserts
+`should_not_load: [<target>]` — so you never repeat it. Sample ids are
+auto-prefixed `pos-` / `neg-`. A positive may add a `should_not_load` guard
+against sibling skills; a negative names where it should route via
+`should_load`.
 
 Run it: `make eval-trigger SKILL=camunda-feel`.
 

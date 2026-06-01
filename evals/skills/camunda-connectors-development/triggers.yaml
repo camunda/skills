@@ -1,12 +1,10 @@
 target_skill: camunda-connectors-development
-samples:
+positive:
   - id: reusable-outbound
     prompt: "Build a reusable outbound connector for our internal customer-data API (custom HSM-signed JWT) that every team consumes by name."
-    should_load: [camunda-connectors-development]
   - id: custom-inbound-webhook
     prompt: "Our payments vendor pushes settlement events to a webhook with a custom HMAC scheme; each event should start a process. Build the connector."
-    should_load: [camunda-connectors-development]
-  - id: neg-ootb-slack
+negative:
+  - id: ootb-slack
     prompt: "Just send a Slack notification using our existing Slack setup when the process finishes."
     should_load: [camunda-connectors]
-    should_not_load: [camunda-connectors-development]

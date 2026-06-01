@@ -1,12 +1,10 @@
 target_skill: camunda-forms
-samples:
+positive:
   - id: build-form
     prompt: "Create a Camunda form for a user task with a name field, an email field, and an approval checkbox."
-    should_load: [camunda-forms]
   - id: form-validation
     prompt: "Add a required-field rule and a dropdown of priority levels to my user task form."
-    should_load: [camunda-forms]
-  - id: neg-feel-default
+negative:
+  - id: feel-default
     prompt: "Write the FEEL expression that computes the number of days between two date variables."
     should_load: [camunda-feel]
-    should_not_load: [camunda-forms]

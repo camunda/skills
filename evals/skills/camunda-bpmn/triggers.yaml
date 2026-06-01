@@ -1,16 +1,13 @@
 target_skill: camunda-bpmn
-samples:
+positive:
   - id: create-process
     prompt: "Create a BPMN process with a user task to review an invoice, followed by a service task that records the decision."
-    should_load: [camunda-bpmn]
   - id: boundary-timer
     prompt: "Add a 5-minute timer boundary event to the review task that cancels it and routes to an escalation path."
-    should_load: [camunda-bpmn]
-  - id: neg-install-cli
+negative:
+  - id: install-cli
     prompt: "Install the c8ctl CLI and point it at my running cluster."
     should_load: [camunda-c8ctl]
-    should_not_load: [camunda-bpmn]
-  - id: neg-write-cpt
+  - id: write-cpt
     prompt: "Write a Camunda Process Test that drives my process to completion and asserts the output variables."
     should_load: [camunda-process-test]
-    should_not_load: [camunda-bpmn]

@@ -1,12 +1,10 @@
 target_skill: camunda-process-mgmt
-samples:
+positive:
   - id: deploy-and-run
     prompt: "Deploy order.bpmn to my cluster and start an instance with these variables."
-    should_load: [camunda-process-mgmt]
   - id: resolve-incident
     prompt: "An instance is stuck on an incident — help me inspect it and resolve it on the cluster."
-    should_load: [camunda-process-mgmt]
-  - id: neg-author-bpmn
+negative:
+  - id: author-bpmn
     prompt: "Design a new BPMN process for invoice approval with a review user task and an approval gateway."
     should_load: [camunda-bpmn]
-    should_not_load: [camunda-process-mgmt]
