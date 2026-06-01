@@ -1,0 +1,10 @@
+{
+  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "happy": {
+        "tokens": 330798
+      }
+    }
+  }
+}

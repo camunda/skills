@@ -1,0 +1,16 @@
+{
+  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "bool-guard": {
+        "tokens": 23766
+      },
+      "list-sum": {
+        "tokens": 23850
+      },
+      "string-greeting": {
+        "tokens": 41801
+      }
+    }
+  }
+}
