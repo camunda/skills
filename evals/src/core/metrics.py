@@ -7,7 +7,11 @@ scenario-specific shaping lives here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from inspect_ai.scorer import value_to_float
+
+from core.paths import SCENARIOS_DIR, SKILL_EVALS_DIR
 
 # Inspect's own Value→float conversion: letter grades C/P/I map to
 # 1.0/0.5/0.0, numbers pass through, and bool / "true" / "false" /
@@ -93,14 +97,30 @@ def task_arg(log, name: str, default: str | None = None) -> str | None:
 
 
 def scenario_id(log) -> str | None:
-    """Resolve the scenario directory name from the log's task name.
+    """The eval's display name: the log's task name, kebab-cased.
 
-    Inspect task names are snake_case (``dev_routing``); scenario
-    directories are kebab-case (``dev-routing``). Map by replacing
-    underscores. Returns ``None`` if the log lacks a task name.
+    Inspect task names are snake_case (``camunda_feel``); the on-disk
+    directory is kebab-case (``camunda-feel``). Returns ``None`` if the
+    log lacks a task name.
     """
     eval_meta = getattr(log, "eval", None)
     if eval_meta is None:
         return None
     task = getattr(eval_meta, "task", None)
     return task.replace("_", "-") if task else None
+
+
+def baseline_dir(name: str | None) -> Path | None:
+    """The directory holding ``baseline.json`` for an eval ``name``.
+
+    Result evals live in ``skills/<skill>/``, scenarios in
+    ``scenarios/<id>/``. Triggers (shared ``_triggers.py``) match neither
+    and return ``None`` — they gate on outcome only, no token baseline.
+    """
+    if not name:
+        return None
+    for base in (SKILL_EVALS_DIR, SCENARIOS_DIR):
+        d = base / name
+        if (d / "task.py").exists():
+            return d
+    return None
