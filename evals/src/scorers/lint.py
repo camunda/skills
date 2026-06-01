@@ -1,13 +1,6 @@
 """Scorer: run ``c8ctl bpmn lint`` against the agent's BPMN artifacts.
 
-A deterministic, cheap check that complements the LLM rubric judge:
-catches well-formedness and Camunda-convention violations that the
-behavioural scorers (cpt, cluster) ignore. Runs in the agent's
-sandbox (the ``default`` service in compose) where c8ctl is on PATH.
-
-Scope: BPMN files one or two levels deep under ``workspace`` (default
-``/workspace``), excluding the ``skill()`` tool's plants under
-``workspace/skills/``.
+Excludes the ``skill()`` tool's plants under ``workspace/skills/``.
 """
 
 from __future__ import annotations
@@ -67,8 +60,6 @@ def bpmn_lint_clean(workspace: str = "/workspace") -> Scorer:
                 metadata={"files": per_file},
             )
 
-        # Surface the first failing file's output in the explanation —
-        # full per-file data lives in metadata.
         first_bad = violations[0]
         tail = per_file[first_bad]["stdout"] or per_file[first_bad]["stderr"]
         return Score(

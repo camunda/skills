@@ -1,21 +1,9 @@
 """Extract agent artifacts from an eval log to local disk.
 
-After ``make eval`` finishes, each sample's ``store.artifacts`` dict
-holds the text files the agent produced (BPMN, forms, DMN, etc.) —
-populated by the ``collect_artifacts()`` solver. This script writes
-those out as real files so you can open them in Camunda Modeler.
-
-Default behaviour: extract the most recent ``.eval`` log under
-``logs/`` to ``logs/artifacts/<eval-stem>/<sample-id>/<path>``.
-
-CLI:
-    evals-extract-artifacts              # latest log, default output dir
-    evals-extract-artifacts <log-file>   # specific log file
-    evals-extract-artifacts --output DIR # custom output root
-    evals-extract-artifacts --quiet      # suppress per-file output
-
-The chosen output dir is printed to stdout last for shell-piping
-(``open "$(evals-extract-artifacts --quiet)"``).
+Writes each sample's ``store.artifacts`` (populated by the
+``collect_artifacts()`` solver) to
+``logs/artifacts/<eval-stem>/<sample-id>/<path>``. Defaults to the
+most recent ``.eval`` log under ``logs/``.
 """
 
 from __future__ import annotations
@@ -33,15 +21,14 @@ from core.paths import EVALS_ROOT
 DEFAULT_LOG_DIR = EVALS_ROOT / "logs"
 DEFAULT_OUTPUT_ROOT = DEFAULT_LOG_DIR / "artifacts"
 
-# Filename-character allowlist for sample IDs; anything else becomes "_".
+# Allowed sample-id filename chars; anything else becomes "_".
 _SAFE_CHARS = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_."
 )
 
 
 def _log_info_path(info) -> Path:
-    """``list_eval_logs`` returns EvalLogInfo objects whose ``name`` is a
-    ``file://...`` URI. Extract a real local Path."""
+    """Extract a local Path from an EvalLogInfo's ``file://...`` ``name``."""
     name = getattr(info, "name", None) or str(info)
     parsed = urlparse(name)
     return Path(parsed.path if parsed.scheme == "file" else name)
@@ -52,7 +39,6 @@ def _latest_log(log_dir: Path) -> Path | None:
     if not candidates:
         return None
     paths = [_log_info_path(c) for c in candidates]
-    # list_eval_logs sorts newest first, but be defensive.
     return sorted(paths, key=lambda p: p.stat().st_mtime)[-1]
 
 
@@ -61,9 +47,7 @@ def _safe(name: str) -> str:
 
 
 def _relative_path(stored_path: str) -> Path:
-    """Map an in-sandbox path like ``/workspace/sub/foo.bpmn`` to a
-    repo-relative path ``sub/foo.bpmn``. Falls back to using the
-    basename if the path isn't under ``/workspace``."""
+    """Map ``/workspace/sub/foo.bpmn`` to ``sub/foo.bpmn`` (basename if not under /workspace)."""
     p = Path(stored_path)
     parts = p.parts
     if len(parts) > 2 and parts[1] == "workspace":
@@ -81,8 +65,6 @@ def extract(log_path: Path, output_root: Path, quiet: bool = False) -> Path:
     for sample in samples:
         sample_id = _safe(str(getattr(sample, "id", "unknown")))
         store = getattr(sample, "store", None) or {}
-        # Inspect's Store can be dict-like or attribute-style; both
-        # support .get / __getitem__.
         artifacts = (
             store.get("artifacts") if hasattr(store, "get") else None
         ) or {}
@@ -100,8 +82,6 @@ def extract(log_path: Path, output_root: Path, quiet: bool = False) -> Path:
             if isinstance(content, str):
                 out.write_text(content)
             else:
-                # Placeholder values like "<skipped: ...>" come through
-                # as strings; non-string is defensive.
                 out.write_text(str(content))
             total_files += 1
             if not quiet:
@@ -151,7 +131,7 @@ def main() -> None:
         sys.exit(f"log file not found: {log_path}")
 
     target = extract(log_path, args.output, quiet=args.quiet)
-    # Final line on stdout for piping (e.g. `open "$(evals-extract-artifacts -q)"`).
+    # Final stdout line for piping (e.g. `open "$(evals-extract-artifacts -q)"`).
     print(target)
 
 

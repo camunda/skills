@@ -1,14 +1,7 @@
-"""Scorers that hit the live Phase 1 cluster via c8ctl.
+"""Scorers that check the live cluster the agent worked against via c8ctl.
 
-Solvers + scorers share the same sandbox via Inspect AI's ``sandbox()``
-handle, so a scorer can poke the Camunda cluster the agent was working
-against. Use these when "did the artifact reach the cluster" is the
-question — distinct from CPT, which spins up a fresh embedded Zeebe in
-the verifier sandbox and tests *behaviour* against the agent's BPMN
-file.
-
-Compose freely with other scorers (transcript, CPT, judge) by passing
-a ``scorer=[...]`` list to ``Task(...)``.
+Answers "did the artifact reach the cluster", distinct from CPT which
+tests behaviour against the agent's BPMN in a fresh embedded Zeebe.
 """
 
 from __future__ import annotations
@@ -19,10 +12,8 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
-# Field names where a process definition's BPMN id might live.
-# c8ctl emits human-readable column headers for `list pd --json`:
-# `"Process ID"` (with a space). Older / underlying shapes used
-# `bpmnProcessId` etc.; keep them so this works across versions.
+# BPMN-id field names across c8ctl versions (column header "Process ID"
+# with a space; older underlying shapes use bpmnProcessId etc.).
 _PROCESS_ID_KEYS = (
     "Process ID",
     "bpmnProcessId",
@@ -43,19 +34,12 @@ def _extract_process_id(definition: dict) -> str | None:
 @scorer(metrics=[mean(), stderr()])
 def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
     """Score 1.0 when a process definition with ``bpmn_process_id`` is
-    deployed on the cluster the agent worked against; 0.0 otherwise.
-
-    Uses ``c8ctl list pd --json`` (``pd`` = process-definition). On a
-    miss, the explanation includes the raw response keys so the next
-    iteration can pinpoint a c8ctl output-shape change.
-    """
+    deployed on the cluster; 0.0 otherwise."""
 
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox()
-        # 60s is generous for a cluster query (single REST call), but
-        # Camunda 8.9's gRPC/REST surface can pause briefly under
-        # local-machine contention (other epochs / verifier JVM
-        # warming up). 30s was tripping false-timeouts on epochs runs.
+        # 60s: the cluster can pause under local contention (30s tripped
+        # false timeouts on epochs runs).
         result = await sb.exec(
             ["c8ctl", "list", "pd", "--json"],
             timeout=60,
@@ -66,10 +50,8 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
                 explanation=f"c8ctl list pd exit {result.returncode}: "
                 f"{result.stderr[-500:]}",
             )
-        # `c8ctl list pd --json` exits 0 with empty stdout when the
-        # cluster has no process definitions. Surface that distinctly
-        # from a malformed response so reviewers don't chase a c8ctl
-        # output-shape regression that isn't one.
+        # Exits 0 with empty stdout when the cluster has no process
+        # definitions; surface that distinctly from a malformed response.
         if not result.stdout.strip():
             return Score(
                 value=0.0,
@@ -84,9 +66,8 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
                 metadata={"raw_stdout": result.stdout[:1000]},
             )
 
-        # c8ctl JSON output has shifted shapes over versions: a bare
-        # list, {items: [...]}, or {processDefinitions: [...]}. Try
-        # them in order.
+        # c8ctl JSON shape has shifted over versions: bare list,
+        # {items: [...]}, or {processDefinitions: [...]}.
         if isinstance(payload, list):
             definitions = payload
         elif isinstance(payload, dict):
@@ -106,8 +87,7 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
                 metadata={"deployed_ids": ids},
             )
 
-        # Diagnostic: include the first item's keys so we can spot a
-        # field-name change on the next run.
+        # Include the first item's keys to spot a field-name change.
         sample_keys = sorted(definitions[0].keys()) if definitions else []
         return Score(
             value=0.0,
