@@ -1,14 +1,11 @@
 name: Eval (nightly)
 
-# Nightly run of every scenario — the broad regression sweep that
-# complements eval.yml's affected-subset PR signal. Runs against main
-# and uploads the .eval logs as artifacts; it never blocks merges.
-# See docs/evals/ci-and-results.md.
-
-# Disabled while the harness is under review (see eval.yml for context).
-# Manual-only until the first scenario passes locally; cron re-enabled
-# in a follow-up. Can also be dispatched against a branch to run the
-# full suite there (e.g. an integration check of a PR branch).
+# Broad regression sweep over every target (triggers + result + scenario evals),
+# running both the with-skill and without-skill arms so the with/without delta
+# is captured. Complements eval.yml's affected-subset PR signal. Uploads .eval
+# logs; never blocks merges. See docs/evals/ci-and-results.md.
+#
+# Manual-only until the suite is stable; cron re-enabled in a follow-up.
 on:
   workflow_dispatch:
 
@@ -20,30 +17,48 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  list-scenarios:
-    name: Enumerate scenarios
+  detect:
+    name: Enumerate targets
     runs-on: ubuntu-latest
     outputs:
-      scenarios: ${{ steps.list.outputs.scenarios }}
+      specs: ${{ steps.matrix.outputs.specs }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
           python-version-file: .python-version
       - run: uv sync --frozen
-      - id: list
+      - id: matrix
         run: |
-          ids=$(uv run evals-list --json | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
-          echo "scenarios=$ids" >> "$GITHUB_OUTPUT"
+          uv run evals-list --json > targets.json
+          # Every target; result/scenario evals run both arms (compare).
+          python3 - <<'PY' > specs.json
+          import json
+          specs = []
+          for t in json.load(open("targets.json")):
+              spec = t["path"] + (f"@{t['task']}" if t["task"] else "")
+              base = " ".join(f"-T {k}={v}" for k, v in (t["args"] or {}).items())
+              slug = t["id"].replace(":", "-")
+              if t["kind"] == "trigger":
+                  specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base, "arm": ""})
+              else:
+                  for arm in ["with_skill", "without_skill"]:
+                      specs.append({
+                          "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]",
+                          "spec": spec, "targs": f"{base} -T arm={arm}".strip(), "arm": arm,
+                      })
+          print(json.dumps(specs))
+          PY
+          echo "specs=$(cat specs.json)" >> "$GITHUB_OUTPUT"
 
-  run-scenarios:
-    name: Eval ${{ matrix.scenario }}
-    needs: list-scenarios
+  run:
+    name: ${{ matrix.label }}
+    needs: detect
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        scenario: ${{ fromJson(needs.list-scenarios.outputs.scenarios) }}
+        include: ${{ fromJson(needs.detect.outputs.specs) }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -52,21 +67,24 @@ jobs:
       - run: uv sync --frozen
       - name: Build sandbox images
         run: make eval-images
-      - name: Run scenario
-        # CI defaults to the Bedrock global Claude profile; override via
-        # the `EVAL_MODEL` repo variable with no code change. The creds
-        # below are that default provider's wiring.
+      - name: Run eval
+        working-directory: evals
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
         run: |
-          make eval SCENARIO=${{ matrix.scenario }} \
-            MODEL="${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}"
+          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --max-samples 1 \
+            --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
+            -T agent=react ${{ matrix.targs }}
+      - name: Gate (evals-pass-fail)
+        if: matrix.arm != 'without_skill'
+        working-directory: evals
+        run: uv run evals-pass-fail
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-logs-${{ matrix.scenario }}-${{ github.run_attempt }}
+          name: eval-logs-${{ matrix.slug }}-${{ github.run_attempt }}
           path: evals/logs/
           retention-days: 14

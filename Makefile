@@ -35,16 +35,20 @@ help:
 	@echo "  help            Show this help."
 	@echo "  try             Launch an interactive Claude Code session with this repo's skills loaded (no install)."
 	@echo "  lint            Run waza check across all skills (or one if SKILL=<name> is set)."
-	@echo "  eval            Run one eval scenario (SCENARIO=<id> required, e.g. rocket-launch)."
-	@echo "  eval-all        Run all eval scenarios."
-	@echo "  eval-baseline   Regenerate baseline.json for one scenario (SCENARIO=<id> required)."
+	@echo "  eval-trigger    Run one skill's trigger eval (SKILL=<name> required)."
+	@echo "  eval-triggers   Run every skill's trigger eval."
+	@echo "  eval-result     Run one skill's result eval (SKILL=<name> required, skills/<name>/task.py)."
+	@echo "  eval            Run one scenario eval (SCENARIO=<id> required, e.g. rocket-launch)."
+	@echo "  eval-all        Run all scenario + per-skill result evals."
+	@echo "  eval-baseline   Regenerate baseline.json for one target (TARGET=<skill-or-scenario> required)."
 	@echo "  eval-extract    Extract agent artifacts from the most recent eval log to logs/artifacts/."
 	@echo "  eval-viewer     Open the Inspect trajectory viewer over evals/logs (web UI)."
 	@echo "  eval-images     Build the sandbox Docker images (base, with-c8ctl, verifier)."
 	@echo ""
 	@echo "Variables:"
-	@echo "  SKILL     Skill name (e.g. camunda-feel). Empty = all where applicable."
+	@echo "  SKILL     Skill name (e.g. camunda-feel). For eval-trigger / eval-result."
 	@echo "  SCENARIO  Eval scenario id (e.g. rocket-launch)."
+	@echo "  TARGET    Skill or scenario dir name, for eval-baseline."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
 	@echo "  MODEL     Inspect model id (default anthropic/claude-sonnet-4-6; needs ANTHROPIC_API_KEY)."
 	@echo "  AGENT     Agent loop: react (default) or claude_code."
@@ -91,6 +95,29 @@ eval-images:
 	@cd $(EVALS_DIR) && \
 		docker build -t camunda-skills-evals-verifier:latest -f sandboxes/verifier.Dockerfile .
 
+.PHONY: eval-trigger
+eval-trigger:
+	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
+	@if [ -z "$(SKILL)" ]; then echo "SKILL=<name> required (e.g. SKILL=camunda-feel)"; exit 2; fi
+	@cd $(EVALS_DIR) && uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples 1 --model $(MODEL) -T skill=$(SKILL) -T agent=$(AGENT) $(ARGS)
+
+.PHONY: eval-triggers
+eval-triggers:
+	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
+	@cd $(EVALS_DIR) && for d in skills/*/triggers.yaml; do \
+		s=$$(basename $$(dirname $$d)); \
+		echo "=== trigger: $$s ==="; \
+		uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples 1 --model $(MODEL) -T skill=$$s -T agent=$(AGENT) $(ARGS) || exit $$?; \
+	done
+
+.PHONY: eval-result
+eval-result:
+	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
+	@if [ -z "$(SKILL)" ]; then echo "SKILL=<name> required (e.g. SKILL=camunda-feel)"; exit 2; fi
+	@if [ ! -f "$(EVALS_DIR)/skills/$(SKILL)/task.py" ]; then echo "no result eval: skills/$(SKILL)/task.py"; exit 2; fi
+	@cd $(EVALS_DIR) && uv run inspect eval skills/$(SKILL)/task.py --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) \
+		&& uv run evals-extract-artifacts
+
 .PHONY: eval
 eval:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
@@ -105,7 +132,7 @@ eval:
 .PHONY: eval-all
 eval-all:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@cd $(EVALS_DIR) && for s in scenarios/*/task.py; do \
+	@cd $(EVALS_DIR) && for s in scenarios/*/task.py skills/*/task.py; do \
 		echo "=== $$s ==="; \
 		uv run inspect eval "$$s" --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
@@ -122,5 +149,5 @@ eval-viewer:
 
 .PHONY: eval-baseline
 eval-baseline:
-	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required"; exit 2; fi
-	@uv run evals-regen-baseline --scenario $(SCENARIO)
+	@if [ -z "$(TARGET)" ]; then echo "TARGET=<skill-or-scenario> required (e.g. TARGET=camunda-feel)"; exit 2; fi
+	@uv run evals-regen-baseline --target $(TARGET)

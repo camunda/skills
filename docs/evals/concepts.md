@@ -1,8 +1,8 @@
 # Eval suite — concepts
 
-The "why" behind `evals/`. For the "how" (adding a scenario, debugging a
+The "why" behind `evals/`. For the "how" (adding an eval, debugging a
 failure, regenerating a baseline), see [`scenarios.md`](scenarios.md).
-For the original design and the roadmap of follow-up scenarios, see
+For the original design and the roadmap of follow-ups, see
 [`../plans/01-eval-suite.md`](../plans/01-eval-suite.md) (its status box
 notes where the landed suite diverged).
 
@@ -20,20 +20,36 @@ Two distinct signals, two distinct gates:
 | Question | Gate |
 |---|---|
 | Is the skill text well-formed? | `waza check` (lint) |
-| Does the agent produce a deployable, working artifact? | eval suite |
-| Do cross-references route the agent through the right chain of skills? | eval suite (transcript scorer) |
+| Does the right skill load for a prompt (and the wrong one stay out)? | trigger eval |
+| Does the agent produce a deployable, working artifact? | result eval |
+| Do cross-references route the agent through the right skills? | result eval (diagnostic skill-load scorer) |
 
-Lint runs on every PR touching `skills/` today. The eval workflow is
-currently `workflow_dispatch`-only — it turns on as a PR gate once
-credentials are provisioned and more than one scenario has been
-validated end-to-end. Plan-era target: lint < 1 min / $0; evals
-filtered to scenarios touching the changed skills, ~5–10 min, ~$1–4
-per PR.
+Lint runs on every PR touching `skills/`. Evals are opt-in per PR via
+label (see [`ci-and-results.md`](ci-and-results.md)) and report as a
+non-blocking check.
+
+## Two kinds of eval
+
+| Kind | Question | Authored as | Where |
+|---|---|---|---|
+| **Trigger** | Does the right skill load? | YAML data | `evals/skills/<skill>/triggers.yaml` |
+| **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
+
+Triggers are uniform, so they're pure data behind one generic
+parametrized task (`skills/_triggers.py@trigger -T skill=<skill>`),
+scored by `skill_loaded` / `skill_not_loaded` (both gating). A trigger
+runs a single arm — you can't load an absent skill — so it has no
+baseline.
+
+Result evals are bespoke — each is an Inspect `task.py` that picks its
+scorers (judge and/or deterministic) and supports `arm=with_skill |
+without_skill`. "Scenario" now means specifically a cross-skill result
+eval. Both kinds always run in a Docker sandbox.
 
 ## Two-phase sandbox model
 
-Every scenario runs in two Docker phases. Phase 1 is what the **agent**
-does; Phase 2 is what **we** check.
+Every result eval runs in two Docker phases. Phase 1 is what the
+**agent** does; Phase 2 is what **we** check.
 
 ```
 ┌────────────────────── Phase 1: Eval ───────────────────────┐
@@ -53,7 +69,7 @@ does; Phase 2 is what **we** check.
                           │
                           ▼ /workspace mounted as /agent-workspace:ro
 ┌────────────────────── Phase 2: Verify ─────────────────────┐
-│  Container: per-scenario choice (see Verifier menu below)  │
+│  Container: per-eval choice (see Scorer menu below)        │
 │  Network: egress denied; time/memory caps                  │
 │                                                            │
 │  CPT runs in remote-runtime (Spring CPT) against the same  │
@@ -71,79 +87,52 @@ CPT-authoring scenario where the agent writes Java we then compile
 and resource caps, separate from the cluster the agent is interacting
 with.
 
-## Verifier menu
+## Scorer menu
 
-Verifier choice is per-scenario, declared in the task's metadata.
-CPT is the workhorse for behavioural checks on a deployed BPMN, but
-any scenario can compose a different verifier — or stack several.
+A result eval's scorers are declared in its `task.py`. The judge
+catches free-form correctness; deterministic scorers catch structural
+and behavioural failure modes more cheaply. Compose any combination —
+or stack several.
 
 Built today (`evals/src/scorers/`):
 
-| Verifier | Used for | Scenario |
+| Scorer | Used for | Gating |
 |---|---|---|
-| **CPT remote-runtime** (`cpt_scorer` — Spring CPT, `mvn test` over an `*IT.java`; verifier shares orchestration's network namespace) | Behaviour of a deployed process | rocket-launch |
-| **c8ctl + exit-code / JSON assertion** | Tool-shaped skills (does the artifact reach the cluster) | c8ctl-bootstrap |
-| **`bpmn_lint_clean`** (`c8ctl bpmn lint` in the agent sandbox) | Cheap deterministic structural check on every `.bpmn` artifact | rocket-launch (any BPMN scenario) |
-| **Inspect transcript scorer** (`assert_tool_called`, `assert_skill_loaded`) | "Did the agent route / fetch / cite as the skill instructs" | dev-routing |
-| **Judge LLM** (Inspect's built-in `model_graded_qa`, per-sample rubric in `Sample.target`) | Free-form answer correctness | dev-routing |
+| **Judge LLM** (Inspect's `model_graded_qa`, per-sample rubric in `Sample.target`) | Free-form answer correctness | yes |
+| **`feel_evaluates_to`** (runs the agent's FEEL on the cluster) | FEEL expression result | yes |
+| **`bpmn_lint_clean`** (`c8ctl bpmn lint`) | Structural check on every `.bpmn` artifact | yes |
+| **`process_deployed_on_cluster`** (c8ctl assertion) | Artifact reached the cluster | yes |
+| **`cpt_scorer`** (Spring CPT, `mvn test` over an `*IT.java`; shares orchestration's network namespace) | Behaviour of a deployed process | yes |
+| **`assert_skill_loaded(..., gating=False)`** | Diagnostic: did the agent load the skill | no |
 
-Pick the **cheapest verifier that catches the failure mode you care
-about**. Deterministic (CPT, lint, exit-code, transcript) before
+Pick the **cheapest scorer that catches the failure mode you care
+about**. Deterministic (FEEL, lint, deploy, CPT) before
 non-deterministic (judge LLM). A composite is fine — rocket-launch
-already stacks cluster + lint + CPT, each catching a different failure
-mode at a different cost.
+stacks deploy + lint + CPT, each catching a different failure mode.
+`assert_skill_loaded(gating=False)` is shown, not gated; the
+with/without-skill delta on the gating scorers is the routing signal.
 
-Likely additions as new scenario types land: a form-schema lint for
+Likely additions as new eval types land: a form-schema lint for
 `.form` artifacts, and an HTTP-journal check (e.g. WireMock) for
-connector scenarios. Not built yet — add them when a scenario needs
-them.
+connector evals. Not built yet — add them when an eval needs them.
 
-## `with-skill` / `without-skill` semantics
+## `with_skill` / `without_skill` semantics
 
-Per-scenario decision, declared in the task's `metadata.baseline`.
-Three modes:
+A result eval supports two arms via the `arm` task parameter. The
+default `with_skill` arm exposes every skill. The `without_skill` arm
+**disables** the load-bearing skill(s) named in
+`metadata.baseline.exclude` — the agent cannot read or invoke them.
+All *other* skills (transitive cross-refs from skills not in `exclude`)
+remain available. The question is "what does *this* skill add", not
+"what does the model do raw".
 
-```python
-# Mode A: exclude the load-bearing skill only (single-skill scenarios)
-metadata = {..., "baseline": {"mode": "without-skill", "exclude": ["camunda-bpmn"]}}
+A multi-skill scenario like AI-agent triage (`ai-agents`, `bpmn`,
+`connectors`, `feel`) excluding only `ai-agents` measures the AI-Agent
+skill's specific contribution. The `without_skill` arm is a comparison,
+not a quality bar — its gate step is skipped in CI.
 
-# Mode B: exclude the whole scenario's skill set ("does any of them help?")
-metadata = {..., "baseline": {"mode": "without-skill", "exclude": "all"}}
-
-# Mode C: no comparison run — tool-shaped scenarios where there's nothing
-# to compare against (e.g., a transcript scorer asserting a specific MCP
-# call fires)
-metadata = {..., "baseline": {"mode": "none"}}
-```
-
-How `exclude` is enforced: the eval suite **disables** the named
-skill(s) for the without-skill arm — the agent cannot read or invoke
-them. All *other* skills the agent might pull in (transitive
-cross-refs from skills not in `exclude`) remain available. The
-question is "what does *this* skill add", not "what does the model
-do raw".
-
-A multi-skill scenario like AI-agent triage (`ai-agents`, `bpmn`, `connectors`,
-`feel`) excluding only `ai-agents` measures the AI-Agent skill's
-specific contribution; `exclude: "all"` measures the suite's
-collective contribution.
-
-## Tier model
-
-| Trigger | Scope | Cost ceiling | Wall time |
-|---|---|---|---|
-| Every PR (existing) | `waza check` | $0 | < 1 min |
-| PR with path filter on `skills/<x>/` or `evals:run` label | Scenarios where `metadata.skills` intersects the changed skill(s); with + without arms | ~$1–4 | ~5–10 min |
-| Nightly on `main` | All scenarios (with + without arms) | ~$5–15 | ~15–20 min |
-| Manual `make eval SCENARIO=<id>` | Anything | iteration-cost only | — |
-
-PR filter via `dorny/paths-filter`: change to `skills/camunda-bpmn/`
-triggers only scenarios where `metadata.skills` includes
-`camunda-bpmn`.
-
-Weekly cross-harness matrix and a few other follow-ups (assertion
-hygiene cron, A/B comparison, etc.) are deferred — see the plan's
-**Open follow-ups** section.
+Triggers run a single arm only: you can't measure "does the right skill
+load" with the skill removed.
 
 ## Harness model
 
@@ -188,17 +177,30 @@ cross-references in the skill bodies route the agent through the
 suite. The prior single-skill eval attempt couldn't express this;
 it's the new signal evals exist to catch.
 
-## Cost & quota model
+## Baseline & cost gate
 
-- **PR budget** (when CI is wired up): ~$1–4 per PR, scenarios filtered by path
-- **Nightly budget**: ~$5–15
-- **Local iteration**: whatever provider the engineer points the
-  `MODEL` variable at; credentials come from the environment.
-- **CI credentials**: provisioned as AWS secrets (see
-  [`ci-and-results.md`](ci-and-results.md)).
+`baseline.json` lives in each eval's directory and records each
+sample's observed token count per arm:
 
-If a scenario systematically blows its cost band, that's a regression
-signal — `summarize.py` surfaces it in the PR comment once CI is on.
+```json
+{
+  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "with_skill": { "samples": { "gateway-condition": { "tokens": 4200 } } }
+}
+```
+
+No bands, no duration, no stored pass-rate. The gate
+(`evals-pass-fail`) runs two per-sample stages:
+
+1. **Outcome** — every gating scorer ≥ threshold (default 1.0).
+   Diagnostic scorers are shown, not gated.
+2. **Cost** — only if a baseline entry exists *and* outcome passed:
+   observed tokens ≤ `baseline.<arm>.samples.<id>.tokens × 1.5` (an
+   upper ceiling only). A sample with no baseline entry is reported,
+   not gated — so adding a sample never breaks existing ones.
+
+Triggers have no baseline (outcome only). `summarize.py` surfaces a
+token-budget excursion in the PR comment.
 
 ## What the eval suite is **not**
 
@@ -207,6 +209,6 @@ signal — `summarize.py` surfaces it in the PR comment once CI is on.
   by hand; automating that is a possible future follow-up.
 - Not a tool for blind A/B between skill versions (a possible
   follow-up, not built).
-- Not a place to land speculative scenarios. Each scenario should
-  catch a failure mode someone has actually observed or has a clear
-  hypothesis about.
+- Not a place to land speculative evals. Each eval should catch a
+  failure mode someone has actually observed or has a clear hypothesis
+  about.

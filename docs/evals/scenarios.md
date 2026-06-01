@@ -1,220 +1,136 @@
-# Eval suite — scenarios (how-to)
+# Eval suite — authoring & running
 
-How to read, maintain, debug, and add scenarios. For the "why" (sandbox
-model, baseline semantics, harness choice), see
-[`concepts.md`](concepts.md).
+How to add and run evals. For the "why" (sandbox model, baseline semantics),
+see [`concepts.md`](concepts.md).
 
-## Anatomy of a scenario
+## Two kinds of eval
 
-A scenario lives under `evals/scenarios/<slug>/`:
+| Kind | Question | Authored as | Where |
+|---|---|---|---|
+| **Trigger** | Does the right skill load (and the wrong one stay out)? | YAML data | `evals/skills/<skill>/triggers.yaml` |
+| **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
 
+Triggers are uniform, so they're pure data behind one generic task. Result
+evals are bespoke — they pick scorers (LLM judge and/or programmatic) and may
+use a live cluster — so each is a small Inspect `task.py`. Both always run in a
+Docker sandbox.
+
+## Adding a trigger eval (YAML, no Python)
+
+Create or edit `evals/skills/<skill>/triggers.yaml`:
+
+```yaml
+target_skill: camunda-feel        # must equal the directory name
+also_run_when_changed:            # optional, CI-only: rerun this eval when
+  - camunda-bpmn                  #   these other skills change. No runtime effect.
+samples:
+  - id: gateway-condition
+    prompt: "What FEEL expression takes a flow only when amount > 1000?"
+    should_load: [camunda-feel]            # MUST load — gates
+    should_not_load: [camunda-bpmn]        # MUST NOT load (coexistence) — gates
 ```
-evals/scenarios/rocket-launch/
-├── task.py                # @task + METADATA — the canonical contract
-├── baseline.json          # expected pass-rate, per-sample token + duration bands
-└── cpt-verifier/          # used when the scorer list includes cpt_scorer(...)
-    ├── pom.xml            # Spring CPT (camunda-process-test-spring) + remote-runtime
-    └── src/test/
-        ├── java/.../RocketLaunchIT.java
-        └── resources/application.yml   # camunda.process-test.runtime-mode: remote
-```
 
-`cpt-verifier/` is present only for scenarios whose scorer list
-includes `cpt_scorer(...)`. A scenario that hands the agent a starting
-file (e.g. "fix this broken BPMN") can keep that file alongside
-`task.py` and reference it from the prompt.
+Mix positive samples (the skill should fire) with negative ones (a prompt that
+belongs to a sibling skill, asserting `should_not_load: [<this skill>]`). Each
+field is optional per sample; the matching scorer no-ops when it's absent.
 
-## The `task.py` metadata contract
+Run it: `make eval-trigger SKILL=camunda-feel`.
 
-A Pydantic-typed `METADATA: ScenarioMetadata` at the top of each
-`task.py` is the scenario contract. No YAML sidecar.
-`core.registry` imports each `task.py`, reads `METADATA`, and the
-model enforces the schema (`extra="forbid"` catches typos at load
-time).
+## Adding a result eval (Python)
 
-Fields (see `evals/src/core/metadata.py` for the model):
+A result eval is an Inspect `task.py` with a module-level `METADATA` and an
+`@task`. Per-skill evals live in `skills/<skill>/`, cross-skill ones in
+`scenarios/<id>/`. Copy the closest existing one:
 
-| Field | Type | Meaning |
-|---|---|---|
-| `skills` | `list[str]` | CI-orchestration only — drives the PR path-filter (a PR touching `skills/<X>/` runs scenarios where `X in metadata.skills`) and documents the load-bearing dependencies. Does **not** restrict the skill tool surface at runtime. |
-| `baseline` | `BaselineConfig` | `{ exclude }` — which skills the `without_skill` arm drops (see `concepts.md`) |
-
-The scenario id is the directory name; no `id` field on the model.
-The sandbox compose file is declared explicitly on `Task(sandbox=...)`
-per scenario; no `image` field on the model either. The scorer list
-also lives on the `Task`; the metadata doesn't duplicate it (one
-source of truth — read `Task(scorer=...)` to see what a scenario
-checks).
-
-Example:
+- judge-scored, text-only → `skills/camunda-development/task.py`
+- deterministic + cluster → `skills/camunda-feel/task.py`
+- deploy + lint + CPT → `scenarios/rocket-launch/task.py`
 
 ```python
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-
-from core.metadata import BaselineConfig, ScenarioMetadata
-from core.paths import SANDBOXES_DIR
-
 METADATA = ScenarioMetadata(
-    skills=["camunda-bpmn", "camunda-process-mgmt"],
-    baseline=BaselineConfig(exclude="all"),
+    skills=["camunda-feel"],                       # CI changed-skills filter
+    baseline=BaselineConfig(exclude=["camunda-feel"]),  # what without_skill drops
 )
 
 @task
-def rocket_launch() -> Task:
+def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
     return Task(
-        dataset=[
-            Sample(id="happy", input="…"),
-            Sample(id="edge", input="…"),
-        ],
-        solver=...,
-        scorer=...,
-        sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
+        dataset=[...],
+        solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
+        scorer=[feel_evaluates_to(), assert_skill_loaded("camunda-feel", gating=False)],
+        sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
         metadata=METADATA.model_dump(),
     )
 ```
 
-Sandbox archetypes live in `evals/sandboxes/`:
-`compose-base.yaml`, `compose-with-c8ctl.yaml`,
-`compose-cpt-verifier.yaml`. A scenario that needs custom infra
-(e.g. WireMock) can drop in its own `compose.yaml` and reference it
-directly. CI consumers (`evals-list`, `evals-summarize`, the
-workflow filter) read the metadata directly — don't put configuration
-anywhere else.
+Scorer options (compose any in the `scorer=[...]` list):
 
-## How to add a new scenario
+- **Judge** — Inspect's `model_graded_qa(instructions=...)` against a per-sample
+  rubric in `Sample.target`.
+- **Deterministic** — `feel_evaluates_to()` (runs the agent's FEEL on the
+  cluster), `bpmn_lint_clean()`, `process_deployed_on_cluster(id)`, `cpt_scorer(...)`.
+- **Diagnostic skill-load** — `assert_skill_loaded(target, gating=False)`:
+  shown, not gated. The with/without-skill delta is the routing signal.
 
-1. **Pick a slug** that names the *failure mode* the scenario
-   catches, not the skill it exercises
-   (`dmn-collect-ordering` > `dmn-test`). Must match
-   `^[a-z][a-z0-9-]*$` (the registry enforces this).
+Pick the sandbox by what the scorers need: `compose-advisory.yaml` (no cluster),
+`compose-with-c8ctl.yaml` (live cluster), `compose-cpt-verifier.yaml` (cluster +
+CPT). Anything more bespoke (e.g. WireMock) → drop a `compose.yaml` next to the
+`task.py` and reference it.
 
-2. **Copy the closest existing scenario**:
-   ```bash
-   cp -r evals/scenarios/rocket-launch evals/scenarios/<your-slug>
-   ```
+Run it: `make eval-result SKILL=camunda-feel` (or `make eval SCENARIO=<id>` for a
+scenario). No workflow edit — CI picks it up from `metadata.skills`.
 
-3. **Edit `task.py`** — update `METADATA`, prompt(s), and the sample
-   list. Start with one happy path + one edge case; add more as
-   failures surface (the design supports N samples).
-
-4. **Write the verifier**:
-   - CPT: edit `cpt-verifier/src/test/java/.../*IT.java` (Spring CPT,
-     remote-runtime — see `rocket-launch/cpt-verifier/` for the
-     reference shape)
-   - Exit-code: write the assertion inline in the scenario's `task.py`
-     as a small `@scorer` (see `c8ctl-bootstrap/task.py`)
-   - Transcript: use `assert_tool_called` / `assert_skill_loaded` from
-     `evals/src/scorers/transcript.py`
-   - Lint: `bpmn_lint_clean()` from `scorers/lint.py` (BPMN);
-     `form_lint_clean()` (forms — once vendored)
-   - LLM judge: for free-form answer correctness use Inspect's
-     built-in `model_graded_qa` with a per-sample rubric in
-     `Sample.target` (see `dev-routing/task.py`) — no custom judge
-     scorer is shipped.
-
-5. **Run locally** to confirm it boots:
-   ```bash
-   make eval SCENARIO=<your-slug>
-   ```
-
-6. **Generate the baseline** once the scenario behaves correctly:
-   ```bash
-   make eval-baseline SCENARIO=<your-slug>
-   ```
-   Review the diff in `baseline.json` before committing.
-
-7. **No workflow edit needed.** PR inclusion is automatic from
-   `metadata.skills` — `eval.yml`'s `detect-scenarios` job intersects
-   the changed skills with each scenario's `metadata.skills` via
-   `evals-list --changed-skills`. (CI is currently
-   `workflow_dispatch`-only; once credentials land, the path-filter
-   path turns on without per-scenario workflow edits.)
-
-## Edge cases
-
-Each scenario starts with **1 happy + 1 edge case** but the design is
-**N edge cases per scenario**. Inspect's native sample-list shape
-supports this directly; the `id` field distinguishes them in the
-trajectory viewer and PR comment.
-
-Edge-case categories (add as they surface from real failures —
-**don't pre-fabricate**):
-
-- Ambiguous prompt
-- Malformed input
-- Version-floor edge (8.8 vs 8.9 features)
-- Adversarial user (asks for an anti-pattern)
-- Large-input
-
-If you find yourself inventing edge cases, stop. The cost-effective
-edge case is the one that already broke.
-
-## How to debug a failure
-
-1. **Read the transcript first.** `.eval` artifacts contain every
-   tool call and file read:
-   ```bash
-   uv run inspect view evals/logs/
-   # opens http://localhost:7575
-   ```
-   In CI: download the `.eval` artifact from the workflow run, then
-   `uv run inspect view <downloaded-dir>` locally.
-
-2. **Reproduce the verifier outside the sandbox.** The verifier's
-   container is reproducible. For a CPT failure, `cd
-   evals/scenarios/<id>/cpt-verifier && mvn test` runs the same test
-   the verifier container ran. Surefire XML is at `target/surefire-reports/`.
-
-3. **Re-run with more epochs to check flake**:
-   ```bash
-   uv run inspect eval evals/scenarios/<id>/task.py --epochs 3
-   ```
-   `--epochs` is Inspect's own flag (repeat each sample N times). If
-   pass-rate is consistent at 1/3 or 3/3, the result is the result.
-   If it bounces between runs, the scenario is flaky.
-
-4. **Compare with-skill vs without-skill arms.** A scenario where
-   both arms fail equally suggests the skill isn't the issue (or the
-   prompt is bad). A scenario where both pass equally suggests the
-   skill isn't earning its keep (or the model already knows this from
-   training — drop the scenario or strengthen it).
-
-## How to regenerate baselines safely
-
-`make eval-baseline SCENARIO=<id>` rewrites `baseline.json` from the
-last run. Never blanket-regen without diff review:
+## Running
 
 ```bash
-make eval-baseline SCENARIO=rocket-launch
-git diff evals/scenarios/rocket-launch/baseline.json
-# review the diff before committing
-git add evals/scenarios/rocket-launch/baseline.json
-git commit -m "feat(evals): refresh baseline for rocket-launch after …"
+make eval-images                       # build the sandbox images once
+make eval-trigger  SKILL=camunda-feel  # one trigger eval
+make eval-triggers                     # every trigger eval
+make eval-result   SKILL=camunda-feel  # one per-skill result eval
+make eval          SCENARIO=rocket-launch          # one scenario
+make eval-result   SKILL=camunda-feel ARM=without_skill   # the comparison arm
+make eval-viewer                       # open the Inspect trajectory viewer
 ```
 
-When to regenerate:
-- After an intentional behaviour change (the new pass-rate / token
-  band is the new normal)
-- After adding or removing a sample (the new sample needs a band)
+`make help` lists every target. Default model is `anthropic/claude-sonnet-4-6`
+(needs `ANTHROPIC_API_KEY`); override with `MODEL=…`.
 
-When **not** to regenerate:
-- After a flaky run — diagnose the flake first
-- After a regression — fix the regression, don't paper over it
-- "Just to update everything" — never. Per-scenario, with review.
+## Baselines
 
-## Assertion hygiene checklist
+`baseline.json` (per eval directory) records each sample's observed token count
+per arm; the gate fails a sample whose tokens exceed `baseline × 1.5`. Outcome
+is gated by the scorers, not the baseline. Triggers have no baseline (outcome
+only).
 
-Run through this before merging a scenario change:
+```bash
+make eval-result SKILL=camunda-feel        # fresh run
+make eval-baseline TARGET=camunda-feel     # rewrite baseline.json from it
+git diff evals/skills/camunda-feel/baseline.json   # review before committing
+```
 
-- [ ] No always-pass — if pass_rate has been 1.0 for the last 50
-      runs, the assertion isn't catching anything
-- [ ] No always-fail — same logic, inverse
-- [ ] Edge cases differ meaningfully from happy path — not just
-      rewordings
-- [ ] Without-skill arm actually fails (or has materially worse
-      tokens/duration) — if the skill makes no difference, the
-      scenario isn't proving anything
+Regenerate after an intentional change or a new sample. Do **not** regenerate to
+paper over a regression or a flaky run — diagnose first. Adding a sample never
+breaks others: a new id simply has no baseline entry until you regenerate.
 
-An automated hygiene check is a planned follow-up. Until then,
-self-review.
+## Debugging a failure
+
+1. **Read the transcript:** `make eval-viewer` (or `uv run inspect view
+   <downloaded-log-dir>` for a CI artifact).
+2. **Reproduce a CPT failure outside the sandbox:** `cd
+   evals/scenarios/<id>/cpt-verifier && mvn test`.
+3. **Check for flake:** `... --epochs 3` (append via `ARGS="--epochs 3"`).
+4. **Compare arms:** both arms failing → not a skill problem; both passing →
+   the skill may not be earning its keep.
+
+## CI
+
+Maintainer-gated by PR label (see [`ci-and-results.md`](ci-and-results.md)):
+
+- `evals:run` — targets whose skills intersect the changed skills
+- `evals:run-all` — every target
+- `evals:compare` — also run the without-skill arm of result/scenario evals
+
+The gate (`evals-pass-fail`) reds the check on a missed outcome threshold or a
+token-budget regression; it does not block merge. The PR comment carries the
+per-eval outcome, token budget, and any with/without delta.

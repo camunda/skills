@@ -1,28 +1,26 @@
 name: Eval (PR)
 
-# Non-blocking PR eval signal. Posts the outcome + baseline deltas as a
-# PR comment. It does NOT gate merge (keep it out of required status
-# checks).
+# Non-blocking PR eval signal — posts outcome + token-budget vs baseline as a
+# PR comment. Does NOT gate merge (keep out of required status checks).
 #
-# Opt-in and maintainer-gated by labels (only triage+ collaborators can
-# label a PR, so the label itself is the gate; fork PRs never receive
-# the secrets because this is `pull_request`, not `pull_request_target`):
-#   - `evals:run`      → scenarios whose metadata.skills ∩ changed skills
-#   - `evals:run-all`  → every scenario (integration check of the suite)
-# Can also be launched from the Actions tab (workflow_dispatch already
-# requires write access); a dispatch run with no PR context runs every
-# scenario and skips the comment.
-#
-# The model is configurable via the EVAL_MODEL repo variable (CI
-# defaults to a Bedrock Claude profile) — see
-# docs/evals/ci-and-results.md for secrets/vars.
+# Maintainer-gated by labels (only triage+ can label; fork PRs never get the
+# secrets — this is `pull_request`, not `pull_request_target`):
+#   - evals:run       → targets whose skills ∩ changed skills
+#   - evals:run-all   → every target (suite integration check)
+#   - evals:compare   → also run the without-skill arm of result/scenario evals
+# workflow_dispatch (requires write access) can run a single target and toggle
+# the comparison. Model: the EVAL_MODEL repo var (default a Bedrock Claude).
 on:
   workflow_dispatch:
     inputs:
-      scenario:
-        description: "Single scenario id to run (blank = all scenarios)"
+      target:
+        description: "Substring of a target id to run (blank = all)"
         required: false
         default: ""
+      compare:
+        description: "Also run the without-skill arm"
+        type: boolean
+        default: false
   pull_request:
     types: [labeled, synchronize, reopened]
 
@@ -35,18 +33,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  detect-scenarios:
-    name: Detect affected scenarios
-    # Label application requires triage+ on the repo, so the label is the
-    # maintainer gate; workflow_dispatch already requires write access.
+  detect:
+    name: Detect affected targets
     if: >-
       github.event_name == 'workflow_dispatch' ||
       contains(github.event.pull_request.labels.*.name, 'evals:run') ||
       contains(github.event.pull_request.labels.*.name, 'evals:run-all')
     runs-on: ubuntu-latest
     outputs:
-      scenarios: ${{ steps.filter.outputs.scenarios }}
-      has-scenarios: ${{ steps.filter.outputs.has-scenarios }}
+      specs: ${{ steps.matrix.outputs.specs }}
+      has: ${{ steps.matrix.outputs.has }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,117 +50,119 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           python-version-file: .python-version
-      - name: Sync deps
-        run: uv sync --frozen
+      - run: uv sync --frozen
       - name: Compute changed skills
-        id: changed-skills
         env:
           RUN_ALL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'evals:run-all') }}
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
-          # `evals:run-all` (or a dispatch with no PR context) runs the
-          # whole suite — emit every skill so the registry yields all
-          # scenarios. Useful for an end-to-end integration check.
+          # run-all (or a dispatch with no PR) → every skill. A change to the
+          # harness itself (evals/ tree or the Python project) also runs all.
           if [ "$RUN_ALL" = "true" ] || [ -z "$base" ]; then
             ls skills > changed-skills.txt
           else
-            # Skills appear as skills/<name>/...; extract unique <name> values.
             git diff --name-only "$base..$head" \
-              | awk -F/ '$1=="skills" && NF>1 {print $2}' \
-              | sort -u > changed-skills.txt
-            # When the harness itself changed (evals/ tree or the root
-            # Python project), run everything by emitting all skills.
-            if git diff --name-only "$base..$head" 2>/dev/null \
+              | awk -F/ '$1=="skills" && NF>1 {print $2}' | sort -u > changed-skills.txt
+            if git diff --name-only "$base..$head" \
                  | grep -qE '^evals/|^pyproject\.toml$|^uv\.lock$|^\.python-version$'; then
               ls skills > changed-skills.txt
             fi
           fi
-          echo "Changed skills:"
-          cat changed-skills.txt
-      - name: Filter scenarios via registry
-        id: filter
+          echo "Changed skills:"; cat changed-skills.txt
+      - name: Build run matrix
+        id: matrix
+        env:
+          COMPARE: ${{ contains(github.event.pull_request.labels.*.name, 'evals:compare') || github.event.inputs.compare == 'true' }}
+          TARGET: ${{ github.event.inputs.target }}
         run: |
-          # workflow_dispatch with an explicit scenario short-circuits the
-          # changed-skills filter — run just that one (e.g. a cheap smoke).
-          explicit="${{ github.event.inputs.scenario }}"
-          if [ -n "$explicit" ]; then
-            echo "scenarios=[\"$explicit\"]" >> "$GITHUB_OUTPUT"
-            echo "has-scenarios=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           changed=$(tr '\n' ' ' < changed-skills.txt)
-          scenarios_json=$(uv run evals-list --json --changed-skills $changed)
-          echo "$scenarios_json"
-          # GitHub Actions matrix wants a JSON list. Extract scenario ids.
-          ids=$(echo "$scenarios_json" | python -c "import json,sys; print(json.dumps([s['id'] for s in json.load(sys.stdin)]))")
-          echo "scenarios=$ids" >> "$GITHUB_OUTPUT"
-          if [ "$ids" = "[]" ]; then
-            echo "has-scenarios=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "has-scenarios=true" >> "$GITHUB_OUTPUT"
-          fi
+          uv run evals-list --json --changed-skills $changed > targets.json
+          # Expand each target into run specs: triggers are single-arm; result
+          # and scenario evals run with_skill, plus without_skill when COMPARE.
+          python3 - <<'PY' > specs.json
+          import json, os
+          targets = json.load(open("targets.json"))
+          compare = os.environ.get("COMPARE") == "true"
+          want = os.environ.get("TARGET") or ""
+          specs = []
+          for t in targets:
+              if want and want not in t["id"]:
+                  continue
+              spec = t["path"] + (f"@{t['task']}" if t["task"] else "")
+              base_targs = " ".join(f"-T {k}={v}" for k, v in (t["args"] or {}).items())
+              slug = t["id"].replace(":", "-")
+              if t["kind"] == "trigger":
+                  specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base_targs, "arm": ""})
+              else:
+                  for arm in ["with_skill"] + (["without_skill"] if compare else []):
+                      specs.append({
+                          "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]",
+                          "spec": spec, "targs": f"{base_targs} -T arm={arm}".strip(), "arm": arm,
+                      })
+          print(json.dumps(specs))
+          PY
+          specs=$(cat specs.json)
+          echo "$specs"
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          [ "$specs" = "[]" ] && echo "has=false" >> "$GITHUB_OUTPUT" || echo "has=true" >> "$GITHUB_OUTPUT"
 
-  run-scenarios:
-    name: Eval ${{ matrix.scenario }}
-    needs: detect-scenarios
-    if: needs.detect-scenarios.outputs.has-scenarios == 'true'
+  run:
+    name: ${{ matrix.label }}
+    needs: detect
+    if: needs.detect.outputs.has == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        scenario: ${{ fromJson(needs.detect-scenarios.outputs.scenarios) }}
+        include: ${{ fromJson(needs.detect.outputs.specs) }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
           python-version-file: .python-version
-      - name: Sync deps
-        run: uv sync --frozen
+      - run: uv sync --frozen
       - name: Build sandbox images
         run: make eval-images
-      - name: Run scenario (with-skill arm)
-        # Reds the check on a real breakage (sandbox/auth/exception);
-        # a scenario that merely scores low still exits 0 here — the
-        # quality gate is the separate evals-pass-fail step below.
-        #
-        # CI defaults to the Bedrock global Claude profile; override
-        # without a code change by setting the `EVAL_MODEL` repo
-        # variable. The credential env below is the wiring for that
-        # default provider; swap it if you point EVAL_MODEL elsewhere.
+      - name: Run eval
+        # Single model via EVAL_MODEL. For a multi-model sweep, add a `model`
+        # axis to the matrix include built in `detect`. AWS creds wire the
+        # default Bedrock provider; swap if EVAL_MODEL points elsewhere.
+        working-directory: evals
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
         run: |
-          make eval SCENARIO=${{ matrix.scenario }} \
-            MODEL="${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}"
+          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --max-samples 1 \
+            --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
+            -T agent=react ${{ matrix.targs }}
       - name: Gate (evals-pass-fail)
-        # Reds the check when the with-skill run misses its per-sample
-        # threshold or drifts outside the baseline bands. Non-blocking
-        # until this workflow is added to required status checks — the
-        # red is a signal to look, the PR comment carries the detail.
+        # Reds the check on a missed outcome threshold or a token-budget
+        # regression. Skipped for the without-skill arm — it's a comparison,
+        # not a quality bar. Non-blocking until added to required checks.
+        if: matrix.arm != 'without_skill'
+        working-directory: evals
         run: uv run evals-pass-fail
       - name: Upload eval logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-logs-${{ matrix.scenario }}-${{ github.run_attempt }}
+          name: eval-logs-${{ matrix.slug }}-${{ github.run_attempt }}
           path: evals/logs/
           retention-days: 30
 
   summarize:
     name: Summarize → PR comment
-    needs: run-scenarios
-    if: always() && needs.detect-scenarios.outputs.has-scenarios == 'true'
+    needs: run
+    if: always() && needs.detect.outputs.has == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
           python-version-file: .python-version
-      - name: Sync deps
-        run: uv sync --frozen
+      - run: uv sync --frozen
       - name: Download all logs
         uses: actions/download-artifact@v4
         with:
@@ -174,10 +172,6 @@ jobs:
       - name: Render summary
         id: summary
         run: |
-          # Capture to a file first so a non-zero exit can't abort the
-          # group before the closing delimiter is written (the step runs
-          # under `bash -e`). printf guarantees a trailing newline so the
-          # delimiter always lands on its own line.
           if ! uv run evals-summarize --log-dir evals/logs/ > eval-summary.md; then
             printf '_Summary generation failed — see job logs._\n' > eval-summary.md
           fi
