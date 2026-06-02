@@ -74,12 +74,18 @@ def main() -> int:
 
     log = read_eval_log(chosen.name)
     model = getattr(log.eval, "model", None) or "unknown"
-    # Record the median per-id tokens (rows carry the epoch-reduced figure) for
-    # passing samples only; skip — and report — any that didn't reach the goal.
+    # Record the median per-id tokens/turns/tool_calls (rows carry the
+    # epoch-reduced figures) for passing samples only; skip — and report — any
+    # that didn't reach the goal. tokens gate the cost ceiling; turns and
+    # tool_calls are diagnostic (stored for the summary's delta, never gated).
     # Sorted by id so the committed JSON is stable regardless of log ordering.
     rows, _ = _outcome_rows(log, 1.0)
     samples = {
-        r["sample_id"]: {"tokens": round(r["tokens"])}
+        r["sample_id"]: {
+            "tokens": round(r["tokens"]),
+            "turns": round(r["turns"]),
+            "tool_calls": round(r["tool_calls"]),
+        }
         for r in sorted(rows, key=lambda r: r["sample_id"])
         if r["pass"]
     }

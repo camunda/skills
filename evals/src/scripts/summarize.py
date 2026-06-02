@@ -5,8 +5,8 @@ with an `[I/CW/CR/O]` input / cache-write / cache-read / output split), an
 outcome table (pass + tokens vs committed baseline), a trigger routing table,
 and a with/without-skill delta when an
 ``evals:compare`` run provides both arms. ``--detail`` adds a per-eval token
-column to those tables — the job-summary deep dive, omitted from the lean PR
-comment.
+column plus a per-sample breakdown (tokens/turns/tool-calls vs baseline) — the
+job-summary deep dive, omitted from the lean PR comment.
 
 Tables are column-aligned so the raw output is readable on a CLI; GitHub
 renders them identically. Consumed by ``.github/workflows/eval.yml`` (PR
@@ -31,7 +31,12 @@ from core.metrics import (
     token_usage,
 )
 from core.paths import EVALS_ROOT
-from scripts.pass_fail import _cost_checks, _load_baseline, _outcome_rows
+from scripts.pass_fail import (
+    CEILING_MULTIPLIER,
+    _cost_checks,
+    _load_baseline,
+    _outcome_rows,
+)
 
 REPO_ROOT = EVALS_ROOT.parent
 
@@ -72,14 +77,36 @@ def _token_cell(cost_checks: list[dict] | None) -> str:
     if cost_checks is None:
         return "— no baseline"
     graded = [c for c in cost_checks if "baseline" in c]
+    # Passing samples with no baseline entry (e.g. newly added) — flag them so a
+    # partial comparison is never silently presented as complete.
+    no_base = sum(1 for c in cost_checks if "note" in c)
+    hint = f" · {no_base} no baseline" if no_base else ""
     if not graded:
-        return "— regen baseline"
+        return "— regen baseline" + hint
     observed = sum(c["tokens"] for c in graded)
     base = sum(c["baseline"] for c in graded)
     pct = (observed - base) / base * 100 if base else 0.0
     over = [c for c in graded if not c["pass"]]
     icon = "🔴" if over else "✅"
-    return f"{icon} {_fmt(observed)} ({pct:+.0f}% vs {_fmt(base)})"
+    return f"{icon} {_fmt(observed)} ({pct:+.0f}% vs {_fmt(base)}){hint}"
+
+
+def _tok_detail(obs: float, base: dict | None) -> str:
+    """Per-sample observed tokens with Δ% vs baseline (🔴 if over the ceiling)."""
+    if base and isinstance(base.get("tokens"), (int, float)):
+        b = base["tokens"]
+        pct = (obs - b) / b * 100 if b else 0.0
+        over = "🔴 " if obs > b * CEILING_MULTIPLIER else ""
+        return f"{over}{_fmt(obs)} ({pct:+.0f}%)"
+    return f"{_fmt(obs)} (no baseline)"
+
+
+def _count_detail(obs: float, base: dict | None, key: str) -> str:
+    """Per-sample observed turns/tool-calls with the delta vs baseline."""
+    obs = round(obs)
+    if base and isinstance(base.get(key), (int, float)):
+        return f"{obs} ({obs - round(base[key]):+d})"
+    return str(obs)
 
 
 def _usage(u: dict[str, float]) -> str:
@@ -107,11 +134,11 @@ def render(
 ) -> str:
     """Render the run summary as Markdown.
 
-    ``detail`` adds a per-eval token-usage column to the outcome and trigger
-    tables — the job-summary deep dive, omitted from the lean PR comment.
-    ``blob_base`` (a ``…/blob/<ref>`` URL) links each eval name to its source;
-    ``run_url`` appends a footer pointing at the run (used by the PR comment,
-    which lacks the token column).
+    ``detail`` adds a per-eval token-usage column and a per-sample breakdown
+    (tokens/turns/tool-calls vs baseline, with explicit "no baseline" rows) —
+    the job-summary deep dive, omitted from the lean PR comment. ``blob_base``
+    (a ``…/blob/<ref>`` URL) links each eval name to its source; ``run_url``
+    appends a footer pointing at the run (used by the PR comment).
     """
     infos = list_eval_logs(str(log_dir))
     if not infos:
@@ -146,7 +173,20 @@ def render(
             cost_checks = (
                 _cost_checks(rows, baseline, arm)[0] if baseline is not None else None
             )
-            results.append((name, passed, total, cost_checks, u))
+            arm_samples = ((baseline or {}).get(arm) or {}).get("samples") or {}
+            samples_detail = [
+                {
+                    "id": r["sample_id"],
+                    "tokens": r["tokens"],
+                    "turns": r["turns"],
+                    "tool_calls": r["tool_calls"],
+                    "base": b
+                    if isinstance((b := arm_samples.get(r["sample_id"])), dict)
+                    else None,
+                }
+                for r in sorted(rows, key=lambda r: r["sample_id"])
+            ]
+            results.append((name, passed, total, cost_checks, u, samples_detail))
 
     def green(items) -> int:
         return sum(1 for it in items if it[1] == it[2] and it[2])
@@ -182,7 +222,26 @@ def render(
                     _token_cell(cost),
                 ]
                 + ([_usage(u)] if detail else [])
-                for name, passed, total, cost, u in sorted(results, key=lambda r: r[0])
+                for name, passed, total, cost, u, _ in sorted(
+                    results, key=lambda r: r[0]
+                )
+            ],
+        )
+
+    if detail and results:
+        out += ["", "#### Per-sample detail"]
+        out += _table(
+            ["Eval", "Sample", "Tokens", "Turns", "Tool calls"],
+            [
+                [
+                    _name_cell(name, blob_base, False),
+                    f"`{s['id']}`",
+                    _tok_detail(s["tokens"], s["base"]),
+                    _count_detail(s["turns"], s["base"], "turns"),
+                    _count_detail(s["tool_calls"], s["base"], "tool_calls"),
+                ]
+                for name, _p, _t, _c, _u, samples in sorted(results, key=lambda r: r[0])
+                for s in samples
             ],
         )
 
@@ -218,7 +277,7 @@ def main() -> None:
     parser.add_argument(
         "--detail",
         action="store_true",
-        help="add the per-eval token-usage column (job summary surface)",
+        help="add the per-eval token column + per-sample breakdown (job summary surface)",
     )
     parser.add_argument(
         "--blob-base",

@@ -192,23 +192,31 @@ it's the new signal evals exist to catch.
 ## Baseline & cost gate
 
 `outcomes_baseline.json` lives in each eval's directory and records, per arm,
-each sample's median token count across epochs:
+each sample's median **tokens**, **turns**, and **tool_calls** across epochs:
 
 ```json
 {
   "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
-  "with_skill": { "samples": { "gateway-condition": { "tokens": 4200 } } }
+  "with_skill": {
+    "samples": {
+      "gateway-condition": { "tokens": 4200, "turns": 3, "tool_calls": 2 }
+    }
+  }
 }
 ```
 
-Only samples that **passed** every gating scorer get an entry — a failed or
-errored run's token count is unrepresentative (token-limit flail inflates it, an
-early error deflates it), so it's skipped rather than recorded. The number is
-model-specific (token counts differ per model) and median-reduced (robust to a
-single high-variance epoch), which is why regeneration belongs on CI against the
-canonical model — see [`ci-and-results.md`](ci-and-results.md). No bands, no
-duration, no stored pass-rate. The gate
-(`evals-pass-fail`) runs two per-sample stages:
+**Only `tokens` is gated** (the `× 1.5` ceiling below). `turns` and `tool_calls`
+are stored purely so the summary can show a *delta* ("+20% tokens, +2 turns") —
+they decompose a cost change into its driver (an extra retry or tool call) and
+are **never** a ceiling of their own (a second gate on correlated, noisy counts
+would just flake). Only samples that **passed** every gating scorer get an entry
+— a failed or errored run's numbers are unrepresentative (a token-limit flail
+inflates them, an early error deflates them), so they're skipped rather than
+recorded. The values are model-specific (counts differ per model) and
+median-reduced (robust to a single high-variance epoch), which is why
+regeneration belongs on CI against the canonical model — see
+[`ci-and-results.md`](ci-and-results.md). No bands, no duration, no stored
+pass-rate. The gate (`evals-pass-fail`) runs two per-sample stages:
 
 1. **Outcome** — every gating scorer ≥ threshold (default 1.0).
    Diagnostic scorers are shown, not gated.

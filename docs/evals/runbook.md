@@ -82,10 +82,11 @@ Two independent signals: **outcome** (did gating scorers pass) and **cost**
 
 ## Baseline (cost only, never the quality bar)
 
-`outcomes_baseline.json` stores each passing sample's **median tokens across
-epochs, per arm**. The gate fails a sample whose tokens exceed **baseline × 1.5**
-— an upper ceiling, nothing else. Outcome correctness is gated by the *scorers*,
-never the baseline.
+`outcomes_baseline.json` stores each passing sample's **median tokens, turns,
+and tool-calls across epochs, per arm**. The gate fails a sample whose **tokens**
+exceed **baseline × 1.5** — an upper ceiling, nothing else; `turns`/`tool_calls`
+are diagnostic only (the summary shows them as a delta, they're never gated).
+Outcome correctness is gated by the *scorers*, never the baseline.
 
 The committed baselines are regenerated **on CI against the canonical model**
 (label a PR `evals:regen-baselines` — see [`ci-and-results.md`](ci-and-results.md)),

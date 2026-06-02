@@ -105,18 +105,45 @@ def sample_tokens(sample) -> float:
     return _usage_field(sample, "total_tokens")
 
 
-def reduced_tokens(log) -> dict[str, float]:
-    """Per-sample-id token total, reduced across epochs by median.
+def sample_turns(sample) -> int:
+    """Agent turns = assistant messages (one model generation each)."""
+    msgs = getattr(sample, "messages", None) or []
+    return sum(1 for m in msgs if getattr(m, "role", None) == "assistant")
 
-    Tokens live on the raw samples (the reduced score carries no usage), so we
-    group ``log.samples`` by id and take the median across epochs — robust to a
-    single runaway rollout, and the same per-id granularity the cost gate and
-    baseline compare against. At epochs=1 it's just the sample's own total.
+
+def sample_tool_calls(sample) -> int:
+    """Total tool invocations the agent made across the sample."""
+    msgs = getattr(sample, "messages", None) or []
+    return sum(len(getattr(m, "tool_calls", None) or []) for m in msgs)
+
+
+# Per-sample signals reduced into the baseline. ``tokens`` gates the cost
+# ceiling; ``turns`` and ``tool_calls`` are diagnostic — stored so the summary
+# can show a delta ("+20% tokens, +2 turns"), never gated.
+REDUCED_FIELDS = ("tokens", "turns", "tool_calls")
+
+
+def reduced_metrics(log) -> dict[str, dict[str, float]]:
+    """Per-sample-id ``{tokens, turns, tool_calls}``, each the median across
+    epochs. These live on the raw samples (the reduced score carries no usage),
+    so we group ``log.samples`` by id and median each — robust to a single
+    runaway rollout, and the per-id granularity the cost gate and baseline use.
+    At epochs=1 it's just the sample's own values.
     """
-    by_id: dict[str, list[float]] = {}
+    getters = {
+        "tokens": sample_tokens,
+        "turns": sample_turns,
+        "tool_calls": sample_tool_calls,
+    }
+    by_id: dict[str, dict[str, list[float]]] = {}
     for sample in getattr(log, "samples", None) or []:
-        by_id.setdefault(str(sample.id), []).append(sample_tokens(sample))
-    return {sid: median(toks) for sid, toks in by_id.items() if toks}
+        acc = by_id.setdefault(str(sample.id), {f: [] for f in REDUCED_FIELDS})
+        for f, fn in getters.items():
+            acc[f].append(float(fn(sample)))
+    return {
+        sid: {f: median(vals) for f, vals in acc.items() if vals}
+        for sid, acc in by_id.items()
+    }
 
 
 # Token categories in the order we display them; their sum is the all-in
