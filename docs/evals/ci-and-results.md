@@ -81,60 +81,77 @@ runs every target. `evals-list --json` emits one entry per target —
 target needs no workflow change — selection falls out of `metadata.skills`
 (the skill dir name for triggers).
 
-## PR comment
+## Job summary & PR comment
 
-One rolling comment per PR: a `find-comment` step locates the previous
-one by a hidden marker (`<!-- camunda-skills-eval-comment -->`) and
-`create-or-update-comment@v4` replaces it in place — not stacked.
+`evals/src/scripts/summarize.py` renders one Markdown report to two
+surfaces (lean for the PR, detailed for the run page):
 
-Shape (rendered by `evals/src/scripts/summarize.py`): a summary table
-keyed by eval and arm with an outcome verdict (✅ pass / ⚠️ check —
-non-gating) and a token-budget cell (observed vs `baseline × 1.5`),
-plus a "Skill impact" section showing the with-vs-without delta when the
-`without_skill` arm ran, followed by a collapsible block per eval
-carrying the full `evals-pass-fail` breakdown (per-sample scorer table +
-token-budget deltas):
+- **Job summary** (`$GITHUB_STEP_SUMMARY`) — every run (PR or
+  `workflow_dispatch`). Rendered with `--detail`, so it adds the
+  per-eval **token-usage** table. This is the deep-dive surface and is
+  also saved into the consolidated artifact as `summary.md`.
+- **PR comment** — pull requests only. The lean render (no token-usage
+  table). One rolling comment: a `find-comment` step locates the prior
+  one by a hidden marker (`<!-- camunda-skills-eval-comment -->`, which
+  the workflow prepends — not the script) and `create-or-update-comment`
+  replaces it in place, not stacked.
+
+Shape — a headline verdict, the model + total/cached tokens, an outcome
+table (verdict + observed tokens vs `baseline × 1.5`), a trigger routing
+table, a "Skill impact" delta when the `without_skill` arm ran, and (job
+summary only) the per-eval token-usage table:
 
 ```
 ### 🧪 Eval results
 
-_Non-blocking signal — reports outcome + token budget; does not gate merge._
+**Triggers 13/13 · Outcomes 4/4** — ✅ all passed. Non-blocking signal (doesn't block merge).
 
-| Eval | Arm | Outcome | Token budget |
-|---|---|---|---|
-| skill:camunda-feel | with_skill | ✅ pass | ✅ within |
-| scenario:rocket-launch | with_skill | ✅ pass | 🔴 over budget |
+Model `anthropic/bedrock/global.anthropic.claude-sonnet-4-6` · 1.3M tokens (1.0M cached)
+
+#### Outcome evals
+| Eval                | Outcome      | Tokens vs baseline   |
+| ------------------- | ------------ | -------------------- |
+| camunda-feel        | ✅ 3/3 (100%) | ✅ 89k (+0% vs 89k)   |
+| rocket-launch       | ✅ 1/1 (100%) | 🔴 480k (+45% vs 331k) |
+
+#### Trigger evals (skill routing)
+| Skill        | Routing       |
+| ------------ | ------------- |
+| camunda-bpmn | ⚠️ 3/4 (75%)  |
 
 #### Skill impact (with vs without)
+- **camunda-feel**: with-skill 100% vs without-skill 50% (Δ +50%)
 
-| Eval | with_skill | without_skill |
-|---|---|---|
-| skill:camunda-feel | ✅ pass | ⚠️ fail |
-
-<details><summary>scenario:rocket-launch (with_skill)</summary>
-
-  …per-sample scorer table + token-budget gate (observed vs baseline × 1.5)…
-</details>
+#### Token usage          ← --detail / job summary only
+| Eval         | Arm        | Tokens | Cached |
+| ------------ | ---------- | ------ | ------ |
+| camunda-feel | with_skill | 89k    | 72k    |
 ```
 
-The collapsible block is the same text `evals-pass-fail` prints, so the
-comment and the CLI never drift. The comment is a summary; the
-trajectory viewer is the debugger (see below).
+Tables are column-aligned in the source so the same output is readable
+on a CLI (`uv run evals-summarize --log-dir <dir>`). The report is a
+summary; the trajectory viewer is the debugger (see below). For the
+per-sample scorer + token-budget breakdown, run `evals-pass-fail` (or
+`make eval-viewer`) against the logs.
 
 ## Artifacts
 
-Every workflow run uploads `.eval` logs as a workflow artifact
-named `eval-logs-<sha>`. Retention defaults to GitHub's actions
-artifact retention (90 days unless tightened in repo settings).
-
-Artifact contents:
+Each run publishes **one** consolidated artifact, `eval-logs-<sha>`,
+holding every `.eval` log plus the rendered `summary.md` (retention: 30
+days on PR runs, 14 nightly):
 
 ```
 evals/logs/
-├── <target-id>-with-skill-<timestamp>.eval
-├── <target-id>-without-skill-<timestamp>.eval
-└── summary.json
+├── <timestamp>_<eval>_<id>.eval     # one per target × arm
+├── …
+└── summary.md                       # the --detail report
 ```
+
+Download it all at once (`gh run download <run-id>`) or open the
+trajectory viewer over it (below). The matrix also leaves short-lived
+per-job `eval-logs-<slug>-<attempt>` artifacts (1-day retention) that
+`summarize` collects into the consolidated one — ignore them; they
+expire on their own.
 
 ## Debugging a failure from a CI artifact
 

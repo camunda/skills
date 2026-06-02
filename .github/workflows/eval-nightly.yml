@@ -84,10 +84,42 @@ jobs:
         if: matrix.arm != 'without_skill'
         working-directory: evals
         run: uv run evals-pass-fail
-      - name: Upload eval logs
+      - name: Stage per-job logs
+        # This matrix entry's log, collected by `summarize` into one
+        # consolidated `eval-logs-<sha>`. Short retention so these clear out.
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: eval-logs-${{ matrix.slug }}-${{ github.run_attempt }}
+          path: evals/logs/
+          retention-days: 1
+
+  summarize:
+    name: Collect logs + job summary
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Collect per-job logs
+        uses: actions/download-artifact@v8
+        with:
+          path: evals/logs/
+          pattern: eval-logs-*
+          merge-multiple: true
+      - name: Job summary (full)
+        run: |
+          mkdir -p evals/logs
+          uv run evals-summarize --log-dir evals/logs/ --detail > evals/logs/summary.md \
+            || printf '_Summary generation failed — see job logs._\n' > evals/logs/summary.md
+          cat evals/logs/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload consolidated logs
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-logs-${{ github.sha }}
           path: evals/logs/
           retention-days: 14
