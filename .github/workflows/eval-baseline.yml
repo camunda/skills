@@ -1,0 +1,116 @@
+name: 🧪 Regenerate eval baselines
+
+# Re-records each outcome eval's committed token baseline from a fresh run
+# against the canonical EVAL_MODEL, then commits the result back to the branch
+# (median per-id tokens, passing samples only — see evals-regen-baseline).
+#
+# Two maintainer-gated ways in:
+#   - label a PR `evals:regen-baselines` → regenerate + commit to the PR branch;
+#     the PR diff is the review surface. Works before these workflows land on
+#     the default branch.
+#   - workflow_dispatch (after merge) → regenerate on the chosen branch; refuses
+#     to commit to the default branch — open a PR for that instead.
+#
+# Never runs on push/synchronize: auto-regen would rewrite the very yardstick
+# the cost gate depends on. See docs/evals/ci-and-results.md.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Substring of an outcome target id to regen (blank = all)"
+        required: false
+        default: ""
+      epochs:
+        description: "Epochs to median each baseline over"
+        required: false
+        default: "3"
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: eval-baseline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    name: Regenerate baselines
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'evals:regen-baselines'
+    runs-on: ubuntu-latest
+    env:
+      EPOCHS: ${{ github.event.inputs.epochs || '3' }}
+    steps:
+      - name: Resolve target branch
+        id: branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          branch="${HEAD_REF:-$REF_NAME}"
+          if [ "$branch" = "$DEFAULT_BRANCH" ]; then
+            echo "refusing to commit baselines to the default branch ($branch) — open a PR instead" >&2
+            exit 1
+          fi
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.branch.outputs.name }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Build sandbox images
+        run: make eval-images
+      - name: Run evals + regenerate baselines
+        working-directory: evals
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+          MODEL: ${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}
+          WANT: ${{ github.event.inputs.target }}
+        run: |
+          # Outcome targets only (triggers have no baseline), honoring the
+          # optional id-substring filter. Each line: "<dir> <max_sandboxes>".
+          uv run evals-list --json > all-targets.json
+          uv run python - "$WANT" <<'PY' > targets.txt
+          import json, sys
+
+          want = sys.argv[1]
+          for t in json.load(open("all-targets.json")):
+              if t["kind"] == "trigger":
+                  continue
+              if want and want not in t["id"]:
+                  continue
+              print(t["path"].rsplit("/", 1)[0], t["max_sandboxes"])
+          PY
+          if [ ! -s targets.txt ]; then echo "no outcome targets matched"; exit 1; fi
+          while read -r dir ms; do
+            [ -n "$dir" ] || continue
+            echo "::group::$dir (epochs=$EPOCHS, max-sandboxes $ms)"
+            uv run inspect eval "$dir/outcomes.py" --log-dir logs/ \
+              --max-sandboxes "$ms" --epochs "$EPOCHS" --model "$MODEL" \
+              -T agent=react -T arm=with_skill \
+              || echo "::warning::run failed for $dir"
+            uv run evals-regen-baseline --target "$dir" \
+              || echo "::warning::regen failed for $dir"
+            echo "::endgroup::"
+          done < targets.txt
+      - name: Commit baselines to the branch
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evals/skills/*/outcomes_baseline.json evals/scenarios/*/outcomes_baseline.json
+          if git diff --cached --quiet; then
+            echo "no baseline changes to commit"; exit 0
+          fi
+          git commit -m "chore(evals): regenerate baselines on CI (epochs=${EPOCHS})"
+          git push origin "HEAD:$BRANCH"

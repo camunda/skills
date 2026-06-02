@@ -82,9 +82,15 @@ Two independent signals: **outcome** (did gating scorers pass) and **cost**
 
 ## Baseline (cost only, never the quality bar)
 
-`outcomes_baseline.json` stores each sample's observed **tokens per arm**. The
-gate fails a sample whose tokens exceed **baseline × 1.5** — an upper ceiling,
-nothing else. Outcome correctness is gated by the *scorers*, never the baseline.
+`outcomes_baseline.json` stores each passing sample's **median tokens across
+epochs, per arm**. The gate fails a sample whose tokens exceed **baseline × 1.5**
+— an upper ceiling, nothing else. Outcome correctness is gated by the *scorers*,
+never the baseline.
+
+The committed baselines are regenerated **on CI against the canonical model**
+(label a PR `evals:regen-baselines` — see [`ci-and-results.md`](ci-and-results.md)),
+because token counts are model-specific. Locally you can still rewrite one for a
+quick check, but the numbers reflect whatever model you ran:
 
 ```bash
 make eval-outcomes TARGET=skills/camunda-feel        # produce a fresh run
@@ -95,6 +101,8 @@ git diff evals/skills/camunda-feel/outcomes_baseline.json   # review before comm
 - Regenerate only after an **intentional** behaviour change (review the token
   diff — is the new budget what you meant?).
 - **Never** blanket-regen, and never to "make it green."
+- Only passing samples get an entry; a failed/errored one is skipped (its tokens
+  are unrepresentative) until it passes.
 - Adding a new sample never breaks others — a new id has no entry until you regen.
 - Triggers have no baseline.
 

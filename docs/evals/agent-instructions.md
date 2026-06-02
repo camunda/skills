@@ -81,6 +81,11 @@ Follow `scenarios.md` exactly. Key non-obvious rules:
 
 ## Updating baselines after intentional behaviour change
 
+Committed baselines are regenerated **on CI** (label a PR `evals:regen-baselines`)
+so the token counts come from the canonical model — see
+[`ci-and-results.md`](ci-and-results.md). Local regen is for a quick check only
+(numbers reflect whatever model you ran):
+
 ```bash
 make eval-outcomes TARGET=<dir>          # run to confirm the new behaviour
 make eval-baseline TARGET=<dir>          # rewrite outcomes_baseline.json from last run

@@ -20,9 +20,11 @@ The common path when you edit a `skills/<X>/SKILL.md` or its `references/`:
 5. **Occasionally** add `evals:compare` (does the skill earn its keep — the
    with-vs-without delta) or `evals:run-all` (whole-suite check). Labels re-run
    on each push while present; remove to stop.
-6. **Intentional behaviour change that moved tokens?** Regenerate the baseline
-   locally and commit the reviewed diff (`make eval-baseline TARGET=…`) — never
-   to make CI green.
+6. **Intentional behaviour change that moved tokens?** Label the PR
+   `evals:regen-baselines` — CI re-runs the outcome evals against the canonical
+   model and commits refreshed baselines to the branch, for you to review in the
+   diff (see [Regenerating baselines](#regenerating-baselines)). Never regen to
+   make CI green.
 
 ## Workflows
 
@@ -31,6 +33,7 @@ The common path when you edit a `skills/<X>/SKILL.md` or its `references/`:
 | `.github/workflows/lint.yml` (existing) | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
 | `.github/workflows/eval.yml` | `evals:run` / `evals:run-all` / `evals:compare` label on a PR, or the Actions tab (`workflow_dispatch`) | Runs affected (or all) eval targets; posts a PR comment. **Non-blocking** (signal only). |
 | `.github/workflows/eval-nightly.yml` | **`workflow_dispatch` only** (cron re-enabled in a follow-up) | Runs every target; uploads logs as artifacts |
+| `.github/workflows/eval-baseline.yml` | `evals:regen-baselines` label on a PR, or the Actions tab (`workflow_dispatch`) | Re-runs outcome evals, regenerates baselines, commits them to the branch |
 
 `eval.yml` is **opt-in and maintainer-gated by labels**, not automatic
 on every PR. There's no separate authorization job: only collaborators
@@ -121,6 +124,29 @@ The `run` job has two failure modes, both surfaced as a red ❌ check:
 Both are **non-blocking as long as this workflow stays out of required
 status checks** — a red is a signal to look, not a merge block, and the
 PR comment carries the detail.
+
+## Regenerating baselines
+
+`outcomes_baseline.json` stores, per sample, the **median token count across
+epochs** of a passing run — the reference the cost gate allows `× 1.5` over (see
+[`concepts.md`](concepts.md) for the shape). Token counts are model-specific, so
+the canonical place to regenerate is **CI, against `EVAL_MODEL`** — not a laptop,
+where `make eval-baseline` would record numbers for whatever model you ran.
+
+`eval-baseline.yml` does this:
+
+- **On a PR** — label it `evals:regen-baselines`. CI re-runs the outcome evals
+  (at `--epochs 3`, so the reference is a median, not a single-shot outlier),
+  regenerates the baselines, and **commits them back to the PR branch**. The PR
+  diff is your review surface — check the per-sample token deltas before merging.
+- **After merge** — dispatch the workflow from the Actions tab on a branch;
+  inputs `target` (substring, blank = all) and `epochs`. It commits to that
+  branch and **refuses the default branch** — regen for `main` goes through a PR.
+
+Only samples that passed get a fresh entry; a failing one is skipped (its tokens
+are unrepresentative) and keeps its old reference until it passes. It **never**
+runs on push/synchronize: auto-regen would rewrite the very yardstick the gate
+checks against, so a cost regression would silently become the new normal.
 
 ## Target selection
 
