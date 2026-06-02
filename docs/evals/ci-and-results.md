@@ -145,10 +145,14 @@ surfaces (lean for the PR, detailed for the run page):
   outcome and trigger tables. This is the deep-dive surface and is also
   saved into the consolidated artifact as `summary.md`.
 - **PR comment** — pull requests only. The lean render (no `Tokens`
-  column). One rolling comment: a `find-comment` step locates the prior
-  one by a hidden marker (`<!-- camunda-skills-eval-comment -->`, which
-  the workflow prepends — not the script) and `create-or-update-comment`
-  replaces it in place, not stacked.
+  column), with a footer linking to the run summary for the token
+  breakdown and logs. One rolling comment: a `find-comment` step locates
+  the prior one by a hidden marker (`<!-- camunda-skills-eval-comment -->`,
+  which the workflow prepends — not the script) and
+  `create-or-update-comment` replaces it in place, not stacked.
+
+In CI each eval name links to its source `.py` on the run's commit (via
+`--blob-base`); on a local CLI the names are plain backticks.
 
 Shape — a headline verdict, the model + run-wide token usage (total with
 the `[I/CW/CR/O]` split), an outcome table (verdict + observed tokens vs

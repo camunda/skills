@@ -24,12 +24,16 @@ from inspect_ai.log import list_eval_logs, read_eval_log
 
 from core.metrics import (
     USAGE_FIELDS,
+    eval_source_path,
     model_id,
     scenario_id,
     task_arg,
     token_usage,
 )
+from core.paths import EVALS_ROOT
 from scripts.pass_fail import _cost_checks, _load_baseline, _outcome_rows
+
+REPO_ROOT = EVALS_ROOT.parent
 
 
 def _fmt(n: float) -> str:
@@ -84,11 +88,30 @@ def _usage(u: dict[str, float]) -> str:
     return f"{i + cw + cr + o:,} tokens [I: {i:,}, CW: {cw:,}, CR: {cr:,}, O: {o:,}]"
 
 
-def render(log_dir: Path, detail: bool = False) -> str:
+def _name_cell(name: str, blob_base: str | None, is_trigger: bool) -> str:
+    """The eval name in backticks, linked to its source `.py` when ``blob_base``
+    (a `…/blob/<ref>` URL prefix) is given — i.e. in CI, not on a local CLI."""
+    cell = f"`{name}`"
+    if blob_base:
+        path = eval_source_path(name, is_trigger)
+        if path:
+            cell = f"[{cell}]({blob_base}/{path.relative_to(REPO_ROOT).as_posix()})"
+    return cell
+
+
+def render(
+    log_dir: Path,
+    detail: bool = False,
+    blob_base: str | None = None,
+    run_url: str | None = None,
+) -> str:
     """Render the run summary as Markdown.
 
     ``detail`` adds a per-eval token-usage column to the outcome and trigger
     tables — the job-summary deep dive, omitted from the lean PR comment.
+    ``blob_base`` (a ``…/blob/<ref>`` URL) links each eval name to its source;
+    ``run_url`` appends a footer pointing at the run (used by the PR comment,
+    which lacks the token column).
     """
     infos = list_eval_logs(str(log_dir))
     if not infos:
@@ -153,7 +176,11 @@ def render(log_dir: Path, detail: bool = False) -> str:
         out += _table(
             ["Eval", "Outcome", "Tokens vs baseline"] + (["Tokens"] if detail else []),
             [
-                [name, _verdict(passed, total), _token_cell(cost)]
+                [
+                    _name_cell(name, blob_base, False),
+                    _verdict(passed, total),
+                    _token_cell(cost),
+                ]
                 + ([_usage(u)] if detail else [])
                 for name, passed, total, cost, u in sorted(results, key=lambda r: r[0])
             ],
@@ -164,19 +191,24 @@ def render(log_dir: Path, detail: bool = False) -> str:
         out += _table(
             ["Skill", "Routing"] + (["Tokens"] if detail else []),
             [
-                [skill, _verdict(passed, total)] + ([_usage(u)] if detail else [])
+                [_name_cell(skill, blob_base, True), _verdict(passed, total)]
+                + ([_usage(u)] if detail else [])
                 for skill, passed, total, u in sorted(triggers, key=lambda t: t[0])
             ],
         )
 
     deltas = [
-        f"- **{name}**: with-skill {a['with_skill']:.0%} vs without-skill "
-        f"{a['without_skill']:.0%} (Δ {a['with_skill'] - a['without_skill']:+.0%})"
+        f"- {_name_cell(name, blob_base, False)}: with-skill {a['with_skill']:.0%} "
+        f"vs without-skill {a['without_skill']:.0%} "
+        f"(Δ {a['with_skill'] - a['without_skill']:+.0%})"
         for name, a in sorted(outcomes.items())
         if "with_skill" in a and "without_skill" in a
     ]
     if deltas:
         out += ["", "#### Skill impact (with vs without)", *deltas]
+
+    if run_url:
+        out += ["", f"[Per-eval token usage and full logs → run summary]({run_url})"]
     return "\n".join(out)
 
 
@@ -186,12 +218,26 @@ def main() -> None:
     parser.add_argument(
         "--detail",
         action="store_true",
-        help="add the per-eval token-usage table (job summary surface)",
+        help="add the per-eval token-usage column (job summary surface)",
+    )
+    parser.add_argument(
+        "--blob-base",
+        help="URL prefix (…/blob/<ref>) to link each eval name to its source .py",
+    )
+    parser.add_argument(
+        "--run-url",
+        help="append a footer linking to this URL (PR-comment surface)",
     )
     args = parser.parse_args()
+    body = render(
+        args.log_dir,
+        detail=args.detail,
+        blob_base=args.blob_base,
+        run_url=args.run_url,
+    )
     # Trailing newline: the CI step feeds this into a `name<<DELIM` heredoc in
     # $GITHUB_OUTPUT; without it the closing delimiter glues onto the last line.
-    sys.stdout.write(render(args.log_dir, detail=args.detail) + "\n")
+    sys.stdout.write(body + "\n")
 
 
 if __name__ == "__main__":

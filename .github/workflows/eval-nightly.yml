@@ -114,7 +114,8 @@ jobs:
       - name: Job summary (full)
         run: |
           mkdir -p evals/logs
-          uv run evals-summarize --log-dir evals/logs/ --detail > evals/logs/summary.md \
+          BLOB="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
+          uv run evals-summarize --log-dir evals/logs/ --detail --blob-base "$BLOB" > evals/logs/summary.md \
             || printf '_Summary generation failed — see job logs._\n' > evals/logs/summary.md
           cat evals/logs/summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload consolidated logs

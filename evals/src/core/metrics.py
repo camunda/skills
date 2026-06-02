@@ -149,3 +149,17 @@ def baseline_dir(name: str | None) -> Path | None:
         if (d / "outcomes.py").exists():
             return d
     return None
+
+
+def eval_source_path(name: str, is_trigger: bool = False) -> Path | None:
+    """Absolute path to an eval's Python file — ``triggers.py`` for a trigger
+    (in ``skills/<skill>/``), else the ``outcomes.py`` under ``skills/`` or
+    ``scenarios/``. ``None`` if it doesn't resolve."""
+    if is_trigger:
+        p = SKILL_EVALS_DIR / name / "triggers.py"
+        return p if p.exists() else None
+    for base in (SKILL_EVALS_DIR, SCENARIOS_DIR):
+        p = base / name / "outcomes.py"
+        if p.exists():
+            return p
+    return None
