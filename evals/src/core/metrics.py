@@ -71,11 +71,20 @@ def sample_tokens(sample) -> float:
     return _usage_field(sample, "total_tokens")
 
 
-def total_cached_tokens(log) -> float:
-    """Sum cache-read tokens across all samples — the slice of ``total_tokens``
-    served from the prompt cache (so total far exceeds fresh input + output)."""
+# Token categories in the order we display them; their sum is the all-in
+# total, which prompt caching makes far larger than fresh input + output.
+USAGE_FIELDS = (
+    "input_tokens",
+    "input_tokens_cache_write",
+    "input_tokens_cache_read",
+    "output_tokens",
+)
+
+
+def token_usage(log) -> dict[str, float]:
+    """Per-category token totals across all samples (the keys in USAGE_FIELDS)."""
     samples = getattr(log, "samples", None) or []
-    return sum(_usage_field(s, "input_tokens_cache_read") for s in samples)
+    return {f: sum(_usage_field(s, f) for s in samples) for f in USAGE_FIELDS}
 
 
 def model_id(log) -> str | None:
@@ -87,12 +96,6 @@ def model_id(log) -> str | None:
 def sample_duration_s(sample) -> float:
     """Per-sample wall time in seconds."""
     return float(getattr(sample, "total_time", 0) or 0)
-
-
-def total_tokens(log) -> float:
-    """Sum total_tokens across all samples (and every model)."""
-    samples = getattr(log, "samples", None) or []
-    return sum(sample_tokens(s) for s in samples)
 
 
 def duration_s(log) -> float:

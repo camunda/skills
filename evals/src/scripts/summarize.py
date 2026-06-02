@@ -1,10 +1,12 @@
 """Render a Markdown summary of an eval run. Non-gating signal.
 
-Always: a headline verdict, the model + total/cached token usage, an outcome
-table (pass + tokens vs committed baseline), a trigger routing table, and a
-with/without-skill delta when an ``evals:compare`` run provides both arms.
-``--detail`` adds a per-eval token-usage table — the job-summary deep dive,
-omitted from the lean PR comment.
+Always: a headline verdict and the run's model + token usage (total tokens
+with an `[I/CW/CR/O]` input / cache-write / cache-read / output split), an
+outcome table (pass + tokens vs committed baseline), a trigger routing table,
+and a with/without-skill delta when an
+``evals:compare`` run provides both arms. ``--detail`` adds a per-eval token
+column to those tables — the job-summary deep dive, omitted from the lean PR
+comment.
 
 Tables are column-aligned so the raw output is readable on a CLI; GitHub
 renders them identically. Consumed by ``.github/workflows/eval.yml`` (PR
@@ -21,11 +23,11 @@ from pathlib import Path
 from inspect_ai.log import list_eval_logs, read_eval_log
 
 from core.metrics import (
+    USAGE_FIELDS,
     model_id,
     scenario_id,
     task_arg,
-    total_cached_tokens,
-    total_tokens,
+    token_usage,
 )
 from scripts.pass_fail import _cost_checks, _load_baseline, _outcome_rows
 
@@ -76,22 +78,27 @@ def _token_cell(cost_checks: list[dict] | None) -> str:
     return f"{icon} {_fmt(observed)} ({pct:+.0f}% vs {_fmt(base)})"
 
 
+def _usage(u: dict[str, float]) -> str:
+    """Token breakdown: total tokens [I, CW, CR, O] (their sum)."""
+    i, cw, cr, o = (round(u[f]) for f in USAGE_FIELDS)
+    return f"{i + cw + cr + o:,} tokens [I: {i:,}, CW: {cw:,}, CR: {cr:,}, O: {o:,}]"
+
+
 def render(log_dir: Path, detail: bool = False) -> str:
     """Render the run summary as Markdown.
 
-    ``detail`` adds the per-eval token-usage table — included in the job summary
-    (the deep-dive surface), omitted from the lean PR comment.
+    ``detail`` adds a per-eval token-usage column to the outcome and trigger
+    tables — the job-summary deep dive, omitted from the lean PR comment.
     """
     infos = list_eval_logs(str(log_dir))
     if not infos:
         return "### 🧪 Eval results\n\n_No eval logs found._"
 
-    triggers: list[tuple[str, int, int]] = []  # (skill, passed, total)
-    results: list[
-        tuple[str, int, int, list[dict] | None]
-    ] = []  # (name, passed, total, cost)
+    # rows carry their gating-arm usage dict so --detail can append a token column
+    triggers: list[tuple] = []  # (skill, passed, total, usage)
+    results: list[tuple] = []  # (name, passed, total, cost, usage)
     outcomes: dict[str, dict[str, float]] = {}  # name -> {arm: rate} for the delta
-    usage: list[tuple[str, str, float, float]] = []  # (eval, arm, total, cached)
+    grand = dict.fromkeys(USAGE_FIELDS, 0.0)  # run-wide token total (every arm)
     models: set[str] = set()
 
     for info in infos:
@@ -105,23 +112,18 @@ def render(log_dir: Path, detail: bool = False) -> str:
         outcomes.setdefault(name, {})[arm] = passed / total if total else 0.0
 
         models.add(model_id(log) or "?")
-        usage.append(
-            (
-                name,
-                "" if is_trigger else arm,
-                total_tokens(log),
-                total_cached_tokens(log),
-            )
-        )
+        u = token_usage(log)
+        for f in USAGE_FIELDS:
+            grand[f] += u[f]
 
         if is_trigger:
-            triggers.append((name[len("trigger-") :], passed, total))
+            triggers.append((name[len("trigger-") :], passed, total, u))
         elif arm != "without_skill":  # the gating arm; compare arm goes in the delta
             baseline = _load_baseline(name)
             cost_checks = (
                 _cost_checks(rows, baseline, arm)[0] if baseline is not None else None
             )
-            results.append((name, passed, total, cost_checks))
+            results.append((name, passed, total, cost_checks, u))
 
     def green(items) -> int:
         return sum(1 for it in items if it[1] == it[2] and it[2])
@@ -134,8 +136,6 @@ def render(log_dir: Path, detail: bool = False) -> str:
         else f"⚠️ {len(triggers) - tg_ok + len(results) - rs_ok} need attention"
     )
 
-    g_total = sum(u[2] for u in usage)
-    g_cached = sum(u[3] for u in usage)
     model_str = " · ".join(f"`{m}`" for m in sorted(models)) if models else "—"
 
     out = [
@@ -144,26 +144,28 @@ def render(log_dir: Path, detail: bool = False) -> str:
         f"**Triggers {tg_ok}/{len(triggers)} · Outcomes {rs_ok}/{len(results)}** — "
         f"{headline}. Non-blocking signal (doesn't block merge).",
         "",
-        f"Model {model_str} · {_fmt(g_total)} tokens ({_fmt(g_cached)} cached)",
+        f"Model {model_str} · {_usage(grand)}",
+        "_I input · CW cache-write · CR cache-read · O output._",
     ]
 
     if results:
         out += ["", "#### Outcome evals"]
         out += _table(
-            ["Eval", "Outcome", "Tokens vs baseline"],
+            ["Eval", "Outcome", "Tokens vs baseline"] + (["Tokens"] if detail else []),
             [
                 [name, _verdict(passed, total), _token_cell(cost)]
-                for name, passed, total, cost in sorted(results)
+                + ([_usage(u)] if detail else [])
+                for name, passed, total, cost, u in sorted(results, key=lambda r: r[0])
             ],
         )
 
     if triggers:
         out += ["", "#### Trigger evals (skill routing)"]
         out += _table(
-            ["Skill", "Routing"],
+            ["Skill", "Routing"] + (["Tokens"] if detail else []),
             [
-                [skill, _verdict(passed, total)]
-                for skill, passed, total in sorted(triggers)
+                [skill, _verdict(passed, total)] + ([_usage(u)] if detail else [])
+                for skill, passed, total, u in sorted(triggers, key=lambda t: t[0])
             ],
         )
 
@@ -175,16 +177,6 @@ def render(log_dir: Path, detail: bool = False) -> str:
     ]
     if deltas:
         out += ["", "#### Skill impact (with vs without)", *deltas]
-
-    if detail and usage:
-        out += ["", "#### Token usage"]
-        out += _table(
-            ["Eval", "Arm", "Tokens", "Cached"],
-            [
-                [name, arm or "—", _fmt(t_total), _fmt(t_cached)]
-                for name, arm, t_total, t_cached in sorted(usage)
-            ],
-        )
     return "\n".join(out)
 
 

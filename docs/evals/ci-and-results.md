@@ -140,52 +140,50 @@ target needs no workflow change — selection falls out of `metadata.skills`
 surfaces (lean for the PR, detailed for the run page):
 
 - **Job summary** (`$GITHUB_STEP_SUMMARY`) — every run (PR or
-  `workflow_dispatch`). Rendered with `--detail`, so it adds the
-  per-eval **token-usage** table. This is the deep-dive surface and is
-  also saved into the consolidated artifact as `summary.md`.
-- **PR comment** — pull requests only. The lean render (no token-usage
-  table). One rolling comment: a `find-comment` step locates the prior
+  `workflow_dispatch`). Rendered with `--detail`, which adds a per-eval
+  **`Tokens`** column (total tokens with an `[I/CW/CR/O]` split) to the
+  outcome and trigger tables. This is the deep-dive surface and is also
+  saved into the consolidated artifact as `summary.md`.
+- **PR comment** — pull requests only. The lean render (no `Tokens`
+  column). One rolling comment: a `find-comment` step locates the prior
   one by a hidden marker (`<!-- camunda-skills-eval-comment -->`, which
   the workflow prepends — not the script) and `create-or-update-comment`
   replaces it in place, not stacked.
 
-Shape — a headline verdict, the model + total/cached tokens, an outcome
-table (verdict + observed tokens vs `baseline × 1.5`), a trigger routing
-table, a "Skill impact" delta when the `without_skill` arm ran, and (job
-summary only) the per-eval token-usage table:
+Shape — a headline verdict, the model + run-wide token usage (total with
+the `[I/CW/CR/O]` split), an outcome table (verdict + observed tokens vs
+`baseline × 1.5`), a trigger routing table, a "Skill impact" delta when
+the `without_skill` arm ran, and — under `--detail` — a `Tokens` column
+on the two tables:
 
 ```
 ### 🧪 Eval results
 
 **Triggers 13/13 · Outcomes 4/4** — ✅ all passed. Non-blocking signal (doesn't block merge).
 
-Model `anthropic/bedrock/global.anthropic.claude-sonnet-4-6` · 1.3M tokens (1.0M cached)
+Model `anthropic/bedrock/global.anthropic.claude-sonnet-4-6` · 1,315,560 tokens [I: 86,703, CW: 156,885, CR: 1,045,395, O: 26,577]
+_I input · CW cache-write · CR cache-read · O output._
 
-#### Outcome evals
-| Eval                | Outcome      | Tokens vs baseline   |
-| ------------------- | ------------ | -------------------- |
-| camunda-feel        | ✅ 3/3 (100%) | ✅ 89k (+0% vs 89k)   |
-| rocket-launch       | ✅ 1/1 (100%) | 🔴 480k (+45% vs 331k) |
+#### Outcome evals          (--detail adds the Tokens column)
+| Eval         | Outcome      | Tokens vs baseline     | Tokens                                                       |
+| ------------ | ------------ | ---------------------- | ------------------------------------------------------------ |
+| camunda-feel | ✅ 3/3 (100%) | ✅ 89k (+0% vs 89k)     | 89,402 tokens [I: 1,204, CW: 6,012, CR: 79,610, O: 2,576]    |
+| rocket-launch| ✅ 1/1 (100%) | 🔴 480k (+45% vs 331k) | 480,114 tokens [I: 9,330, CW: 41,002, CR: 421,560, O: 8,222] |
 
 #### Trigger evals (skill routing)
-| Skill        | Routing       |
-| ------------ | ------------- |
-| camunda-bpmn | ⚠️ 3/4 (75%)  |
+| Skill        | Routing       | Tokens                                              |
+| ------------ | ------------- | --------------------------------------------------- |
+| camunda-bpmn | ⚠️ 3/4 (75%)  | 33,120 tokens [I: 412, CW: 2,103, CR: 30,210, O: 395] |
 
 #### Skill impact (with vs without)
 - **camunda-feel**: with-skill 100% vs without-skill 50% (Δ +50%)
-
-#### Token usage          ← --detail / job summary only
-| Eval         | Arm        | Tokens | Cached |
-| ------------ | ---------- | ------ | ------ |
-| camunda-feel | with_skill | 89k    | 72k    |
 ```
 
 Tables are column-aligned in the source so the same output is readable
-on a CLI (`uv run evals-summarize --log-dir <dir>`). The report is a
-summary; the trajectory viewer is the debugger (see below). For the
-per-sample scorer + token-budget breakdown, run `evals-pass-fail` (or
-`make eval-viewer`) against the logs.
+on a CLI (`uv run evals-summarize --log-dir <dir>`; add `--detail` for the
+`Tokens` column). The report is a summary; the trajectory viewer is the
+debugger (see below). For the per-sample scorer + token-budget breakdown,
+run `evals-pass-fail` (or `make eval-viewer`) against the logs.
 
 ## Artifacts
 
