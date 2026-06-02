@@ -55,9 +55,9 @@ help:
 	@echo "            Example: ARGS=\"--epochs 3\""
 	@echo ""
 	@echo "Notes:"
-	@echo "  eval-outcomes defaults to --max-samples 1 (sequential)."
-	@echo "  Concurrent Camunda 8.9 JVMs starve each other on a laptop;"
-	@echo "  override via ARGS=\"--max-samples 3\" if you've got the headroom."
+	@echo "  eval-outcomes runs at each eval's METADATA.max_sandboxes (default 1, sequential)."
+	@echo "  Cluster-backed evals stay at 1 — a sandbox is a whole cluster and concurrent"
+	@echo "  Camunda JVMs starve each other; override per run via ARGS=\"--max-sandboxes N\"."
 
 .PHONY: try
 try:
@@ -124,9 +124,11 @@ eval-outcomes:
 	else \
 		set -- scenarios/*/outcomes.py skills/*/outcomes.py; \
 	fi; \
+	targets=$$(uv run evals-list --json) || exit $$?; \
 	for s in "$$@"; do \
-		echo "=== $$s ==="; \
-		uv run inspect eval "$$s" --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
+		ms=$$(printf '%s' "$$targets" | uv run python -c "import sys,json; print(next((t['max_sandboxes'] for t in json.load(sys.stdin) if t['path']==sys.argv[1]), 1))" "$$s"); \
+		echo "=== $$s (max-sandboxes $$ms) ==="; \
+		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 

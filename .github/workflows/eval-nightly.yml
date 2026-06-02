@@ -41,13 +41,15 @@ jobs:
               slug = t["id"].replace(":", "-")
               if t["kind"] == "trigger":
                   specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base,
-                                "arm": "", "sandbox": False, "max_samples": 5})
+                                "arm": "", "sandbox": False, "limit": "--max-samples 5"})
               else:
+                  # Each sample is its own sandbox (= a Camunda cluster), so cap
+                  # sandbox concurrency from the eval's metadata, not max-samples.
                   for arm in ["with_skill", "without_skill"]:
                       specs.append({
                           "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]", "spec": spec,
                           "targs": f"-T agent=react -T arm={arm} {base}".strip(),
-                          "arm": arm, "sandbox": True, "max_samples": 1,
+                          "arm": arm, "sandbox": True, "limit": f"--max-sandboxes {t['max_sandboxes']}",
                       })
           print(json.dumps(specs))
           PY
@@ -77,7 +79,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
         run: |
-          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --max-samples ${{ matrix.max_samples }} \
+          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ ${{ matrix.limit }} \
             --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
             ${{ matrix.targs }}
       - name: Gate (evals-pass-fail)

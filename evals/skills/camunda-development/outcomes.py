@@ -31,6 +31,7 @@ METADATA = ScenarioMetadata(
         "camunda-ai-agents",
     ],
     baseline=BaselineConfig(exclude="all"),
+    max_sandboxes=10,  # judge-only, no cluster — run all samples concurrently
 )
 
 # Strict pass/fail (no partial credit) — routing has one right answer.

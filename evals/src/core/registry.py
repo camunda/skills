@@ -41,6 +41,7 @@ class EvalTarget:
     path: str  # relative to EVALS_ROOT
     task: str | None = None  # explicit @task name, if any
     args: dict[str, str] = field(default_factory=dict)
+    max_sandboxes: int = 1  # --max-sandboxes for outcome evals (from METADATA)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -50,6 +51,7 @@ class EvalTarget:
             "path": self.path,
             "task": self.task,
             "args": self.args,
+            "max_sandboxes": self.max_sandboxes,
         }
 
 
@@ -102,6 +104,7 @@ def _outcome_targets(base: Path, scope: str) -> list[EvalTarget]:
                 kind="outcome",
                 skills=list(meta.skills),
                 path=_rel(outcomes_py),
+                max_sandboxes=meta.max_sandboxes,
             )
         )
     return targets

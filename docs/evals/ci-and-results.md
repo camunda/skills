@@ -127,7 +127,7 @@ PR comment carries the detail.
 There's no tier concept. PR runs intersect `metadata.skills` with the
 changed skills (so a PR runs only the targets it can affect); nightly
 runs every target. `evals-list --json` emits one entry per target —
-`{id, kind, skills, path, task, args}`, where `id` is e.g.
+`{id, kind, skills, path, task, args, max_sandboxes}`, where `id` is e.g.
 `trigger:camunda-feel`, `skill:camunda-feel`, or
 `scenario:rocket-launch` and `kind` is `trigger | outcome` (the `skill:`
 / `scenario:` id prefix is just the outcome eval's scope). Adding a

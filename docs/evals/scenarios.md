@@ -68,6 +68,7 @@ An outcome eval is an Inspect `outcomes.py` with a module-level `METADATA` and a
 METADATA = ScenarioMetadata(
     skills=["camunda-feel"],                       # CI changed-skills filter
     baseline=BaselineConfig(exclude=["camunda-feel"]),  # what without_skill drops
+    # max_sandboxes=10,  # opt in to parallel samples; omit (=1) for cluster evals
 )
 
 @task
@@ -95,6 +96,12 @@ Pick the sandbox by what the scorers need: `compose-advisory.yaml` (no cluster),
 `compose-with-c8ctl.yaml` (live cluster), `compose-cpt-verifier.yaml` (cluster +
 CPT). Anything more bespoke (e.g. WireMock) → drop a `compose.yaml` next to the
 `outcomes.py` and reference it.
+
+`max_sandboxes` (default 1) caps how many samples run at once — each sample is
+its own sandbox. Leave it at 1 for cluster-backed evals (a sandbox is a whole
+Camunda cluster; concurrent JVMs starve each other); raise it (a round number
+≥ your sample count) for a no-cluster eval like the judge-only one above to run
+the samples in parallel.
 
 Run it: `make eval-outcomes TARGET=skills/camunda-feel` (the eval dir path). No workflow
 edit — CI picks it up from `metadata.skills`.
