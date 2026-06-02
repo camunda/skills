@@ -40,6 +40,10 @@ make eval-viewer
 # http://localhost:7575
 ```
 
+Before committing any Python change under `evals/`, run `uv run ruff format .`
+(from `evals/`) and commit what it reformats — including pre-existing drift in
+files you didn't touch. Keep the tree ruff-formatted; don't revert the churn.
+
 ## How to interpret a failing eval
 
 1. **Transcript first.** The `.eval` log shows every tool call, file
