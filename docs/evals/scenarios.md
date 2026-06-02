@@ -101,34 +101,8 @@ edit — CI picks it up from `metadata.skills`.
 
 ## Running
 
-```bash
-make eval-images                                   # build the sandbox images once
-make eval-triggers                                 # every trigger eval
-make eval-triggers SKILL=camunda-feel              # one trigger eval
-make eval-outcomes TARGET=skills/camunda-feel      # one outcome eval (skill or scenario)
-make eval-outcomes TARGET=scenarios/rocket-launch  # cross-skill outcome eval
-make eval-outcomes TARGET=skills/camunda-feel ARM=without_skill   # the comparison arm
-make eval-viewer                                   # open the Inspect trajectory viewer
-```
-
-`make help` lists every target. Default model is `anthropic/claude-sonnet-4-6`
-(needs `ANTHROPIC_API_KEY`); override with `MODEL=…`.
-
-## Baselines
-
-`outcomes_baseline.json` (per eval directory) records each sample's observed
-token count per arm; the gate fails a sample whose tokens exceed `baseline × 1.5`.
-Outcome is gated by the scorers, not the baseline. Triggers have no baseline.
-
-```bash
-make eval-outcomes TARGET=skills/camunda-feel              # fresh run
-make eval-baseline TARGET=skills/camunda-feel              # rewrite outcomes_baseline.json from it
-git diff evals/skills/camunda-feel/outcomes_baseline.json  # review before committing
-```
-
-Regenerate after an intentional change or a new sample. Do **not** regenerate to
-paper over a regression or a flaky run — diagnose first. Adding a sample never
-breaks others: a new id simply has no baseline entry until you regenerate.
+To run an eval, read its scorers, regenerate a baseline, or compare the
+`with_skill` / `without_skill` arms, see the [local runbook](runbook.md).
 
 ## Debugging a failure
 

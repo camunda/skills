@@ -13,13 +13,16 @@ repo. Operational guide; concepts live in
 | Adding a new skill | Open a question: which failure mode would an eval catch? If you have one, propose it. If you don't, **don't fabricate one** — leave evals untouched. |
 | Lint-only changes (whitespace, link fixes, frontmatter) | Skip evals. `waza check` covers it. |
 | Repo plumbing changes (`Makefile`, workflows, etc.) | Run `make eval-triggers SKILL=camunda-feel` as a smoke test if your change could affect the harness. |
-| Eval / harness changes | Run the affected targets locally; update baselines per `scenarios.md` if intended. |
+| Eval / harness changes | Run the affected targets locally; update baselines per [`runbook.md`](runbook.md) if intended. |
 
 If in doubt, ask the user. Don't add an eval speculatively. An eval
 without a concrete failure-mode hypothesis is dead weight — it'll be
 ignored when it fails or be regenerated when it gets in the way.
 
 ## How to run evals locally
+
+Full command cheatsheet + how to read the scorers, baselines, and the
+with/without-skill comparison: [`runbook.md`](runbook.md). The essentials:
 
 Prerequisites: Docker, `uv` (installed via Astral; the harness will
 auto-install dependencies via `uv sync`).
@@ -105,7 +108,8 @@ without diagnosing what changed.
 ## Where the truth lives
 
 - **Why** → [`concepts.md`](concepts.md)
-- **How** → [`scenarios.md`](scenarios.md)
+- **Run & interpret locally** → [`runbook.md`](runbook.md)
+- **How to author** → [`scenarios.md`](scenarios.md)
 - **CI shape & PR comment** → [`ci-and-results.md`](ci-and-results.md)
 - **Design + roadmap (with divergences noted)** → [`../plans/01-eval-suite.md`](../plans/01-eval-suite.md)
   — for current state read its status box, not the body
