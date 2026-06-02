@@ -114,8 +114,8 @@ def baseline_dir(name: str | None) -> Path | None:
     """The directory holding ``baseline.json`` for an eval ``name``.
 
     Result evals live in ``skills/<skill>/``, scenarios in
-    ``scenarios/<id>/``. Triggers (shared ``_triggers.py``) match neither
-    and return ``None`` — they gate on outcome only, no token baseline.
+    ``scenarios/<id>/``. Triggers (eval name ``trigger-<skill>``) match
+    neither and return ``None`` — they gate on outcome only, no token baseline.
     """
     if not name:
         return None

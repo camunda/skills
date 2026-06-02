@@ -35,9 +35,10 @@ non-blocking check.
 | **Trigger** | Does the right skill load? | YAML data | `evals/skills/<skill>/triggers.yaml` |
 | **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
 
-Triggers are uniform, so they're pure data behind one generic
-parametrized task (`skills/_triggers.py@trigger -T skill=<skill>`),
-scored by `skill_loaded` / `skill_not_loaded` (both gating). A trigger
+Triggers are uniform, so they're pure data: each skill dir has a thin
+`triggers.py` shim (`inspect eval skills/<skill>/triggers.py`) that binds
+the shared routing task in `core/triggers.py` to that skill, scored by
+`skill_loaded` / `skill_not_loaded` (both gating). A trigger
 is a single structured-output call: the model gets the skill catalog
 (the same `<available_skills>` block the `skill` tool discloses) plus
 the prompt and returns the skills it would load — no agent, no tools, no

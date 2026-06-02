@@ -102,16 +102,12 @@ eval-images:
 eval-trigger:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SKILL)" ]; then echo "SKILL=<name> required (e.g. SKILL=camunda-feel)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) -T skill=$(SKILL) $(ARGS)
+	@cd $(EVALS_DIR) && uv run inspect eval skills/$(SKILL)/triggers.py --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) $(ARGS)
 
 .PHONY: eval-triggers
 eval-triggers:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@cd $(EVALS_DIR) && for d in skills/*/triggers.yaml; do \
-		s=$$(basename $$(dirname $$d)); \
-		echo "=== trigger: $$s ==="; \
-		uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) -T skill=$$s $(ARGS) || exit $$?; \
-	done
+	@cd $(EVALS_DIR) && uv run inspect eval skills/*/triggers.py --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) $(ARGS)
 
 .PHONY: eval-result
 eval-result:

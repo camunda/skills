@@ -5,8 +5,8 @@ Discovers three kinds of eval target and exposes them as a flat JSON list
 
 - ``scenario`` — ``scenarios/<id>/task.py`` (cross-skill result evals)
 - ``result``   — ``skills/<skill>/task.py`` (per-skill result evals)
-- ``trigger``  — ``skills/<skill>/triggers.yaml`` (run via the shared
-  ``skills/_triggers.py@trigger -T skill=<skill>``)
+- ``trigger``  — ``skills/<skill>/triggers.yaml`` (run via the co-located
+  ``skills/<skill>/triggers.py@trigger``)
 
 Each target carries the Inspect invocation (path / task / args) and the
 skills it depends on, so the CI matrix can both run it and filter by
@@ -31,7 +31,6 @@ from core.paths import EVALS_ROOT, SCENARIOS_DIR, SKILL_EVALS_DIR
 from core.triggers import load_trigger_files
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
-TRIGGER_TASK_FILE = "skills/_triggers.py"
 
 
 @dataclass(frozen=True)
@@ -109,9 +108,8 @@ def discover() -> list[EvalTarget]:
                 id=f"trigger:{spec.target_skill}",
                 kind="trigger",
                 skills=list(spec.skills),
-                path=TRIGGER_TASK_FILE,
+                path=f"skills/{spec.target_skill}/triggers.py",
                 task="trigger",
-                args={"skill": spec.target_skill},
             )
         )
     return targets
