@@ -16,6 +16,7 @@ authoring a new eval see [`scenarios.md`](scenarios.md).
 | `make eval-outcomes` | Run the **whole** outcome suite (slow + costly) |
 | `make eval-viewer` | Open the trajectory viewer over `evals/logs` (`localhost:7575`) |
 | `uv run evals-pass-fail` | Gate verdict for the **latest** log (pass a path for a specific one) |
+| `uv run evals-summarize --log-dir logs/` | Render the run report (verdict, model, total/cached tokens, per-eval tables) over all local logs; add `--detail` for the per-eval token table |
 | `make eval-baseline TARGET=skills/camunda-feel` | Rewrite that eval's `outcomes_baseline.json` from its last run |
 | `uv run evals-list` | List every target + the skills it covers |
 

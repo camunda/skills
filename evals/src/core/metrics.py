@@ -56,10 +56,32 @@ def pass_rate(log) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def sample_tokens(sample) -> float:
-    """Total tokens consumed by a single sample across all models."""
+def _usage_field(sample, field: str) -> float:
+    """Sum one ModelUsage field across every model a sample touched."""
     usage = getattr(sample, "model_usage", None) or {}
-    return float(sum(getattr(u, "total_tokens", 0) or 0 for u in usage.values()))
+    return float(sum(getattr(u, field, 0) or 0 for u in usage.values()))
+
+
+def sample_tokens(sample) -> float:
+    """Total tokens consumed by a single sample across all models.
+
+    ``total_tokens`` is the all-in figure (input + output + cache read/write);
+    it's what the cost baseline gates on, so usage reporting uses it too.
+    """
+    return _usage_field(sample, "total_tokens")
+
+
+def total_cached_tokens(log) -> float:
+    """Sum cache-read tokens across all samples — the slice of ``total_tokens``
+    served from the prompt cache (so total far exceeds fresh input + output)."""
+    samples = getattr(log, "samples", None) or []
+    return sum(_usage_field(s, "input_tokens_cache_read") for s in samples)
+
+
+def model_id(log) -> str | None:
+    """The model id the eval ran against (from the log's eval header)."""
+    eval_meta = getattr(log, "eval", None)
+    return getattr(eval_meta, "model", None) if eval_meta else None
 
 
 def sample_duration_s(sample) -> float:
