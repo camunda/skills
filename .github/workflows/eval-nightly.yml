@@ -1,4 +1,4 @@
-name: Eval (nightly)
+name: 🧪 Run skill evals (nightly)
 
 # Broad regression sweep over every target (triggers + outcome evals),
 # running both the with-skill and without-skill arms so the with/without delta

@@ -1,4 +1,4 @@
-name: Eval (PR)
+name: 🧪 Run skill evals
 
 # Non-blocking PR eval signal — posts outcome + token-budget vs baseline as a
 # PR comment. Does NOT gate merge (keep out of required status checks).
