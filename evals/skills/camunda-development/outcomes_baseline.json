@@ -3,25 +3,25 @@
   "with_skill": {
     "samples": {
       "ai-agent-ticket-triage": {
-        "tokens": 32690
+        "tokens": 32622
       },
       "custom-inbound-webhook": {
-        "tokens": 65426
+        "tokens": 64916
       },
       "public-rest-api": {
-        "tokens": 16926
+        "tokens": 17107
       },
       "reusable-internal-api": {
-        "tokens": 31205
+        "tokens": 30946
       },
       "slack-notification": {
-        "tokens": 29584
+        "tokens": 29591
       },
       "spring-embedded-throughput": {
-        "tokens": 45987
+        "tokens": 46762
       },
       "ts-node-stack": {
-        "tokens": 44018
+        "tokens": 30075
       }
     }
   }
