@@ -95,7 +95,7 @@ jobs:
               if t["kind"] == "trigger":
                   # Structured single-shot routing: no agent, no sandbox; samples run in parallel.
                   specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base_targs,
-                                "arm": "", "sandbox": False, "limit": "--max-samples 5"})
+                                "arm": "", "sandbox": False, "limit": "--max-samples 10"})
               else:
                   # Each sample is its own sandbox (= a Camunda cluster), so cap
                   # sandbox concurrency from the eval's metadata, not max-samples.

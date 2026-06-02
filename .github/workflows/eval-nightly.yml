@@ -41,7 +41,7 @@ jobs:
               slug = t["id"].replace(":", "-")
               if t["kind"] == "trigger":
                   specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base,
-                                "arm": "", "sandbox": False, "limit": "--max-samples 5"})
+                                "arm": "", "sandbox": False, "limit": "--max-samples 10"})
               else:
                   # Each sample is its own sandbox (= a Camunda cluster), so cap
                   # sandbox concurrency from the eval's metadata, not max-samples.
