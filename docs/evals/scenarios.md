@@ -10,10 +10,10 @@ see [`concepts.md`](concepts.md).
 | **Trigger** | Does the right skill load (and the wrong one stay out)? | YAML data | `evals/skills/<skill>/triggers.yaml` |
 | **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
 
-Triggers are uniform, so they're pure data behind one generic task. Result
-evals are bespoke — they pick scorers (LLM judge and/or programmatic) and may
-use a live cluster — so each is a small Inspect `task.py`. Both always run in a
-Docker sandbox.
+Triggers are uniform, so they're pure data behind one generic task — a single
+structured-output routing call (no agent, no sandbox). Result evals are bespoke
+— they pick scorers (LLM judge and/or programmatic) and may use a live cluster
+— so each is a small Inspect `task.py` and runs in a Docker sandbox.
 
 ## Adding a trigger eval (YAML, no Python)
 

@@ -40,12 +40,14 @@ jobs:
               base = " ".join(f"-T {k}={v}" for k, v in (t["args"] or {}).items())
               slug = t["id"].replace(":", "-")
               if t["kind"] == "trigger":
-                  specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base, "arm": ""})
+                  specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base,
+                                "arm": "", "sandbox": False, "max_samples": 5})
               else:
                   for arm in ["with_skill", "without_skill"]:
                       specs.append({
-                          "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]",
-                          "spec": spec, "targs": f"{base} -T arm={arm}".strip(), "arm": arm,
+                          "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]", "spec": spec,
+                          "targs": f"-T agent=react -T arm={arm} {base}".strip(),
+                          "arm": arm, "sandbox": True, "max_samples": 1,
                       })
           print(json.dumps(specs))
           PY
@@ -66,6 +68,7 @@ jobs:
           python-version-file: .python-version
       - run: uv sync --frozen
       - name: Build sandbox images
+        if: matrix.sandbox
         run: make eval-images
       - name: Run eval
         working-directory: evals
@@ -74,9 +77,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
         run: |
-          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --max-samples 1 \
+          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --max-samples ${{ matrix.max_samples }} \
             --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
-            -T agent=react ${{ matrix.targs }}
+            ${{ matrix.targs }}
       - name: Gate (evals-pass-fail)
         if: matrix.arm != 'without_skill'
         working-directory: evals

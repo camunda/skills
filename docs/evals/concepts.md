@@ -38,13 +38,16 @@ non-blocking check.
 Triggers are uniform, so they're pure data behind one generic
 parametrized task (`skills/_triggers.py@trigger -T skill=<skill>`),
 scored by `skill_loaded` / `skill_not_loaded` (both gating). A trigger
-runs a single arm — you can't load an absent skill — so it has no
-baseline.
+is a single structured-output call: the model gets the skill catalog
+(the same `<available_skills>` block the `skill` tool discloses) plus
+the prompt and returns the skills it would load — no agent, no tools, no
+sandbox. It runs a single arm — you can't load an absent skill — so it
+has no baseline.
 
 Result evals are bespoke — each is an Inspect `task.py` that picks its
 scorers (judge and/or deterministic) and supports `arm=with_skill |
-without_skill`. "Scenario" now means specifically a cross-skill result
-eval. Both kinds always run in a Docker sandbox.
+without_skill`, and runs in a Docker sandbox. "Scenario" now means
+specifically a cross-skill result eval.
 
 ## Two-phase sandbox model
 
@@ -136,15 +139,21 @@ load" with the skill removed.
 
 ## Harness model
 
-**Agent loop**: Inspect's `react()` with `bash_session` + `text_editor`
-+ `skill(all_skill_dirs())` tools. Model selected via Inspect's
-`--model` flag (e.g. `--model anthropic/claude-sonnet-4-6`).
+**Result-eval agent loop**: Inspect's `react()` with `bash_session` +
+`text_editor` + `skill(all_skill_dirs())` tools. Model selected via
+Inspect's `--model` flag (e.g. `--model anthropic/claude-sonnet-4-6`).
 
 No CLI-style harness bridge today: there's no upstream Copilot CLI
 bridge for Inspect AI, so `sandbox_agent_bridge()` isn't a path yet.
 `react()` is the v1 agent loop — the `skill()` tool surfaces all 13
-skills to the model, and cross-skill routing falls out of which
-skills the model loads (transcript signal).
+skills to the model, and cross-skill routing falls out of which skills
+the model loads (transcript signal).
+
+**Trigger routing**: not an agent loop — one structured-output call. The
+model gets the `<available_skills>` catalog (built the same way the
+`skill()` tool discloses it) plus the prompt, and returns the skill
+names it would load. No tools, no sandbox; the meta-router
+`camunda-development` is omitted from every catalog but its own.
 
 **Local credentials**: provide whatever the chosen `MODEL` needs. The
 local default `anthropic/claude-sonnet-4-6` reads `ANTHROPIC_API_KEY`;

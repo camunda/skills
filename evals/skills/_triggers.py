@@ -9,6 +9,15 @@ names itself ``trigger_<skill>`` so each run is its own eval in the viewer.
     make eval-trigger SKILL=camunda-feel                       # same, wrapped
     make eval-triggers                                         # loop all skills
 
+Routing is a single structured-output call: the model gets the skill catalog
+(the same ``<available_skills>`` block the ``skill`` tool discloses) and the
+task prompt, and returns the skill names it would load — no tools, no sandbox,
+no skill content read. We score that set against the sample's assertions.
+
+camunda-development is a meta-router that absorbs ambiguous "which integration
+approach?" prompts, so it's omitted from every catalog except its own eval —
+otherwise a leaf skill's trigger just re-tests whether the router fires.
+
 (Inspect discovers file tasks by AST-parsing ``@task`` decorators, so the task
 must be defined literally here — not generated dynamically. Result evals are
 hand-written ``task.py`` per directory.)
@@ -16,75 +25,99 @@ hand-written ``task.py`` per directory.)
 
 from __future__ import annotations
 
+import json
+
 from inspect_ai import Task, task
-from inspect_ai.agent import AgentState
 from inspect_ai.dataset import Sample
+from inspect_ai.model import (
+    ChatMessageSystem,
+    GenerateConfig,
+    ResponseSchema,
+    get_model,
+)
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import store
+from inspect_ai.tool._tools._skill.read import read_skills
+from inspect_ai.tool._tools._skill.tool import _available_skills
+from inspect_ai.util import JSONSchema
 
-from core.agents import AgentKind, build_agent
 from core.metadata import BaselineConfig, ScenarioMetadata
-from core.paths import SANDBOXES_DIR, all_skill_dirs
+from core.paths import all_skill_dirs
 from core.triggers import load_trigger_file
-from scorers.transcript import skills_loaded
-from solvers.collect_artifacts import with_artifact_collection
 
-_ADVISORY = SANDBOXES_DIR / "compose-advisory.yaml"
-_TARGETS_KEY = "trigger_targets"
+_ROUTER = "camunda-development"
+_ROUTED_KEY = "routed_skills"
 
-
-def _loaded_skills(state: AgentState) -> set[str]:
-    loaded: set[str] = set()
-    for msg in state.messages:
-        for call in getattr(msg, "tool_calls", None) or []:
-            if (call.function or "").lower() == "skill":
-                name = (call.arguments or {}).get("command")
-                if name:
-                    loaded.add(name)
-    return loaded
+_INSTRUCTIONS = (
+    "The following skills provide specialized instructions for specific tasks. "
+    "Given the task, decide which skill(s) you would load to handle it, judging "
+    "relevance from each description. Do not solve the task — return only the "
+    "names of the skills you would load, or an empty list if none apply."
+)
 
 
-async def _stop_when_targets_loaded(state: AgentState) -> bool | str:
-    """Stop the routing loop once every ``should_load`` target is loaded, so
-    the target's SKILL.md is never read into a follow-up generation (that
-    re-read is the bulk of a trigger's cost). Until then keep going — some
-    prompts route through ``camunda-development`` before the leaf skill."""
-    targets = set(store().get(_TARGETS_KEY) or [])
-    if targets and targets <= _loaded_skills(state):
-        return False
-    return "If a skill applies to this request, load it; otherwise reply briefly."
+def _catalog(target: str) -> tuple[str, list[str]]:
+    """The ``<available_skills>`` block + valid names, as the skill tool
+    discloses them. The router is hidden unless it's the eval's own target."""
+    skills = read_skills([str(p) for p in all_skill_dirs()])
+    skills = [s for s in skills if s.name == target or s.name != _ROUTER]
+    return _available_skills(skills), [s.name for s in skills]
 
 
 @solver
-def _routing(agent) -> Solver:
-    """Stash the sample's ``should_load`` so the stop hook can read it, then
-    run the agent (artifacts collected whatever happens)."""
-    inner = with_artifact_collection(agent)
+def route(target: str) -> Solver:
+    catalog, names = _catalog(target)
+    system = f"{_INSTRUCTIONS}\n\n{catalog}"
+    schema = ResponseSchema(
+        name="skill_routing",
+        strict=True,
+        json_schema=JSONSchema(
+            type="object",
+            properties={
+                "skills": JSONSchema(
+                    type="array", items=JSONSchema(type="string", enum=names)
+                )
+            },
+            required=["skills"],
+            additionalProperties=False,
+        ),
+    )
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        state.store.set(_TARGETS_KEY, state.metadata.get("should_load") or [])
-        return await inner(state, generate)
+        out = await get_model().generate(
+            [ChatMessageSystem(content=system), *state.messages],
+            config=GenerateConfig(response_schema=schema),
+        )
+        state.output = out
+        state.messages.append(out.message)
+        try:
+            routed = json.loads(out.completion).get("skills", [])
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            routed = []
+        state.store.set(_ROUTED_KEY, routed)
+        return state
 
     return solve
 
 
 @scorer(metrics=[mean(), stderr()])
 def skill_loaded() -> Scorer:
-    """Gating: every skill in the sample's ``should_load`` was loaded.
+    """Gating: every skill in the sample's ``should_load`` was routed to.
     ``None`` (no-op) for samples without a ``should_load``."""
 
     async def score(state: TaskState, target: Target) -> Score | None:
         expected = state.metadata.get("should_load") or []
         if not expected:
             return None
-        seen = skills_loaded(state, expected)
-        missing = [s for s in expected if s not in seen]
+        routed = set(state.store.get(_ROUTED_KEY) or [])
+        missing = [s for s in expected if s not in routed]
         return Score(
             value=1.0 if not missing else 0.0,
-            answer=",".join(sorted(seen)) or None,
-            explanation=f"missing: {missing}" if missing else f"loaded: {sorted(seen)}",
-            metadata={"expected": expected, "loaded": sorted(seen)},
+            answer=",".join(sorted(routed)) or None,
+            explanation=f"missing: {missing}"
+            if missing
+            else f"routed: {sorted(routed)}",
+            metadata={"expected": expected, "routed": sorted(routed)},
         )
 
     return score
@@ -92,26 +125,27 @@ def skill_loaded() -> Scorer:
 
 @scorer(metrics=[mean(), stderr()])
 def skill_not_loaded() -> Scorer:
-    """Gating: none of the sample's ``should_not_load`` skills were loaded.
+    """Gating: none of the sample's ``should_not_load`` skills were routed to.
     ``None`` for samples without a ``should_not_load``."""
 
     async def score(state: TaskState, target: Target) -> Score | None:
         forbidden = state.metadata.get("should_not_load") or []
         if not forbidden:
             return None
-        loaded = skills_loaded(state, forbidden)
+        routed = set(state.store.get(_ROUTED_KEY) or [])
+        hit = sorted(routed & set(forbidden))
         return Score(
-            value=0.0 if loaded else 1.0,
-            answer=",".join(sorted(loaded)) or None,
-            explanation=f"loaded forbidden: {sorted(loaded)}" if loaded else "ok",
-            metadata={"forbidden": forbidden, "loaded": sorted(loaded)},
+            value=0.0 if hit else 1.0,
+            answer=",".join(hit) or None,
+            explanation=f"routed to forbidden: {hit}" if hit else "ok",
+            metadata={"forbidden": forbidden, "routed": sorted(routed)},
         )
 
     return score
 
 
 @task
-def trigger(skill: str, agent: AgentKind = "react") -> Task:
+def trigger(skill: str) -> Task:
     spec = load_trigger_file(skill)
     samples = [
         Sample(
@@ -130,19 +164,8 @@ def trigger(skill: str, agent: AgentKind = "react") -> Task:
     return Task(
         name=f"trigger_{skill.replace('-', '_')}",
         dataset=samples,
-        solver=_routing(
-            build_agent(
-                agent,
-                all_skill_dirs(),
-                submit=False,
-                skill_only=True,
-                on_continue=_stop_when_targets_loaded,
-            )
-        ),
+        solver=route(skill),
         scorer=[skill_loaded(), skill_not_loaded()],
-        sandbox=("docker", str(_ADVISORY)),
         metadata=metadata.model_dump(),
-        time_limit=180,
-        token_limit=200_000,
-        message_limit=40,
+        token_limit=20_000,
     )

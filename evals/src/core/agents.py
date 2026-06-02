@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Sequence
 
-from inspect_ai.agent import Agent, AgentContinue, AgentPrompt, react
+from inspect_ai.agent import Agent, AgentPrompt, react
 from inspect_ai.tool import (
     bash_session,
     grep,
@@ -35,39 +35,18 @@ _INSTRUCTIONS_REACT = (
 
 _INSTRUCTIONS_CLAUDE_CODE = _WORKSPACE_RULES
 
-# Routing-only: the agent has no execution tools, so it loads whichever
-# skill(s) it would reach for. Used by trigger evals — we score only which
-# skills loaded, never what's done with them.
-_INSTRUCTIONS_ROUTING = (
-    "Load the skill(s) that would help you handle this request. You have no "
-    "execution tools — do not try to run commands or write files."
-)
-
 
 def build_agent(
     kind: AgentKind,
     skill_dirs: Sequence[Path],
     submit: bool = True,
-    skill_only: bool = False,
-    on_continue: AgentContinue | None = None,
 ) -> Agent:
     """Construct the configured agent loop with the given skill set.
 
-    ``submit=False`` removes react's submit() tool, so the agent halts
-    when it stops calling tools. ``skill_only=True`` gives react only the
-    skill tool (no bash/editor/grep/web) — routing-only, for trigger evals.
-    ``on_continue`` is react's loop hook (trigger evals pass one that stops
-    once the target skill loads). No effect for claude_code (its native
-    toolset can't be restricted).
+    ``submit=False`` removes react's submit() tool, so the agent halts when
+    it stops calling tools.
     """
     if kind == "react":
-        if skill_only:
-            return react(
-                prompt=AgentPrompt(instructions=_INSTRUCTIONS_ROUTING),
-                submit=submit,
-                on_continue=on_continue,
-                tools=[skill(list(skill_dirs))] if skill_dirs else [],
-            )
         instructions = _INSTRUCTIONS_REACT if submit else _WORKSPACE_RULES
         return react(
             prompt=AgentPrompt(instructions=instructions),
@@ -82,11 +61,6 @@ def build_agent(
             ],
         )
     if kind == "claude_code":
-        if skill_only:
-            raise ValueError(
-                "skill_only is not supported for claude_code (its native tools "
-                "can't be restricted); use agent=react for trigger evals"
-            )
         return claude_code(
             system_prompt=_INSTRUCTIONS_CLAUDE_CODE,
             skills=[str(p) for p in skill_dirs] if skill_dirs else None,
