@@ -11,6 +11,7 @@ from core.triggers import Negative, Positive, build_trigger_eval
 def trigger_eval() -> Task:
     return build_trigger_eval(
         Path(__file__).parent.name,
+        # Hide the meta-router (camunda-development) so this tests the leaf skill.
         excluded_skills=["camunda-development"],
         positive=[
             Positive(
