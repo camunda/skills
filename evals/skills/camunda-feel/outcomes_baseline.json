@@ -3,13 +3,13 @@
   "with_skill": {
     "samples": {
       "bool-guard": {
-        "tokens": 23836
+        "tokens": 23739
       },
       "list-sum": {
-        "tokens": 23839
+        "tokens": 32768
       },
       "string-greeting": {
-        "tokens": 33095
+        "tokens": 41684
       }
     }
   }
