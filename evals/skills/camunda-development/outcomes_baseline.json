@@ -3,25 +3,39 @@
   "with_skill": {
     "samples": {
       "ai-agent-ticket-triage": {
-        "tokens": 32949
+        "tokens": 32282,
+        "turns": 3,
+        "tool_calls": 2
       },
       "custom-inbound-webhook": {
-        "tokens": 49484
+        "tokens": 49889,
+        "turns": 4,
+        "tool_calls": 4
       },
       "public-rest-api": {
-        "tokens": 17245
+        "tokens": 17067,
+        "turns": 2,
+        "tool_calls": 1
       },
       "reusable-internal-api": {
-        "tokens": 30917
+        "tokens": 30513,
+        "turns": 3,
+        "tool_calls": 2
       },
       "slack-notification": {
-        "tokens": 29764
+        "tokens": 29685,
+        "turns": 3,
+        "tool_calls": 2
       },
       "spring-embedded-throughput": {
-        "tokens": 46269
+        "tokens": 46767,
+        "turns": 4,
+        "tool_calls": 4
       },
       "ts-node-stack": {
-        "tokens": 43478
+        "tokens": 43267,
+        "turns": 4,
+        "tool_calls": 3
       }
     }
   }

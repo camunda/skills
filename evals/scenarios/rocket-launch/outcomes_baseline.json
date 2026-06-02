@@ -3,7 +3,9 @@
   "with_skill": {
     "samples": {
       "happy": {
-        "tokens": 302263
+        "tokens": 395464,
+        "turns": 17,
+        "tool_calls": 17
       }
     }
   }
