@@ -23,6 +23,9 @@ AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
 # Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--epochs 3"
 ARGS ?=
+# Trigger evals are sandbox-free model calls, so their samples run fully in
+# parallel. Caps concurrent samples per skill; raise it if a skill grows.
+TRIGGER_SAMPLES ?= 20
 
 REPO_ROOT = $(CURDIR)
 EVALS_DIR = $(REPO_ROOT)/evals
@@ -99,7 +102,7 @@ eval-images:
 eval-trigger:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@if [ -z "$(SKILL)" ]; then echo "SKILL=<name> required (e.g. SKILL=camunda-feel)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples 5 --model $(MODEL) -T skill=$(SKILL) $(ARGS)
+	@cd $(EVALS_DIR) && uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) -T skill=$(SKILL) $(ARGS)
 
 .PHONY: eval-triggers
 eval-triggers:
@@ -107,7 +110,7 @@ eval-triggers:
 	@cd $(EVALS_DIR) && for d in skills/*/triggers.yaml; do \
 		s=$$(basename $$(dirname $$d)); \
 		echo "=== trigger: $$s ==="; \
-		uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples 5 --model $(MODEL) -T skill=$$s $(ARGS) || exit $$?; \
+		uv run inspect eval skills/_triggers.py@trigger --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) -T skill=$$s $(ARGS) || exit $$?; \
 	done
 
 .PHONY: eval-result
