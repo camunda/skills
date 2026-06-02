@@ -5,8 +5,7 @@ Discovers three kinds of eval target and exposes them as a flat JSON list
 
 - ``scenario`` — ``scenarios/<id>/task.py`` (cross-skill result evals)
 - ``result``   — ``skills/<skill>/task.py`` (per-skill result evals)
-- ``trigger``  — ``skills/<skill>/triggers.yaml`` (run via the co-located
-  ``skills/<skill>/triggers.py@trigger``)
+- ``trigger``  — ``skills/<skill>/triggers.py`` (run via ``…@trigger_eval``)
 
 Each target carries the Inspect invocation (path / task / args) and the
 skills it depends on, so the CI matrix can both run it and filter by
@@ -28,7 +27,6 @@ from typing import Any
 
 from core.metadata import ScenarioMetadata
 from core.paths import EVALS_ROOT, SCENARIOS_DIR, SKILL_EVALS_DIR
-from core.triggers import load_trigger_files
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 
@@ -54,7 +52,12 @@ class EvalTarget:
 
 
 def _import_module(task_py: Path):
-    module_name = f"_evals_{task_py.parent.name.replace('-', '_')}_{task_py.parent.parent.name}"
+    # Include the file stem so task.py and triggers.py in the same skill dir
+    # don't collide in sys.modules.
+    module_name = (
+        f"_evals_{task_py.parent.parent.name}"
+        f"_{task_py.parent.name.replace('-', '_')}_{task_py.stem}"
+    )
     spec = importlib.util.spec_from_file_location(module_name, task_py)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {task_py}")
@@ -86,7 +89,9 @@ def _task_py_targets(base: Path, kind: str, id_prefix: str) -> list[EvalTarget]:
         if not task_py.exists():
             continue
         if not NAME_PATTERN.match(d.name):
-            raise RuntimeError(f"{d.name}: directory name must match {NAME_PATTERN.pattern}")
+            raise RuntimeError(
+                f"{d.name}: directory name must match {NAME_PATTERN.pattern}"
+            )
         meta = _metadata(task_py)
         targets.append(
             EvalTarget(
@@ -99,19 +104,35 @@ def _task_py_targets(base: Path, kind: str, id_prefix: str) -> list[EvalTarget]:
     return targets
 
 
+def _trigger_targets() -> list[EvalTarget]:
+    targets: list[EvalTarget] = []
+    if not SKILL_EVALS_DIR.exists():
+        return targets
+    for triggers_py in sorted(SKILL_EVALS_DIR.glob("*/triggers.py")):
+        skill = triggers_py.parent.name
+        if not NAME_PATTERN.match(skill):
+            raise RuntimeError(
+                f"{skill}: directory name must match {NAME_PATTERN.pattern}"
+            )
+        # Call the @task to read its metadata (the catalog is built lazily, so
+        # this constructs the Task without reading any SKILL.md).
+        task = _import_module(triggers_py).trigger_eval()
+        targets.append(
+            EvalTarget(
+                id=f"trigger:{skill}",
+                kind="trigger",
+                skills=list(task.metadata["skills"]),
+                path=_rel(triggers_py),
+                task="trigger_eval",
+            )
+        )
+    return targets
+
+
 def discover() -> list[EvalTarget]:
     targets = _task_py_targets(SCENARIOS_DIR, "scenario", "scenario")
     targets += _task_py_targets(SKILL_EVALS_DIR, "result", "result")
-    for spec in load_trigger_files():
-        targets.append(
-            EvalTarget(
-                id=f"trigger:{spec.target_skill}",
-                kind="trigger",
-                skills=list(spec.skills),
-                path=f"skills/{spec.target_skill}/triggers.py",
-                task="trigger",
-            )
-        )
+    targets += _trigger_targets()
     return targets
 
 
@@ -124,7 +145,9 @@ def filter_by_changed_skills(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", action="store_true", help="emit JSON (default: human table)")
+    parser.add_argument(
+        "--json", action="store_true", help="emit JSON (default: human table)"
+    )
     parser.add_argument(
         "--changed-skills",
         nargs="*",

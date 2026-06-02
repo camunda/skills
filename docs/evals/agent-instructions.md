@@ -60,15 +60,16 @@ Follow `scenarios.md` exactly. Key non-obvious rules:
 
 - **Name the failure mode**, not the skill (for scenarios:
   `dmn-collect-ordering`, not `dmn-test`).
-- **A trigger is YAML** at `evals/skills/<skill>/triggers.yaml`; a
-  result eval is a `task.py` with `METADATA` + `@task`.
+- **A trigger is a `triggers.py`** at `evals/skills/<skill>/` — a `@task`
+  that inlines `Positive`/`Negative` samples and calls `build_trigger_eval`;
+  a result eval is a `task.py` with `METADATA` + `@task`.
 - **Set `baseline.exclude`** to the load-bearing skill(s) so the
   `without_skill` arm measures what the skill adds.
-- **Inclusion is automatic** via `metadata.skills` (and `target_skill`
-  for triggers) — don't hardcode the workflow matrix.
+- **Inclusion is automatic** via `metadata.skills` (the skill dir name for
+  triggers) — don't hardcode the workflow matrix.
 - **Edge cases are samples, not separate evals.** Add them as
-  additional `Sample(id="edge-…", ...)` entries (or YAML samples for a
-  trigger).
+  additional `Sample(id="edge-…", ...)` entries (or `Positive`/`Negative`
+  entries for a trigger).
 
 ## Updating baselines after intentional behaviour change
 
@@ -89,9 +90,6 @@ without diagnosing what changed.
   only — the baseline is a cost ceiling, never the outcome bar. If the
   outcome is failing and the skill is supposed to work, fix the skill.
 - ❌ **Don't blanket-regen baselines.** Per-target, with diff review.
-- ❌ **Don't put result-eval config in YAML sidecars.** The contract is
-  module-level `METADATA` in `task.py`. One source. (Triggers are the
-  one YAML case — pure data behind the generic task.)
 - ❌ **Don't skip the `without_skill` arm** because "it makes the eval
   slow". The with-vs-without delta is the whole signal.
 - ❌ **Don't run evals on every commit.** Local iteration: one target

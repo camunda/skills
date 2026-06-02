@@ -7,38 +7,48 @@ see [`concepts.md`](concepts.md).
 
 | Kind | Question | Authored as | Where |
 |---|---|---|---|
-| **Trigger** | Does the right skill load (and the wrong one stay out)? | YAML data | `evals/skills/<skill>/triggers.yaml` |
+| **Trigger** | Does the right skill load (and the wrong one stay out)? | Python `triggers.py` | `evals/skills/<skill>/triggers.py` |
 | **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
 
-Triggers are uniform, so they're pure data behind one generic task — a single
-structured-output routing call (no agent, no sandbox). Result evals are bespoke
-— they pick scorers (LLM judge and/or programmatic) and may use a live cluster
-— so each is a small Inspect `task.py` and runs in a Docker sandbox.
+A trigger is a single structured-output routing call (no agent, no sandbox);
+its samples are inlined in the skill dir's `triggers.py`. Result evals are
+bespoke — they pick scorers (LLM judge and/or programmatic) and may use a live
+cluster — so each is a small Inspect `task.py` and runs in a Docker sandbox.
 
-## Adding a trigger eval (YAML, no Python)
+## Adding a trigger eval (Python)
 
-Create or edit `evals/skills/<skill>/triggers.yaml`:
+Create or edit `evals/skills/<skill>/triggers.py` — a thin `@task` that inlines
+its samples and calls `build_trigger_eval`:
 
-```yaml
-target_skill: camunda-feel        # must equal the directory name
-also_run_when_changed:            # optional, CI-only: rerun this eval when
-  - camunda-bpmn                  #   these other skills change. No runtime effect.
-positive:                         # prompts that SHOULD load camunda-feel
-  - id: gateway-condition
-    prompt: "What FEEL expression takes a flow only when amount > 1000?"
-    should_not_load: [camunda-bpmn]   # optional coexistence guard
-negative:                         # prompts that should route elsewhere
-  - id: author-process
-    prompt: "Design a BPMN process for invoice approval."
-    should_load: [camunda-bpmn]       # where it should route instead
+```python
+"""Trigger eval for camunda-feel — does this prompt route here?"""
+from pathlib import Path
+from inspect_ai import Task, task
+from core.triggers import Negative, Positive, build_trigger_eval
+
+@task
+def trigger_eval() -> Task:
+    return build_trigger_eval(
+        Path(__file__).parent.name,        # the skill = this directory
+        positive=[                          # prompts that SHOULD load it
+            Positive("gateway-condition",
+                     "What FEEL expression takes a flow only when amount > 1000?"),
+        ],
+        negative=[                          # prompts that should route elsewhere
+            Negative("author-process", "Design a BPMN process for invoice approval.",
+                     should_load=["camunda-bpmn"]),   # optional: where it routes instead
+        ],
+    )
 ```
 
-The target skill is implicit: every `positive` sample asserts
-`should_load: [<target>]` and every `negative` asserts
-`should_not_load: [<target>]` — so you never repeat it. Sample ids are
-auto-prefixed `pos-` / `neg-`. A positive may add a `should_not_load` guard
-against sibling skills; a negative names where it should route via
-`should_load`.
+The target skill is implicit: every `Positive` asserts `should_load=[<skill>]`
+and every `Negative` asserts `should_not_load=[<skill>]` — so you never repeat
+it. Sample ids are auto-prefixed `pos-` / `neg-`. Optional extra guards:
+`Positive(..., should_not_load=[...])` keeps a sibling out on a positive prompt;
+`Negative(..., should_load=[...])` names where it should route instead. Two more
+optional `build_trigger_eval` kwargs: `excluded_skills=[...]` hides skills from
+the routing catalog, and `also_run_when_changed=[...]` widens the CI
+changed-skills filter (no runtime effect).
 
 Run it: `make eval-trigger SKILL=camunda-feel`.
 
