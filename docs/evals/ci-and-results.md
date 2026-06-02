@@ -3,6 +3,27 @@
 How evals run in CI, what the PR comment looks like, and how to debug
 a failure from a CI artifact.
 
+## Day-to-day: a skill-change PR
+
+The common path when you edit a `skills/<X>/SKILL.md` or its `references/`:
+
+1. **Iterate locally** — `make eval-triggers SKILL=<X>` for routing,
+   `make eval-outcomes TARGET=skills/<X>` for behaviour. See the
+   [runbook](runbook.md) for the local loop.
+2. **Open the PR.** Nothing runs automatically — `eval.yml` is opt-in and
+   maintainer-gated (see [Workflows](#workflows)).
+3. **A maintainer adds `evals:run`** — runs the targets your change can
+   affect, on the `with_skill` arm, gated against the committed baseline, and
+   posts the rolling comment.
+4. **Read the result** — the PR comment for the verdict, the run's job summary
+   for token usage, the trajectory viewer for a failing sample.
+5. **Occasionally** add `evals:compare` (does the skill earn its keep — the
+   with-vs-without delta) or `evals:run-all` (whole-suite check). Labels re-run
+   on each push while present; remove to stop.
+6. **Intentional behaviour change that moved tokens?** Regenerate the baseline
+   locally and commit the reviewed diff (`make eval-baseline TARGET=…`) — never
+   to make CI green.
+
 ## Workflows
 
 | Workflow | Trigger | Scope |
@@ -19,16 +40,48 @@ the `pull_request` event (not `pull_request_target`), a fork PR never
 receives the AWS secrets — model runs only happen on branches in this
 repo.
 
-Three labels select the scope (re-runs on each push while the label is
-present; remove it to stop):
+Labels make two **orthogonal** choices — **scope** (which targets) and **arms**
+(whether to also run the without-skill comparison). They re-run on each push
+while present; remove to stop.
+
+**Scope** — pick one:
 
 - **`evals:run`** — targets whose skills intersect the changed skills
-  (`metadata.skills ∩ changed-skills ≠ ∅`, resolved by
-  `evals-list --changed-skills`); the targeted PR signal.
-- **`evals:run-all`** — every target, to integration-test the whole
-  suite against the branch.
-- **`evals:compare`** — also run the `without_skill` arm of outcome
-  targets, to surface the with-vs-without skill delta.
+  (`metadata.skills ∩ changed-skills ≠ ∅`, via `evals-list --changed-skills`).
+  The everyday PR signal.
+- **`evals:run-all`** — every target. Whole-suite integration check, e.g. for
+  harness/plumbing changes.
+
+**Arms** — optional, combine with either scope label:
+
+- **`evals:compare`** — also run the `without_skill` arm of outcome evals (the
+  with-vs-without delta). Without it, outcome evals run `with_skill` only.
+
+| You want to… | Label(s) | Runs | Gated vs baseline? |
+|---|---|---|---|
+| Check the skills your PR touched | `evals:run` | affected targets, `with_skill` | ✅ yes |
+| Check the whole suite | `evals:run-all` | every target, `with_skill` | ✅ yes |
+| See what a skill *adds* | either **+ `evals:compare`** | adds the `without_skill` arm | `with_skill` ✅ · `without_skill` ❌ never |
+
+So `evals:run-all` alone runs every target on `with_skill` only; you add
+`evals:compare` to get the second arm.
+
+### Arms & the baseline
+
+Only **outcome evals** have arms; a trigger is a single routing call with no
+arm and no baseline.
+
+- **`with_skill`** — every skill available (the real condition). The **gated**
+  arm: in the `Gate (evals-pass-fail)` step each sample must pass its gating
+  scorers *and* stay within its token budget (`baseline × 1.5`, from the
+  committed `outcomes_baseline.json`).
+- **`without_skill`** — the skill(s) named in the eval's
+  `METADATA.baseline.exclude` are disabled; everything else stays. Runs **only**
+  under `evals:compare`, is **never gated** (it's the comparison, not a bar),
+  and feeds the comment's "Skill impact" delta.
+
+So the baseline is compared in exactly one place — the `with_skill` arm of
+outcome evals. Triggers and the `without_skill` arm never touch it.
 
 The model is fixed to a single id via the `EVAL_MODEL` repo variable
 (default a Bedrock Claude). A multi-model matrix would add a `model`

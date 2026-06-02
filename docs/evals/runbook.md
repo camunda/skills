@@ -124,6 +124,9 @@ make eval-outcomes TARGET=skills/camunda-feel ARM=without_skill    # comparison
 4. Red? `make eval-viewer` → drill the failing sample.
 5. Behaviour intentionally changed *and* tokens moved? `make eval-baseline
    TARGET=…` + review the diff.
+6. On the PR a maintainer adds `evals:run` to run the affected targets in CI
+   (`with_skill`, gated against the baseline). Scope vs arms vs baseline and the
+   full PR flow: [ci-and-results.md](ci-and-results.md).
 
 ## Gotchas
 
