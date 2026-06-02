@@ -48,20 +48,41 @@ def _fmt(n: float) -> str:
     return f"{n / 1000:.0f}k" if n >= 1000 else str(n)
 
 
-def _table(headers: list[str], rows: list[list[str]]) -> list[str]:
+def _table(
+    headers: list[str], rows: list[list[str]], align: list[str] | None = None
+) -> list[str]:
     """A GitHub-flavored Markdown table with columns padded to align in plain
-    text — readable on a CLI, rendered identically by GitHub."""
+    text — readable on a CLI, rendered identically by GitHub. ``align`` is a
+    per-column ``l``/``c``/``r`` list (default all left); it both pads the cells
+    and sets the Markdown separator (``---:`` / ``:--:`` / ``---``)."""
+    align = align or ["l"] * len(headers)
     widths = [
         max(len(headers[i]), *(len(r[i]) for r in rows)) if rows else len(headers[i])
         for i in range(len(headers))
     ]
 
+    def pad(c: str, w: int, a: str) -> str:
+        return c.rjust(w) if a == "r" else c.center(w) if a == "c" else c.ljust(w)
+
     def line(cells: list[str]) -> str:
-        return "| " + " | ".join(c.ljust(w) for c, w in zip(cells, widths)) + " |"
+        return (
+            "| "
+            + " | ".join(pad(c, w, a) for c, w, a in zip(cells, widths, align))
+            + " |"
+        )
+
+    def sep(w: int, a: str) -> str:
+        return (
+            f"-{'-' * (w - 1)}:"
+            if a == "r"
+            else f":{'-' * (w - 2)}:"
+            if a == "c"
+            else "-" * w
+        )
 
     return [
         line(headers),
-        "| " + " | ".join("-" * w for w in widths) + " |",
+        "| " + " | ".join(sep(w, a) for w, a in zip(widths, align)) + " |",
         *(line(r) for r in rows),
     ]
 
@@ -70,7 +91,7 @@ def _verdict(passed: int, total: int) -> str:
     if total == 0:
         return "—"
     icon = "✅" if passed == total else "⚠️"
-    return f"{icon} {passed}/{total} ({passed / total:.0%})"
+    return f"{icon} {passed}/{total}"
 
 
 def _token_cell(cost_checks: list[dict] | None) -> str:
@@ -88,31 +109,44 @@ def _token_cell(cost_checks: list[dict] | None) -> str:
     pct = (observed - base) / base * 100 if base else 0.0
     over = [c for c in graded if not c["pass"]]
     icon = "🔴" if over else "✅"
-    return f"{icon} {_fmt(observed)} ({pct:+.0f}% vs {_fmt(base)}){hint}"
+    return f"{icon} `{_fmt(observed)}` ({pct:+.0f}% vs `{_fmt(base)}`){hint}"
+
+
+def _over_ceiling(obs: float, base: dict | None) -> bool:
+    b = base.get("tokens") if base else None
+    return isinstance(b, (int, float)) and obs > b * CEILING_MULTIPLIER
 
 
 def _tok_detail(obs: float, base: dict | None) -> str:
-    """Per-sample observed tokens with Δ% vs baseline (🔴 if over the ceiling)."""
-    if base and isinstance(base.get("tokens"), (int, float)):
-        b = base["tokens"]
-        pct = (obs - b) / b * 100 if b else 0.0
-        over = "🔴 " if obs > b * CEILING_MULTIPLIER else ""
-        return f"{over}{_fmt(obs)} ({pct:+.0f}%)"
-    return f"{_fmt(obs)} (no baseline)"
+    """Per-sample observed tokens, backticked, with Δ% vs baseline when it
+    moved (≥5%); a bare value otherwise, or ``(new)`` with no baseline."""
+    b = base.get("tokens") if base else None
+    if not isinstance(b, (int, float)):
+        return f"`{_fmt(obs)}` (new)"
+    pct = (obs - b) / b * 100 if b else 0.0
+    return f"`{_fmt(obs)}` {pct:+.0f}%" if abs(pct) >= 5 else f"`{_fmt(obs)}`"
 
 
 def _count_detail(obs: float, base: dict | None, key: str) -> str:
-    """Per-sample observed turns/tool-calls with the delta vs baseline."""
+    """Per-sample observed turns/tool-calls, backticked, with the Δ vs baseline
+    when it changed; a bare value otherwise."""
     obs = round(obs)
-    if base and isinstance(base.get(key), (int, float)):
-        return f"{obs} ({obs - round(base[key]):+d})"
-    return str(obs)
+    b = base.get(key) if base else None
+    if isinstance(b, (int, float)) and round(b) != obs:
+        return f"`{obs}` {obs - round(b):+d}"
+    return f"`{obs}`"
 
 
 def _usage(u: dict[str, float]) -> str:
     """Token breakdown: total tokens [I, CW, CR, O] (their sum)."""
     i, cw, cr, o = (round(u[f]) for f in USAGE_FIELDS)
     return f"{i + cw + cr + o:,} tokens [I: {i:,}, CW: {cw:,}, CR: {cr:,}, O: {o:,}]"
+
+
+def _split(u: dict[str, float]) -> str:
+    """Per-eval token split as a backticked (monospace) I·CW·CR·O cell."""
+    i, cw, cr, o = (round(u[f]) for f in USAGE_FIELDS)
+    return f"`I {i:,} · CW {cw:,} · CR {cr:,} · O {o:,}`"
 
 
 def _name_cell(name: str, blob_base: str | None, is_trigger: bool) -> str:
@@ -134,9 +168,9 @@ def render(
 ) -> str:
     """Render the run summary as Markdown.
 
-    ``detail`` adds a per-eval token-usage column and a per-sample breakdown
-    (tokens/turns/tool-calls vs baseline, with explicit "no baseline" rows) —
-    the job-summary deep dive, omitted from the lean PR comment. ``blob_base``
+    ``detail`` adds a per-eval token-split (I·CW·CR·O) column and a per-sample
+    breakdown (tokens/turns/tool-calls, each with its Δ vs baseline) — the
+    job-summary deep dive, omitted from the lean PR comment. ``blob_base``
     (a ``…/blob/<ref>`` URL) links each eval name to its source; ``run_url``
     appends a footer pointing at the run (used by the PR comment).
     """
@@ -214,28 +248,30 @@ def render(
     if results:
         out += ["", "#### Outcome evals"]
         out += _table(
-            ["Eval", "Outcome", "Tokens vs baseline"] + (["Tokens"] if detail else []),
+            ["Eval", "Outcome", "Tokens (vs baseline)"]
+            + (["Token split (I·CW·CR·O)"] if detail else []),
             [
                 [
                     _name_cell(name, blob_base, False),
                     _verdict(passed, total),
                     _token_cell(cost),
                 ]
-                + ([_usage(u)] if detail else [])
+                + ([_split(u)] if detail else [])
                 for name, passed, total, cost, u, _ in sorted(
                     results, key=lambda r: r[0]
                 )
             ],
+            ["l", "c", "r"] + (["l"] if detail else []),
         )
 
     if detail and results:
         out += ["", "#### Per-sample detail"]
         out += _table(
-            ["Eval", "Sample", "Tokens", "Turns", "Tool calls"],
+            ["Eval · Sample", "Tokens (vs baseline)", "Turns", "Tools"],
             [
                 [
-                    _name_cell(name, blob_base, False),
-                    f"`{s['id']}`",
+                    f"{'🔴 ' if _over_ceiling(s['tokens'], s['base']) else ''}"
+                    f"{name.removeprefix('camunda-')} · `{s['id']}`",
                     _tok_detail(s["tokens"], s["base"]),
                     _count_detail(s["turns"], s["base"], "turns"),
                     _count_detail(s["tool_calls"], s["base"], "tool_calls"),
@@ -243,17 +279,23 @@ def render(
                 for name, _p, _t, _c, _u, samples in sorted(results, key=lambda r: r[0])
                 for s in samples
             ],
+            ["l", "r", "r", "r"],
         )
+        out += [
+            "",
+            "_Δ is vs the committed baseline; a bare number means within ±5% "
+            "(tokens) or unchanged (turns/tools). “(new)” = no baseline yet._",
+        ]
 
     if triggers:
         out += ["", "#### Trigger evals (skill routing)"]
         out += _table(
-            ["Skill", "Routing"] + (["Tokens"] if detail else []),
+            ["Skill", "Routing"],
             [
                 [_name_cell(skill, blob_base, True), _verdict(passed, total)]
-                + ([_usage(u)] if detail else [])
-                for skill, passed, total, u in sorted(triggers, key=lambda t: t[0])
+                for skill, passed, total, _u in sorted(triggers, key=lambda t: t[0])
             ],
+            ["l", "c"],
         )
 
     deltas = [
