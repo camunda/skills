@@ -1,11 +1,13 @@
 """Eval target registry — the single source of truth for CI.
 
-Discovers three kinds of eval target and exposes them as a flat JSON list
-(consumed by the path-filtered PR workflow and the nightly run):
+Discovers two eval kinds and exposes them as a flat JSON list (consumed by the
+path-filtered PR workflow and the nightly run):
 
-- ``scenario`` — ``scenarios/<id>/task.py`` (cross-skill result evals)
-- ``result``   — ``skills/<skill>/task.py`` (per-skill result evals)
-- ``trigger``  — ``skills/<skill>/triggers.py`` (run via ``…@trigger_eval``)
+- ``outcome`` — an agent-in-sandbox e2e eval (``outcomes.py``). Scope is the
+  directory: ``skills/<skill>/`` (single-skill) or ``scenarios/<id>/``
+  (cross-skill). Same execution; the scope shows in the id (``skill:`` /
+  ``scenario:``).
+- ``trigger`` — ``skills/<skill>/triggers.py`` (run via ``…@trigger_eval``).
 
 Each target carries the Inspect invocation (path / task / args) and the
 skills it depends on, so the CI matrix can both run it and filter by
@@ -33,7 +35,7 @@ NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 
 @dataclass(frozen=True)
 class EvalTarget:
-    id: str  # "scenario:<id>" | "result:<skill>" | "trigger:<skill>"
+    id: str  # "scenario:<id>" | "skill:<skill>" | "trigger:<skill>"
     kind: str
     skills: list[str]
     path: str  # relative to EVALS_ROOT
@@ -51,54 +53,55 @@ class EvalTarget:
         }
 
 
-def _import_module(task_py: Path):
-    # Include the file stem so task.py and triggers.py in the same skill dir
+def _import_module(module_py: Path):
+    # Include the file stem so outcomes.py and triggers.py in the same skill dir
     # don't collide in sys.modules.
     module_name = (
-        f"_evals_{task_py.parent.parent.name}"
-        f"_{task_py.parent.name.replace('-', '_')}_{task_py.stem}"
+        f"_evals_{module_py.parent.parent.name}"
+        f"_{module_py.parent.name.replace('-', '_')}_{module_py.stem}"
     )
-    spec = importlib.util.spec_from_file_location(module_name, task_py)
+    spec = importlib.util.spec_from_file_location(module_name, module_py)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load {task_py}")
+        raise RuntimeError(f"cannot load {module_py}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
 
-def _metadata(task_py: Path) -> ScenarioMetadata:
-    meta = getattr(_import_module(task_py), "METADATA", None)
+def _metadata(outcomes_py: Path) -> ScenarioMetadata:
+    meta = getattr(_import_module(outcomes_py), "METADATA", None)
     if isinstance(meta, ScenarioMetadata):
         return meta
     if isinstance(meta, dict):
         return ScenarioMetadata.model_validate(meta)
-    raise RuntimeError(f"{task_py}: must define METADATA: ScenarioMetadata")
+    raise RuntimeError(f"{outcomes_py}: must define METADATA: ScenarioMetadata")
 
 
 def _rel(path: Path) -> str:
     return path.relative_to(EVALS_ROOT).as_posix()
 
 
-def _task_py_targets(base: Path, kind: str, id_prefix: str) -> list[EvalTarget]:
+def _outcome_targets(base: Path, scope: str) -> list[EvalTarget]:
+    # ``scope`` ("skill" | "scenario") is just the id prefix; both run the same.
     targets: list[EvalTarget] = []
     if not base.exists():
         return targets
     for d in sorted(p for p in base.iterdir() if p.is_dir()):
-        task_py = d / "task.py"
-        if not task_py.exists():
+        outcomes_py = d / "outcomes.py"
+        if not outcomes_py.exists():
             continue
         if not NAME_PATTERN.match(d.name):
             raise RuntimeError(
                 f"{d.name}: directory name must match {NAME_PATTERN.pattern}"
             )
-        meta = _metadata(task_py)
+        meta = _metadata(outcomes_py)
         targets.append(
             EvalTarget(
-                id=f"{id_prefix}:{d.name}",
-                kind=kind,
+                id=f"{scope}:{d.name}",
+                kind="outcome",
                 skills=list(meta.skills),
-                path=_rel(task_py),
+                path=_rel(outcomes_py),
             )
         )
     return targets
@@ -130,8 +133,8 @@ def _trigger_targets() -> list[EvalTarget]:
 
 
 def discover() -> list[EvalTarget]:
-    targets = _task_py_targets(SCENARIOS_DIR, "scenario", "scenario")
-    targets += _task_py_targets(SKILL_EVALS_DIR, "result", "result")
+    targets = _outcome_targets(SCENARIOS_DIR, "scenario")
+    targets += _outcome_targets(SKILL_EVALS_DIR, "skill")
     targets += _trigger_targets()
     return targets
 

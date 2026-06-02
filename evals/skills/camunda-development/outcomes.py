@@ -1,4 +1,4 @@
-"""camunda-development result eval: does it route to the right integration path?
+"""camunda-development outcome eval: does it route to the right integration path?
 
 Each sample is an open-ended Camunda 8 integration question; the agent
 recommends an approach (no implementation). `model_graded_qa` judges the

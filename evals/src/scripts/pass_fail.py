@@ -6,7 +6,7 @@ existing comparison):
 1. **Outcome** — every gating scorer on a sample must score ≥ ``--threshold``
    (default 1.0). The "works / doesn't work anymore" signal. Diagnostic
    scorers (``metadata.gating == False``) are shown but don't gate.
-2. **Cost** — only when a ``baseline.json`` exists for the eval AND the sample
+2. **Cost** — only when an ``outcomes_baseline.json`` exists for the eval AND the sample
    passed outcome: observed tokens must be ≤ ``baseline.<arm>.samples.<id>.tokens
    × 1.5`` (upper ceiling only). The "still works but costs ~2× now" signal.
    A sample with no baseline entry is reported, not gated.
@@ -84,7 +84,7 @@ def _load_baseline(name: str | None) -> dict | None:
     d = baseline_dir(name)
     if d is None:
         return None
-    path = d / "baseline.json"
+    path = d / "outcomes_baseline.json"
     if not path.exists():
         return None
     try:

@@ -7,7 +7,7 @@ name: Eval (PR)
 # secrets — this is `pull_request`, not `pull_request_target`):
 #   - evals:run       → targets whose skills ∩ changed skills
 #   - evals:run-all   → every target (suite integration check)
-#   - evals:compare   → also run the without-skill arm of result/scenario evals
+#   - evals:compare   → also run the without-skill arm of outcome evals
 # workflow_dispatch (requires write access) can run a single target and toggle
 # the comparison. Model: the EVAL_MODEL repo var (default a Bedrock Claude).
 on:
@@ -78,8 +78,8 @@ jobs:
         run: |
           changed=$(tr '\n' ' ' < changed-skills.txt)
           uv run evals-list --json --changed-skills $changed > targets.json
-          # Expand each target into run specs: triggers are single-arm; result
-          # and scenario evals run with_skill, plus without_skill when COMPARE.
+          # Expand each target into run specs: triggers are single-arm; outcome
+          # evals run with_skill, plus without_skill when COMPARE.
           python3 - <<'PY' > specs.json
           import json, os
           targets = json.load(open("targets.json"))

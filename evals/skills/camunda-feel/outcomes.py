@@ -1,4 +1,4 @@
-"""camunda-feel result eval: write a FEEL expression, evaluate it on the cluster.
+"""camunda-feel outcome eval: write a FEEL expression, evaluate it on the cluster.
 
 Deterministic, no judge. Each sample asks for a single FEEL expression; the
 agent saves it to /workspace/answer.feel; `feel_evaluates_to` runs it through

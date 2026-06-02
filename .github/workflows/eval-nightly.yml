@@ -1,6 +1,6 @@
 name: Eval (nightly)
 
-# Broad regression sweep over every target (triggers + result + scenario evals),
+# Broad regression sweep over every target (triggers + outcome evals),
 # running both the with-skill and without-skill arms so the with/without delta
 # is captured. Complements eval.yml's affected-subset PR signal. Uploads .eval
 # logs; never blocks merges. See docs/evals/ci-and-results.md.
@@ -31,7 +31,7 @@ jobs:
       - id: matrix
         run: |
           uv run evals-list --json > targets.json
-          # Every target; result/scenario evals run both arms (compare).
+          # Every target; outcome evals run both arms (compare).
           python3 - <<'PY' > specs.json
           import json
           specs = []

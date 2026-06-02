@@ -6,11 +6,11 @@
 # - SKILL ?= is empty by default; `make <target> SKILL=<name>` filters to one skill
 
 SKILL ?=
-SCENARIO ?=
+TARGET ?=
 # Comparison arm. Always passed as `-T arm=$(ARM)` so the value shows up
 # in Inspect's TASK ARGS column for every run (not just non-default ones).
 # Override on the command line for the baseline arm:
-#   make eval SCENARIO=rocket-launch ARM=without_skill
+#   make eval-outcomes TARGET=scenarios/rocket-launch ARM=without_skill
 ARM ?= with_skill
 # Model + agent loop, passed to every `inspect eval`. The suite is
 # model-agnostic; MODEL is just the default and uses the Anthropic API
@@ -21,7 +21,7 @@ ARM ?= with_skill
 MODEL ?= anthropic/claude-sonnet-4-6
 AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
-# Example: make eval SCENARIO=c8ctl-bootstrap ARGS="--epochs 3"
+# Example: make eval-outcomes TARGET=scenarios/c8ctl-bootstrap ARGS="--epochs 3"
 ARGS ?=
 # Trigger evals are sandbox-free model calls, so their samples run fully in
 # parallel. Caps concurrent samples per skill; raise it if a skill grows.
@@ -38,28 +38,24 @@ help:
 	@echo "  help            Show this help."
 	@echo "  try             Launch an interactive Claude Code session with this repo's skills loaded (no install)."
 	@echo "  lint            Run waza check across all skills (or one if SKILL=<name> is set)."
-	@echo "  eval-trigger    Run one skill's trigger eval (SKILL=<name> required)."
-	@echo "  eval-triggers   Run every skill's trigger eval."
-	@echo "  eval-result     Run one skill's result eval (SKILL=<name> required, skills/<name>/task.py)."
-	@echo "  eval            Run one scenario eval (SCENARIO=<id> required, e.g. rocket-launch)."
-	@echo "  eval-all        Run all scenario + per-skill result evals."
-	@echo "  eval-baseline   Regenerate baseline.json for one target (TARGET=<skill-or-scenario> required)."
+	@echo "  eval-triggers   Run trigger evals: every skill, or one with SKILL=<name>."
+	@echo "  eval-outcomes   Run outcome evals: one with TARGET=<dir> (e.g. skills/camunda-feel), or the whole Docker suite without TARGET."
+	@echo "  eval-baseline   Regenerate outcomes_baseline.json for one target (TARGET=<dir> required)."
 	@echo "  eval-extract    Extract agent artifacts from the most recent eval log to logs/artifacts/."
 	@echo "  eval-viewer     Open the Inspect trajectory viewer over evals/logs (web UI)."
 	@echo "  eval-images     Build the sandbox Docker images (base, with-c8ctl, verifier)."
 	@echo ""
 	@echo "Variables:"
-	@echo "  SKILL     Skill name (e.g. camunda-feel). For eval-trigger / eval-result."
-	@echo "  SCENARIO  Eval scenario id (e.g. rocket-launch)."
-	@echo "  TARGET    Skill or scenario dir name, for eval-baseline."
+	@echo "  SKILL     Skill name (e.g. camunda-feel). For eval-triggers."
+	@echo "  TARGET    Outcome eval dir path (skills/<name> or scenarios/<name>), for eval-outcomes / eval-baseline."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
 	@echo "  MODEL     Inspect model id (default anthropic/claude-sonnet-4-6; needs ANTHROPIC_API_KEY)."
 	@echo "  AGENT     Agent loop: react (default) or claude_code."
-	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval / eval-all targets)."
+	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval-triggers / eval-outcomes)."
 	@echo "            Example: ARGS=\"--epochs 3\""
 	@echo ""
 	@echo "Notes:"
-	@echo "  eval / eval-all default to --max-samples 1 (sequential)."
+	@echo "  eval-outcomes defaults to --max-samples 1 (sequential)."
 	@echo "  Concurrent Camunda 8.9 JVMs starve each other on a laptop;"
 	@echo "  override via ARGS=\"--max-samples 3\" if you've got the headroom."
 
@@ -98,40 +94,37 @@ eval-images:
 	@cd $(EVALS_DIR) && \
 		docker build -t camunda-skills-evals-verifier:latest -f sandboxes/verifier.Dockerfile .
 
-.PHONY: eval-trigger
-eval-trigger:
-	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@if [ -z "$(SKILL)" ]; then echo "SKILL=<name> required (e.g. SKILL=camunda-feel)"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval skills/$(SKILL)/triggers.py --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) $(ARGS)
-
+# Triggers are sandbox-free routing calls. With SKILL=<name> runs that skill's
+# trigger; without, runs every skill's (glob expands after cd into evals/).
 .PHONY: eval-triggers
 eval-triggers:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@cd $(EVALS_DIR) && uv run inspect eval skills/*/triggers.py --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) $(ARGS)
+	@cd $(EVALS_DIR) && \
+	if [ -n "$(SKILL)" ]; then \
+		t="skills/$(SKILL)/triggers.py"; \
+		[ -f "$$t" ] || { echo "no triggers.py for SKILL=$(SKILL)"; exit 2; }; \
+	else \
+		t="skills/*/triggers.py"; \
+	fi; \
+	uv run inspect eval $$t --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) $(ARGS)
 
-.PHONY: eval-result
-eval-result:
+# Outcome evals run in a Docker sandbox. With TARGET=<dir> runs that one;
+# without, runs the whole suite (slow + costly). TARGET is the eval dir path,
+# e.g. skills/camunda-feel or scenarios/rocket-launch (a trailing slash from
+# shell autocompletion is stripped). Paths are relative to evals/ (Inspect
+# rejects absolute globs; uv walks up to the root pyproject).
+.PHONY: eval-outcomes
+eval-outcomes:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@if [ -z "$(SKILL)" ]; then echo "SKILL=<name> required (e.g. SKILL=camunda-feel)"; exit 2; fi
-	@if [ ! -f "$(EVALS_DIR)/skills/$(SKILL)/task.py" ]; then echo "no result eval: skills/$(SKILL)/task.py"; exit 2; fi
-	@cd $(EVALS_DIR) && uv run inspect eval skills/$(SKILL)/task.py --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) \
-		&& uv run evals-extract-artifacts
-
-.PHONY: eval
-eval:
-	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@if [ -z "$(SCENARIO)" ]; then echo "SCENARIO=<id> required (e.g. SCENARIO=rocket-launch)"; exit 2; fi
-	@if [ ! -d "$(EVALS_DIR)/scenarios/$(SCENARIO)" ]; then echo "scenario not found: $(SCENARIO)"; exit 2; fi
-	@# cd into evals/ and pass a path relative to it — Inspect's task
-	@# loader rejects absolute glob patterns. uv walks up to the root
-	@# pyproject; logs/ resolves to evals/logs (where the scripts read).
-	@cd $(EVALS_DIR) && uv run inspect eval scenarios/$(SCENARIO)/task.py --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) \
-		&& uv run evals-extract-artifacts
-
-.PHONY: eval-all
-eval-all:
-	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
-	@cd $(EVALS_DIR) && for s in scenarios/*/task.py skills/*/task.py; do \
+	@cd $(EVALS_DIR) && \
+	if [ -n "$(TARGET)" ]; then \
+		d="$(TARGET)"; d="$${d%/}"; \
+		[ -f "$$d/outcomes.py" ] || { echo "no outcomes.py at $$d"; exit 2; }; \
+		set -- "$$d/outcomes.py"; \
+	else \
+		set -- scenarios/*/outcomes.py skills/*/outcomes.py; \
+	fi; \
+	for s in "$$@"; do \
 		echo "=== $$s ==="; \
 		uv run inspect eval "$$s" --log-dir logs/ --max-samples 1 --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
@@ -148,5 +141,5 @@ eval-viewer:
 
 .PHONY: eval-baseline
 eval-baseline:
-	@if [ -z "$(TARGET)" ]; then echo "TARGET=<skill-or-scenario> required (e.g. TARGET=camunda-feel)"; exit 2; fi
+	@if [ -z "$(TARGET)" ]; then echo "TARGET=<dir> required (e.g. skills/camunda-feel)"; exit 2; fi
 	@uv run evals-regen-baseline --target $(TARGET)

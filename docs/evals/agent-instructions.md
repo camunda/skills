@@ -9,10 +9,10 @@ repo. Operational guide; concepts live in
 
 | Change you're making | Eval action |
 |---|---|
-| Editing a `skills/<X>/SKILL.md` or `references/` | If a result eval or scenario lists `X` in `metadata.skills` (or a trigger targets `X`), run it locally and check the result before pushing. |
+| Editing a `skills/<X>/SKILL.md` or `references/` | If an outcome eval lists `X` in `metadata.skills` (or a trigger targets `X`), run it locally and check the result before pushing. |
 | Adding a new skill | Open a question: which failure mode would an eval catch? If you have one, propose it. If you don't, **don't fabricate one** — leave evals untouched. |
 | Lint-only changes (whitespace, link fixes, frontmatter) | Skip evals. `waza check` covers it. |
-| Repo plumbing changes (`Makefile`, workflows, etc.) | Run `make eval-trigger SKILL=camunda-feel` as a smoke test if your change could affect the harness. |
+| Repo plumbing changes (`Makefile`, workflows, etc.) | Run `make eval-triggers SKILL=camunda-feel` as a smoke test if your change could affect the harness. |
 | Eval / harness changes | Run the affected targets locally; update baselines per `scenarios.md` if intended. |
 
 If in doubt, ask the user. Don't add an eval speculatively. An eval
@@ -25,12 +25,13 @@ Prerequisites: Docker, `uv` (installed via Astral; the harness will
 auto-install dependencies via `uv sync`).
 
 ```bash
-make eval-trigger SKILL=camunda-feel      # one trigger eval
-make eval-triggers                        # every trigger eval
-make eval-result  SKILL=camunda-feel      # one per-skill result eval
-make eval         SCENARIO=rocket-launch  # one cross-skill scenario
-make eval-result  SKILL=camunda-feel ARM=without_skill   # comparison arm
-make eval-baseline TARGET=<skill-or-scenario>            # regenerate baseline.json
+make eval-triggers                                 # every trigger eval
+make eval-triggers SKILL=camunda-feel              # one trigger eval
+make eval-outcomes TARGET=skills/camunda-feel      # one outcome eval (skill or scenario)
+make eval-outcomes TARGET=scenarios/rocket-launch  # cross-skill outcome eval
+make eval-outcomes                                 # the whole outcome suite (slow + costly)
+make eval-outcomes TARGET=skills/camunda-feel ARM=without_skill   # comparison arm
+make eval-baseline TARGET=skills/camunda-feel      # regenerate outcomes_baseline.json
 ```
 
 Logs land under `evals/logs/`. Open the trajectory viewer:
@@ -66,7 +67,7 @@ Follow `scenarios.md` exactly. Key non-obvious rules:
   `dmn-collect-ordering`, not `dmn-test`).
 - **A trigger is a `triggers.py`** at `evals/skills/<skill>/` — a `@task`
   that inlines `Positive`/`Negative` samples and calls `build_trigger_eval`;
-  a result eval is a `task.py` with `METADATA` + `@task`.
+  an outcome eval is an `outcomes.py` with `METADATA` + `@task`.
 - **Set `baseline.exclude`** to the load-bearing skill(s) so the
   `without_skill` arm measures what the skill adds.
 - **Inclusion is automatic** via `metadata.skills` (the skill dir name for
@@ -78,9 +79,9 @@ Follow `scenarios.md` exactly. Key non-obvious rules:
 ## Updating baselines after intentional behaviour change
 
 ```bash
-make eval-result SKILL=<name>            # run to confirm the new behaviour
-make eval-baseline TARGET=<name>         # rewrite baseline.json from last run
-git diff evals/skills/<name>/baseline.json
+make eval-outcomes TARGET=<dir>          # run to confirm the new behaviour
+make eval-baseline TARGET=<dir>          # rewrite outcomes_baseline.json from last run
+git diff evals/skills/<name>/outcomes_baseline.json
 # review the token counts — is the new budget what you intend, or did
 # you regress something you didn't mean to?
 ```

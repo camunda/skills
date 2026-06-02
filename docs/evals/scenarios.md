@@ -8,12 +8,14 @@ see [`concepts.md`](concepts.md).
 | Kind | Question | Authored as | Where |
 |---|---|---|---|
 | **Trigger** | Does the right skill load (and the wrong one stay out)? | Python `triggers.py` | `evals/skills/<skill>/triggers.py` |
-| **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
+| **Outcome** | Does the agent reach the right result? | Python `outcomes.py` | `evals/skills/<skill>/outcomes.py` (single-skill) or `evals/scenarios/<id>/outcomes.py` (cross-skill) |
 
 A trigger is a single structured-output routing call (no agent, no sandbox);
-its samples are inlined in the skill dir's `triggers.py`. Result evals are
+its samples are inlined in the skill dir's `triggers.py`. Outcome evals are
 bespoke — they pick scorers (LLM judge and/or programmatic) and may use a live
-cluster — so each is a small Inspect `task.py` and runs in a Docker sandbox.
+cluster — so each is a small Inspect `outcomes.py` and runs in a Docker sandbox.
+Single-skill and cross-skill outcome evals run identically; the directory
+(`skills/` vs `scenarios/`) is just the scope.
 
 ## Adding a trigger eval (Python)
 
@@ -50,17 +52,17 @@ optional `build_trigger_eval` kwargs: `excluded_skills=[...]` hides skills from
 the routing catalog, and `also_run_when_changed=[...]` widens the CI
 changed-skills filter (no runtime effect).
 
-Run it: `make eval-trigger SKILL=camunda-feel`.
+Run it: `make eval-triggers SKILL=camunda-feel`.
 
-## Adding a result eval (Python)
+## Adding an outcome eval (Python)
 
-A result eval is an Inspect `task.py` with a module-level `METADATA` and an
-`@task`. Per-skill evals live in `skills/<skill>/`, cross-skill ones in
+An outcome eval is an Inspect `outcomes.py` with a module-level `METADATA` and an
+`@task`. Single-skill evals live in `skills/<skill>/`, cross-skill ones in
 `scenarios/<id>/`. Copy the closest existing one:
 
-- judge-scored, text-only → `skills/camunda-development/task.py`
-- deterministic + cluster → `skills/camunda-feel/task.py`
-- deploy + lint + CPT → `scenarios/rocket-launch/task.py`
+- judge-scored, text-only → `skills/camunda-development/outcomes.py`
+- deterministic + cluster → `skills/camunda-feel/outcomes.py`
+- deploy + lint + CPT → `scenarios/rocket-launch/outcomes.py`
 
 ```python
 METADATA = ScenarioMetadata(
@@ -92,21 +94,21 @@ Scorer options (compose any in the `scorer=[...]` list):
 Pick the sandbox by what the scorers need: `compose-advisory.yaml` (no cluster),
 `compose-with-c8ctl.yaml` (live cluster), `compose-cpt-verifier.yaml` (cluster +
 CPT). Anything more bespoke (e.g. WireMock) → drop a `compose.yaml` next to the
-`task.py` and reference it.
+`outcomes.py` and reference it.
 
-Run it: `make eval-result SKILL=camunda-feel` (or `make eval SCENARIO=<id>` for a
-scenario). No workflow edit — CI picks it up from `metadata.skills`.
+Run it: `make eval-outcomes TARGET=skills/camunda-feel` (the eval dir path). No workflow
+edit — CI picks it up from `metadata.skills`.
 
 ## Running
 
 ```bash
-make eval-images                       # build the sandbox images once
-make eval-trigger  SKILL=camunda-feel  # one trigger eval
-make eval-triggers                     # every trigger eval
-make eval-result   SKILL=camunda-feel  # one per-skill result eval
-make eval          SCENARIO=rocket-launch          # one scenario
-make eval-result   SKILL=camunda-feel ARM=without_skill   # the comparison arm
-make eval-viewer                       # open the Inspect trajectory viewer
+make eval-images                                   # build the sandbox images once
+make eval-triggers                                 # every trigger eval
+make eval-triggers SKILL=camunda-feel              # one trigger eval
+make eval-outcomes TARGET=skills/camunda-feel      # one outcome eval (skill or scenario)
+make eval-outcomes TARGET=scenarios/rocket-launch  # cross-skill outcome eval
+make eval-outcomes TARGET=skills/camunda-feel ARM=without_skill   # the comparison arm
+make eval-viewer                                   # open the Inspect trajectory viewer
 ```
 
 `make help` lists every target. Default model is `anthropic/claude-sonnet-4-6`
@@ -114,15 +116,14 @@ make eval-viewer                       # open the Inspect trajectory viewer
 
 ## Baselines
 
-`baseline.json` (per eval directory) records each sample's observed token count
-per arm; the gate fails a sample whose tokens exceed `baseline × 1.5`. Outcome
-is gated by the scorers, not the baseline. Triggers have no baseline (outcome
-only).
+`outcomes_baseline.json` (per eval directory) records each sample's observed
+token count per arm; the gate fails a sample whose tokens exceed `baseline × 1.5`.
+Outcome is gated by the scorers, not the baseline. Triggers have no baseline.
 
 ```bash
-make eval-result SKILL=camunda-feel        # fresh run
-make eval-baseline TARGET=camunda-feel     # rewrite baseline.json from it
-git diff evals/skills/camunda-feel/baseline.json   # review before committing
+make eval-outcomes TARGET=skills/camunda-feel              # fresh run
+make eval-baseline TARGET=skills/camunda-feel              # rewrite outcomes_baseline.json from it
+git diff evals/skills/camunda-feel/outcomes_baseline.json  # review before committing
 ```
 
 Regenerate after an intentional change or a new sample. Do **not** regenerate to
@@ -145,7 +146,7 @@ Maintainer-gated by PR label (see [`ci-and-results.md`](ci-and-results.md)):
 
 - `evals:run` — targets whose skills intersect the changed skills
 - `evals:run-all` — every target
-- `evals:compare` — also run the without-skill arm of result/scenario evals
+- `evals:compare` — also run the without-skill arm of outcome evals
 
 The gate (`evals-pass-fail`) reds the check on a missed outcome threshold or a
 token-budget regression; it does not block merge. The PR comment carries the

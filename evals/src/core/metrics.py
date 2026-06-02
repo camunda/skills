@@ -1,6 +1,6 @@
 """Shared metric helpers for reading Inspect eval logs.
 
-Used by ``scripts.regen_baseline`` to write the baseline.json and by
+Used by ``scripts.regen_baseline`` to write the outcomes_baseline.json and by
 ``scripts.pass_fail`` to gate against it. Kept domain-agnostic — no
 scenario-specific shaping lives here.
 """
@@ -111,16 +111,16 @@ def scenario_id(log) -> str | None:
 
 
 def baseline_dir(name: str | None) -> Path | None:
-    """The directory holding ``baseline.json`` for an eval ``name``.
+    """The directory holding ``outcomes_baseline.json`` for an eval ``name``.
 
-    Result evals live in ``skills/<skill>/``, scenarios in
-    ``scenarios/<id>/``. Triggers (eval name ``trigger-<skill>``) match
-    neither and return ``None`` — they gate on outcome only, no token baseline.
+    Outcome evals live in ``skills/<skill>/`` (single-skill) or
+    ``scenarios/<id>/`` (cross-skill). Triggers (eval name ``trigger-<skill>``)
+    match neither and return ``None`` — they have no token baseline.
     """
     if not name:
         return None
     for base in (SKILL_EVALS_DIR, SCENARIOS_DIR):
         d = base / name
-        if (d / "task.py").exists():
+        if (d / "outcomes.py").exists():
             return d
     return None

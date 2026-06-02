@@ -1,6 +1,6 @@
 """Typed scenario metadata.
 
-Each ``task.py`` declares a ``METADATA: ScenarioMetadata`` at module
+Each ``outcomes.py`` declares a ``METADATA: ScenarioMetadata`` at module
 scope, passed to ``Task(..., metadata=METADATA.model_dump())``.
 """
 

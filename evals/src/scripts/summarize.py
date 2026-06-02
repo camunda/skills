@@ -1,7 +1,7 @@
 """Render a Markdown summary of an eval run for the PR comment.
 
 Non-gating signal. A headline verdict, then two tables — trigger evals (skill
-routing) and result evals (outcome + tokens vs committed baseline) — plus a
+routing) and outcome evals (pass + tokens vs committed baseline) — plus a
 with/without-skill delta when an ``evals:compare`` run provides both arms.
 Consumed by ``.github/workflows/eval.yml``.
 """
@@ -90,14 +90,14 @@ def render(log_dir: Path) -> str:
         MARKER,
         "### 🧪 Eval results",
         "",
-        f"**Triggers {tg_ok}/{len(triggers)} · Results {rs_ok}/{len(results)}** — "
+        f"**Triggers {tg_ok}/{len(triggers)} · Outcomes {rs_ok}/{len(results)}** — "
         f"{headline}. Non-blocking signal (doesn't block merge).",
     ]
 
     if results:
         out += [
             "",
-            "#### Result evals",
+            "#### Outcome evals",
             "| Eval | Outcome | Tokens vs baseline |",
             "|---|---|---|",
         ]

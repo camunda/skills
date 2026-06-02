@@ -21,8 +21,8 @@ Two distinct signals, two distinct gates:
 |---|---|
 | Is the skill text well-formed? | `waza check` (lint) |
 | Does the right skill load for a prompt (and the wrong one stay out)? | trigger eval |
-| Does the agent produce a deployable, working artifact? | result eval |
-| Do cross-references route the agent through the right skills? | result eval (diagnostic skill-load scorer) |
+| Does the agent produce a deployable, working artifact? | outcome eval |
+| Do cross-references route the agent through the right skills? | outcome eval (diagnostic skill-load scorer) |
 
 Lint runs on every PR touching `skills/`. Evals are opt-in per PR via
 label (see [`ci-and-results.md`](ci-and-results.md)) and report as a
@@ -33,7 +33,7 @@ non-blocking check.
 | Kind | Question | Authored as | Where |
 |---|---|---|---|
 | **Trigger** | Does the right skill load? | Python `triggers.py` | `evals/skills/<skill>/triggers.py` |
-| **Result** | Does the agent reach the right result? | Python `task.py` | `evals/skills/<skill>/task.py` (per-skill) or `evals/scenarios/<id>/task.py` (cross-skill) |
+| **Outcome** | Does the agent reach the right result? | Python `outcomes.py` | `evals/skills/<skill>/outcomes.py` (single-skill) or `evals/scenarios/<id>/outcomes.py` (cross-skill) |
 
 Each skill dir has a `triggers.py` (`inspect eval skills/<skill>/triggers.py`)
 that inlines its `Positive` / `Negative` samples and calls `build_trigger_eval`
@@ -45,14 +45,16 @@ the prompt and returns the skills it would load — no agent, no tools, no
 sandbox. It runs a single arm — you can't load an absent skill — so it
 has no baseline.
 
-Result evals are bespoke — each is an Inspect `task.py` that picks its
+Outcome evals are bespoke — each is an Inspect `outcomes.py` that picks its
 scorers (judge and/or deterministic) and supports `arm=with_skill |
-without_skill`, and runs in a Docker sandbox. "Scenario" now means
-specifically a cross-skill result eval.
+without_skill`, and runs in a Docker sandbox. Scope is just the directory:
+single-skill ones live in `skills/<skill>/`, cross-skill ones in
+`scenarios/<id>/` (informally, "scenarios") — same machinery, the directory
+signals scope.
 
 ## Two-phase sandbox model
 
-Every result eval runs in two Docker phases. Phase 1 is what the
+Every outcome eval runs in two Docker phases. Phase 1 is what the
 **agent** does; Phase 2 is what **we** check.
 
 ```
@@ -93,7 +95,7 @@ with.
 
 ## Scorer menu
 
-A result eval's scorers are declared in its `task.py`. The judge
+An outcome eval's scorers are declared in its `outcomes.py`. The judge
 catches free-form correctness; deterministic scorers catch structural
 and behavioural failure modes more cheaply. Compose any combination —
 or stack several.
@@ -122,7 +124,7 @@ connector evals. Not built yet — add them when an eval needs them.
 
 ## `with_skill` / `without_skill` semantics
 
-A result eval supports two arms via the `arm` task parameter. The
+An outcome eval supports two arms via the `arm` task parameter. The
 default `with_skill` arm exposes every skill. The `without_skill` arm
 **disables** the load-bearing skill(s) named in
 `metadata.baseline.exclude` — the agent cannot read or invoke them.
@@ -189,7 +191,7 @@ it's the new signal evals exist to catch.
 
 ## Baseline & cost gate
 
-`baseline.json` lives in each eval's directory and records each
+`outcomes_baseline.json` lives in each eval's directory and records each
 sample's observed token count per arm:
 
 ```json
