@@ -1,4 +1,5 @@
 target_skill: camunda-connectors
+excluded_skills: [camunda-development]
 positive:
   - id: slack-notification
     prompt: "Send a Slack notification to my team's channel when a process hits an error path. Slack is already connected — what's the simplest way?"

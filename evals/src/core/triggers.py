@@ -55,13 +55,21 @@ class TriggerFile(BaseModel):
     # CI-detection only: editing one of these skills also reruns this eval.
     # No effect on what runs at agent time.
     also_run_when_changed: list[str] = Field(default_factory=list)
+    # Skills to hide from the catalog the model routes against. Use it to drop
+    # a meta-router (camunda-development) that would otherwise absorb this
+    # skill's prompts before the leaf skill gets a look-in.
+    excluded_skills: list[str] = Field(default_factory=list)
     positive: list[PositiveSample] = Field(default_factory=list)
     negative: list[NegativeSample] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _non_empty(self) -> TriggerFile:
+    def _check(self) -> TriggerFile:
         if not self.positive and not self.negative:
-            raise ValueError("triggers.yaml needs at least one positive or negative sample")
+            raise ValueError(
+                "triggers.yaml needs at least one positive or negative sample"
+            )
+        if self.target_skill in self.excluded_skills:
+            raise ValueError("excluded_skills cannot hide the target skill")
         return self
 
     @property

@@ -1,4 +1,5 @@
 target_skill: camunda-dmn
+excluded_skills: [camunda-development]
 positive:
   - id: decision-table
     prompt: "I need a decision table that picks a shipping method based on package weight and destination region."

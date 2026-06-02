@@ -14,13 +14,15 @@ Routing is a single structured-output call: the model gets the skill catalog
 task prompt, and returns the skill names it would load — no tools, no sandbox,
 no skill content read. We score that set against the sample's assertions.
 
-camunda-development is a meta-router that absorbs ambiguous "which integration
-approach?" prompts, so it's omitted from every catalog except its own eval —
-otherwise a leaf skill's trigger just re-tests whether the router fires.
+A file's ``excluded_skills`` drops skills from that catalog — used to hide
+the meta-router ``camunda-development`` from the leaf skills it routes to, so
+their trigger doesn't just re-test whether the router fires.
 
-(Inspect discovers file tasks by AST-parsing ``@task`` decorators, so the task
-must be defined literally here — not generated dynamically. Result evals are
-hand-written ``task.py`` per directory.)
+The leading underscore on this filename is load-bearing: Inspect skips
+``_``-prefixed files when globbing a directory for tasks, so it isn't
+auto-instantiated (``trigger`` has no default ``skill``). We always invoke it
+explicitly as ``skills/_triggers.py@trigger``. Result evals are hand-written
+``task.py`` per directory.
 """
 
 from __future__ import annotations
@@ -45,10 +47,9 @@ from core.metadata import BaselineConfig, ScenarioMetadata
 from core.paths import all_skill_dirs
 from core.triggers import load_trigger_file
 
-_ROUTER = "camunda-development"
-_ROUTED_KEY = "routed_skills"
+ROUTED_KEY = "routed_skills"
 
-_INSTRUCTIONS = (
+INSTRUCTIONS = (
     "The following skills provide specialized instructions for specific tasks. "
     "Given the task, decide which skill(s) you would load to handle it, judging "
     "relevance from each description. Do not solve the task — return only the "
@@ -56,18 +57,18 @@ _INSTRUCTIONS = (
 )
 
 
-def _catalog(target: str) -> tuple[str, list[str]]:
+def _catalog(omit: list[str]) -> tuple[str, list[str]]:
     """The ``<available_skills>`` block + valid names, as the skill tool
-    discloses them. The router is hidden unless it's the eval's own target."""
+    discloses them, minus any skills in ``omit``."""
     skills = read_skills([str(p) for p in all_skill_dirs()])
-    skills = [s for s in skills if s.name == target or s.name != _ROUTER]
+    skills = [s for s in skills if s.name not in omit]
     return _available_skills(skills), [s.name for s in skills]
 
 
 @solver
-def route(target: str) -> Solver:
-    catalog, names = _catalog(target)
-    system = f"{_INSTRUCTIONS}\n\n{catalog}"
+def route(omit: list[str]) -> Solver:
+    catalog, names = _catalog(omit)
+    system = f"{INSTRUCTIONS}\n\n{catalog}"
     schema = ResponseSchema(
         name="skill_routing",
         strict=True,
@@ -94,7 +95,7 @@ def route(target: str) -> Solver:
             routed = json.loads(out.completion).get("skills", [])
         except (json.JSONDecodeError, AttributeError, TypeError):
             routed = []
-        state.store.set(_ROUTED_KEY, routed)
+        state.store.set(ROUTED_KEY, routed)
         return state
 
     return solve
@@ -109,7 +110,7 @@ def skill_loaded() -> Scorer:
         expected = state.metadata.get("should_load") or []
         if not expected:
             return None
-        routed = set(state.store.get(_ROUTED_KEY) or [])
+        routed = set(state.store.get(ROUTED_KEY) or [])
         missing = [s for s in expected if s not in routed]
         return Score(
             value=1.0 if not missing else 0.0,
@@ -132,7 +133,7 @@ def skill_not_loaded() -> Scorer:
         forbidden = state.metadata.get("should_not_load") or []
         if not forbidden:
             return None
-        routed = set(state.store.get(_ROUTED_KEY) or [])
+        routed = set(state.store.get(ROUTED_KEY) or [])
         hit = sorted(routed & set(forbidden))
         return Score(
             value=0.0 if hit else 1.0,
@@ -164,7 +165,7 @@ def trigger(skill: str) -> Task:
     return Task(
         name=f"trigger_{skill.replace('-', '_')}",
         dataset=samples,
-        solver=route(skill),
+        solver=route(spec.excluded_skills),
         scorer=[skill_loaded(), skill_not_loaded()],
         metadata=metadata.model_dump(),
         token_limit=20_000,

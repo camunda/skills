@@ -1,4 +1,5 @@
 target_skill: camunda-connectors-development
+excluded_skills: [camunda-development]
 positive:
   - id: reusable-outbound
     prompt: "Build a reusable outbound connector for our internal customer-data API (custom HSM-signed JWT) that every team consumes by name."

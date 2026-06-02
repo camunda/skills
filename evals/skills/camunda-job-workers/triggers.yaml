@@ -1,4 +1,5 @@
 target_skill: camunda-job-workers
+excluded_skills: [camunda-development]
 positive:
   - id: typescript-worker
     prompt: "Our backend is all Node.js/TypeScript and we don't want a JVM. Implement a Camunda 8 job worker for a new pricing step in our Node service."
