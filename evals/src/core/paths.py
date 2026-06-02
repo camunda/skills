@@ -18,8 +18,7 @@ Arm = Literal["with_skill", "without_skill"]
 def all_skill_dirs() -> list[Path]:
     """Return every ``skills/<name>/`` directory with a SKILL.md."""
     return sorted(
-        p for p in SKILLS_DIR.iterdir()
-        if p.is_dir() and (p / "SKILL.md").exists()
+        p for p in SKILLS_DIR.iterdir() if p.is_dir() and (p / "SKILL.md").exists()
     )
 
 

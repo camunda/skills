@@ -26,9 +26,13 @@ def bpmn_lint_clean(workspace: str = "/workspace") -> Scorer:
             [
                 "find",
                 ws,
-                "-maxdepth", "3",
-                "-name", "*.bpmn",
-                "-not", "-path", f"{ws}/skills/*",
+                "-maxdepth",
+                "3",
+                "-name",
+                "*.bpmn",
+                "-not",
+                "-path",
+                f"{ws}/skills/*",
             ],
             timeout=10,
         )
@@ -42,9 +46,7 @@ def bpmn_lint_clean(workspace: str = "/workspace") -> Scorer:
         per_file: dict[str, dict] = {}
         violations: list[str] = []
         for path in paths:
-            result = await sb.exec(
-                ["c8ctl", "bpmn", "lint", path], timeout=60
-            )
+            result = await sb.exec(["c8ctl", "bpmn", "lint", path], timeout=60)
             per_file[path] = {
                 "returncode": result.returncode,
                 "stdout": (result.stdout or "")[-1500:],

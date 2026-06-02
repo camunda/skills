@@ -28,14 +28,19 @@ LOGS_DIR = EVALS_ROOT / "logs"
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", required=True, help="dir name under skills/ or scenarios/")
+    parser.add_argument(
+        "--target", required=True, help="dir name under skills/ or scenarios/"
+    )
     parser.add_argument("--arm", default="with_skill")
     parser.add_argument("--log-dir", default=LOGS_DIR, type=Path)
     args = parser.parse_args()
 
     target_dir = baseline_dir(args.target)
     if target_dir is None:
-        print(f"no task.py for target {args.target!r} under skills/ or scenarios/", file=sys.stderr)
+        print(
+            f"no task.py for target {args.target!r} under skills/ or scenarios/",
+            file=sys.stderr,
+        )
         return 2
 
     task_name = args.target.replace("-", "_")
@@ -44,11 +49,17 @@ def main() -> int:
     chosen = None
     for info in infos:
         header = read_eval_log(info.name, header_only=True)
-        if header.eval.task == task_name and (header.eval.task_args or {}).get("arm", "with_skill") == args.arm:
+        if (
+            header.eval.task == task_name
+            and (header.eval.task_args or {}).get("arm", "with_skill") == args.arm
+        ):
             chosen = info
             break
     if chosen is None:
-        print(f"no {task_name} log for arm={args.arm} under {args.log_dir}", file=sys.stderr)
+        print(
+            f"no {task_name} log for arm={args.arm} under {args.log_dir}",
+            file=sys.stderr,
+        )
         return 2
 
     log = read_eval_log(chosen.name)
@@ -68,7 +79,9 @@ def main() -> int:
 
     baseline = {**existing, "model": model, args.arm: {"samples": samples}}
     target.write_text(json.dumps(baseline, indent=2) + "\n")
-    print(f"wrote {target} (from {Path(chosen.name).name}, arm={args.arm}, model={model})")
+    print(
+        f"wrote {target} (from {Path(chosen.name).name}, arm={args.arm}, model={model})"
+    )
     return 0
 
 

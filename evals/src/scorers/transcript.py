@@ -98,7 +98,11 @@ def assert_skill_not_loaded(skill: str | Sequence[str], gating: bool = True) -> 
                 if loaded
                 else f"avoided: {forbidden}"
             ),
-            metadata={"forbidden": forbidden, "loaded": sorted(loaded), "gating": gating},
+            metadata={
+                "forbidden": forbidden,
+                "loaded": sorted(loaded),
+                "gating": gating,
+            },
         )
 
     return score

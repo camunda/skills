@@ -62,7 +62,9 @@ def _outcome_rows(log, threshold: float) -> tuple[list[dict], bool]:
             if not is_gating(score):
                 diagnostic.add(name)
             v = score.value if hasattr(score, "value") else score
-            values[name] = score_to_float(v) if isinstance(v, (int, float, str, bool)) else 0.0
+            values[name] = (
+                score_to_float(v) if isinstance(v, (int, float, str, bool)) else 0.0
+            )
         gating = {n: v >= threshold for n, v in values.items() if n not in diagnostic}
         ok = all(gating.values()) if gating else False
         all_passed = all_passed and ok
@@ -91,7 +93,9 @@ def _load_baseline(name: str | None) -> dict | None:
         return None
 
 
-def _cost_checks(rows: list[dict], baseline: dict, arm: str | None) -> tuple[list[dict], bool]:
+def _cost_checks(
+    rows: list[dict], baseline: dict, arm: str | None
+) -> tuple[list[dict], bool]:
     """Per-sample token ceiling for samples that passed outcome."""
     arm_block = baseline.get(arm or "with_skill") or {}
     sample_baselines = arm_block.get("samples") or {}
@@ -103,7 +107,13 @@ def _cost_checks(rows: list[dict], baseline: dict, arm: str | None) -> tuple[lis
         entry = sample_baselines.get(row["sample_id"])
         tokens = entry.get("tokens") if isinstance(entry, dict) else None
         if not isinstance(tokens, (int, float)):
-            checks.append({"sample_id": row["sample_id"], "pass": True, "note": "no baseline (regen)"})
+            checks.append(
+                {
+                    "sample_id": row["sample_id"],
+                    "pass": True,
+                    "note": "no baseline (regen)",
+                }
+            )
             continue
         ceiling = tokens * CEILING_MULTIPLIER
         ok = row["tokens"] <= ceiling
@@ -121,12 +131,17 @@ def _cost_checks(rows: list[dict], baseline: dict, arm: str | None) -> tuple[lis
 
 
 def _render(rows, cost_checks, name, arm, threshold) -> str:
-    lines = [f"eval: {name or '(unknown)'}  arm: {arm or '(n/a)'}  threshold: {threshold}", ""]
+    lines = [
+        f"eval: {name or '(unknown)'}  arm: {arm or '(n/a)'}  threshold: {threshold}",
+        "",
+    ]
     for r in rows:
         scs = " ".join(f"{n}={v:.2f}" for n, v in sorted(r["scorers"].items()))
         lines.append(f"  [{'PASS' if r['pass'] else 'FAIL'}] {r['sample_id']}: {scs}")
     passed = sum(1 for r in rows if r["pass"])
-    lines.append(f"\noutcome: {passed}/{len(rows)} sample(s) passed every gating scorer (≥ {threshold})")
+    lines.append(
+        f"\noutcome: {passed}/{len(rows)} sample(s) passed every gating scorer (≥ {threshold})"
+    )
     if cost_checks:
         lines.append("\ntoken budget (baseline × 1.5):")
         for c in cost_checks:
@@ -142,7 +157,9 @@ def _render(rows, cost_checks, name, arm, threshold) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("log_path", nargs="?", help="path to a .eval log; default = latest")
+    parser.add_argument(
+        "log_path", nargs="?", help="path to a .eval log; default = latest"
+    )
     parser.add_argument("--threshold", type=float, default=1.0)
     parser.add_argument("--no-baseline", action="store_true", help="outcome gate only")
     parser.add_argument("--json", action="store_true")
@@ -162,11 +179,20 @@ def main() -> None:
 
     overall = outcome_passed and cost_passed
     if args.json:
-        print(json.dumps(
-            {"eval": name, "arm": arm, "threshold": args.threshold,
-             "samples": rows, "cost_checks": cost_checks, "pass": overall},
-            indent=2, default=float,
-        ))
+        print(
+            json.dumps(
+                {
+                    "eval": name,
+                    "arm": arm,
+                    "threshold": args.threshold,
+                    "samples": rows,
+                    "cost_checks": cost_checks,
+                    "pass": overall,
+                },
+                indent=2,
+                default=float,
+            )
+        )
     else:
         print(_render(rows, cost_checks, name, arm, args.threshold))
     sys.exit(0 if overall else 1)

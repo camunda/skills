@@ -47,9 +47,14 @@ def collect_artifacts(root: str = "/workspace") -> Solver:
             [
                 "find",
                 root,
-                "-type", "f",
-                "-not", "-path", "*/.*",
-                "-not", "-path", f"{root.rstrip('/')}/skills/*",
+                "-type",
+                "f",
+                "-not",
+                "-path",
+                "*/.*",
+                "-not",
+                "-path",
+                f"{root.rstrip('/')}/skills/*",
                 "-print0",
             ],
             timeout=30,
@@ -89,9 +94,7 @@ def collect_artifacts(root: str = "/workspace") -> Solver:
 
 
 @solver
-def with_artifact_collection(
-    agent: Agent, root: str = "/workspace"
-) -> Solver:
+def with_artifact_collection(agent: Agent, root: str = "/workspace") -> Solver:
     """Wrap an Inspect agent so artifact collection runs whatever happens.
 
     Runs the agent inside ``try/finally`` so the snapshot fires on clean

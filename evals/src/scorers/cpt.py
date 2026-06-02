@@ -18,7 +18,9 @@ def cpt_scorer(project_dir: str) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox("verifier")
         # Copy to a writable location so mvn can create target/.
-        copy = await sb.exec(["sh", "-c", f"cp -r {project_dir}/. /verifier-workspace/"])
+        copy = await sb.exec(
+            ["sh", "-c", f"cp -r {project_dir}/. /verifier-workspace/"]
+        )
         if copy.returncode != 0:
             return Score(
                 value=0.0,
@@ -36,7 +38,8 @@ def cpt_scorer(project_dir: str) -> Scorer:
         else:
             # Filter mvn's download chatter down to the failure lines.
             interesting = [
-                line for line in combined.splitlines()
+                line
+                for line in combined.splitlines()
                 if any(
                     marker in line
                     for marker in (
