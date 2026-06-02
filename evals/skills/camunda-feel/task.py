@@ -26,18 +26,18 @@ METADATA = ScenarioMetadata(
     baseline=BaselineConfig(exclude=["camunda-feel"]),
 )
 
-_SAVE = (
+SAVE = (
     "\n\nWrite a single FEEL expression and save ONLY the expression to "
     "/workspace/answer.feel — one line, no `=` prefix, no surrounding quotes, "
     "no commentary."
 )
 
-_SAMPLES = [
+SAMPLES = [
     Sample(
         id="list-sum",
         input=(
             "Given a variable `items` that is a list where each entry has a "
-            "numeric `price` field, compute the total price across all entries." + _SAVE
+            "numeric `price` field, compute the total price across all entries." + SAVE
         ),
         metadata={
             "feel_vars": {"items": [{"price": 10}, {"price": 5}, {"price": 7}]},
@@ -48,7 +48,7 @@ _SAMPLES = [
         id="bool-guard",
         input=(
             "Return true only when the variable `amount` is greater than 1000 "
-            "and the variable `currency` equals \"EUR\"." + _SAVE
+            'and the variable `currency` equals "EUR".' + SAVE
         ),
         metadata={
             "feel_vars": {"amount": 1500, "currency": "EUR"},
@@ -58,8 +58,8 @@ _SAMPLES = [
     Sample(
         id="string-greeting",
         input=(
-            "Produce the string \"HELLO, \" followed by the variable `name` "
-            "in upper case (e.g. name \"alice\" yields \"HELLO, ALICE\")." + _SAVE
+            'Produce the string "HELLO, " followed by the variable `name` '
+            'in upper case (e.g. name "alice" yields "HELLO, ALICE").' + SAVE
         ),
         metadata={
             "feel_vars": {"name": "alice"},
@@ -73,7 +73,7 @@ _SAMPLES = [
 def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
     return Task(
-        dataset=_SAMPLES,
+        dataset=SAMPLES,
         solver=[
             boot_cluster(),
             with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),

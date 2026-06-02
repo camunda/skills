@@ -22,7 +22,7 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
-_DEFAULT_PATH = "/workspace/answer.feel"
+DEFAULT_PATH = "/workspace/answer.feel"
 
 
 def _equal(result: Any, expected: Any) -> bool:
@@ -40,7 +40,7 @@ def feel_evaluates_to() -> Scorer:
             return None
         expected = state.metadata["feel_equals"]
         variables = state.metadata.get("feel_vars")
-        path = state.metadata.get("feel_path", _DEFAULT_PATH)
+        path = state.metadata.get("feel_path", DEFAULT_PATH)
 
         sb = sandbox()
         cat = await sb.exec(["cat", path], timeout=10)

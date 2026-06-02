@@ -22,9 +22,7 @@ DEFAULT_LOG_DIR = EVALS_ROOT / "logs"
 DEFAULT_OUTPUT_ROOT = DEFAULT_LOG_DIR / "artifacts"
 
 # Allowed sample-id filename chars; anything else becomes "_".
-_SAFE_CHARS = set(
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_."
-)
+SAFE_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
 
 
 def _log_info_path(info) -> Path:
@@ -43,7 +41,7 @@ def _latest_log(log_dir: Path) -> Path | None:
 
 
 def _safe(name: str) -> str:
-    return "".join(c if c in _SAFE_CHARS else "_" for c in name)
+    return "".join(c if c in SAFE_CHARS else "_" for c in name)
 
 
 def _relative_path(stored_path: str) -> Path:
@@ -65,9 +63,7 @@ def extract(log_path: Path, output_root: Path, quiet: bool = False) -> Path:
     for sample in samples:
         sample_id = _safe(str(getattr(sample, "id", "unknown")))
         store = getattr(sample, "store", None) or {}
-        artifacts = (
-            store.get("artifacts") if hasattr(store, "get") else None
-        ) or {}
+        artifacts = (store.get("artifacts") if hasattr(store, "get") else None) or {}
 
         if not artifacts:
             continue

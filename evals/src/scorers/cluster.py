@@ -14,7 +14,7 @@ from inspect_ai.util import sandbox
 
 # BPMN-id field names across c8ctl versions (column header "Process ID"
 # with a space; older underlying shapes use bpmnProcessId etc.).
-_PROCESS_ID_KEYS = (
+PROCESS_ID_KEYS = (
     "Process ID",
     "bpmnProcessId",
     "processDefinitionId",
@@ -24,7 +24,7 @@ _PROCESS_ID_KEYS = (
 
 
 def _extract_process_id(definition: dict) -> str | None:
-    for key in _PROCESS_ID_KEYS:
+    for key in PROCESS_ID_KEYS:
         value = definition.get(key)
         if isinstance(value, str) and value:
             return value
@@ -72,9 +72,7 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
             definitions = payload
         elif isinstance(payload, dict):
             definitions = (
-                payload.get("items")
-                or payload.get("processDefinitions")
-                or []
+                payload.get("items") or payload.get("processDefinitions") or []
             )
         else:
             definitions = []

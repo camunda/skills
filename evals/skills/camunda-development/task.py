@@ -34,7 +34,7 @@ METADATA = ScenarioMetadata(
 )
 
 # Strict pass/fail (no partial credit) — routing has one right answer.
-_GRADER = """\
+GRADER = """\
 Background — do not penalize the submission for mentioning any of these,
 they are all real: c8ctl (the official Camunda 8 CLI), Camunda 8 element /
 connector templates, Zeebe streaming gRPC job workers (Java / Spring / TS),
@@ -52,13 +52,13 @@ then end with exactly one line:
 GRADE: C  -- or --  GRADE: I
 """
 
-_ADVISORY = (
+ADVISORY = (
     "\n\nI'm scoping this — just answer in writing with your recommended "
     "approach. No code, no commands, no BPMN files; I'll implement it myself "
     "once I know the right path."
 )
 
-_RAW = [
+RAW = [
     Sample(
         id="slack-notification",
         input=(
@@ -212,9 +212,11 @@ _RAW = [
     ),
 ]
 
-_SAMPLES = [
-    Sample(id=s.id, input=(s.input or "") + _ADVISORY, target=s.target, metadata=s.metadata)
-    for s in _RAW
+SAMPLES = [
+    Sample(
+        id=s.id, input=(s.input or "") + ADVISORY, target=s.target, metadata=s.metadata
+    )
+    for s in RAW
 ]
 
 
@@ -222,11 +224,11 @@ _SAMPLES = [
 def camunda_development(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
     return Task(
-        dataset=_SAMPLES,
+        dataset=SAMPLES,
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             assert_skill_loaded("camunda-development", gating=False),
-            model_graded_qa(instructions=_GRADER),
+            model_graded_qa(instructions=GRADER),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),
         metadata=METADATA.model_dump(),

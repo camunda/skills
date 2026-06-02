@@ -18,7 +18,7 @@ from inspect_swe import claude_code
 
 AgentKind = Literal["react", "claude_code"]
 
-_WORKSPACE_RULES = """\
+WORKSPACE_RULES = """\
 /workspace is the only path you share with the user — anything you save
 there is what they will see and use afterwards. Save every file you
 produce to /workspace (for example, /workspace/output.json). Files
@@ -28,12 +28,12 @@ the session ends and the user will never see them.
 Your working directory at session start is /workspace.
 """
 
-_INSTRUCTIONS_REACT = (
-    _WORKSPACE_RULES + "\nWhen you've completed the task, call submit() with a brief "
+INSTRUCTIONS_REACT = (
+    WORKSPACE_RULES + "\nWhen you've completed the task, call submit() with a brief "
     "summary of what you did.\n"
 )
 
-_INSTRUCTIONS_CLAUDE_CODE = _WORKSPACE_RULES
+INSTRUCTIONS_CLAUDE_CODE = WORKSPACE_RULES
 
 
 def build_agent(
@@ -47,7 +47,7 @@ def build_agent(
     it stops calling tools.
     """
     if kind == "react":
-        instructions = _INSTRUCTIONS_REACT if submit else _WORKSPACE_RULES
+        instructions = INSTRUCTIONS_REACT if submit else WORKSPACE_RULES
         return react(
             prompt=AgentPrompt(instructions=instructions),
             submit=submit,
@@ -62,7 +62,7 @@ def build_agent(
         )
     if kind == "claude_code":
         return claude_code(
-            system_prompt=_INSTRUCTIONS_CLAUDE_CODE,
+            system_prompt=INSTRUCTIONS_CLAUDE_CODE,
             skills=[str(p) for p in skill_dirs] if skill_dirs else None,
             cwd="/workspace",
             # ExitPlanMode tarpits the headless bridge (returns the
