@@ -8,6 +8,7 @@ scenario-specific shaping lives here.
 from __future__ import annotations
 
 from pathlib import Path
+from statistics import median
 
 from inspect_ai.scorer import value_to_float
 
@@ -22,7 +23,7 @@ score_to_float = value_to_float()
 
 
 def is_gating(score) -> bool:
-    """Whether a Score contributes to the gating pass_rate.
+    """Whether a Score contributes to the gating decision.
 
     A scorer can mark its Scores non-gating by setting
     ``metadata["gating"] = False`` (e.g. ``assert_skill_loaded`` in its
@@ -33,27 +34,60 @@ def is_gating(score) -> bool:
     return meta.get("gating", True) is not False
 
 
-def pass_rate(log) -> float:
-    """Mean of gating per-scorer values across all samples.
+def gating_by_scorer(log) -> dict[str, bool]:
+    """Whether each scorer gates, keyed by scorer name.
 
-    For a multi-scorer task (e.g. rocket-launch with cluster + lint +
-    CPT, or dev-routing with skill-load + model_graded_qa), this
-    averages every gating scorer's value across every sample —
-    non-gating scorers (``metadata["gating"] = False``) are skipped so
-    the arm-level pass_rate reflects only the metrics that actually
-    gate the eval.
+    Read from raw ``log.samples`` (where every Score keeps its ``metadata``)
+    rather than from the reductions: a reducer may drop per-score metadata when
+    the epoch values differ, which would silently flip a diagnostic scorer like
+    ``assert_skill_loaded`` back to gating. A scorer's gating flag is constant
+    across samples, so the first occurrence wins.
     """
-    samples = getattr(log, "samples", None) or []
-    values: list[float] = []
-    for sample in samples:
-        scores = getattr(sample, "scores", None) or {}
-        for score in scores.values():
-            if not is_gating(score):
-                continue
+    result: dict[str, bool] = {}
+    for sample in getattr(log, "samples", None) or []:
+        for name, score in (getattr(sample, "scores", None) or {}).items():
+            if name not in result:
+                result[name] = is_gating(score)
+    return result
+
+
+def reduced_scores(log) -> dict[str, dict[str, float]]:
+    """Per-sample ``{scorer: float}`` after epoch reduction, keyed by sample id.
+
+    Reads ``log.reductions`` (one entry per scorer × reducer, each holding the
+    epoch-reduced score per sample id) instead of raw ``log.samples`` (one row
+    per id×epoch). At epochs=1 the reduction is the identity, so this is correct
+    for single- and multi-epoch runs alike. When several reducers are
+    configured, ``mean`` wins. Falls back to raw scores if a log predates
+    reductions.
+    """
+    by_scorer: dict[str, object] = {}
+    for red in getattr(log, "reductions", None) or []:
+        prev = by_scorer.get(red.scorer)
+        if prev is None or (
+            red.reducer == "mean" and getattr(prev, "reducer", None) != "mean"
+        ):
+            by_scorer[red.scorer] = red
+
+    out: dict[str, dict[str, float]] = {}
+    if by_scorer:
+        for scorer, red in by_scorer.items():
+            for s in red.samples:
+                v = s.value
+                out.setdefault(str(s.sample_id), {})[scorer] = (
+                    score_to_float(v) if isinstance(v, (int, float, str, bool)) else 0.0
+                )
+        return out
+
+    # Fallback: no reductions block — treat each raw sample as its own (id at
+    # epochs=1 is unique, so this is the identity there too).
+    for sample in getattr(log, "samples", None) or []:
+        for name, score in (getattr(sample, "scores", None) or {}).items():
             v = getattr(score, "value", None)
-            if isinstance(v, (int, float, str, bool)):
-                values.append(score_to_float(v))
-    return sum(values) / len(values) if values else 0.0
+            out.setdefault(str(sample.id), {})[name] = (
+                score_to_float(v) if isinstance(v, (int, float, str, bool)) else 0.0
+            )
+    return out
 
 
 def _usage_field(sample, field: str) -> float:
@@ -69,6 +103,20 @@ def sample_tokens(sample) -> float:
     it's what the cost baseline gates on, so usage reporting uses it too.
     """
     return _usage_field(sample, "total_tokens")
+
+
+def reduced_tokens(log) -> dict[str, float]:
+    """Per-sample-id token total, reduced across epochs by median.
+
+    Tokens live on the raw samples (the reduced score carries no usage), so we
+    group ``log.samples`` by id and take the median across epochs — robust to a
+    single runaway rollout, and the same per-id granularity the cost gate and
+    baseline compare against. At epochs=1 it's just the sample's own total.
+    """
+    by_id: dict[str, list[float]] = {}
+    for sample in getattr(log, "samples", None) or []:
+        by_id.setdefault(str(sample.id), []).append(sample_tokens(sample))
+    return {sid: median(toks) for sid, toks in by_id.items() if toks}
 
 
 # Token categories in the order we display them; their sum is the all-in

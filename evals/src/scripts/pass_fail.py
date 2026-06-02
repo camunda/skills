@@ -27,10 +27,10 @@ from inspect_ai.log import list_eval_logs, read_eval_log
 
 from core.metrics import (
     baseline_dir,
-    is_gating,
-    sample_tokens,
+    gating_by_scorer,
+    reduced_scores,
+    reduced_tokens,
     scenario_id,
-    score_to_float,
     task_arg,
 )
 from core.paths import EVALS_ROOT
@@ -52,28 +52,29 @@ def _resolve_log_path(arg: str | None) -> str:
 
 
 def _outcome_rows(log, threshold: float) -> tuple[list[dict], bool]:
-    """Per-sample scorer breakdown + overall outcome-pass bit."""
+    """Per-sample scorer breakdown + overall outcome-pass bit.
+
+    One row per distinct sample id, reading epoch-reduced scores
+    (``reduced_scores``) and tokens (``reduced_tokens``) — so a multi-epoch run
+    yields one verdict per sample, not one per id×epoch. With a ``mean`` reducer
+    and the default threshold 1.0, a sample must pass *every* epoch to be green;
+    a flaky 2/3 reduces to 0.67 and fails.
+    """
+    gating = gating_by_scorer(log)
+    tokens = reduced_tokens(log)
     rows: list[dict] = []
     all_passed = True
-    for sample in log.samples or []:
-        values: dict[str, float] = {}
-        diagnostic: set[str] = set()
-        for name, score in (sample.scores or {}).items():
-            if not is_gating(score):
-                diagnostic.add(name)
-            v = score.value if hasattr(score, "value") else score
-            values[name] = (
-                score_to_float(v) if isinstance(v, (int, float, str, bool)) else 0.0
-            )
-        gating = {n: v >= threshold for n, v in values.items() if n not in diagnostic}
-        ok = all(gating.values()) if gating else False
+    for sample_id, values in reduced_scores(log).items():
+        diagnostic = {n for n in values if not gating.get(n, True)}
+        gated = {n: v >= threshold for n, v in values.items() if n not in diagnostic}
+        ok = all(gated.values()) if gated else False
         all_passed = all_passed and ok
         rows.append(
             {
-                "sample_id": str(sample.id),
+                "sample_id": sample_id,
                 "scorers": values,
                 "diagnostic": sorted(diagnostic),
-                "tokens": sample_tokens(sample),
+                "tokens": tokens.get(sample_id, 0.0),
                 "pass": ok,
             }
         )

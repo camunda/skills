@@ -20,7 +20,7 @@ from pathlib import Path
 
 from inspect_ai.log import list_eval_logs, read_eval_log
 
-from core.metrics import sample_tokens
+from core.metrics import reduced_tokens
 from core.paths import EVALS_ROOT
 
 LOGS_DIR = EVALS_ROOT / "logs"
@@ -67,9 +67,10 @@ def main() -> int:
 
     log = read_eval_log(chosen.name)
     model = getattr(log.eval, "model", None) or "unknown"
+    # Median tokens per sample id across epochs (== the sample's own total at
+    # epochs=1) — the same per-id figure the cost gate compares against.
     samples = {
-        str(s.id): {"tokens": round(sample_tokens(s))}
-        for s in (getattr(log, "samples", None) or [])
+        sid: {"tokens": round(toks)} for sid, toks in reduced_tokens(log).items()
     }
 
     target = target_dir / "outcomes_baseline.json"

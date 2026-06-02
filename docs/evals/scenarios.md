@@ -117,7 +117,9 @@ To run an eval, read its scorers, regenerate a baseline, or compare the
    <downloaded-log-dir>` for a CI artifact).
 2. **Reproduce a CPT failure outside the sandbox:** `cd
    evals/scenarios/<id>/cpt-verifier && mvn test`.
-3. **Check for flake:** `... --epochs 3` (append via `ARGS="--epochs 3"`).
+3. **Check for flake:** `... --epochs 3` (append via `ARGS="--epochs 3"`). The
+   gate reduces epochs by mean, so a sample must pass *every* epoch to stay
+   green — a flaky 2/3 reduces to 0.67 and fails, which is the signal.
 4. **Compare arms:** both arms failing → not a skill problem; both passing →
    the skill may not be earning its keep.
 
