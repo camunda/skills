@@ -44,12 +44,12 @@ jobs:
       specs: ${{ steps.matrix.outputs.specs }}
       has: ${{ steps.matrix.outputs.has }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version-file: .python-version
+          enable-cache: true
       - run: uv sync --frozen
       - name: Compute changed skills
         env:
@@ -120,10 +120,10 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.detect.outputs.specs) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version-file: .python-version
+          enable-cache: true
       - run: uv sync --frozen
       - name: Build sandbox images
         if: matrix.sandbox
@@ -150,7 +150,7 @@ jobs:
         run: uv run evals-pass-fail
       - name: Upload eval logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eval-logs-${{ matrix.slug }}-${{ github.run_attempt }}
           path: evals/logs/
@@ -162,13 +162,13 @@ jobs:
     if: always() && needs.detect.outputs.has == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version-file: .python-version
+          enable-cache: true
       - run: uv sync --frozen
       - name: Download all logs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: evals/logs/
           pattern: eval-logs-*
@@ -188,14 +188,14 @@ jobs:
       - name: Find existing eval comment
         if: github.event_name == 'pull_request'
         id: find-comment
-        uses: peter-evans/find-comment@v3
+        uses: peter-evans/find-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: github-actions[bot]
           body-includes: <!-- camunda-skills-eval-comment -->
       - name: Post / update PR comment
         if: github.event_name == 'pull_request'
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}

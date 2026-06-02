@@ -23,10 +23,10 @@ jobs:
     outputs:
       specs: ${{ steps.matrix.outputs.specs }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version-file: .python-version
+          enable-cache: true
       - run: uv sync --frozen
       - id: matrix
         run: |
@@ -62,10 +62,10 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.detect.outputs.specs) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
-          python-version-file: .python-version
+          enable-cache: true
       - run: uv sync --frozen
       - name: Build sandbox images
         if: matrix.sandbox
@@ -86,7 +86,7 @@ jobs:
         run: uv run evals-pass-fail
       - name: Upload eval logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eval-logs-${{ matrix.slug }}-${{ github.run_attempt }}
           path: evals/logs/
