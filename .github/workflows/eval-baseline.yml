@@ -95,7 +95,7 @@ jobs:
             [ -n "$dir" ] || continue
             echo "::group::$dir (epochs=$EPOCHS, max-sandboxes $ms)"
             uv run inspect eval "$dir/outcomes.py" --log-dir logs/ \
-              --max-sandboxes "$ms" --epochs "$EPOCHS" --model "$MODEL" \
+              --display plain --max-sandboxes "$ms" --epochs "$EPOCHS" --model "$MODEL" \
               -T agent=react -T arm=with_skill \
               || echo "::warning::run failed for $dir"
             uv run evals-regen-baseline --target "$dir" \
