@@ -1,21 +1,21 @@
-"""camunda-c8ctl outcome eval: use c8ctl against a live cluster.
+"""camunda-c8ctl outcome eval: install c8ctl and use it against a live cluster.
 
-Two samples, each with its own ``setup`` script and ``files`` pre-seeded into
-the sandbox, demonstrating Inspect's per-sample sandbox setup API:
+Three samples, each with its own ``sandbox`` and ``setup``/``files``, showing
+Inspect's per-sample sandbox configuration:
 
-- ``get-topology``: ``setup`` waits for the REST API; agent is asked to query
-  cluster topology and write the JSON to ``/workspace/topology.json``. Scored
-  by verifying the file contains valid JSON.
-- ``deploy-process``: ``setup`` waits for the REST API; ``files`` seeds a
-  minimal BPMN into the workspace; agent deploys it. Scored by checking the
-  cluster for the deployed process definition.
+- ``install-cli``: base sandbox (no c8ctl pre-installed); agent installs and
+  configures c8ctl. Scored by running ``c8ctl --version`` after the agent.
+- ``get-topology``: with-c8ctl sandbox (pre-installed, live cluster); agent
+  queries topology and saves JSON to ``/workspace/topology.json``. Scored by
+  reading that file.
+- ``deploy-process``: with-c8ctl sandbox; ``files`` seeds a minimal BPMN;
+  agent deploys it. Scored via ``c8ctl list pd --json``.
 
-Both samples run in ``compose-with-c8ctl`` (c8ctl pre-installed, live cluster).
+A single ``c8ctl_outcome`` scorer dispatches on ``sample.metadata['check']``,
+since Inspect scoring is task-level (no per-sample scorer field).
+
 Skill-load is diagnostic; the without-skill arm drops camunda-c8ctl to measure
 its value.
-
-See ``scenarios/c8ctl-bootstrap/outcomes.py`` for the companion install-path
-eval (base sandbox, no c8ctl pre-installed).
 """
 
 from __future__ import annotations
@@ -40,15 +40,15 @@ METADATA = ScenarioMetadata(
     baseline=BaselineConfig(exclude=["camunda-c8ctl"]),
 )
 
-# Poll until the Camunda REST API is ready (port 9600 healthcheck passes before
-# port 8080 is fully up; this closes the gap without boot_cluster() in the
-# solver, which would require c8ctl to be available before the agent runs).
-_WAIT_READY = (
+# Wait for the Camunda REST API (port 8080) to be ready. The compose
+# healthcheck covers port 9600 (actuator); there is a small gap before 8080
+# accepts requests. Only needed on sandboxes with a live cluster.
+WAIT_FOR_CLUSTER = (
     "timeout 60 bash -c "
     "'until c8ctl get topology --json >/dev/null 2>&1; do sleep 1; done'"
 )
 
-_HELLO_BPMN = """\
+HELLO_BPMN = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
@@ -61,20 +61,39 @@ _HELLO_BPMN = """\
 </definitions>
 """
 
+BASE_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-base.yaml"))
+WITH_C8CTL_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml"))
+
 
 @scorer(metrics=[mean(), stderr()])
-def c8ctl_usage_outcome() -> Scorer:
-    """Dispatch scorer: reads ``state.metadata['check']`` to pick the oracle.
+def c8ctl_outcome() -> Scorer:
+    """Dispatch scorer keyed on ``state.metadata['check']``:
 
-    - ``topology``: verify ``/workspace/topology.json`` was written and
-      contains valid JSON.
-    - ``deployed``: verify ``state.metadata['expected_process_id']`` appears
-      in ``c8ctl list pd --json``.
+    - ``installed``: ``c8ctl --version`` exits 0.
+    - ``topology``: ``/workspace/topology.json`` exists and is valid JSON.
+    - ``deployed``: ``state.metadata['expected_process_id']`` found in
+      ``c8ctl list pd --json``.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
         check = (state.metadata or {}).get("check")
         sb = sandbox()
+
+        if check == "installed":
+            result = await sb.exec(["c8ctl", "--version"], timeout=10)
+            if result.returncode == 0:
+                return Score(
+                    value=1.0,
+                    explanation=f"c8ctl --version → {result.stdout.strip()}",
+                    metadata={"version_output": result.stdout},
+                )
+            return Score(
+                value=0.0,
+                explanation=(
+                    f"c8ctl --version exit {result.returncode}: "
+                    f"{(result.stderr or result.stdout)[-300:]}"
+                ),
+            )
 
         if check == "topology":
             result = await sb.exec(["cat", "/workspace/topology.json"], timeout=10)
@@ -150,19 +169,31 @@ def c8ctl_usage_outcome() -> Scorer:
 
 SAMPLES = [
     Sample(
+        id="install-cli",
+        input=(
+            "There's a Camunda 8 cluster already running somewhere on this "
+            "machine (don't start a new one) — can you set me up with a CLI "
+            "so I can poke at it?"
+        ),
+        sandbox=BASE_SANDBOX,
+        metadata={"check": "installed"},
+    ),
+    Sample(
         id="get-topology",
         input=(
             "Query the Camunda cluster topology using the available CLI tools "
             "and save the raw JSON output to /workspace/topology.json."
         ),
-        setup=_WAIT_READY,
+        sandbox=WITH_C8CTL_SANDBOX,
+        setup=WAIT_FOR_CLUSTER,
         metadata={"check": "topology"},
     ),
     Sample(
         id="deploy-process",
         input="Deploy the BPMN process at /workspace/hello.bpmn to the cluster.",
-        setup=_WAIT_READY,
-        files={"hello.bpmn": _HELLO_BPMN},
+        sandbox=WITH_C8CTL_SANDBOX,
+        setup=WAIT_FOR_CLUSTER,
+        files={"hello.bpmn": HELLO_BPMN},
         metadata={"check": "deployed", "expected_process_id": "HelloWorld"},
     ),
 ]
@@ -175,12 +206,11 @@ def camunda_c8ctl(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         dataset=SAMPLES,
         solver=with_artifact_collection(build_agent(agent, skill_dirs)),
         scorer=[
-            c8ctl_usage_outcome(),
+            c8ctl_outcome(),
             assert_skill_loaded("camunda-c8ctl", gating=False),
         ],
-        sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
         metadata=METADATA.model_dump(),
         time_limit=300,
-        token_limit=400_000,
-        message_limit=50,
+        token_limit=500_000,
+        message_limit=60,
     )
