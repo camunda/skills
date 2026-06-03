@@ -33,7 +33,7 @@ evals/
     ├── core/              # paths, metadata schema, registry, metrics, trigger builder
     ├── scorers/           # cluster, cpt, feel, lint, transcript
     ├── solvers/           # boot_cluster, collect_artifacts
-    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regen-baseline, evals-extract-artifacts
+    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regenerate-baseline, evals-extract-artifacts
 ```
 
 ## Docs

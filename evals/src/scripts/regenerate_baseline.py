@@ -10,9 +10,9 @@ that didn't reach the goal (failed scorer, or errored) is skipped, not
 recorded — its token count is unrepresentative (token-limit flail inflates it,
 an early error deflates it) and would poison the ceiling. This mirrors the
 gate, which only cost-checks passing samples; a skipped sample shows up as
-``no baseline (regen)`` there until it passes and is regenerated.
+``no baseline (regenerate)`` there until it passes and is regenerated.
 
-    evals-regen-baseline --target camunda-feel [--arm with_skill]
+    evals-regenerate-baseline --target camunda-feel [--arm with_skill]
 
 ``--target`` is the eval dir path (``skills/<name>`` or ``scenarios/<name>``).
 Review the diff before committing; regenerate one target at a time.

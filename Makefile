@@ -140,4 +140,4 @@ eval-viewer:
 .PHONY: eval-baseline
 eval-baseline:
 	@if [ -z "$(TARGET)" ]; then echo "TARGET=<dir> required (e.g. skills/camunda-feel)"; exit 2; fi
-	@uv run evals-regen-baseline --target $(TARGET)
+	@uv run evals-regenerate-baseline --target $(TARGET)

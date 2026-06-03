@@ -2,22 +2,22 @@ name: 🧪 Regenerate eval baselines
 
 # Re-records each outcome eval's committed token baseline from a fresh run
 # against the canonical EVAL_MODEL, then commits the result back to the branch
-# (median per-id tokens, passing samples only — see evals-regen-baseline).
+# (median per-id tokens, passing samples only — see evals-regenerate-baseline).
 #
 # Two maintainer-gated ways in:
-#   - label a PR `evals:regen-baselines` → regenerate + commit to the PR branch;
+#   - label a PR `evals:regenerate-baselines` → regenerate + commit to the PR branch;
 #     the PR diff is the review surface. Works before these workflows land on
 #     the default branch.
 #   - workflow_dispatch (after merge) → regenerate on the chosen branch; refuses
 #     to commit to the default branch — open a PR for that instead.
 #
-# Never runs on push/synchronize: auto-regen would rewrite the very yardstick
+# Never runs on push/synchronize: auto-regenerate would rewrite the very yardstick
 # the cost gate depends on. See evals/docs/ci.md.
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Substring of an outcome target id to regen (blank = all)"
+        description: "Substring of an outcome target id to regenerate (blank = all)"
         required: false
         default: ""
       epochs:
@@ -39,7 +39,7 @@ jobs:
     name: Regenerate baselines
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.label.name == 'evals:regen-baselines'
+      github.event.label.name == 'evals:regenerate-baselines'
     runs-on: ubuntu-latest
     env:
       EPOCHS: ${{ github.event.inputs.epochs || '3' }}
@@ -112,8 +112,8 @@ jobs:
               --display plain --max-sandboxes "$ms" --epochs "$EPOCHS" --model "$MODEL" \
               -T agent=react -T arm=with_skill \
               || echo "::warning::run failed for $dir"
-            uv run evals-regen-baseline --target "$dir" \
-              || echo "::warning::regen failed for $dir"
+            uv run evals-regenerate-baseline --target "$dir" \
+              || echo "::warning::regenerate failed for $dir"
             echo "::endgroup::"
           done < targets.txt
       - name: Commit baselines to the branch

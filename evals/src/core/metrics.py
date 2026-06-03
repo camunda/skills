@@ -1,6 +1,6 @@
 """Shared metric helpers for reading Inspect eval logs.
 
-Used by ``scripts.regen_baseline`` to write the outcomes_baseline.json and by
+Used by ``scripts.regenerate_baseline`` to write the outcomes_baseline.json and by
 ``scripts.pass_fail`` to gate against it. Kept domain-agnostic — no
 scenario-specific shaping lives here.
 """

@@ -188,7 +188,7 @@ evals — add `Sample(id="edge-…", …)` (or `Positive`/`Negative`) entries.
 ## Maintaining baselines
 
 Committed baselines are regenerated **on CI against the canonical model** (label
-a PR `evals:regen-baselines` — see [`ci.md`](ci.md)), because token counts are
+a PR `evals:regenerate-baselines` — see [`ci.md`](ci.md)), because token counts are
 model-specific. Locally you can rewrite one for a quick check, but the numbers
 reflect whatever model you ran:
 
@@ -200,7 +200,7 @@ git diff evals/skills/camunda-feel/outcomes_baseline.json   # review before comm
 
 - Regenerate only after an **intentional** behaviour change — review the token
   diff and ask whether the new budget is what you meant.
-- **Never** blanket-regen, and **never** to "make CI green." If the outcome is
+- **Never** blanket-regenerate, and **never** to "make CI green." If the outcome is
   failing and the skill is supposed to work, fix the skill — the baseline is a
   cost ceiling, never the outcome bar.
 - Only passing samples get an entry; a failed one keeps its old reference (or

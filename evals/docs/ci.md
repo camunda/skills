@@ -17,9 +17,9 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 5. **Occasionally** add `evals:compare` (does the skill earn its keep — the
    with-vs-without delta) or `evals:run-all` (whole-suite check).
 6. **Intentional behaviour change that moved tokens?** Label
-   `evals:regen-baselines` — CI re-runs the outcome evals against the canonical
+   `evals:regenerate-baselines` — CI re-runs the outcome evals against the canonical
    model and commits refreshed baselines to the branch, for you to review in the
-   diff. Never regen to make CI green.
+   diff. Never regenerate to make CI green.
 
 ## Workflows
 
@@ -28,7 +28,7 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 | `lint.yml` | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
 | `eval.yml` | `evals:run` / `evals:run-all` / `evals:compare` label, or the Actions tab | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
 | `eval-nightly.yml` | `workflow_dispatch` only (cron re-enabled in a follow-up) | Every target; uploads logs as artifacts |
-| `eval-baseline.yml` | `evals:regen-baselines` label, or the Actions tab | Re-runs outcome evals, regenerates baselines, commits them to the branch |
+| `eval-baseline.yml` | `evals:regenerate-baselines` label, or the Actions tab | Re-runs outcome evals, regenerates baselines, commits them to the branch |
 
 **Gating is the label.** Only collaborators with triage or higher can label a
 PR, and `workflow_dispatch` requires write access — so there's no separate
@@ -105,15 +105,15 @@ the debugger; `evals-pass-fail` gives the per-sample scorer + budget breakdown.
 `eval-baseline.yml` re-records each outcome eval's token baseline from a fresh
 run against the canonical `EVAL_MODEL` (median per sample, passing samples only):
 
-- **On a PR** — label `evals:regen-baselines`. CI re-runs the outcome evals at
+- **On a PR** — label `evals:regenerate-baselines`. CI re-runs the outcome evals at
   `--epochs 3` (so the reference is a median, not a single-shot outlier),
   regenerates the baselines, and **commits them to the PR branch**. The diff is
   your review surface.
 - **After merge** — dispatch from the Actions tab on a branch; inputs `target`
   (substring, blank = all) and `epochs`. It **refuses the default branch** —
-  regen for `main` goes through a PR.
+  regenerate for `main` goes through a PR.
 
-It **never** runs on push/synchronize: auto-regen would rewrite the very
+It **never** runs on push/synchronize: auto-regenerate would rewrite the very
 yardstick the cost gate checks against, so a regression would silently become the
 new normal.
 

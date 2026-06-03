@@ -103,7 +103,7 @@ def _token_cell(cost_checks: list[dict] | None) -> str:
     no_base = sum(1 for c in cost_checks if "note" in c)
     hint = f" · {no_base} no baseline" if no_base else ""
     if not graded:
-        return "— regen baseline" + hint
+        return "— regenerate baseline" + hint
     observed = sum(c["tokens"] for c in graded)
     base = sum(c["baseline"] for c in graded)
     pct = (observed - base) / base * 100 if base else 0.0

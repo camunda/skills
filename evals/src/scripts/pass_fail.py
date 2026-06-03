@@ -116,7 +116,7 @@ def _cost_checks(
                 {
                     "sample_id": row["sample_id"],
                     "pass": True,
-                    "note": "no baseline (regen)",
+                    "note": "no baseline (regenerate)",
                 }
             )
             continue
