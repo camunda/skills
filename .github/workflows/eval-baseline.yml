@@ -65,7 +65,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build sandbox images (GHA layer cache)
         # Single job builds and uses the images, so no artifact hand-off — just
         # the shared GHA layer cache (no Docker Hub re-pull across runs).
