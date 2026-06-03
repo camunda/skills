@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BaselineConfig(BaseModel):
-    """Comparison-arm config. See docs/evals/concepts.md § baseline."""
+    """Comparison-arm config. See evals/docs/concepts.md."""
 
     model_config = ConfigDict(extra="forbid")
 

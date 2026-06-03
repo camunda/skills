@@ -1,49 +1,44 @@
 # Camunda skills — eval suite
 
-Verifies the skills under `../skills/` produce deployable, working
-artifacts and that cross-skill orchestration routes correctly —
-signals `waza check` can't catch. Runs locally and on CI.
+Verifies the skills under `../skills/` actually **work** — the right skill loads
+for a prompt, and the agent produces deployable, working artifacts (BPMN that
+lints and deploys, FEEL that evaluates, a CPT test that passes). This is the
+behavioural gate alongside `waza check` (lint); it's built on
+[Inspect AI](https://inspect.aisi.org.uk/) and runs locally and on CI.
 
 ## Quickstart
 
-Prerequisites: Docker, [uv](https://docs.astral.sh/uv/).
+Prerequisites: [uv](https://docs.astral.sh/uv/); Docker for outcome evals only.
 
 ```bash
-make eval SCENARIO=rocket-launch    # one scenario
-make eval-all                          # all scenarios
-make eval-baseline SCENARIO=<id>       # regenerate baseline.json
+make eval-triggers SKILL=camunda-feel              # routing: does the skill load?  (no Docker)
+make eval-images                                   # one-time: build sandbox images
+make eval-outcomes TARGET=skills/camunda-feel      # behaviour: does the agent get it right?
+make eval-viewer                                   # trajectory viewer — http://localhost:7575
 ```
 
-Logs land under `evals/logs/`. To inspect a trajectory:
-
-```bash
-uv run inspect view evals/logs/        # http://localhost:7575
-```
-
-The uv project lives at the repo root (`../pyproject.toml`,
-`../uv.lock`, `../.python-version`), so `uv run …` works from anywhere
-in the repo without a `cd`.
+The default model is `anthropic/claude-sonnet-4-6` (`export ANTHROPIC_API_KEY`);
+override with `MODEL=…` + that provider's creds. The uv project lives at the repo
+root, so `uv run …` works from anywhere without a `cd`.
 
 ## Layout
 
 ```
 evals/
-├── sandboxes/              # base / with-c8ctl / verifier Dockerfiles + compose-*.yaml + orchestration application.yaml
-├── scenarios/
-│   ├── c8ctl-bootstrap/
-│   ├── dev-routing/
-│   └── rocket-launch/      # incl. cpt-verifier/ (Spring CPT, remote-runtime)
+├── docs/                  # concepts · runbook · ci (see below)
+├── sandboxes/             # Dockerfiles + docker-bake.hcl + compose-*.yaml (base / with-c8ctl / cpt-verifier / advisory)
+├── skills/<skill>/        # triggers.py (routing) and, where one exists, outcomes.py
+├── scenarios/<id>/        # cross-skill outcome evals (e.g. rocket-launch, c8ctl-bootstrap)
 └── src/
-    ├── core/              # paths, metadata schema, scenario registry, metrics
-    ├── scorers/           # shared scorers: transcript, cluster, cpt, lint
-    ├── solvers/           # shared solvers: boot_cluster, collect_artifacts
-    └── scripts/           # CLI entry points: evals-list, evals-summarize, evals-extract-artifacts, evals-regen-baseline, evals-pass-fail
+    ├── core/              # paths, metadata schema, registry, metrics, trigger builder
+    ├── scorers/           # cluster, cpt, feel, lint, transcript
+    ├── solvers/           # boot_cluster, collect_artifacts
+    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regen-baseline, evals-extract-artifacts
 ```
 
 ## Docs
 
-- **Why** → [`../docs/evals/concepts.md`](../docs/evals/concepts.md)
-- **How (add/maintain/debug a scenario)** → [`../docs/evals/scenarios.md`](../docs/evals/scenarios.md)
-- **For AI agents working on this repo** → [`../docs/evals/agent-instructions.md`](../docs/evals/agent-instructions.md)
-- **CI & PR comment** → [`../docs/evals/ci-and-results.md`](../docs/evals/ci-and-results.md)
-- **Original design + roadmap (with divergences noted)** → [`../docs/plans/01-eval-suite.md`](../docs/plans/01-eval-suite.md)
+- **Concepts** (the model: two kinds, sandbox, arms, baseline) →
+  [`docs/concepts.md`](docs/concepts.md)
+- **Runbook** (run · interpret · add · maintain) → [`docs/runbook.md`](docs/runbook.md)
+- **CI** (labels · PR comment · baselines · secrets) → [`docs/ci.md`](docs/ci.md)

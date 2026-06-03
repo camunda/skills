@@ -76,14 +76,14 @@ After install, the `azd waza` command is on PATH and `make lint` works. The Make
 
 ## Evals
 
-An eval suite is being built up under `evals/` to verify skills produce deployable, working artifacts and that cross-skill orchestration routes correctly — signals `waza check` can't catch. `waza check` remains the fast/cheap gate alongside.
+The `evals/` suite verifies skills *work* — the right skill loads for a prompt,
+and the agent produces deployable, working artifacts. It's the behavioural gate
+alongside `waza check` (lint), built on [Inspect AI](https://inspect.aisi.org.uk/).
+Start at [`evals/README.md`](evals/README.md); the details live in three docs:
 
-- [`docs/evals/runbook.md`](docs/evals/runbook.md) — local runbook: command cheatsheet, reading trigger/outcome scorers, baselines, with-skill/without-skill
-- [`docs/evals/concepts.md`](docs/evals/concepts.md) — why evals, two-phase sandbox, verifier menu, with-skill/without-skill semantics, harness model
-- [`docs/plans/01-eval-suite.md`](docs/plans/01-eval-suite.md) — original design + roadmap for follow-up scenarios; its status box notes where the landed suite diverged
-- [`docs/evals/scenarios.md`](docs/evals/scenarios.md) — anatomy of an eval, metadata contract, add/debug procedures
-- [`docs/evals/agent-instructions.md`](docs/evals/agent-instructions.md) — for AI agents working on this repo: when to touch evals, how to run them, what NEVER to do
-- [`docs/evals/ci-and-results.md`](docs/evals/ci-and-results.md) — workflow shape, scenario selection, PR comment format, artifact debugging
+- [`evals/docs/concepts.md`](evals/docs/concepts.md) — the model: two kinds (trigger/outcome), two-phase sandbox, with/without-skill arms, the cost baseline
+- [`evals/docs/runbook.md`](evals/docs/runbook.md) — run · interpret · add · maintain evals (for contributors and AI agents)
+- [`evals/docs/ci.md`](evals/docs/ci.md) — labels, workflows, the PR comment, regenerating baselines, secrets
 
 ## Scripts
 

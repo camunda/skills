@@ -64,4 +64,4 @@ All skill tooling is unified under c8ctl plugin commands:
 
 ## Maintaining this repo
 
-Contributing to or maintaining the skills in this repo? See [CONTRIBUTING.md](CONTRIBUTING.md) for skill structure, the self-containment rule, cross-references, linting, evals, commit conventions, and the PR process.
+Contributing to or maintaining the skills in this repo? See [CONTRIBUTING.md](CONTRIBUTING.md) for skill structure, the self-containment rule, cross-references, linting, evals, commit conventions, and the PR process. Working on the eval suite specifically? Start at [evals/README.md](evals/README.md).
