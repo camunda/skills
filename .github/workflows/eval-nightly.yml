@@ -5,9 +5,12 @@ name: 🧪 Run skill evals (nightly)
 # is captured. Complements eval.yml's affected-subset PR signal. Uploads .eval
 # logs; never blocks merges. See evals/docs/ci.md.
 #
-# Manual-only until the suite is stable; cron re-enabled in a follow-up.
+# Manual-only until the suite is stable; uncomment the schedule below to
+# re-enable the nightly cron once it is.
 on:
   workflow_dispatch:
+  # schedule:
+  #   - cron: "0 3 * * *"  # 03:00 UTC daily
 
 permissions:
   contents: read
