@@ -1,13 +1,9 @@
 ---
 name: camunda-development
 description: |
-  Use this skill to choose the right Camunda 8 development surface (OOTB connector, custom connector template, custom Java connector, or job worker) and to see what local tooling (JDK, Maven, Node.js, Docker) each surface needs.
+  Use this skill FIRST for any Camunda 8 integration or BPMN step that talks to another system — Slack, REST/HTTPS, webhooks, Kafka, S3, internal microservices, AI/LLM agents. The right implementation can't be read off the request's keywords (a "webhook" might be an OOTB connector or a custom inbound one; "LLM" a custom worker or the AI Agent connector); this skill weighs the full requirements (reusability, throughput, in-process state, transport, decision style) and hands off to camunda-connectors, camunda-connectors-development, camunda-job-workers, or camunda-ai-agents.
 
-  Use for: orienting between out-of-the-box connectors, JSON-only templates on protocol connectors, custom Java connectors via the Connectors SDK, and job workers (Java / Spring / TypeScript); understanding the trade-offs (language reach, secrets, intrinsic functions, inbound support); getting a per-workflow overview of which tools each path needs locally and how to verify them.
-
-  Do not use for: actually building a worker (use camunda-job-workers), building a custom connector (use camunda-connectors-development), or configuring an OOTB connector (use camunda-connectors).
-
-  **Utility skill** — decision matrix plus a local-prereqs overview. Read this first, then jump into the focused build skill it points you to.
+  Do not use for the actual build — switch to the focused skill it points to.
 ---
 
 # Camunda Development

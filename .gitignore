@@ -23,3 +23,11 @@ results/
 
 # Logs
 *.log
+
+# Eval suite local outputs
+evals/logs/
+# Maven build output from the CPT verifier projects
+**/cpt-verifier/target/
+.venv/
+.ruff_cache/
+**/__pycache__/

@@ -1,0 +1,76 @@
+# Sandbox compose — with-c8ctl + CPT verifier archetype.
+#
+# Referenced directly from an eval's outcomes.py via
+# ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")))``.
+# Used by evals whose scoring needs a CPT (Camunda Process Test) run, e.g.
+# the rocket-launch scenario.
+#
+# Adds a `verifier` service alongside `default`; the verifier mounts
+# the agent's `/workspace` read-only and shares a Maven `.m2` cache for
+# faster repeat runs. Scorers reach the verifier via
+# ``sandbox("verifier")``.
+
+services:
+  orchestration:
+    image: camunda/camunda:8.9.5
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /v1/topology HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n\" >&3 && head -n 1 <&3 | grep -q 200'"]
+      interval: 1s
+      retries: 60
+      start_period: 30s
+    configs:
+      - source: orchestration-config
+        target: /usr/local/camunda/config/application.yaml
+
+  default:
+    image: camunda-skills-evals-with-c8ctl:latest
+    network_mode: "service:orchestration"
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
+
+  verifier:
+    image: camunda-skills-evals-verifier:latest
+    # Share the orchestration cluster's network namespace so CPT can
+    # reach the REST API on localhost:8080 and the management endpoint
+    # on localhost:9600 (remote-runtime mode).
+    network_mode: "service:orchestration"
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /verifier-workspace
+    volumes:
+      # Agent's /workspace appears here as /agent-workspace (read-only)
+      # so the CPT test can pick up the BPMN it wrote.
+      - workspace:/agent-workspace:ro
+      - m2-cache:/.m2
+      # Per-scenario CPT projects live under scenarios/<id>/cpt-verifier.
+      # Mount read-only — the scorer copies to /verifier-workspace before
+      # mvn so target/ writes don't escape the container.
+      - ../scenarios:/scenarios:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
+
+configs:
+  orchestration-config:
+    file: ./orchestration/application-h2.yaml
+
+volumes:
+  workspace:
+  m2-cache:

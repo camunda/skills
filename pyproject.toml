@@ -1,0 +1,39 @@
+[project]
+name = "camunda-skills-evals"
+version = "0.1.0"
+description = "Qualitative evaluation suite for camunda/skills. See docs/evals/concepts.md."
+readme = "evals/README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aioboto3>=15.5.0",
+    "anthropic>=0.104.0",
+    "inspect-ai>=0.3.158",
+    "inspect-swe>=0.2.55",
+    "openai>=2.38.0",
+]
+
+[project.scripts]
+evals-list = "core.registry:main"
+evals-build-matrix = "scripts.build_matrix:main"
+evals-regenerate-baseline = "scripts.regenerate_baseline:main"
+evals-summarize = "scripts.summarize:main"
+evals-extract-artifacts = "scripts.extract_artifacts:main"
+evals-pass-fail = "scripts.pass_fail:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "evals/src/core",
+    "evals/src/scorers",
+    "evals/src/solvers",
+    "evals/src/scripts",
+]

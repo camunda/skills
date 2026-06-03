@@ -1,0 +1,50 @@
+# H2-backed Camunda orchestration config — no Elasticsearch/Postgres.
+#
+# Copied (with light trimming) from camunda/camunda-distributions
+# 8.9 reference: docker-compose/versions/camunda-8.9/configuration/
+#
+# `unprotectedApi: true` + `authorizations.enabled: false` keeps the
+# REST API open so scenarios don't need to manage tokens. The
+# `demo/demo` user is created for the rare scenario that exercises
+# the UIs (Operate/Tasklist).
+
+management.endpoints.configprops.show-values: always
+camunda:
+  backup:
+    webapps:
+      enabled: false
+  system:
+    cpu-thread-count: "3"
+    io-thread-count: "3"
+    # Allow the CPT verifier to pin / advance / reset the cluster clock
+    # via the orchestration REST API. Without this, the cluster's clock
+    # is immutable and `mvn test` errors with "Expected to reset the
+    # clock, but the clock is immutable" before the rocket-launch test
+    # can fast-forward the 3s of timer waits. Default ticking is
+    # unchanged — the clock advances normally until a test pins it.
+    clock-controlled: true
+  security:
+    authentication:
+      method: "basic"
+      unprotectedApi: true
+    authorizations:
+      enabled: false
+    initialization:
+      users:
+        - username: "demo"
+          password: "demo"
+          name: "Demo User"
+          email: "demo@demo.com"
+      defaultRoles.admin.users:
+        - "demo"
+  data:
+    secondary-storage:
+      type: rdbms
+      rdbms:
+        url: jdbc:h2:file:./camunda-data/h2db
+        username: sa
+        password:
+        flushInterval: PT0.5S
+        queueSize: 1000
+  mcp:
+    enabled: true

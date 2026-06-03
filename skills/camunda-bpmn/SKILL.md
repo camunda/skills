@@ -40,6 +40,8 @@ When writing a BPMN file from scratch, follow the canonical bpmn-js style — si
 
 The `zeebe` namespace, `isExecutable="true"`, and `modeler:executionPlatform="Camunda Cloud"` are mandatory — without them, Camunda won't recognize the process correctly.
 
+The `<bpmndi:BPMNDiagram>` block is also mandatory, not optional polish: `c8ctl bpmn lint` flags missing DI (`no-bpmndi`) as an error, and Modeler can't render a process without it. Every `<bpmn:process>` flow element needs a matching `<bpmndi:BPMNShape>`, every `<bpmn:sequenceFlow>` a `<bpmndi:BPMNEdge>`. Coordinates, sizes, and waypoint conventions: [references/layout-rules.md](references/layout-rules.md). Note that Zeebe deploys a DI-less BPMN happily — the missing DI surfaces only at lint and in Modeler, so don't rely on a successful deploy as evidence the file is well-formed.
+
 ### Symbol Encoding
 
 Always encode special characters in XML attribute values:
