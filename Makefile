@@ -10,7 +10,7 @@ TARGET ?=
 # Comparison arm. Always passed as `-T arm=$(ARM)` so the value shows up
 # in Inspect's TASK ARGS column for every run (not just non-default ones).
 # Override on the command line for the baseline arm:
-#   make eval-outcomes TARGET=scenarios/rocket-launch ARM=without_skill
+#   make run-outcome-evals TARGET=scenarios/rocket-launch ARM=without_skill
 ARM ?= with_skill
 # Model + agent loop, passed to every `inspect eval`. The suite is
 # model-agnostic; MODEL is just the default and uses Bedrock (supply AWS creds
@@ -21,7 +21,7 @@ ARM ?= with_skill
 MODEL ?= anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
-# Example: make eval-outcomes TARGET=scenarios/c8ctl-bootstrap ARGS="--epochs 3"
+# Example: make run-outcome-evals TARGET=scenarios/rocket-launch ARGS="--epochs 3"
 ARGS ?=
 # Trigger evals are sandbox-free model calls, so their samples run fully in
 # parallel. Caps concurrent samples per skill; raise it if a skill grows.
@@ -32,30 +32,36 @@ EVALS_DIR = $(REPO_ROOT)/evals
 
 .PHONY: help
 help:
-	@echo "Usage: make <target> [SKILL=<name>]"
+	@echo "Usage: make <target> [SKILL=<name>] [TARGET=<dir>]"
 	@echo ""
-	@echo "Targets:"
-	@echo "  help            Show this help."
-	@echo "  try             Launch an interactive Claude Code session with this repo's skills loaded (no install)."
-	@echo "  lint            Run waza check across all skills (or one if SKILL=<name> is set)."
-	@echo "  eval-triggers   Run trigger evals: every skill, or one with SKILL=<name>."
-	@echo "  eval-outcomes   Run outcome evals: one with TARGET=<dir> (e.g. skills/camunda-feel), or the whole Docker suite without TARGET."
-	@echo "  eval-baseline   Regenerate outcomes_baseline.json for one target (TARGET=<dir> required)."
-	@echo "  eval-extract    Extract agent artifacts from the most recent eval log to logs/artifacts/."
-	@echo "  eval-viewer     Open the Inspect trajectory viewer over evals/logs (web UI)."
-	@echo "  eval-images     Build the sandbox Docker images (base, with-c8ctl, verifier)."
+	@echo "General:"
+	@echo "  help                 Show this help."
+	@echo "  try                  Launch an interactive Claude Code session with this repo's skills loaded (no install)."
+	@echo "  lint                 Run waza check across all skills (or one if SKILL=<name> is set)."
+	@echo ""
+	@echo "Run:"
+	@echo "  run-trigger-evals    Run trigger evals: every skill, or one with SKILL=<name>."
+	@echo "  run-outcome-evals    Run outcome evals: one with TARGET=<dir> (e.g. skills/camunda-feel), or the whole Docker suite without TARGET."
+	@echo "  build-docker-images  Build the sandbox Docker images (base, with-c8ctl, verifier)."
+	@echo ""
+	@echo "Analyze:"
+	@echo "  summarize            Render a Markdown summary of the eval logs in evals/logs."
+	@echo "  gate                 Run the pass/fail gate over the most recent eval log."
+	@echo "  view-eval-logs       Open the Inspect trajectory viewer over evals/logs (web UI)."
+	@echo "  extract-artifacts    Extract agent artifacts from the most recent eval log to logs/artifacts/."
+	@echo "  regenerate-baseline  Regenerate outcomes_baseline.json for one target (TARGET=<dir> required)."
 	@echo ""
 	@echo "Variables:"
-	@echo "  SKILL     Skill name (e.g. camunda-feel). For eval-triggers."
-	@echo "  TARGET    Outcome eval dir path (skills/<name> or scenarios/<name>), for eval-outcomes / eval-baseline."
+	@echo "  SKILL     Skill name (e.g. camunda-feel). For run-trigger-evals."
+	@echo "  TARGET    Outcome eval dir path (skills/<name> or scenarios/<name>), for run-outcome-evals / regenerate-baseline."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
 	@echo "  MODEL     Inspect model id (default anthropic/bedrock/global.anthropic.claude-sonnet-4-6; needs AWS creds)."
 	@echo "  AGENT     Agent loop: react (default) or claude_code."
-	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval-triggers / eval-outcomes)."
+	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (run-trigger-evals / run-outcome-evals)."
 	@echo "            Example: ARGS=\"--epochs 3\""
 	@echo ""
 	@echo "Notes:"
-	@echo "  eval-outcomes runs at each eval's METADATA.max_sandboxes (default 1, sequential)."
+	@echo "  run-outcome-evals runs at each eval's METADATA.max_sandboxes (default 1, sequential)."
 	@echo "  Cluster-backed evals stay at 1 — a sandbox is a whole cluster and concurrent"
 	@echo "  Camunda JVMs starve each other; override per run via ARGS=\"--max-sandboxes N\"."
 
@@ -82,8 +88,8 @@ lint:
 		waza check; \
 	fi
 
-.PHONY: eval-images
-eval-images:
+.PHONY: build-docker-images
+build-docker-images:
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found on PATH."; exit 2; }
 	@# All three images build from one definition (sandboxes/docker-bake.hcl);
 	@# the with-c8ctl/verifier `FROM base` dependency is wired via bake contexts.
@@ -92,8 +98,8 @@ eval-images:
 
 # Triggers are sandbox-free routing calls. With SKILL=<name> runs that skill's
 # trigger; without, runs every skill's (glob expands after cd into evals/).
-.PHONY: eval-triggers
-eval-triggers:
+.PHONY: run-trigger-evals
+run-trigger-evals:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@cd $(EVALS_DIR) && \
 	if [ -n "$(SKILL)" ]; then \
@@ -109,8 +115,8 @@ eval-triggers:
 # e.g. skills/camunda-feel or scenarios/rocket-launch (a trailing slash from
 # shell autocompletion is stripped). Paths are relative to evals/ (Inspect
 # rejects absolute globs; uv walks up to the root pyproject).
-.PHONY: eval-outcomes
-eval-outcomes:
+.PHONY: run-outcome-evals
+run-outcome-evals:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@cd $(EVALS_DIR) && \
 	if [ -n "$(TARGET)" ]; then \
@@ -128,16 +134,24 @@ eval-outcomes:
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 
-.PHONY: eval-extract
-eval-extract:
+.PHONY: summarize
+summarize:
+	@cd $(EVALS_DIR) && uv run evals-summarize --log-dir logs/
+
+.PHONY: gate
+gate:
+	@cd $(EVALS_DIR) && uv run evals-pass-fail
+
+.PHONY: extract-artifacts
+extract-artifacts:
 	@uv run evals-extract-artifacts
 
-.PHONY: eval-viewer
-eval-viewer:
+.PHONY: view-eval-logs
+view-eval-logs:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found on PATH. Install: https://docs.astral.sh/uv/"; exit 2; }
 	@uv run inspect view --log-dir $(EVALS_DIR)/logs
 
-.PHONY: eval-baseline
-eval-baseline:
+.PHONY: regenerate-baseline
+regenerate-baseline:
 	@if [ -z "$(TARGET)" ]; then echo "TARGET=<dir> required (e.g. skills/camunda-feel)"; exit 2; fi
 	@uv run evals-regenerate-baseline --target $(TARGET)

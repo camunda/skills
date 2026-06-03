@@ -18,19 +18,19 @@ the mental model (two kinds, sandbox, arms, baseline) see
 
 | Command | Does |
 |---|---|
-| `make eval-images` | Build the Docker sandbox images (one-time; outcome evals only) |
-| `make eval-triggers` | Run **all** trigger evals |
-| `make eval-triggers SKILL=camunda-feel` | Run **one** skill's trigger |
-| `make eval-outcomes TARGET=skills/camunda-feel` | Run **one** outcome eval (a `skills/` or `scenarios/` dir) |
-| `make eval-outcomes TARGET=scenarios/rocket-launch ARM=without_skill` | …the comparison arm |
-| `make eval-outcomes` | The **whole** outcome suite (slow + costly) |
-| `make eval-viewer` | Open the trajectory viewer over `evals/logs` (`localhost:7575`) |
-| `uv run evals-pass-fail` | Gate verdict for the latest log (pass a path for a specific one) |
-| `uv run evals-summarize --log-dir logs/` | Render the run report (verdict, token split, per-eval tables); add `--detail` for the per-eval token column |
-| `make eval-baseline TARGET=skills/camunda-feel` | Rewrite that eval's `outcomes_baseline.json` from its last run |
+| `make build-docker-images` | Build the Docker sandbox images (one-time; outcome evals only) |
+| `make run-trigger-evals` | Run **all** trigger evals |
+| `make run-trigger-evals SKILL=camunda-feel` | Run **one** skill's trigger |
+| `make run-outcome-evals TARGET=skills/camunda-feel` | Run **one** outcome eval (a `skills/` or `scenarios/` dir) |
+| `make run-outcome-evals TARGET=scenarios/rocket-launch ARM=without_skill` | …the comparison arm |
+| `make run-outcome-evals` | The **whole** outcome suite (slow + costly) |
+| `make view-eval-logs` | Open the trajectory viewer over `evals/logs` (`localhost:7575`) |
+| `make gate` | Gate verdict for the latest log (`uv run evals-pass-fail <path>` for a specific one) |
+| `make summarize` | Render the run report (verdict, token split, per-eval tables); `uv run evals-summarize --detail` adds the per-eval token column |
+| `make regenerate-baseline TARGET=skills/camunda-feel` | Rewrite that eval's `outcomes_baseline.json` from its last run |
 | `uv run evals-list` | List every target + the skills it covers |
 
-**Prerequisites:** Docker with Buildx (outcome evals only — `make eval-images`
+**Prerequisites:** Docker with Buildx (outcome evals only — `make build-docker-images`
 builds via `docker buildx bake`; Buildx ships with Docker Desktop and modern
 docker-ce) and [uv](https://docs.astral.sh/uv/) — the harness auto-installs
 Python deps via `uv sync`. Triggers need neither Docker nor a cluster.
@@ -44,10 +44,10 @@ environment; never write them to disk.
 ## The local loop
 
 1. Edit a skill (`SKILL.md` body, or its frontmatter `description` for routing).
-2. **Routing changed?** `make eval-triggers SKILL=<name>`.
-3. **Behaviour changed?** `make eval-outcomes TARGET=skills/<name>` (add
+2. **Routing changed?** `make run-trigger-evals SKILL=<name>`.
+3. **Behaviour changed?** `make run-outcome-evals TARGET=skills/<name>` (add
    `ARM=without_skill` to see the delta).
-4. Red? `make eval-viewer` → drill the failing sample.
+4. Red? `make view-eval-logs` → drill the failing sample.
 5. Behaviour *intentionally* changed and tokens moved? Regenerate the baseline
    (below) and review the diff.
 6. On the PR, a maintainer adds `evals:run` to run the affected targets in CI.
@@ -66,7 +66,7 @@ Two gating scorers, both must hit **1.0**:
 `mean` is over the samples that carry that assertion, so `skill_not_loaded =
 0.500` with 2 negatives means exactly one failed. At these sample counts ignore
 `stderr` — read the per-sample explanation instead (`uv run evals-pass-fail`, or
-`make eval-viewer` for the sample that scored 0).
+`make view-eval-logs` for the sample that scored 0).
 
 **The lever is the skill `description`.** Edit it, re-run, watch the number. If
 routing is actually fine and the *assertion* is wrong, relax the sample.
@@ -75,7 +75,7 @@ routing is actually fine and the *assertion* is wrong, relax the sample.
 
 ```bash
 uv run evals-pass-fail   # PASS/FAIL per sample: gating scorers + token budget
-make eval-viewer         # the transcript — every tool call, file read, judge note
+make view-eval-logs         # the transcript — every tool call, file read, judge note
 ```
 
 Two independent signals: **outcome** (did the gating scorers pass) and **cost**
@@ -131,7 +131,7 @@ should_not_load=[...])` keeps a sibling out on a positive prompt;
 `build_trigger_eval` kwargs: `excluded_skills=[...]` hides skills from the
 routing catalog (e.g. hide the meta-router from a leaf skill's trigger);
 `also_run_when_changed=[...]` widens the CI changed-skills filter (no runtime
-effect). Run it: `make eval-triggers SKILL=camunda-feel`.
+effect). Run it: `make run-trigger-evals SKILL=camunda-feel`.
 
 ## Adding an outcome eval
 
@@ -178,7 +178,7 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
   to drop every skill (meta-routers and cross-skill scenarios, where the value
   only shows once the whole catalog is gone).
 
-Run it: `make eval-outcomes TARGET=skills/camunda-feel`. No workflow edit — CI
+Run it: `make run-outcome-evals TARGET=skills/camunda-feel`. No workflow edit — CI
 picks it up from `metadata.skills`.
 
 **Authoring rules:** name the *failure mode*, not the skill
@@ -193,8 +193,8 @@ model-specific. Locally you can rewrite one for a quick check, but the numbers
 reflect whatever model you ran:
 
 ```bash
-make eval-outcomes TARGET=skills/camunda-feel        # produce a fresh run
-make eval-baseline TARGET=skills/camunda-feel        # rewrite the baseline from it
+make run-outcome-evals TARGET=skills/camunda-feel        # produce a fresh run
+make regenerate-baseline TARGET=skills/camunda-feel        # rewrite the baseline from it
 git diff evals/skills/camunda-feel/outcomes_baseline.json   # review before committing
 ```
 

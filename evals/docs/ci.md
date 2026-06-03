@@ -129,8 +129,8 @@ uv run inspect view path/to/extracted-logs/    # trajectory viewer, localhost:75
 ```
 
 Drill the failing sample; cross-reference its scorers (for CPT, the Surefire XML
-names the assertion). Reproduce locally with the matching `make eval-triggers
-SKILL=<name>` / `make eval-outcomes TARGET=<dir>` — same image, compose, and
+names the assertion). Reproduce locally with the matching `make run-trigger-evals
+SKILL=<name>` / `make run-outcome-evals TARGET=<dir>` — same image, compose, and
 prompts, modulo model non-determinism (`--epochs 3` to check flake).
 
 ## Credentials & secrets
