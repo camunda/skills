@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Substring of a target id to run, e.g. 'feel' or 'rocket' (blank = all)"
+        description: "Substring of a target path to run, e.g. 'skills/camunda-bpmn' or 'scenarios/rocket-launch' (blank = all)"
         required: false
         default: ""
       compare:
@@ -82,37 +82,9 @@ jobs:
           TARGET: ${{ github.event.inputs.target }}
         run: |
           changed=$(tr '\n' ' ' < changed-skills.txt)
+          compare_flag=""; [ "$COMPARE" = "true" ] && compare_flag="--compare"
           # shellcheck disable=SC2086  # word-splitting is intended: one arg per skill
-          uv run evals-list --json --changed-skills $changed > targets.json
-          # Expand each target into run specs: triggers are single-arm; outcome
-          # evals run with_skill, plus without_skill when COMPARE.
-          python3 - <<'PY' > specs.json
-          import json, os
-          targets = json.load(open("targets.json"))
-          compare = os.environ.get("COMPARE") == "true"
-          want = os.environ.get("TARGET") or ""
-          specs = []
-          for t in targets:
-              if want and want not in t["id"]:
-                  continue
-              spec = t["path"] + (f"@{t['task']}" if t["task"] else "")
-              base_targs = " ".join(f"-T {k}={v}" for k, v in (t["args"] or {}).items())
-              slug = t["id"].replace(":", "-")
-              if t["kind"] == "trigger":
-                  # Structured single-shot routing: no agent, no sandbox; samples run in parallel.
-                  specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base_targs,
-                                "arm": "", "sandbox": False, "limit": "--max-samples 10"})
-              else:
-                  # Each sample is its own sandbox (= a Camunda cluster), so cap
-                  # sandbox concurrency from the eval's metadata, not max-samples.
-                  for arm in ["with_skill"] + (["without_skill"] if compare else []):
-                      specs.append({
-                          "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]", "spec": spec,
-                          "targs": f"-T agent=react -T arm={arm} {base_targs}".strip(),
-                          "arm": arm, "sandbox": True, "limit": f"--max-sandboxes {t['max_sandboxes']}",
-                      })
-          print(json.dumps(specs))
-          PY
+          uv run evals-build-matrix --changed-skills $changed --target "$TARGET" $compare_flag > specs.json
           specs=$(cat specs.json)
           echo "$specs"
           echo "specs=$specs" >> "$GITHUB_OUTPUT"

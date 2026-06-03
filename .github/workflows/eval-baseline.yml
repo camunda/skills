@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Substring of an outcome target id to regenerate (blank = all)"
+        description: "Substring of an outcome target path to regenerate, e.g. 'scenarios/rocket-launch' (blank = all)"
         required: false
         default: ""
       epochs:
@@ -97,7 +97,7 @@ jobs:
           WANT: ${{ github.event.inputs.target }}
         run: |
           # Outcome targets only (triggers have no baseline), honoring the
-          # optional id-substring filter. Each line: "<dir> <max_sandboxes>".
+          # optional path-substring filter. Each line: "<dir> <max_sandboxes>".
           uv run evals-list --json > all-targets.json
           uv run python - "$WANT" <<'PY' > targets.txt
           import json, sys
@@ -106,7 +106,7 @@ jobs:
           for t in json.load(open("all-targets.json")):
               if t["kind"] == "trigger":
                   continue
-              if want and want not in t["id"]:
+              if want and want not in t["path"]:
                   continue
               print(t["path"].rsplit("/", 1)[0], t["max_sandboxes"])
           PY

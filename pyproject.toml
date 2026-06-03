@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 evals-list = "core.registry:main"
+evals-build-matrix = "scripts.build_matrix:main"
 evals-regenerate-baseline = "scripts.regenerate_baseline:main"
 evals-summarize = "scripts.summarize:main"
 evals-extract-artifacts = "scripts.extract_artifacts:main"

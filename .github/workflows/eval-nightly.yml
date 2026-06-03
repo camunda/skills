@@ -35,30 +35,9 @@ jobs:
       - run: uv sync --frozen
 
       - id: matrix
+        # Every target; outcome evals run both arms (--compare).
         run: |
-          uv run evals-list --json > targets.json
-          # Every target; outcome evals run both arms (compare).
-          python3 - <<'PY' > specs.json
-          import json
-          specs = []
-          for t in json.load(open("targets.json")):
-              spec = t["path"] + (f"@{t['task']}" if t["task"] else "")
-              base = " ".join(f"-T {k}={v}" for k, v in (t["args"] or {}).items())
-              slug = t["id"].replace(":", "-")
-              if t["kind"] == "trigger":
-                  specs.append({"slug": slug, "label": t["id"], "spec": spec, "targs": base,
-                                "arm": "", "sandbox": False, "limit": "--max-samples 10"})
-              else:
-                  # Each sample is its own sandbox (= a Camunda cluster), so cap
-                  # sandbox concurrency from the eval's metadata, not max-samples.
-                  for arm in ["with_skill", "without_skill"]:
-                      specs.append({
-                          "slug": f"{slug}-{arm}", "label": f"{t['id']} [{arm}]", "spec": spec,
-                          "targs": f"-T agent=react -T arm={arm} {base}".strip(),
-                          "arm": arm, "sandbox": True, "limit": f"--max-sandboxes {t['max_sandboxes']}",
-                      })
-          print(json.dumps(specs))
-          PY
+          uv run evals-build-matrix --compare > specs.json
           echo "specs=$(cat specs.json)" >> "$GITHUB_OUTPUT"
 
   # Build the three sandbox images once with a GHA layer cache and ship them to
