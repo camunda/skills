@@ -3,9 +3,9 @@
   "with_skill": {
     "samples": {
       "timer-countdown": {
-        "tokens": 395464,
-        "turns": 17,
-        "tool_calls": 17
+        "tokens": 496008,
+        "turns": 22,
+        "tool_calls": 23
       }
     }
   }

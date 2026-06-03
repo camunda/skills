@@ -3,17 +3,17 @@
   "with_skill": {
     "samples": {
       "get-topology": {
-        "tokens": 69060,
-        "turns": 7,
-        "tool_calls": 6
+        "tokens": 47099,
+        "turns": 5,
+        "tool_calls": 4
       },
       "install-cli": {
-        "tokens": 90497,
+        "tokens": 89675,
         "turns": 9,
         "tool_calls": 8
       },
       "list-users": {
-        "tokens": 56864,
+        "tokens": 56627,
         "turns": 6,
         "tool_calls": 5
       }

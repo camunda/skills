@@ -3,19 +3,19 @@
   "with_skill": {
     "samples": {
       "bool-guard": {
-        "tokens": 23735,
+        "tokens": 23568,
         "turns": 3,
         "tool_calls": 2
       },
       "list-sum": {
-        "tokens": 23830,
-        "turns": 3,
-        "tool_calls": 2
+        "tokens": 32637,
+        "turns": 4,
+        "tool_calls": 3
       },
       "string-greeting": {
-        "tokens": 41758,
-        "turns": 5,
-        "tool_calls": 4
+        "tokens": 32531,
+        "turns": 4,
+        "tool_calls": 3
       }
     }
   }
