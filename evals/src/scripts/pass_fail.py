@@ -9,7 +9,9 @@ existing comparison):
 2. **Cost** — only when an ``outcomes_baseline.json`` exists for the eval AND the sample
    passed outcome: observed tokens must be ≤ ``baseline.<arm>.samples.<id>.tokens
    × 1.5`` (upper ceiling only). The "still works but costs ~2× now" signal.
-   A sample with no baseline entry is reported, not gated.
+   A sample with no baseline entry is reported, not gated. The whole cost stage
+   is skipped (with a warning) when the run's model differs from the baseline's
+   — token ceilings are model-specific, so cross-model gating is invalid.
 
 Exit 0 on full pass, 1 otherwise. Wire as the CI gate after a run.
 
@@ -28,6 +30,7 @@ from inspect_ai.log import list_eval_logs, read_eval_log
 from core.metrics import (
     baseline_dir,
     gating_by_scorer,
+    model_id,
     reduced_metrics,
     reduced_scores,
     eval_name,
@@ -96,6 +99,23 @@ def _load_baseline(name: str | None) -> dict | None:
         return json.loads(path.read_text())
     except json.JSONDecodeError:
         return None
+
+
+def _model_mismatch(log, baseline: dict) -> str | None:
+    """A reason string when the run's model differs from the baseline's, else None.
+
+    Token ceilings are model-specific (see concepts), so gating a run against a
+    baseline recorded on a different model is invalid — it false-fails on a
+    pricier model and false-passes on a cheaper one. When both models are known
+    and differ, the caller skips the cost gate. ``"unknown"`` on either side
+    (an older baseline, a log without a model) is treated as no-info, not a
+    mismatch — gate as before.
+    """
+    run = model_id(log)
+    base = baseline.get("model")
+    if run and base and "unknown" not in (run, base) and run != base:
+        return f"run model {run!r} != baseline model {base!r} — cost gate skipped"
+    return None
 
 
 def _cost_checks(
@@ -177,10 +197,13 @@ def main() -> None:
 
     cost_checks: list[dict] = []
     cost_passed = True
+    cost_skipped: str | None = None
     if not args.no_baseline:
         baseline = _load_baseline(name)
         if baseline is not None:
-            cost_checks, cost_passed = _cost_checks(rows, baseline, arm)
+            cost_skipped = _model_mismatch(log, baseline)
+            if cost_skipped is None:
+                cost_checks, cost_passed = _cost_checks(rows, baseline, arm)
 
     overall = outcome_passed and cost_passed
     if args.json:
@@ -192,6 +215,7 @@ def main() -> None:
                     "threshold": args.threshold,
                     "samples": rows,
                     "cost_checks": cost_checks,
+                    "cost_gate_skipped": cost_skipped,
                     "pass": overall,
                 },
                 indent=2,
@@ -200,6 +224,8 @@ def main() -> None:
         )
     else:
         print(_render(rows, cost_checks, name, arm, args.threshold))
+        if cost_skipped:
+            print(f"\n[warn] {cost_skipped}")
     sys.exit(0 if overall else 1)
 
 
