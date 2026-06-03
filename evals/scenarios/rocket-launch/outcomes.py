@@ -15,7 +15,7 @@ from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
-from scorers.lint import bpmn_lint_clean
+from scorers.bpmn_lint import bpmn_lint_clean
 from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
 
