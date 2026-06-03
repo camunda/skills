@@ -7,10 +7,12 @@ from typing import Literal
 
 # parents[2] reaches evals/; relies on the editable install layout.
 EVALS_ROOT = Path(__file__).resolve().parents[2]
-SCENARIO_EVALS_DIR = EVALS_ROOT / "scenarios"
-SANDBOXES_DIR = EVALS_ROOT / "sandboxes"
+# The two eval-target roots.
 SKILL_EVALS_DIR = EVALS_ROOT / "skills"
-SKILLS_DIR = EVALS_ROOT.parent / "skills"
+SCENARIO_EVALS_DIR = EVALS_ROOT / "scenarios"
+
+SANDBOXES_DIR = EVALS_ROOT / "sandboxes"
+SKILLS_DIR = EVALS_ROOT.parent / "skills"  # the product skills under test
 
 Arm = Literal["with_skill", "without_skill"]
 
