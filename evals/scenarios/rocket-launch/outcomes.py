@@ -32,7 +32,7 @@ def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     return Task(
         dataset=[
             Sample(
-                id="happy",
+                id="timer-countdown",
                 input=(
                     "I want a BPMN process with id `RocketLaunch` on "
                     "my local Camunda cluster (it's already running — "
@@ -43,7 +43,7 @@ def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
                     "Java glue. Deploy it and show me it running."
                 ),
             ),
-            # edge-minimal sample parked until the happy path is green.
+            # edge-minimal sample parked until timer-countdown is green.
         ],
         solver=[
             boot_cluster(),

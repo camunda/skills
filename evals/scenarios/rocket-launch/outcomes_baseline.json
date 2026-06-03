@@ -2,7 +2,7 @@
   "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
   "with_skill": {
     "samples": {
-      "happy": {
+      "timer-countdown": {
         "tokens": 395464,
         "turns": 17,
         "tool_calls": 17
