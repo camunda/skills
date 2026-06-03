@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Substring of a target id to run (blank = all)"
+        description: "Substring of a target id to run, e.g. 'feel' or 'rocket' (blank = all)"
         required: false
         default: ""
       compare:
