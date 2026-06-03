@@ -139,6 +139,6 @@ def camunda_c8ctl(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         ],
         metadata=METADATA.model_dump(),
         time_limit=300,
-        token_limit=500_000,
+        token_limit=200_000,
         message_limit=60,
     )
