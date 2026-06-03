@@ -69,7 +69,7 @@ jobs:
       - name: Build sandbox images (GHA layer cache)
         # Single job builds and uses the images, so no artifact hand-off — just
         # the shared GHA layer cache (no Docker Hub re-pull across runs).
-        uses: docker/bake-action@v5
+        uses: docker/bake-action@v7
         with:
           workdir: evals
           files: sandboxes/docker-bake.hcl
