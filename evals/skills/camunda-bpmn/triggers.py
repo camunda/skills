@@ -28,9 +28,9 @@ def trigger_eval() -> Task:
                 should_load=["camunda-c8ctl"],
             ),
             Negative(
-                "write-cpt",
-                "Write a Camunda Process Test that drives my process to completion and asserts the output variables.",
-                should_load=["camunda-process-test"],
+                "deploy-and-start",
+                "Deploy my process to the cluster and start a new instance with the variables orderAmount=500 and region=EU.",
+                should_load=["camunda-process-mgmt"],
             ),
         ],
     )
