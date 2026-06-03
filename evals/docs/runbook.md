@@ -25,7 +25,7 @@ the mental model (two kinds, sandbox, arms, baseline) see
 | `make run-outcome-evals TARGET=scenarios/rocket-launch ARM=without_skill` | …the comparison arm |
 | `make run-outcome-evals` | The **whole** outcome suite (slow + costly) |
 | `make view-eval-logs` | Open the trajectory viewer over `evals/logs` (`localhost:7575`) |
-| `make gate` | Gate verdict for the latest log (`uv run evals-pass-fail <path>` for a specific one) |
+| `make pass-fail` | Pass/fail verdict for the latest log (`uv run evals-pass-fail <path>` for a specific one) |
 | `make summarize` | Render the run report (verdict, token split, per-eval tables); `uv run evals-summarize --detail` adds the per-eval token column |
 | `make regenerate-baseline TARGET=skills/camunda-feel` | Rewrite that eval's `outcomes_baseline.json` from its last run |
 | `uv run evals-list` | List every target + the skills it covers |

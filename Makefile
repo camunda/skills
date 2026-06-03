@@ -46,7 +46,7 @@ help:
 	@echo ""
 	@echo "Analyze:"
 	@echo "  summarize            Render a Markdown summary of the eval logs in evals/logs."
-	@echo "  gate                 Run the pass/fail gate over the most recent eval log."
+	@echo "  pass-fail            Check the most recent eval log against the outcome thresholds + token baseline."
 	@echo "  view-eval-logs       Open the Inspect trajectory viewer over evals/logs (web UI)."
 	@echo "  extract-artifacts    Extract agent artifacts from the most recent eval log to logs/artifacts/."
 	@echo "  regenerate-baseline  Regenerate outcomes_baseline.json for one target (TARGET=<dir> required)."
@@ -138,8 +138,8 @@ run-outcome-evals:
 summarize:
 	@cd $(EVALS_DIR) && uv run evals-summarize --log-dir logs/
 
-.PHONY: gate
-gate:
+.PHONY: pass-fail
+pass-fail:
 	@cd $(EVALS_DIR) && uv run evals-pass-fail
 
 .PHONY: extract-artifacts
