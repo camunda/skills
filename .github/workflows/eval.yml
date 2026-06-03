@@ -43,6 +43,7 @@ jobs:
     outputs:
       specs: ${{ steps.matrix.outputs.specs }}
       has: ${{ steps.matrix.outputs.has }}
+      has_sandbox: ${{ steps.matrix.outputs.has_sandbox }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -77,6 +78,7 @@ jobs:
           TARGET: ${{ github.event.inputs.target }}
         run: |
           changed=$(tr '\n' ' ' < changed-skills.txt)
+          # shellcheck disable=SC2086  # word-splitting is intended: one arg per skill
           uv run evals-list --json --changed-skills $changed > targets.json
           # Expand each target into run specs: triggers are single-arm; outcome
           # evals run with_skill, plus without_skill when COMPARE.
@@ -111,11 +113,62 @@ jobs:
           echo "$specs"
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
           [ "$specs" = "[]" ] && echo "has=false" >> "$GITHUB_OUTPUT" || echo "has=true" >> "$GITHUB_OUTPUT"
+          # Only build the sandbox images when an outcome target is in scope
+          # (triggers run sandbox-free), so a triggers-only run skips the build.
+          if jq -e 'any(.[]; .sandbox == true)' specs.json >/dev/null; then
+            echo "has_sandbox=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_sandbox=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Build the three sandbox images ONCE per run and ship them to the matrix as
+  # an artifact, instead of every outcome job rebuilding them. The build uses a
+  # GHA layer cache (type=gha), so base images are pulled from Docker Hub at most
+  # once across runs — no more per-job rebuilds, no more registry-pull flakes.
+  # Nothing is published to a registry.
+  build-images:
+    name: Build sandbox images
+    needs: detect
+    if: needs.detect.outputs.has_sandbox == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Build images (GHA layer cache)
+        uses: docker/bake-action@v5
+        with:
+          workdir: evals
+          files: sandboxes/docker-bake.hcl
+          load: true
+          set: |
+            base.cache-from=type=gha,scope=evals-base
+            base.cache-to=type=gha,scope=evals-base,mode=max
+            with-c8ctl.cache-from=type=gha,scope=evals-with-c8ctl
+            with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
+            verifier.cache-from=type=gha,scope=evals-verifier
+            verifier.cache-to=type=gha,scope=evals-verifier,mode=max
+      - name: Save images
+        working-directory: evals
+        run: |
+          docker save camunda-skills-evals-base:latest \
+                      camunda-skills-evals-with-c8ctl:latest \
+                      camunda-skills-evals-verifier:latest \
+            | zstd -T0 > sandbox-images.tar.zst
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sandbox-images-${{ github.run_id }}
+          path: evals/sandbox-images.tar.zst
+          retention-days: 1
+          overwrite: true
 
   run:
     name: ${{ matrix.label }}
-    needs: detect
-    if: needs.detect.outputs.has == 'true'
+    needs: [detect, build-images]
+    # Runs when there are targets; tolerates build-images being skipped (a
+    # triggers-only run has no sandbox targets and thus no images to build).
+    if: >-
+      needs.detect.outputs.has == 'true' &&
+      (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -127,9 +180,17 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
-      - name: Build sandbox images
+      - name: Load sandbox images
+        # Outcome jobs only — triggers run sandbox-free. The images were built
+        # once by build-images; here we just restore them from the artifact.
         if: matrix.sandbox
-        run: make eval-images
+        uses: actions/download-artifact@v8
+        with:
+          name: sandbox-images-${{ github.run_id }}
+          path: /tmp/sandbox-images
+      - name: docker load
+        if: matrix.sandbox
+        run: zstd -dc /tmp/sandbox-images/sandbox-images.tar.zst | docker load
       - name: Run eval
         # Single model via EVAL_MODEL. For a multi-model sweep, add a `model`
         # axis to the matrix include built in `detect`. AWS creds wire the
@@ -163,7 +224,7 @@ jobs:
 
   summarize:
     name: Summarize → job summary + PR comment
-    needs: run
+    needs: [detect, run]
     if: always() && needs.detect.outputs.has == 'true'
     runs-on: ubuntu-latest
     steps:

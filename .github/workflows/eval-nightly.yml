@@ -3,7 +3,7 @@ name: 🧪 Run skill evals (nightly)
 # Broad regression sweep over every target (triggers + outcome evals),
 # running both the with-skill and without-skill arms so the with/without delta
 # is captured. Complements eval.yml's affected-subset PR signal. Uploads .eval
-# logs; never blocks merges. See docs/evals/ci-and-results.md.
+# logs; never blocks merges. See evals/docs/ci.md.
 #
 # Manual-only until the suite is stable; cron re-enabled in a follow-up.
 on:
@@ -55,9 +55,46 @@ jobs:
           PY
           echo "specs=$(cat specs.json)" >> "$GITHUB_OUTPUT"
 
+  # Build the three sandbox images once with a GHA layer cache and ship them to
+  # the matrix as an artifact (see eval.yml for the rationale). Nightly always
+  # runs outcome targets, so this is unconditional. Nothing is published.
+  build-images:
+    name: Build sandbox images
+    needs: detect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Build images (GHA layer cache)
+        uses: docker/bake-action@v5
+        with:
+          workdir: evals
+          files: sandboxes/docker-bake.hcl
+          load: true
+          set: |
+            base.cache-from=type=gha,scope=evals-base
+            base.cache-to=type=gha,scope=evals-base,mode=max
+            with-c8ctl.cache-from=type=gha,scope=evals-with-c8ctl
+            with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
+            verifier.cache-from=type=gha,scope=evals-verifier
+            verifier.cache-to=type=gha,scope=evals-verifier,mode=max
+      - name: Save images
+        working-directory: evals
+        run: |
+          docker save camunda-skills-evals-base:latest \
+                      camunda-skills-evals-with-c8ctl:latest \
+                      camunda-skills-evals-verifier:latest \
+            | zstd -T0 > sandbox-images.tar.zst
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sandbox-images-${{ github.run_id }}
+          path: evals/sandbox-images.tar.zst
+          retention-days: 1
+          overwrite: true
+
   run:
     name: ${{ matrix.label }}
-    needs: detect
+    needs: [detect, build-images]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,9 +106,15 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
-      - name: Build sandbox images
+      - name: Load sandbox images
         if: matrix.sandbox
-        run: make eval-images
+        uses: actions/download-artifact@v8
+        with:
+          name: sandbox-images-${{ github.run_id }}
+          path: /tmp/sandbox-images
+      - name: docker load
+        if: matrix.sandbox
+        run: zstd -dc /tmp/sandbox-images/sandbox-images.tar.zst | docker load
       - name: Run eval
         working-directory: evals
         env:

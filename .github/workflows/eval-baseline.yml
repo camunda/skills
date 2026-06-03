@@ -12,7 +12,7 @@ name: 🧪 Regenerate eval baselines
 #     to commit to the default branch — open a PR for that instead.
 #
 # Never runs on push/synchronize: auto-regen would rewrite the very yardstick
-# the cost gate depends on. See docs/evals/ci-and-results.md.
+# the cost gate depends on. See evals/docs/ci.md.
 on:
   workflow_dispatch:
     inputs:
@@ -65,8 +65,22 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
-      - name: Build sandbox images
-        run: make eval-images
+      - uses: docker/setup-buildx-action@v3
+      - name: Build sandbox images (GHA layer cache)
+        # Single job builds and uses the images, so no artifact hand-off — just
+        # the shared GHA layer cache (no Docker Hub re-pull across runs).
+        uses: docker/bake-action@v5
+        with:
+          workdir: evals
+          files: sandboxes/docker-bake.hcl
+          load: true
+          set: |
+            base.cache-from=type=gha,scope=evals-base
+            base.cache-to=type=gha,scope=evals-base,mode=max
+            with-c8ctl.cache-from=type=gha,scope=evals-with-c8ctl
+            with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
+            verifier.cache-from=type=gha,scope=evals-verifier
+            verifier.cache-to=type=gha,scope=evals-verifier,mode=max
       - name: Run evals + regenerate baselines
         working-directory: evals
         env:

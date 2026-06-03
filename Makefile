@@ -85,14 +85,10 @@ lint:
 .PHONY: eval-images
 eval-images:
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found on PATH."; exit 2; }
-	@cd $(EVALS_DIR)/sandboxes && \
-		docker build -t camunda-skills-evals-base:latest -f base.Dockerfile . && \
-		docker build -t camunda-skills-evals-with-c8ctl:latest -f with-c8ctl.Dockerfile .
-	@# Verifier image builds from the evals/ root so its Dockerfile can
-	@# bind-mount scenarios/*/cpt-verifier/pom.xml during build to
-	@# pre-warm Maven (see verifier.Dockerfile).
-	@cd $(EVALS_DIR) && \
-		docker build -t camunda-skills-evals-verifier:latest -f sandboxes/verifier.Dockerfile .
+	@# All three images build from one definition (sandboxes/docker-bake.hcl);
+	@# the with-c8ctl/verifier `FROM base` dependency is wired via bake contexts.
+	@# CI reuses the same file and adds layer caching with --set (see eval.yml).
+	@cd $(EVALS_DIR) && docker buildx bake -f sandboxes/docker-bake.hcl --load
 
 # Triggers are sandbox-free routing calls. With SKILL=<name> runs that skill's
 # trigger; without, runs every skill's (glob expands after cd into evals/).
