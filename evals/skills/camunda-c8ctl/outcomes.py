@@ -34,7 +34,7 @@ from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
-METADATA = EvalMetadata(skills=["camunda-c8ctl"], max_sandboxes=3)
+METADATA = EvalMetadata(skills=["camunda-c8ctl"])
 
 BASE_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-base.yaml"))
 WITH_C8CTL_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml"))
