@@ -59,6 +59,6 @@ def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         # time_limit covers the whole sample; Inspect gives scoring half
         # of it, so 720s leaves 360s for the CPT scorer's `mvn test`.
         time_limit=720,
-        token_limit=800_000,
-        message_limit=100,
+        token_limit=700_000,
+        message_limit=60,
     )
