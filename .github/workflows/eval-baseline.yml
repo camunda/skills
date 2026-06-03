@@ -57,19 +57,24 @@ jobs:
             exit 1
           fi
           echo "name=$branch" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ steps.branch.outputs.name }}
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v8.1.0
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
+
       - run: uv sync --frozen
-      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
       - name: Build sandbox images (GHA layer cache)
         # Single job builds and uses the images, so no artifact hand-off — just
         # the shared GHA layer cache (no Docker Hub re-pull across runs).
-        uses: docker/bake-action@v7
+        uses: docker/bake-action@6614cfa25eff9a0b2b2697efb0b6159e7680d584 # v7.2.0
         with:
           source: ./evals
           files: sandboxes/docker-bake.hcl
@@ -81,6 +86,7 @@ jobs:
             with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
             verifier.cache-from=type=gha,scope=evals-verifier
             verifier.cache-to=type=gha,scope=evals-verifier,mode=max
+
       - name: Run evals + regenerate baselines
         working-directory: evals
         env:
@@ -116,6 +122,7 @@ jobs:
               || echo "::warning::regenerate failed for $dir"
             echo "::endgroup::"
           done < targets.txt
+
       - name: Commit baselines to the branch
         env:
           BRANCH: ${{ steps.branch.outputs.name }}

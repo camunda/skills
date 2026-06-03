@@ -45,13 +45,16 @@ jobs:
       has: ${{ steps.matrix.outputs.has }}
       has_sandbox: ${{ steps.matrix.outputs.has_sandbox }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v8.1.0
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
+
       - run: uv sync --frozen
+
       - name: Compute changed skills
         env:
           RUN_ALL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'evals:run-all') }}
@@ -71,6 +74,7 @@ jobs:
             fi
           fi
           echo "Changed skills:"; cat changed-skills.txt
+
       - name: Build run matrix
         id: matrix
         env:
@@ -132,10 +136,12 @@ jobs:
     if: needs.detect.outputs.has_sandbox == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
       - name: Build images (GHA layer cache)
-        uses: docker/bake-action@v7
+        uses: docker/bake-action@6614cfa25eff9a0b2b2697efb0b6159e7680d584 # v7.2.0
         with:
           source: ./evals
           files: sandboxes/docker-bake.hcl
@@ -147,6 +153,7 @@ jobs:
             with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
             verifier.cache-from=type=gha,scope=evals-verifier
             verifier.cache-to=type=gha,scope=evals-verifier,mode=max
+
       - name: Save images
         working-directory: evals
         run: |
@@ -154,7 +161,8 @@ jobs:
                       camunda-skills-evals-with-c8ctl:latest \
                       camunda-skills-evals-verifier:latest \
             | zstd -T0 > sandbox-images.tar.zst
-      - uses: actions/upload-artifact@v7
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sandbox-images-${{ github.run_id }}
           path: evals/sandbox-images.tar.zst
@@ -175,22 +183,27 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.detect.outputs.specs) }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
+
       - run: uv sync --frozen
+
       - name: Load sandbox images
         # Outcome jobs only — triggers run sandbox-free. The images were built
         # once by build-images; here we just restore them from the artifact.
         if: matrix.sandbox
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: sandbox-images-${{ github.run_id }}
           path: /tmp/sandbox-images
+
       - name: docker load
         if: matrix.sandbox
         run: zstd -dc /tmp/sandbox-images/sandbox-images.tar.zst | docker load
+
       - name: Run eval
         # Single model via EVAL_MODEL. For a multi-model sweep, add a `model`
         # axis to the matrix include built in `detect`. AWS creds wire the
@@ -204,6 +217,7 @@ jobs:
           uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --display plain ${{ matrix.limit }} \
             --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
             ${{ matrix.targs }}
+
       - name: Gate (evals-pass-fail)
         # Reds the check on a missed outcome threshold or a token-budget
         # regression. Skipped for the without-skill arm — it's a comparison,
@@ -211,12 +225,13 @@ jobs:
         if: matrix.arm != 'without_skill'
         working-directory: evals
         run: uv run evals-pass-fail
+
       - name: Stage per-job logs
         # This matrix entry's log, uploaded so `summarize` can collect them all
         # and republish one consolidated `eval-logs-<sha>`. Short retention so
         # these clear out and don't clutter the run's artifact list.
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-logs-${{ matrix.slug }}-${{ github.run_attempt }}
           path: evals/logs/
@@ -228,17 +243,21 @@ jobs:
     if: always() && needs.detect.outputs.has == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
+
       - run: uv sync --frozen
+
       - name: Collect per-job logs
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: evals/logs/
           pattern: eval-logs-*
           merge-multiple: true
+
       - name: Job summary (full)
         # Detailed view (incl. per-eval token usage) on the run page; also kept
         # in the consolidated artifact as summary.md.
@@ -248,12 +267,14 @@ jobs:
           uv run evals-summarize --log-dir evals/logs/ --detail --blob-base "$BLOB" > evals/logs/summary.md \
             || printf '_Summary generation failed — see job logs._\n' > evals/logs/summary.md
           cat evals/logs/summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload consolidated logs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-logs-${{ github.sha }}
           path: evals/logs/
           retention-days: 30
+
       - name: Render PR comment (lean)
         id: summary
         if: github.event_name == 'pull_request'
@@ -271,17 +292,19 @@ jobs:
             printf '\n'
             echo 'COMMENT_EOF'
           } >> "$GITHUB_OUTPUT"
+
       - name: Find existing eval comment
         if: github.event_name == 'pull_request'
         id: find-comment
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: github-actions[bot]
           body-includes: <!-- camunda-skills-eval-comment -->
+
       - name: Post / update PR comment
         if: github.event_name == 'pull_request'
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
