@@ -137,7 +137,7 @@ jobs:
       - name: Build images (GHA layer cache)
         uses: docker/bake-action@v7
         with:
-          workdir: evals
+          source: ./evals
           files: sandboxes/docker-bake.hcl
           load: true
           set: |

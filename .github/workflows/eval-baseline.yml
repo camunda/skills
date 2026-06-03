@@ -71,7 +71,7 @@ jobs:
         # the shared GHA layer cache (no Docker Hub re-pull across runs).
         uses: docker/bake-action@v7
         with:
-          workdir: evals
+          source: ./evals
           files: sandboxes/docker-bake.hcl
           load: true
           set: |
