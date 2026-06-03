@@ -9,7 +9,9 @@
 # so the RUN below can bind-mount scenarios in place without
 # COPYing it into a layer.
 
-FROM camunda-skills-evals-base:latest
+# `evals-base` is a Buildx named context wired to the base target in
+# sandboxes/docker-bake.hcl (see with-c8ctl.Dockerfile).
+FROM evals-base
 
 USER root
 

@@ -3,7 +3,10 @@
 # Used by scenarios 1–9. Built FROM base.Dockerfile so the only
 # difference is the c8ctl install + initial element-template sync.
 
-FROM camunda-skills-evals-base:latest
+# `evals-base` is a Buildx named context wired to the base target in
+# sandboxes/docker-bake.hcl (the only supported build path). Resolves on the
+# container driver too, unlike a `FROM <local-image-tag>:latest`.
+FROM evals-base
 
 USER root
 

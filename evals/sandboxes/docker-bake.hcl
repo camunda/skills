@@ -23,7 +23,7 @@ target "base" {
 target "with-c8ctl" {
   context    = "sandboxes"
   dockerfile = "with-c8ctl.Dockerfile"
-  contexts   = { "camunda-skills-evals-base:latest" = "target:base" }
+  contexts   = { evals-base = "target:base" }
   tags       = ["camunda-skills-evals-with-c8ctl:latest"]
   provenance = false
 }
@@ -33,7 +33,7 @@ target "with-c8ctl" {
 target "verifier" {
   context    = "."
   dockerfile = "sandboxes/verifier.Dockerfile"
-  contexts   = { "camunda-skills-evals-base:latest" = "target:base" }
+  contexts   = { evals-base = "target:base" }
   tags       = ["camunda-skills-evals-verifier:latest"]
   provenance = false
 }
