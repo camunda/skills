@@ -222,16 +222,24 @@ def render(
             ]
             results.append((name, passed, total, cost_checks, u, samples_detail))
 
-    def green(items) -> int:
-        return sum(1 for it in items if it[1] == it[2] and it[2])
+    def outcome_ok(it) -> bool:
+        return it[1] == it[2] and it[2]
 
-    tg_ok, rs_ok = green(triggers), green(results)
-    all_ok = tg_ok == len(triggers) and rs_ok == len(results)
-    headline = (
-        "✅ all passed"
-        if all_ok
-        else f"⚠️ {len(triggers) - tg_ok + len(results) - rs_ok} need attention"
+    def cost_regressed(cost) -> bool:
+        return bool(cost) and any(not c.get("pass", True) for c in cost)
+
+    # Displayed counts are outcome/routing only (they line up with the ✅ cells
+    # in the tables). The headline, though, is the quality-gate verdict: a cost
+    # overage (🔴 token cell) counts toward "need attention" even when the
+    # outcome scorers passed — otherwise the lean comment could read "all passed"
+    # while the gate failed on cost. Counted per eval so an outcome+cost failure
+    # isn't double-counted.
+    tg_ok = sum(1 for it in triggers if outcome_ok(it))
+    rs_ok = sum(1 for it in results if outcome_ok(it))
+    attention = sum(1 for it in triggers if not outcome_ok(it)) + sum(
+        1 for it in results if not outcome_ok(it) or cost_regressed(it[3])
     )
+    headline = "✅ all passed" if attention == 0 else f"⚠️ {attention} need attention"
 
     model_str = " · ".join(f"`{m}`" for m in sorted(models)) if models else "—"
 
