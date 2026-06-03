@@ -173,12 +173,13 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
 - **`max_sandboxes`** (default 1) caps parallel samples — each sample is its own
   sandbox. Keep 1 for cluster-backed evals (concurrent JVMs starve each other);
   raise it for a no-cluster eval.
-- **Agent stop (`submit`)** — leave the default (`submit=True`) for action evals
-  that produce a file or change cluster state; the agent does the work and ends
-  with an explicit `submit()`. Pass `submit=False` only for advisory evals judged
-  on the final written answer — it drops the `submit()` tool so the agent halts
-  on no-tool-call, and avoids the `on_continue` nudge that would push it to
-  implement rather than answer. See [concepts](concepts.md#the-agent-loop-outcome-evals).
+- **Agent stop (`submit`)** — leave the default (`submit=True`) for multi-step
+  tasks with no single fixed deliverable (install → configure → verify, model →
+  deploy → test); the agent works through the sequence and ends with an explicit
+  `submit()`. Pass `submit=False` when the deliverable is *one fixed thing* — the
+  final written answer *or* a single artifact (a recommendation; a `.feel` file)
+  — so the agent halts on no-tool-call and the `on_continue` nudge can't push it
+  past the deliverable. See [concepts](concepts.md#the-agent-loop-outcome-evals).
 - **`without_skill_excludes`** (defaults to `skills`) — the load-bearing skill(s)
   the `without_skill` arm drops, so it measures what the skill adds. Set `"all"`
   to drop every skill (meta-routers and cross-skill scenarios, where the value

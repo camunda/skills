@@ -45,20 +45,29 @@ all 13 skills to the model. Cross-skill routing falls out of *which* skills the
 model chooses to load (a transcript signal), not from seeding files. The model
 is picked with Inspect's `--model` flag (default
 `anthropic/bedrock/global.anthropic.claude-sonnet-4-6`, set via the `EVAL_MODEL`
-repo variable in CI). There is no CLI-harness bridge yet — `react()` is the loop.
+repo variable in CI). Two agent loops are selectable via `AGENT=` (`-T
+agent=`): `react` (the default, with the tools above) and `claude_code`, the
+`inspect_swe` Claude Code bridge. CI pins `react`; a full cross-harness matrix
+is deferred, and `claude_code` truncates the skill catalog past ~3 skills
+(unreliable for the routing signal these evals lean on), so `react` stays the
+default.
 
 **How the agent stops (`submit`).** Two intentional modes, picked per eval — not
-an inconsistency to unify:
+an inconsistency to unify. The axis is **completion semantics**, not
+action-vs-advisory:
 
 - **Default (`submit=True`)** keeps react's `submit()` tool and `on_continue`
-  nudge, so the agent does the work and then signals done explicitly. Right for
-  **action evals** that produce a file or change cluster state — `camunda-c8ctl`,
-  `rocket-launch`.
+  nudge, so the agent works through the task and then signals done explicitly.
+  Right when the task is a *multi-step sequence* with no single fixed
+  deliverable — `camunda-c8ctl` (install → configure → verify), `rocket-launch`
+  (model → deploy → test).
 - **`submit=False`** drops the `submit()` tool; the agent halts when it stops
-  calling tools, and the final assistant message *is* the deliverable. Right for
-  **advisory evals** judged on their written answer — `camunda-development`.
-  Here the default's `on_continue` nudge would push the agent to *implement* the
-  recommendation instead of just answering, corrupting the thing being judged.
+  calling tools. Right when the deliverable is a *single fixed thing* — the
+  final assistant message **or** one written artifact — that the `on_continue`
+  nudge would distort by pushing the agent to keep going past it.
+  `camunda-development` (the written recommendation — a nudge would make it
+  *implement* instead of answer) and `camunda-feel` (the `.feel` file is done
+  once written) both use it.
 
 ## Two-phase sandbox
 
