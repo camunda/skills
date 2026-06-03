@@ -82,6 +82,6 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
         metadata=METADATA.model_dump(),
         time_limit=300,
-        token_limit=300_000,
+        token_limit=100_000,
         message_limit=40,
     )
