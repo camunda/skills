@@ -12,24 +12,6 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
-# BPMN-id field names across c8ctl versions (column header "Process ID"
-# with a space; older underlying shapes use bpmnProcessId etc.).
-PROCESS_ID_KEYS = (
-    "Process ID",
-    "bpmnProcessId",
-    "processDefinitionId",
-    "bpmn_process_id",
-    "processId",
-)
-
-
-def _extract_process_id(definition: dict) -> str | None:
-    for key in PROCESS_ID_KEYS:
-        value = definition.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
-
 
 @scorer(metrics=[mean(), stderr()])
 def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
@@ -77,7 +59,7 @@ def process_deployed_on_cluster(bpmn_process_id: str) -> Scorer:
         else:
             definitions = []
 
-        ids = [_extract_process_id(d) for d in definitions if isinstance(d, dict)]
+        ids = [d.get("Process ID") for d in definitions if isinstance(d, dict)]
         if bpmn_process_id in ids:
             return Score(
                 value=1.0,
