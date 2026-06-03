@@ -102,7 +102,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
         run: |
-          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --display plain ${{ matrix.limit }} \
+          uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --display ${{ matrix.display }} ${{ matrix.limit }} \
             --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
             ${{ matrix.targs }}
 

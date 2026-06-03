@@ -48,6 +48,7 @@ def build_specs(targets: list[EvalTarget], compare: bool) -> list[dict]:
                     "arm": "",
                     "sandbox": False,
                     "limit": "--max-samples 10",
+                    "display": "plain",
                 }
             )
             continue
@@ -61,6 +62,7 @@ def build_specs(targets: list[EvalTarget], compare: bool) -> list[dict]:
                     "arm": arm,
                     "sandbox": True,
                     "limit": f"--max-sandboxes {t.max_sandboxes}",
+                    "display": "conversation",
                 }
             )
     return specs
