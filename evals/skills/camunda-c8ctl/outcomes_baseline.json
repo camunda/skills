@@ -1,3 +1,22 @@
 {
-  "model": null
+  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "get-topology": {
+        "tokens": 69060,
+        "turns": 7,
+        "tool_calls": 6
+      },
+      "install-cli": {
+        "tokens": 90497,
+        "turns": 9,
+        "tool_calls": 8
+      },
+      "list-users": {
+        "tokens": 56864,
+        "turns": 6,
+        "tool_calls": 5
+      }
+    }
+  }
 }
