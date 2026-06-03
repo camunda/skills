@@ -1,0 +1,25 @@
+name: Build sandbox images
+description: >-
+  Build the three eval sandbox images (base, with-c8ctl, verifier) from
+  sandboxes/docker-bake.hcl, loaded into the local docker, with a GHA layer
+  cache so base images are pulled at most once across runs. The caller must
+  check out the repo first; nothing is published to a registry.
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+    - name: Build images (GHA layer cache)
+      uses: docker/bake-action@6614cfa25eff9a0b2b2697efb0b6159e7680d584 # v7.2.0
+      with:
+        source: ./evals
+        files: sandboxes/docker-bake.hcl
+        load: true
+        set: |
+          base.cache-from=type=gha,scope=evals-base
+          base.cache-to=type=gha,scope=evals-base,mode=max
+          with-c8ctl.cache-from=type=gha,scope=evals-with-c8ctl
+          with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
+          verifier.cache-from=type=gha,scope=evals-verifier
+          verifier.cache-to=type=gha,scope=evals-verifier,mode=max
