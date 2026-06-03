@@ -4,6 +4,10 @@ name: 🧪 Regenerate eval baselines
 # against the canonical EVAL_MODEL, then commits the result back to the branch
 # (median per-id tokens, passing samples only — see evals-regenerate-baseline).
 #
+# Fans the outcome targets out across a matrix (one runner per target, like
+# eval.yml) instead of regenerating them one after another; each job uploads
+# just its outcomes_baseline.json and a final job collects them into one commit.
+#
 # Two maintainer-gated ways in:
 #   - label a PR `evals:regenerate-baselines` → regenerate + commit to the PR branch;
 #     the PR diff is the review surface. Works before these workflows land on
@@ -34,15 +38,139 @@ concurrency:
   group: eval-baseline-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  EPOCHS: ${{ github.event.inputs.epochs || '3' }}
+
 jobs:
-  regenerate:
-    name: Regenerate baselines
+  detect:
+    name: Detect outcome targets
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.label.name == 'evals:regenerate-baselines'
     runs-on: ubuntu-latest
-    env:
-      EPOCHS: ${{ github.event.inputs.epochs || '3' }}
+    outputs:
+      specs: ${{ steps.matrix.outputs.specs }}
+      has: ${{ steps.matrix.outputs.has }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Build matrix (outcome targets only)
+        id: matrix
+        working-directory: evals
+        env:
+          WANT: ${{ github.event.inputs.target }}
+        run: |
+          # Reuse the run-matrix builder, then keep only the sandboxed (outcome)
+          # entries — triggers have no baseline. The with_skill arm is the only
+          # one regenerated (without_skill is a comparison, never a baseline).
+          uv run evals-build-matrix --target "$WANT" > all-specs.json
+          specs=$(jq -c '[.[] | select(.sandbox == true)]' all-specs.json)
+          echo "$specs"
+          if [ "$specs" = "[]" ]; then
+            echo "no outcome targets matched target='$WANT'" >&2
+            exit 1
+          fi
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          echo "has=true" >> "$GITHUB_OUTPUT"
+
+  # Build the three sandbox images ONCE and ship them to the matrix as an
+  # artifact (same as eval.yml), instead of every regenerate job rebuilding
+  # them. Registry-free: just the shared GHA layer cache.
+  build-images:
+    name: Build sandbox images
+    needs: detect
+    if: needs.detect.outputs.has == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: ./.github/actions/build-sandbox-images
+
+      - name: Save images
+        working-directory: evals
+        run: |
+          docker save camunda-skills-evals-base:latest \
+                      camunda-skills-evals-with-c8ctl:latest \
+                      camunda-skills-evals-verifier:latest \
+            | zstd -T0 > sandbox-images.tar.zst
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sandbox-images-${{ github.run_id }}
+          path: evals/sandbox-images.tar.zst
+          retention-days: 1
+          overwrite: true
+
+  regenerate:
+    name: ${{ matrix.label }}
+    needs: [detect, build-images]
+    if: needs.detect.outputs.has == 'true' && needs.build-images.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.detect.outputs.specs) }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Load sandbox images
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sandbox-images-${{ github.run_id }}
+          path: /tmp/sandbox-images
+
+      - name: docker load
+        run: zstd -dc /tmp/sandbox-images/sandbox-images.tar.zst | docker load
+
+      - name: Run eval + regenerate baseline
+        working-directory: evals
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+          MODEL: ${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}
+        run: |
+          spec="${{ matrix.spec }}"
+          dir="${spec%/outcomes.py}"   # skills/<name> or scenarios/<name>
+          uv run inspect eval "$spec" --log-dir logs/ \
+            --display ${{ matrix.display }} ${{ matrix.limit }} --epochs "$EPOCHS" \
+            --model "$MODEL" ${{ matrix.targs }} \
+            || echo "::warning::run failed for $dir"
+          uv run evals-regenerate-baseline --target "$dir" \
+            || echo "::warning::regenerate failed for $dir"
+          # Stage the one file this target owns, mirroring its repo path, so the
+          # commit job can overlay it straight onto a clean checkout.
+          if [ -f "$dir/outcomes_baseline.json" ]; then
+            mkdir -p "staged/$dir"
+            cp "$dir/outcomes_baseline.json" "staged/$dir/outcomes_baseline.json"
+          fi
+
+      - name: Upload regenerated baseline
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: baseline-${{ matrix.slug }}
+          path: evals/staged/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  commit:
+    name: Commit baselines to the branch
+    needs: [detect, regenerate]
+    if: always() && needs.detect.outputs.has == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Resolve target branch
         id: branch
@@ -63,56 +191,20 @@ jobs:
           ref: ${{ steps.branch.outputs.name }}
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Download regenerated baselines
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          enable-cache: true
-
-      - run: uv sync --frozen
-
-      # Single job builds and uses the images, so no artifact hand-off — just
-      # the shared GHA layer cache (no Docker Hub re-pull across runs).
-      - uses: ./.github/actions/build-sandbox-images
-
-      - name: Run evals + regenerate baselines
-        working-directory: evals
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
-          MODEL: ${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}
-          WANT: ${{ github.event.inputs.target }}
-        run: |
-          # Outcome targets only (triggers have no baseline), honoring the
-          # optional path-substring filter. Each line: "<dir> <max_sandboxes>".
-          uv run evals-list --json > all-targets.json
-          uv run python - "$WANT" <<'PY' > targets.txt
-          import json, sys
-
-          want = sys.argv[1]
-          for t in json.load(open("all-targets.json")):
-              if t["kind"] == "trigger":
-                  continue
-              if want and want not in t["path"]:
-                  continue
-              print(t["path"].rsplit("/", 1)[0], t["max_sandboxes"])
-          PY
-          if [ ! -s targets.txt ]; then echo "no outcome targets matched"; exit 1; fi
-          while read -r dir ms; do
-            [ -n "$dir" ] || continue
-            echo "::group::$dir (epochs=$EPOCHS, max-sandboxes $ms)"
-            uv run inspect eval "$dir/outcomes.py" --log-dir logs/ \
-              --display conversation --max-sandboxes "$ms" --epochs "$EPOCHS" --model "$MODEL" \
-              -T agent=react -T arm=with_skill \
-              || echo "::warning::run failed for $dir"
-            uv run evals-regenerate-baseline --target "$dir" \
-              || echo "::warning::regenerate failed for $dir"
-            echo "::endgroup::"
-          done < targets.txt
+          path: regenerated
+          pattern: baseline-*
+          merge-multiple: true
 
       - name: Commit baselines to the branch
         env:
           BRANCH: ${{ steps.branch.outputs.name }}
         run: |
+          # Overlay the per-target files (regenerated/<skills|scenarios>/<name>/…)
+          # onto the checkout; targets that didn't run keep their committed baseline.
+          if [ -d regenerated ]; then cp -r regenerated/. evals/; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add evals/skills/*/outcomes_baseline.json evals/scenarios/*/outcomes_baseline.json
