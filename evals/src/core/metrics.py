@@ -196,7 +196,7 @@ def task_arg(log, name: str, default: str | None = None) -> str | None:
     return args.get(name, default)
 
 
-def scenario_id(log) -> str | None:
+def eval_name(log) -> str | None:
     """The eval's display name: the log's task name, kebab-cased.
 
     Inspect task names are snake_case (``camunda_feel``); the on-disk

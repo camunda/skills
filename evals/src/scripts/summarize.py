@@ -26,7 +26,7 @@ from core.metrics import (
     USAGE_FIELDS,
     eval_source_path,
     model_id,
-    scenario_id,
+    eval_name,
     task_arg,
     token_usage,
 )
@@ -187,7 +187,7 @@ def render(
 
     for info in infos:
         log = read_eval_log(getattr(info, "name", str(info)))
-        name = scenario_id(log) or "(unknown)"
+        name = eval_name(log) or "(unknown)"
         is_trigger = name.startswith("trigger-")
         arm = task_arg(log, "arm") or "with_skill"
         rows, _ = _outcome_rows(log, 1.0)

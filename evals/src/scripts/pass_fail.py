@@ -30,7 +30,7 @@ from core.metrics import (
     gating_by_scorer,
     reduced_metrics,
     reduced_scores,
-    scenario_id,
+    eval_name,
     task_arg,
 )
 from core.paths import EVALS_ROOT
@@ -171,7 +171,7 @@ def main() -> None:
     args = parser.parse_args()
 
     log = read_eval_log(_resolve_log_path(args.log_path))
-    name = scenario_id(log)
+    name = eval_name(log)
     arm = task_arg(log, "arm")
     rows, outcome_passed = _outcome_rows(log, args.threshold)
 
