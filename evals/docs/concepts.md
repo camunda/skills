@@ -39,13 +39,26 @@ machinery — the directory (`skills/` vs `scenarios/`) only signals scope.
 
 ## The agent loop (outcome evals)
 
-Inspect's `react()` loop with three tools: `bash_session`, `text_editor`, and
-`skill(all_skill_dirs())` — the last surfaces all 13 skills to the model.
-Cross-skill routing falls out of *which* skills the model chooses to load (a
-transcript signal), not from seeding files. The model is picked with Inspect's
-`--model` flag (default `anthropic/bedrock/global.anthropic.claude-sonnet-4-6`,
-set via the `EVAL_MODEL` repo variable in CI). There is no CLI-harness bridge yet —
-`react()` is the loop.
+Inspect's `react()` loop with `bash_session`, `text_editor`, `grep`,
+`list_files`, `web_search`, and `skill(all_skill_dirs())` — the last surfaces
+all 13 skills to the model. Cross-skill routing falls out of *which* skills the
+model chooses to load (a transcript signal), not from seeding files. The model
+is picked with Inspect's `--model` flag (default
+`anthropic/bedrock/global.anthropic.claude-sonnet-4-6`, set via the `EVAL_MODEL`
+repo variable in CI). There is no CLI-harness bridge yet — `react()` is the loop.
+
+**How the agent stops (`submit`).** Two intentional modes, picked per eval — not
+an inconsistency to unify:
+
+- **Default (`submit=True`)** keeps react's `submit()` tool and `on_continue`
+  nudge, so the agent does the work and then signals done explicitly. Right for
+  **action evals** that produce a file or change cluster state — `camunda-c8ctl`,
+  `rocket-launch`.
+- **`submit=False`** drops the `submit()` tool; the agent halts when it stops
+  calling tools, and the final assistant message *is* the deliverable. Right for
+  **advisory evals** judged on their written answer — `camunda-development`.
+  Here the default's `on_continue` nudge would push the agent to *implement* the
+  recommendation instead of just answering, corrupting the thing being judged.
 
 ## Two-phase sandbox
 

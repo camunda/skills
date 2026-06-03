@@ -70,6 +70,7 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
+        # submit=False: the .feel file is the deliverable; halt once it's written.
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             feel_evaluates_to(),

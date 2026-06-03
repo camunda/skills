@@ -226,6 +226,7 @@ def camunda_development(arm: Arm = "with_skill", agent: AgentKind = "react") -> 
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
+        # submit=False: judged on the written answer — keep on_continue from nudging it to implement.
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             assert_skill_loaded("camunda-development", gating=False),
