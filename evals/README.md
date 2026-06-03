@@ -28,11 +28,11 @@ evals/
 ├── docs/                  # concepts · runbook · ci (see below)
 ├── sandboxes/             # Dockerfiles + docker-bake.hcl + compose-*.yaml (base / with-c8ctl / cpt-verifier / advisory)
 ├── skills/<skill>/        # triggers.py (routing) and, where one exists, outcomes.py
-├── scenarios/<id>/        # cross-skill outcome evals (e.g. rocket-launch, c8ctl-bootstrap)
+├── scenarios/<id>/        # cross-skill outcome evals (e.g. rocket-launch)
 └── src/
     ├── core/              # paths, metadata schema, registry, metrics, trigger builder
-    ├── scorers/           # cluster, cpt, feel, lint, transcript
-    ├── solvers/           # boot_cluster, collect_artifacts
+    ├── scorers/           # cluster, cpt, feel, bpmn_lint, transcript
+    ├── solvers/           # collect_artifacts
     └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regenerate-baseline, evals-extract-artifacts
 ```
 

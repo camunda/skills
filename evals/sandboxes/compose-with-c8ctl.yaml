@@ -1,10 +1,9 @@
 # Sandbox compose — with-c8ctl archetype.
 #
-# Referenced directly from a scenario's task.py via
+# Referenced directly from an eval's outcomes.py via
 # ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")))``.
-# Used by scenarios that need c8ctl pre-installed but no separate
-# verifier service (exit-code, transcript, judge, or a composite that
-# doesn't include CPT).
+# Used by evals that need c8ctl pre-installed but no separate verifier
+# service (the FEEL eval scores by running c8ctl in this same container).
 #
 # A Camunda 8.9 orchestration service runs alongside the agent using
 # H2 (no Elasticsearch / Postgres). The agent's `default` service

@@ -1,10 +1,10 @@
 # Sandbox compose — base archetype.
 #
-# Referenced directly from a scenario's task.py via
+# Referenced directly from an eval's outcomes.py via
 # ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")))``.
 #
-# Used by the c8ctl-bootstrap scenario. The agent container does NOT
-# have c8ctl pre-installed — the scenario tests the install path.
+# Used by the camunda-c8ctl outcome eval's install-cli sample. The agent
+# container does NOT have c8ctl pre-installed — the eval tests the install path.
 #
 # A Camunda 8.9 orchestration service runs alongside the agent using
 # H2 (no Elasticsearch / Postgres). c8run is not used: it has no

@@ -91,7 +91,7 @@ def _catalog(excluded: list[str]) -> tuple[str, list[str]]:
 @solver
 def route(excluded: list[str]) -> Solver:
     # Built lazily on first sample so constructing the Task (e.g. when the
-    # registry calls trigger() just to read metadata) reads no SKILL.md.
+    # registry calls trigger_eval() just to read metadata) reads no SKILL.md.
     cache: dict[str, object] = {}
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:

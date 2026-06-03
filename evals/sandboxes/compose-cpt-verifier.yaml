@@ -1,12 +1,12 @@
 # Sandbox compose — with-c8ctl + CPT verifier archetype.
 #
-# Referenced directly from a scenario's task.py via
+# Referenced directly from an eval's outcomes.py via
 # ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")))``.
-# Used by scenarios whose verifier needs CPT (verifier="cpt" or a
-# composite that includes it).
+# Used by evals whose scoring needs a CPT (Camunda Process Test) run, e.g.
+# the rocket-launch scenario.
 #
 # Adds a `verifier` service alongside `default`; the verifier mounts
-# the agent's `outputs/` read-only and shares a Maven `.m2` cache for
+# the agent's `/workspace` read-only and shares a Maven `.m2` cache for
 # faster repeat runs. Scorers reach the verifier via
 # ``sandbox("verifier")``.
 
