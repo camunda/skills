@@ -143,15 +143,15 @@ An `outcomes.py` with a module-level `METADATA` and an `@task`. Single-skill →
 - deploy + lint + CPT → `scenarios/rocket-launch/outcomes.py`
 
 ```python
-METADATA = ScenarioMetadata(
-    skills=["camunda-feel"],                            # CI changed-skills filter
-    baseline=BaselineConfig(exclude=["camunda-feel"]),  # what without_skill drops
+METADATA = EvalMetadata(
+    skills=["camunda-feel"],  # CI changed-skills filter; also what without_skill drops
+    # without_skill_excludes="all",  # override: drop every skill (meta-routers, scenarios)
     # max_sandboxes=10,  # parallelize samples; omit (=1) for cluster evals
 )
 
 @task
 def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
-    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=[...],
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
@@ -173,8 +173,10 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
 - **`max_sandboxes`** (default 1) caps parallel samples — each sample is its own
   sandbox. Keep 1 for cluster-backed evals (concurrent JVMs starve each other);
   raise it for a no-cluster eval.
-- **`baseline.exclude`** — the load-bearing skill(s), so the `without_skill` arm
-  measures what the skill adds (`"all"` = every skill in `metadata.skills`).
+- **`without_skill_excludes`** (defaults to `skills`) — the load-bearing skill(s)
+  the `without_skill` arm drops, so it measures what the skill adds. Set `"all"`
+  to drop every skill (meta-routers and cross-skill scenarios, where the value
+  only shows once the whole catalog is gone).
 
 Run it: `make eval-outcomes TARGET=skills/camunda-feel`. No workflow edit — CI
 picks it up from `metadata.skills`.

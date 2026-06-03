@@ -11,7 +11,7 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 
 from core.agents import AgentKind, build_agent
-from core.metadata import BaselineConfig, ScenarioMetadata
+from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
@@ -20,15 +20,15 @@ from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
 
 
-METADATA = ScenarioMetadata(
+METADATA = EvalMetadata(
     skills=["camunda-bpmn", "camunda-process-mgmt"],
-    baseline=BaselineConfig(exclude="all"),
+    without_skill_excludes="all",
 )
 
 
 @task
 def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
-    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=[
             Sample(

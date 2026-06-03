@@ -29,16 +29,12 @@ from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 from core.agents import AgentKind, build_agent
-from core.metadata import BaselineConfig, ScenarioMetadata
+from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
-METADATA = ScenarioMetadata(
-    skills=["camunda-c8ctl"],
-    baseline=BaselineConfig(exclude=["camunda-c8ctl"]),
-    max_sandboxes=3,
-)
+METADATA = EvalMetadata(skills=["camunda-c8ctl"], max_sandboxes=3)
 
 # Wait for the Camunda REST API (port 8080) to be ready. The compose
 # healthcheck covers port 9600 (actuator); there is a small gap before 8080
@@ -143,7 +139,7 @@ SAMPLES = [
 
 @task
 def camunda_c8ctl(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
-    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
         solver=with_artifact_collection(build_agent(agent, skill_dirs)),

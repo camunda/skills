@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.metadata import ScenarioMetadata
+from core.metadata import EvalMetadata
 from core.paths import EVALS_ROOT, SCENARIOS_DIR, SKILL_EVALS_DIR
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -71,13 +71,13 @@ def _import_module(module_py: Path):
     return module
 
 
-def _metadata(outcomes_py: Path) -> ScenarioMetadata:
+def _metadata(outcomes_py: Path) -> EvalMetadata:
     meta = getattr(_import_module(outcomes_py), "METADATA", None)
-    if isinstance(meta, ScenarioMetadata):
+    if isinstance(meta, EvalMetadata):
         return meta
     if isinstance(meta, dict):
-        return ScenarioMetadata.model_validate(meta)
-    raise RuntimeError(f"{outcomes_py}: must define METADATA: ScenarioMetadata")
+        return EvalMetadata.model_validate(meta)
+    raise RuntimeError(f"{outcomes_py}: must define METADATA: EvalMetadata")
 
 
 def _rel(path: Path) -> str:

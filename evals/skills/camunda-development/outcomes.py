@@ -17,12 +17,12 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import model_graded_qa
 
 from core.agents import AgentKind, build_agent
-from core.metadata import BaselineConfig, ScenarioMetadata
+from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
-METADATA = ScenarioMetadata(
+METADATA = EvalMetadata(
     skills=[
         "camunda-development",
         "camunda-connectors",
@@ -30,7 +30,7 @@ METADATA = ScenarioMetadata(
         "camunda-job-workers",
         "camunda-ai-agents",
     ],
-    baseline=BaselineConfig(exclude="all"),
+    without_skill_excludes="all",
     max_sandboxes=10,  # judge-only, no cluster — run all samples concurrently
 )
 
@@ -223,7 +223,7 @@ SAMPLES = [
 
 @task
 def camunda_development(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
-    skill_dirs = skill_dirs_for_arm(arm, METADATA.baseline.exclude)
+    skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),

@@ -93,7 +93,8 @@ An outcome eval can run two arms (the `arm` task parameter):
 - **`with_skill`** (default) — every skill available. The real condition, and
   the *gated* arm.
 - **`without_skill`** — the load-bearing skill(s) named in
-  `baseline.exclude` are switched off; every other skill stays available.
+  `without_skill_excludes` (default: the skills under test) are switched off;
+  every other skill stays available.
 
 The point is the **delta**: run the task with the skill, then with it switched
 off — the difference on the gating scorers is what the skill actually buys you.

@@ -39,7 +39,7 @@ from inspect_ai.tool._tools._skill.read import read_skills
 from inspect_ai.tool._tools._skill.tool import _available_skills
 from inspect_ai.util import JSONSchema
 
-from core.metadata import BaselineConfig, ScenarioMetadata
+from core.metadata import EvalMetadata
 from core.paths import all_skill_dirs
 
 
@@ -213,9 +213,7 @@ def build_trigger_eval(
         )
         for s in negative
     ]
-    metadata = ScenarioMetadata(
-        skills=[skill, *also_run_when_changed], baseline=BaselineConfig(exclude="all")
-    )
+    metadata = EvalMetadata(skills=[skill, *also_run_when_changed])
     return Task(
         name=f"trigger_{skill.replace('-', '_')}",
         dataset=samples,
