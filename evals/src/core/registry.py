@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from core.metadata import EvalMetadata
-from core.paths import EVALS_ROOT, SCENARIOS_DIR, SKILL_EVALS_DIR
+from core.paths import EVALS_ROOT, SCENARIO_EVALS_DIR, SKILL_EVALS_DIR
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 
@@ -136,7 +136,7 @@ def _trigger_targets() -> list[EvalTarget]:
 
 
 def discover() -> list[EvalTarget]:
-    targets = _outcome_targets(SCENARIOS_DIR, "scenario")
+    targets = _outcome_targets(SCENARIO_EVALS_DIR, "scenario")
     targets += _outcome_targets(SKILL_EVALS_DIR, "skill")
     targets += _trigger_targets()
     return targets

@@ -12,7 +12,7 @@ from statistics import median
 
 from inspect_ai.scorer import value_to_float
 
-from core.paths import SCENARIOS_DIR, SKILL_EVALS_DIR
+from core.paths import SCENARIO_EVALS_DIR, SKILL_EVALS_DIR
 
 # Inspect's own Value→float conversion: letter grades C/P/I map to
 # 1.0/0.5/0.0, numbers pass through, and bool / "true" / "false" /
@@ -219,7 +219,7 @@ def baseline_dir(name: str | None) -> Path | None:
     """
     if not name:
         return None
-    for base in (SKILL_EVALS_DIR, SCENARIOS_DIR):
+    for base in (SKILL_EVALS_DIR, SCENARIO_EVALS_DIR):
         d = base / name
         if (d / "outcomes.py").exists():
             return d
@@ -233,7 +233,7 @@ def eval_source_path(name: str, is_trigger: bool = False) -> Path | None:
     if is_trigger:
         p = SKILL_EVALS_DIR / name / "triggers.py"
         return p if p.exists() else None
-    for base in (SKILL_EVALS_DIR, SCENARIOS_DIR):
+    for base in (SKILL_EVALS_DIR, SCENARIO_EVALS_DIR):
         p = base / name / "outcomes.py"
         if p.exists():
             return p
