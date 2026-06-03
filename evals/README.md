@@ -17,9 +17,9 @@ make eval-outcomes TARGET=skills/camunda-feel      # behaviour: does the agent g
 make eval-viewer                                   # trajectory viewer — http://localhost:7575
 ```
 
-The default model is `anthropic/claude-sonnet-4-6` (`export ANTHROPIC_API_KEY`);
-override with `MODEL=…` + that provider's creds. The uv project lives at the repo
-root, so `uv run …` works from anywhere without a `cd`.
+The default model is `anthropic/bedrock/global.anthropic.claude-sonnet-4-6` (AWS
+creds in the environment); override with `MODEL=…` + that provider's creds. The
+uv project lives at the repo root, so `uv run …` works from anywhere without a `cd`.
 
 ## Layout
 

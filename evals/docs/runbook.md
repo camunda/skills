@@ -35,11 +35,11 @@ builds via `docker buildx bake`; Buildx ships with Docker Desktop and modern
 docker-ce) and [uv](https://docs.astral.sh/uv/) — the harness auto-installs
 Python deps via `uv sync`. Triggers need neither Docker nor a cluster.
 
-**Credentials:** the default model is `anthropic/claude-sonnet-4-6` — `export
-ANTHROPIC_API_KEY`. For another provider pass `MODEL=…` plus that provider's
-creds (e.g. CI's Bedrock model `MODEL=anthropic/bedrock/global.anthropic.claude-sonnet-4-6`
-with AWS creds in the environment). Read creds from the environment; never write
-them to disk.
+**Credentials:** the default model is
+`anthropic/bedrock/global.anthropic.claude-sonnet-4-6` — supply AWS creds in the
+environment. For another provider pass `MODEL=…` plus that provider's creds (e.g.
+`MODEL=anthropic/claude-sonnet-4-6` with `ANTHROPIC_API_KEY`). Read creds from the
+environment; never write them to disk.
 
 ## The local loop
 

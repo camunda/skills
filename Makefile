@@ -13,12 +13,12 @@ TARGET ?=
 #   make eval-outcomes TARGET=scenarios/rocket-launch ARM=without_skill
 ARM ?= with_skill
 # Model + agent loop, passed to every `inspect eval`. The suite is
-# model-agnostic; MODEL is just the default and uses the Anthropic API
-# (export ANTHROPIC_API_KEY). Override per run for another provider,
-# e.g. MODEL=anthropic/bedrock/<profile> (then supply that provider's creds), or
-# AGENT=claude_code. CI defaults to its own model via the EVAL_MODEL
-# repo variable — see .github/workflows/eval.yml.
-MODEL ?= anthropic/claude-sonnet-4-6
+# model-agnostic; MODEL is just the default and uses Bedrock (supply AWS creds
+# in the environment). Override per run for another provider, e.g.
+# MODEL=anthropic/claude-sonnet-4-6 with ANTHROPIC_API_KEY, or AGENT=claude_code.
+# CI uses the same default via the EVAL_MODEL repo variable — see
+# .github/workflows/eval.yml.
+MODEL ?= anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
 # Example: make eval-outcomes TARGET=scenarios/c8ctl-bootstrap ARGS="--epochs 3"
@@ -49,7 +49,7 @@ help:
 	@echo "  SKILL     Skill name (e.g. camunda-feel). For eval-triggers."
 	@echo "  TARGET    Outcome eval dir path (skills/<name> or scenarios/<name>), for eval-outcomes / eval-baseline."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
-	@echo "  MODEL     Inspect model id (default anthropic/claude-sonnet-4-6; needs ANTHROPIC_API_KEY)."
+	@echo "  MODEL     Inspect model id (default anthropic/bedrock/global.anthropic.claude-sonnet-4-6; needs AWS creds)."
 	@echo "  AGENT     Agent loop: react (default) or claude_code."
 	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (eval-triggers / eval-outcomes)."
 	@echo "            Example: ARGS=\"--epochs 3\""

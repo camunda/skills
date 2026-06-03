@@ -43,8 +43,8 @@ Inspect's `react()` loop with three tools: `bash_session`, `text_editor`, and
 `skill(all_skill_dirs())` — the last surfaces all 13 skills to the model.
 Cross-skill routing falls out of *which* skills the model chooses to load (a
 transcript signal), not from seeding files. The model is picked with Inspect's
-`--model` flag (local default `anthropic/claude-sonnet-4-6`; CI uses a Bedrock
-Claude via the `EVAL_MODEL` repo variable). There is no CLI-harness bridge yet —
+`--model` flag (default `anthropic/bedrock/global.anthropic.claude-sonnet-4-6`,
+set via the `EVAL_MODEL` repo variable in CI). There is no CLI-harness bridge yet —
 `react()` is the loop.
 
 ## Two-phase sandbox
