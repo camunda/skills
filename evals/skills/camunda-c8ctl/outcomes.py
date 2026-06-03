@@ -171,9 +171,10 @@ SAMPLES = [
     Sample(
         id="install-cli",
         input=(
-            "There's a Camunda 8 cluster already running somewhere on this "
-            "machine (don't start a new one) — can you set me up with a CLI "
-            "so I can poke at it?"
+            "There's a Camunda 8 cluster running at http://localhost:8080 — "
+            "install the right command-line tool for it, configure it to "
+            "connect to that address, and verify the connection using only "
+            "the CLI you installed (no curl, no browser)."
         ),
         sandbox=BASE_SANDBOX,
         metadata={"check": "installed"},
