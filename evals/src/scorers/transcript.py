@@ -1,4 +1,4 @@
-"""Transcript scorers: assert which skills the agent loaded / which tools it called.
+"""Transcript scorers: assert which skills the agent loaded.
 
 Walks ``state.messages`` and inspects ``ChatMessageAssistant.tool_calls``.
 """
@@ -74,63 +74,6 @@ def assert_skill_loaded(skill: str | Sequence[str], gating: bool = True) -> Scor
                 f"missing skills: {missing}" if missing else f"loaded: {sorted(seen)}"
             ),
             metadata={"expected": expected, "loaded": sorted(seen), "gating": gating},
-        )
-
-    return score
-
-
-@scorer(metrics=[mean(), stderr()])
-def assert_skill_not_loaded(skill: str | Sequence[str], gating: bool = True) -> Scorer:
-    """1.0 when NONE of the named skills were loaded, else 0.0.
-
-    Coexistence / negative-trigger check: the agent must route to the right
-    skill without pulling in an anti-pattern one.
-    """
-    forbidden = [skill] if isinstance(skill, str) else list(skill)
-
-    async def score(state: TaskState, target: Target) -> Score:
-        loaded = skills_loaded(state, forbidden)
-        return Score(
-            value=0.0 if loaded else 1.0,
-            answer=",".join(sorted(loaded)) or None,
-            explanation=(
-                f"loaded forbidden: {sorted(loaded)}"
-                if loaded
-                else f"avoided: {forbidden}"
-            ),
-            metadata={
-                "forbidden": forbidden,
-                "loaded": sorted(loaded),
-                "gating": gating,
-            },
-        )
-
-    return score
-
-
-@scorer(metrics=[mean(), stderr()])
-def assert_tool_called(tool: str, subcommand: str | None = None) -> Scorer:
-    """1.0 when a tool call references ``tool`` (and ``subcommand`` if given).
-
-    Substring match over function name + arguments — covers both
-    ``bash_session(command='c8ctl deploy ...')`` and direct calls.
-    """
-
-    async def score(state: TaskState, target: Target) -> Score:
-        for function, arguments in _iter_tool_calls(state):
-            haystack = f"{function} {_arguments_text(arguments)}"
-            if tool not in haystack:
-                continue
-            if subcommand is None or subcommand in haystack:
-                return Score(
-                    value=1.0,
-                    answer=f"{tool} {subcommand or ''}".strip(),
-                    explanation=f"matched tool call: {function}({arguments})",
-                )
-        return Score(
-            value=0.0,
-            answer=None,
-            explanation=f"no tool call matched {tool} {subcommand or ''}".strip(),
         )
 
     return score
