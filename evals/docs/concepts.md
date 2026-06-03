@@ -157,8 +157,10 @@ What's gated and what isn't:
   and is reported, not gated.
 
 Token counts are **model-specific**, so baselines are regenerated on CI against
-the canonical model (see [`ci.md`](ci.md)), not from a laptop. Triggers have no
-baseline.
+the canonical model (see [`ci.md`](ci.md)), not from a laptop. The gate enforces
+this: if a run's model differs from the one recorded in `outcomes_baseline.json`,
+it skips cost-checking and warns rather than comparing across models. Triggers
+have no baseline.
 
 ## What this suite is *not*
 
