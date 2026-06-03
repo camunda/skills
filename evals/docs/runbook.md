@@ -210,11 +210,12 @@ git diff evals/skills/camunda-feel/outcomes_baseline.json   # review before comm
 - **Never** blanket-regenerate, and **never** to "make CI green." If the outcome is
   failing and the skill is supposed to work, fix the skill — the baseline is a
   cost ceiling, never the outcome bar.
-- Only passing samples get an entry. Regenerating rewrites the whole arm from
-  the run's passing samples, so a sample that fails the refresh **loses** its
-  entry (the diff shows it vanish — investigate, don't commit blindly); it then
-  reads as `no baseline (regenerate)` in the gate until it passes and is
-  regenerated.
+- A baseline is **all-green or nothing**. Regeneration refuses to write unless
+  every sample in the run passed its gating scorers — if any fails (or errors)
+  it exits non-zero, names the offenders, and leaves the committed baseline
+  untouched. No partial baselines; fix the eval, get a clean run, then
+  regenerate. (In CI a refused target stages nothing, so its baseline simply
+  doesn't change and the job logs a warning.)
 
 ## Housekeeping
 

@@ -5,12 +5,12 @@ Records, per arm, the model and each sample's median token count across epochs
 duration: outcome is gated per-sample by the scorers, not by a stored aggregate
 that would drift as samples are added.
 
-Only samples that passed every gating scorer get a token reference. A sample
-that didn't reach the goal (failed scorer, or errored) is skipped, not
-recorded — its token count is unrepresentative (token-limit flail inflates it,
-an early error deflates it) and would poison the ceiling. This mirrors the
-gate, which only cost-checks passing samples; a skipped sample shows up as
-``no baseline (regenerate)`` there until it passes and is regenerated.
+A baseline is an all-green snapshot or nothing: if any sample in the run
+failed a gating scorer (or errored / never scored), regeneration refuses to
+write and exits non-zero, naming the offenders. A partial baseline would leave
+half the eval ungated, and a failed sample's token count is unrepresentative
+anyway (a token-limit flail inflates it, an early error deflates it). Fix the
+eval, get a clean run, then regenerate.
 
     evals-regenerate-baseline --target camunda-feel [--arm with_skill]
 
@@ -74,12 +74,34 @@ def main() -> int:
 
     log = read_eval_log(chosen.name)
     model = getattr(log.eval, "model", None) or "unknown"
-    # Record the median per-id tokens/turns/tool_calls (rows carry the
-    # epoch-reduced figures) for passing samples only; skip — and report — any
-    # that didn't reach the goal. tokens gate the cost ceiling; turns and
-    # tool_calls are diagnostic (stored for the summary's delta, never gated).
-    # Sorted by id so the committed JSON is stable regardless of log ordering.
+    # A baseline is all-green or nothing: refuse to write if any sample failed a
+    # gating scorer, or ran but never scored (errored). Either would leave a
+    # partial baseline that silently ungates part of the eval. ``rows`` carries
+    # only scored samples, so compare against the ids that actually ran.
     rows, _ = _outcome_rows(log, 1.0)
+    scored_ids = {r["sample_id"] for r in rows}
+    ran_ids = {str(s.id) for s in (getattr(log, "samples", None) or [])}
+    failed = sorted(r["sample_id"] for r in rows if not r["pass"])
+    unscored = sorted(ran_ids - scored_ids)
+    if not rows or failed or unscored:
+        problems = []
+        if not rows:
+            problems.append("no samples scored")
+        if failed:
+            problems.append(f"failed: {', '.join(failed)}")
+        if unscored:
+            problems.append(f"errored/unscored: {', '.join(unscored)}")
+        print(
+            f"refusing to regenerate {args.target} — a baseline must come from an "
+            f"all-green run ({'; '.join(problems)}). Fix the eval, get a clean "
+            "run, then regenerate.",
+            file=sys.stderr,
+        )
+        return 1
+    # Record the median per-id tokens/turns/tool_calls (rows carry the
+    # epoch-reduced figures); tokens gate the cost ceiling, turns and tool_calls
+    # are diagnostic (stored for the summary's delta, never gated). Sorted by id
+    # so the committed JSON is stable regardless of log ordering.
     samples = {
         r["sample_id"]: {
             "tokens": round(r["tokens"]),
@@ -87,14 +109,7 @@ def main() -> int:
             "tool_calls": round(r["tool_calls"]),
         }
         for r in sorted(rows, key=lambda r: r["sample_id"])
-        if r["pass"]
     }
-    skipped = [r["sample_id"] for r in rows if not r["pass"]]
-    if skipped:
-        print(
-            f"skipped (no passing run, no token reference written): {', '.join(sorted(skipped))}",
-            file=sys.stderr,
-        )
 
     target = target_dir / "outcomes_baseline.json"
     existing = {}

@@ -103,7 +103,12 @@ the debugger; `evals-pass-fail` gives the per-sample scorer + budget breakdown.
 ## Regenerating baselines
 
 `eval-baseline.yml` re-records each outcome eval's token baseline from a fresh
-run against the canonical `EVAL_MODEL` (median per sample, passing samples only):
+run against the canonical `EVAL_MODEL` (median per sample). It fans the outcome
+targets out across a matrix — one runner per target, like the run workflow — and
+each job regenerates only its own baseline; a final job collects them into a
+single commit. A baseline is **all-green or nothing**: a target whose run had any
+failing or unscored sample regenerates nothing and keeps its committed baseline
+(the job logs a warning), so a partial baseline never lands.
 
 - **On a PR** — label `evals:regenerate-baselines`. CI re-runs the outcome evals at
   `--epochs 3` (so the reference is a median, not a single-shot outlier),

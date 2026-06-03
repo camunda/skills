@@ -159,9 +159,10 @@ What's gated and what isn't:
   correlated counts would just flake).
 - **Outcome correctness is gated by the scorers, never the baseline.** The
   baseline is a cost ceiling, full stop.
-- **Only passing samples get an entry.** A failed or errored run's numbers are
-  unrepresentative (a token-limit flail inflates them, an early error deflates
-  them), so they're skipped until the sample passes.
+- **A baseline is all-green or nothing.** Regeneration writes one only from a
+  run where *every* sample passed; if any fails or errors it refuses (a failed
+  sample's numbers are unrepresentative anyway — a token-limit flail inflates
+  them, an early error deflates them). No partial baselines.
 - **Adding a sample never breaks others** — a new id simply has no baseline yet
   and is reported, not gated.
 

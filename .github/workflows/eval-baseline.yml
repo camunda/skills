@@ -148,13 +148,14 @@ jobs:
             --display ${{ matrix.display }} ${{ matrix.limit }} --epochs "$EPOCHS" \
             --model "$MODEL" ${{ matrix.targs }} \
             || echo "::warning::run failed for $dir"
-          uv run evals-regenerate-baseline --target "$dir" \
-            || echo "::warning::regenerate failed for $dir"
-          # Stage the one file this target owns, mirroring its repo path, so the
-          # commit job can overlay it straight onto a clean checkout.
-          if [ -f "$dir/outcomes_baseline.json" ]; then
+          # Regeneration refuses (non-zero) unless every sample passed. Stage the
+          # file only on success — a refused target stages nothing, so the commit
+          # job leaves its committed baseline untouched (never a partial wipe).
+          if uv run evals-regenerate-baseline --target "$dir"; then
             mkdir -p "staged/$dir"
             cp "$dir/outcomes_baseline.json" "staged/$dir/outcomes_baseline.json"
+          else
+            echo "::warning::baseline not regenerated for $dir — left unchanged"
           fi
 
       - name: Upload regenerated baseline
