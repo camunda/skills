@@ -16,7 +16,6 @@ from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.cluster import process_deployed_on_cluster
 from scorers.cpt import cpt_scorer
 from scorers.bpmn_lint import bpmn_lint_clean
-from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
 
 
@@ -45,10 +44,7 @@ def rocket_launch(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
             ),
             # edge-minimal sample parked until timer-countdown is green.
         ],
-        solver=[
-            boot_cluster(),
-            with_artifact_collection(build_agent(agent, skill_dirs)),
-        ],
+        solver=with_artifact_collection(build_agent(agent, skill_dirs)),
         scorer=[
             process_deployed_on_cluster("RocketLaunch"),
             bpmn_lint_clean(),

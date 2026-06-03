@@ -18,7 +18,6 @@ from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.feel import feel_evaluates_to
 from scorers.transcript import assert_skill_loaded
-from solvers.boot_cluster import boot_cluster
 from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = EvalMetadata(skills=["camunda-feel"])
@@ -71,10 +70,7 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
-        solver=[
-            boot_cluster(),
-            with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
-        ],
+        solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             feel_evaluates_to(),
             assert_skill_loaded("camunda-feel", gating=False),

@@ -36,14 +36,6 @@ from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = EvalMetadata(skills=["camunda-c8ctl"], max_sandboxes=3)
 
-# Wait for the Camunda REST API (port 8080) to be ready. The compose
-# healthcheck covers port 9600 (actuator); there is a small gap before 8080
-# accepts requests. Only needed on sandboxes with a live cluster.
-WAIT_FOR_CLUSTER = (
-    "timeout 60 bash -c "
-    "'until c8ctl get topology --json >/dev/null 2>&1; do sleep 1; done'"
-)
-
 BASE_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-base.yaml"))
 WITH_C8CTL_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml"))
 
@@ -121,7 +113,6 @@ SAMPLES = [
             "and save the raw JSON output to /workspace/topology.json."
         ),
         sandbox=WITH_C8CTL_SANDBOX,
-        setup=WAIT_FOR_CLUSTER,
         metadata={"check": "topology"},
     ),
     Sample(
@@ -131,7 +122,6 @@ SAMPLES = [
             "tools and save the raw JSON output to /workspace/users.json."
         ),
         sandbox=WITH_C8CTL_SANDBOX,
-        setup=WAIT_FOR_CLUSTER,
         metadata={"check": "users"},
     ),
 ]
