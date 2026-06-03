@@ -115,6 +115,9 @@ class RocketLaunchIT {
     try (Stream<Path> tree = Files.walk(AGENT_WORKSPACE, 5)) {
       return tree
           .filter(p -> p.toString().endsWith(".bpmn"))
+          // Skip the skill() tool's plants under skills/ — pick the agent's own
+          // BPMN, matching collect_artifacts and the bpmn_lint scorer.
+          .filter(p -> !p.toString().contains("/skills/"))
           .findFirst()
           .orElseThrow(
               () ->
