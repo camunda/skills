@@ -108,6 +108,47 @@ Secrets: the 8.9+ runtime reads from environment variables prefixed `SECRET_` by
 
 Use SPI registration. The standalone runtime is not a Spring Boot application that scans your beans.
 
+#### Local development: standalone JAR with custom connectors
+
+When developing a custom connector locally, you need to run the standalone connector runtime JAR with your connector loaded into `-Dloader.path=./custom_connectors`. This is distinct from c8run's bundled runtime, which runs OOTB connectors only and does not load JARs from a custom directory.
+
+**The env-var override trap:** `ZEEBE_ADDRESS`, `CAMUNDA_CLIENT_ID`, and `CAMUNDA_CLIENT_SECRET` take precedence over any properties file. If those are set in your shell (common if you also use SaaS), the runtime will connect to the SaaS cluster even when you pass a local config file. Local jobs will never be picked up and no error is shown.
+
+Always start the local runtime with those vars explicitly unset:
+
+```bash
+env -u ZEEBE_ADDRESS -u CAMUNDA_CLIENT_ID -u CAMUNDA_CLIENT_SECRET \
+  -u ZEEBE_CLIENT_ID -u ZEEBE_CLIENT_SECRET \
+  nohup java \
+    -Dloader.path=./custom_connectors \
+    -jar connector-runtime-bundle-<version>-with-dependencies.jar \
+    --spring.config.additional-location=./connectors-application.properties \
+  > ./log/connectors.log 2>&1 &
+```
+
+`connectors-application.properties` must declare all four of these for a local c8run cluster:
+
+```properties
+server.port=8086
+camunda.client.grpc-address=http://localhost:26500
+camunda.client.rest-address=http://localhost:8080
+camunda.client.auth.enabled=false
+```
+
+**Verify the connector runtime is connected to the local cluster, not SaaS**, via the actuator health endpoint:
+
+```bash
+curl -s http://localhost:8086/actuator/health | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+zc = d.get('components', {}).get('zeebeClient', {})
+brokers = zc.get('details', {}).get('numBrokers', 0)
+print(f'status={d[\"status\"]} | zeebeClient={zc.get(\"status\")} | numBrokers={brokers}')
+"
+```
+
+`numBrokers: 1` = local Zeebe. `numBrokers: 3` = connected to SaaS cluster — stop the process and restart with the cloud env vars unset.
+
 ### Self-Managed embedded
 
 A Spring Boot application that hosts both connectors and your own business code. The starter provides the connector runtime and registers SPI- and bean-discovered connectors against the cluster.
