@@ -1,0 +1,17 @@
+{
+  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "exclusive-gateway-routing": {
+        "tokens": 109605,
+        "turns": 8,
+        "tool_calls": 9
+      },
+      "linear-invoice-review": {
+        "tokens": 111150,
+        "turns": 7,
+        "tool_calls": 9
+      }
+    }
+  }
+}
