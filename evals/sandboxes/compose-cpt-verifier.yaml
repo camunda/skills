@@ -54,10 +54,12 @@ services:
       # so the CPT test can pick up the BPMN it wrote.
       - workspace:/agent-workspace:ro
       - m2-cache:/.m2
-      # Per-scenario CPT projects live under scenarios/<id>/cpt-verifier.
+      # Per-scenario CPT projects: scenarios/<id>/cpt-verifier.
+      # Per-skill CPT projects:   skills/<skill>/cpt-verifier.
       # Mount read-only — the scorer copies to /verifier-workspace before
       # mvn so target/ writes don't escape the container.
       - ../scenarios:/scenarios:ro
+      - ../skills:/skills:ro
     deploy:
       resources:
         limits:

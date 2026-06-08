@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 
 @scorer(metrics=[mean(), stderr()])
-def cpt_scorer(project_dir: str) -> Scorer:
+def cpt_scorer(
+    project_dir: str,
+    mvn_extra: Callable[[str], list[str]] | None = None,
+) -> Scorer:
     """Run ``mvn test`` and score 1.0 on success, 0.0 on any failure.
 
     ``project_dir`` is the path inside the verifier container, e.g.
     ``/scenarios/rocket-launch/cpt-verifier``.
+
+    ``mvn_extra`` is an optional callable that receives the current
+    ``state.sample_id`` and returns additional Maven arguments, e.g.
+    ``lambda sid: ["-Dtest=MyIT#myMethod"]`` to restrict which test runs.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
@@ -27,8 +36,9 @@ def cpt_scorer(project_dir: str) -> Scorer:
                 explanation=f"could not copy CPT project from {project_dir}: "
                 f"{copy.stderr[-500:]}",
             )
+        extra = mvn_extra(state.sample_id or "") if mvn_extra else []
         run = await sb.exec(
-            ["mvn", "-B", "-f", "/verifier-workspace/pom.xml", "test"],
+            ["mvn", "-B", "-f", "/verifier-workspace/pom.xml", "test"] + extra,
             timeout=600,
         )
         passed = run.returncode == 0

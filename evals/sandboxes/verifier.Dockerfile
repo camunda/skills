@@ -25,10 +25,12 @@ USER agent
 
 ENV MAVEN_OPTS="-Dmaven.repo.local=/.m2"
 
-# Pre-warm: bind-mount the scenarios tree read-only during this RUN and
+# Pre-warm: bind-mount scenarios and skills read-only during this RUN and
 # resolve every CPT verifier pom into /.m2. No files leak into the
-# image — only the populated Maven cache. New scenarios with their own
-# cpt-verifier/pom.xml are picked up automatically.
+# image — only the populated Maven cache. New pom.xml files are picked
+# up automatically on the next image build.
 RUN --mount=type=bind,source=scenarios,target=/scenarios,ro \
-    find /scenarios -path '*/cpt-verifier/pom.xml' -print0 | \
+    --mount=type=bind,source=skills,target=/skills,ro \
+    { find /scenarios -path '*/cpt-verifier/pom.xml' -print0; \
+      find /skills    -path '*/cpt-verifier/pom.xml' -print0; } | \
         xargs -0 -I{} mvn -B -q -f {} dependency:go-offline
