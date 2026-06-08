@@ -1,0 +1,8 @@
+{
+  "id": "review-invoice",
+  "type": "default",
+  "components": [],
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.6.0",
+  "schemaVersion": 17
+}

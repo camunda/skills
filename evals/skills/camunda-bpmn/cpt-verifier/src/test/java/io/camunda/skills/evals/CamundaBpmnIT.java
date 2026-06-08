@@ -26,10 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 /**
  * Behavioral verifier for camunda-bpmn skill evals.
  *
- * Which test runs is selected by the ``eval.sample.id`` system property
- * (passed by the cpt_scorer). Each sample enables exactly one test via
- * {@code @EnabledIfSystemProperty}:
- *
+ * The cpt_scorer selects which test runs via surefire {@code -Dtest=ClassName#methodName}:
  *   linear-invoice-review      → reviewInvoiceUserTaskIsReached
  *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 2 cases)
  */
@@ -56,7 +53,9 @@ class CamundaBpmnIT {
 
   @Test
   void reviewInvoiceUserTaskIsReached() throws Exception {
-    deploy();
+    // Deploy the BPMN together with the referenced form so Camunda 8.9 can
+    // create the Zeebe user task entity (FORM_NOT_FOUND incident otherwise).
+    deployWithForm("review-invoice.form");
 
     // Auto-complete the service task so the process can reach isCompleted()
     context.mockJobWorker("record-decision").thenComplete();
@@ -135,8 +134,15 @@ class CamundaBpmnIT {
   // ─── helpers ────────────────────────────────────────────────────────────
 
   private void deploy() throws Exception {
-    Path bpmn = findAgentBpmn();
-    client.newDeployResourceCommand().addResourceFile(bpmn.toString()).send().join();
+    client.newDeployResourceCommand().addResourceFile(findAgentBpmn().toString()).send().join();
+  }
+
+  private void deployWithForm(final String... classpathForms) throws Exception {
+    var cmd = client.newDeployResourceCommand().addResourceFile(findAgentBpmn().toString());
+    for (String form : classpathForms) {
+      cmd = cmd.addResourceFromClasspath(form);
+    }
+    cmd.send().join();
   }
 
   private static Path findAgentBpmn() throws IOException {
