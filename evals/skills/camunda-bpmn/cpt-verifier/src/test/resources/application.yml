@@ -1,0 +1,13 @@
+# CPT runs in remote mode against the orchestration cluster mounted
+# into the verifier's network namespace (compose: network_mode =
+# service:orchestration). REST + management endpoints are reachable
+# on localhost.
+camunda:
+  process-test:
+    runtime-mode: remote
+    remote:
+      camunda-monitoring-api-address: http://127.0.0.1:9600
+      runtime-connection-timeout: PT1M
+  client:
+    rest-address: http://127.0.0.1:8080
+    grpc-address: http://127.0.0.1:26500

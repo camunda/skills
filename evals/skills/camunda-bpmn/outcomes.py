@@ -1,14 +1,19 @@
-"""camunda-bpmn outcome eval: create a BPMN process that lints clean.
+"""camunda-bpmn outcome eval: author a BPMN process, lint-clean and behaviorally correct.
 
-Failure mode: hand-written XML errors — missing DI blocks, bad coordinates,
-fake-join gateways, and missing Zeebe extensions that cause ``c8ctl bpmn lint``
-to report errors or warnings.
+Two samples exercise the two canonical skill paths:
 
-Each sample asks the agent to build a process and save it to
-/workspace/process.bpmn. The ``bpmn_lint_clean`` scorer runs
-``c8ctl bpmn lint`` on every *.bpmn under /workspace and scores 1.0
-only when every file is clean. No live cluster needed — bpmn lint is a
-static check, so the lighter advisory sandbox is sufficient.
+  linear-invoice-review     — user task + service task in sequence
+  exclusive-gateway-routing — XOR gateway routing on a variable condition
+
+Scorers:
+  bpmn_lint_clean  — static: c8ctl bpmn lint reports zero errors/warnings
+  cpt_scorer       — behavioral: CPT verifier deploys the BPMN and asserts
+                     routing behavior (invoice-approval: reaches ReviewInvoice;
+                     order-fulfillment: manual-approval for amount>1000,
+                     auto-approval for amount<=1000)
+
+  The CPT scorer selects the matching test method via surefire ``-Dtest=``
+  rather than filtering inside the Java test, keeping the verifier plain JUnit.
 """
 
 from __future__ import annotations
@@ -20,10 +25,18 @@ from core.agents import AgentKind, build_agent
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.bpmn_lint import bpmn_lint_clean
+from scorers.cpt import cpt_scorer
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
-METADATA = EvalMetadata(skills=["camunda-bpmn"], max_sandboxes=2)
+METADATA = EvalMetadata(skills=["camunda-bpmn"], max_sandboxes=1)
+
+# Maps each sample to the surefire test filter that exercises it.
+# Surefire syntax: ClassName#methodName (selects all parameterized cases of that method).
+SAMPLE_TESTS = {
+    "linear-invoice-review": "CamundaBpmnIT#reviewInvoiceUserTaskIsReached",
+    "exclusive-gateway-routing": "CamundaBpmnIT#xorGatewayRoutesCorrectly",
+}
 
 SAVE = (
     "\n\nSave the finished process to /workspace/process.bpmn. "
@@ -79,11 +92,18 @@ def camunda_bpmn(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             bpmn_lint_clean(),
+            cpt_scorer(
+                project_dir="/skills/camunda-bpmn/cpt-verifier",
+                mvn_extra=lambda sid: (
+                    [f"-Dtest={SAMPLE_TESTS[sid]}"] if sid in SAMPLE_TESTS else []
+                ),
+            ),
             assert_skill_loaded("camunda-bpmn", gating=False),
         ],
-        sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),
+        sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
         metadata=METADATA.model_dump(),
-        time_limit=300,
+        # time_limit covers agent run + CPT scoring; 720s leaves ~360s for mvn test.
+        time_limit=720,
         token_limit=100_000,
         message_limit=50,
     )
