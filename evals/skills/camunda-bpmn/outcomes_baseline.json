@@ -3,14 +3,14 @@
   "with_skill": {
     "samples": {
       "exclusive-gateway-routing": {
-        "tokens": 77726,
-        "turns": 8,
-        "tool_calls": 7
+        "tokens": 67017,
+        "turns": 5,
+        "tool_calls": 5
       },
       "linear-invoice-review": {
-        "tokens": 92462,
-        "turns": 8,
-        "tool_calls": 8
+        "tokens": 69983,
+        "turns": 5,
+        "tool_calls": 6
       }
     }
   }
