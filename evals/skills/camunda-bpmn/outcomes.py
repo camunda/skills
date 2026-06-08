@@ -50,34 +50,29 @@ SAMPLES = [
         input=(
             "Create a BPMN 2.0 process for invoice approval "
             "(process id: invoice-approval, name: 'Invoice Approval'). "
-            "The process must contain, in order:\n"
+            "The process must contain:\n"
             "1. A start event named 'Invoice received'\n"
             "2. A user task named 'Review invoice' "
             "(element id: ReviewInvoice, formId: review-invoice)\n"
             "3. A service task named 'Record decision' "
             "(element id: RecordDecision, type: record-decision)\n"
-            "4. An end event named 'Done'\n"
-            "All elements must be connected in sequence with sequence flows, "
-            "and the process must include a BPMN DI diagram section." + SAVE
+            "4. An end event named 'Done'" + SAVE
         ),
     ),
     Sample(
         id="exclusive-gateway-routing",
         input=(
-            "Create a BPMN 2.0 process "
-            "(process id: order-fulfillment, name: 'Order Fulfillment') that:\n"
-            "1. Starts with an event named 'Order received'\n"
-            "2. Has a service task 'Validate order' (type: validate-order)\n"
-            "3. Routes via an exclusive (XOR) gateway named 'Amount exceeds limit?' — "
-            "the condition branch for amount > 1000 leads to a service task "
-            "'Approve manually' (type: manual-approval); the default branch leads to "
-            "'Auto-approve' (type: auto-approval)\n"
-            "4. Both branches merge at an exclusive (XOR) join gateway\n"
-            "5. Continues to 'Send confirmation' (type: send-confirmation)\n"
-            "6. Ends with an event named 'Done'\n"
-            "Use a matching XOR join for the XOR fork. "
-            "The process must include correct BPMN DI coordinates for all elements."
-            + SAVE
+            "Model an order fulfillment process "
+            "(process id: order-fulfillment, name: 'Order Fulfillment'):\n"
+            "1. Start when an order arrives ('Order received')\n"
+            "2. Validate the order (service task 'Validate order', type: validate-order)\n"
+            "3. Route based on amount: orders over 1000 go to manual approval "
+            "(service task 'Approve manually', type: manual-approval); "
+            "smaller orders are auto-approved "
+            "(service task 'Auto-approve', type: auto-approval)\n"
+            "4. After either path, send a confirmation "
+            "(service task 'Send confirmation', type: send-confirmation)\n"
+            "5. End the process ('Done')" + SAVE
         ),
     ),
 ]

@@ -3,6 +3,6 @@
   "type": "default",
   "components": [],
   "executionPlatform": "Camunda Cloud",
-  "executionPlatformVersion": "8.6.0",
+  "executionPlatformVersion": "8.9.0",
   "schemaVersion": 17
 }
