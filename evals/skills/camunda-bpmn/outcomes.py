@@ -38,11 +38,7 @@ SAMPLE_TESTS = {
     "exclusive-gateway-routing": "CamundaBpmnIT#xorGatewayRoutesCorrectly",
 }
 
-SAVE = (
-    "\n\nSave the finished process to /workspace/process.bpmn. "
-    "Run ``c8ctl bpmn lint /workspace/process.bpmn`` and fix every error "
-    "and warning before finishing — the file must lint completely clean."
-)
+SAVE = "\n\nSave the finished process to /workspace/process.bpmn."
 
 SAMPLES = [
     Sample(
