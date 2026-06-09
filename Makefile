@@ -23,6 +23,10 @@ AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
 # Example: make run-outcome-evals TARGET=scenarios/rocket-launch ARGS="--epochs 3"
 ARGS ?=
+# Temperature for all eval runs. Default 0 for deterministic, reproducible runs
+# that compare cleanly against baselines. Override with TEMPERATURE=1 for
+# stochastic exploration.
+TEMPERATURE ?= 0
 # Trigger evals are sandbox-free model calls, so their samples run fully in
 # parallel. Caps concurrent samples per skill; raise it if a skill grows.
 TRIGGER_SAMPLES ?= 20
@@ -56,9 +60,10 @@ help:
 	@echo "  TARGET    Outcome eval dir path (skills/<name> or scenarios/<name>), for run-outcome-evals / regenerate-baseline."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
 	@echo "  MODEL     Inspect model id (default anthropic/bedrock/global.anthropic.claude-sonnet-4-6; needs AWS creds)."
-	@echo "  AGENT     Agent loop: react (default) or claude_code."
-	@echo "  ARGS      Extra flags forwarded to 'inspect eval' (run-trigger-evals / run-outcome-evals)."
-	@echo "            Example: ARGS=\"--epochs 3\""
+	@echo "  AGENT       Agent loop: react (default) or claude_code."
+	@echo "  TEMPERATURE Temperature for inspect eval (default 0 — deterministic). Override with TEMPERATURE=1 for stochastic runs."
+	@echo "  ARGS        Extra flags forwarded to 'inspect eval' (run-trigger-evals / run-outcome-evals)."
+	@echo "              Example: ARGS=\"--epochs 3\""
 	@echo ""
 	@echo "Notes:"
 	@echo "  run-outcome-evals runs at each eval's METADATA.max_sandboxes (default 1, sequential)."
@@ -108,7 +113,7 @@ run-trigger-evals:
 	else \
 		t="skills/*/triggers.py"; \
 	fi; \
-	uv run inspect eval $$t --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) $(ARGS)
+	uv run inspect eval $$t --log-dir logs/ --max-samples $(TRIGGER_SAMPLES) --model $(MODEL) --temperature $(TEMPERATURE) $(ARGS)
 
 # Outcome evals run in a Docker sandbox. With TARGET=<dir> runs that one;
 # without, runs the whole suite (slow + costly). TARGET is the eval dir path,
@@ -130,7 +135,7 @@ run-outcome-evals:
 	for s in "$$@"; do \
 		ms=$$(printf '%s' "$$targets" | uv run python -c "import sys,json; print(next((t['max_sandboxes'] for t in json.load(sys.stdin) if t['path']==sys.argv[1]), 1))" "$$s"); \
 		echo "=== $$s (max-sandboxes $$ms) ==="; \
-		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --model $(MODEL) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
+		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --model $(MODEL) --temperature $(TEMPERATURE) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 
