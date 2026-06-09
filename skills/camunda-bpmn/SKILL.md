@@ -40,7 +40,8 @@ node --version   # ≥ 18 → use bpmnkit  |  not found → manual XML
 ### Setup
 
 ```bash
-mkdir -p /tmp/bpmnkit && cd /tmp/bpmnkit && npm install @bpmnkit/core
+mkdir -p /tmp/bpmnkit && cd /tmp/bpmnkit
+[ -d node_modules/@bpmnkit ] || npm install @bpmnkit/core
 ```
 
 Write your script in that directory (`generate.mjs`) and run it with `node generate.mjs`. Write the output BPMN to wherever the task needs it — use an absolute path so the file ends up in the right place regardless of the script's working directory.
@@ -151,6 +152,8 @@ c8ctl bpmn lint path/to/process.bpmn
 ```
 
 `c8ctl bpmn lint` auto-detects the execution platform version from the BPMN file. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
+
+Once lint reports zero issues the file is complete — no need to read it back.
 
 Fix every issue and re-run. Common categories:
 

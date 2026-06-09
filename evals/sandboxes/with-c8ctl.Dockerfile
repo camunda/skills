@@ -20,3 +20,7 @@ USER agent
 # every run. Failure is non-fatal — the cache will rebuild on first
 # use inside the sandbox if upstream is unreachable at image build time.
 RUN c8ctl element-template sync || true
+
+# Pre-install @bpmnkit/core at the path the camunda-bpmn skill uses,
+# so agents skip the npm install turn (saves a full conversation turn).
+RUN mkdir -p /tmp/bpmnkit && npm install --prefix /tmp/bpmnkit @bpmnkit/core
