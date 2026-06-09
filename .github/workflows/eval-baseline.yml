@@ -146,7 +146,7 @@ jobs:
           dir="${spec%/outcomes.py}"   # skills/<name> or scenarios/<name>
           uv run inspect eval "$spec" --log-dir logs/ \
             --display ${{ matrix.display }} ${{ matrix.limit }} --epochs "$EPOCHS" \
-            --model "$MODEL" ${{ matrix.targs }} \
+            --model "$MODEL" --temperature 0 ${{ matrix.targs }} \
             || echo "::warning::run failed for $dir"
           # Regeneration refuses (non-zero) unless every sample passed. Stage the
           # file only on success — a refused target stages nothing, so the commit
