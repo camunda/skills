@@ -33,7 +33,7 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 ## Scope boundaries
 
 - **In scope**: BPMN reachability (every element visited at least once), gateway-branch selection, DMN rule selection, error-boundary firing, timer / escalation boundary firing, end-event selection.
-- **Out of scope**: asserting data values produced by service tasks, external system payloads, UI behavior, agent / LLM output. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
+- **Out of scope**: asserting data values produced by service tasks, external system payloads, UI behavior, and agent / LLM output — **except** AI Agent Sub-process outputs asserted with `ASSERT_EVALUATION` (LLM-as-Judge or semantic similarity) *(8.9+)*. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
 
 ## Workflow
 
@@ -67,7 +67,7 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 For each segment, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). Accept that Java tests are invisible to Web Modeler.
+Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). For AI Agent Sub-process outputs, use `ASSERT_EVALUATION` (LLM-as-Judge or semantic similarity) *(8.9+)* — see [references/authoring.md § Agentic evaluation assertions](references/authoring.md#agentic-evaluation-assertions-89) and [references/judge-configuration.md](references/judge-configuration.md). Accept that Java tests are invisible to Web Modeler.
 
 ### 5. Run
 
@@ -172,3 +172,4 @@ Duplicates flagged: 0
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
 - [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
+- [judge-configuration.md](references/judge-configuration.md) — LLM-as-Judge and semantic-similarity configuration for `ASSERT_EVALUATION` *(8.9+)*

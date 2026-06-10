@@ -136,6 +136,42 @@ Common conditions:
 
 Cross-link: ad-hoc tool orchestration is the most common use case — see [coverage-strategy.md § Ad-hoc subprocess and tool activation](coverage-strategy.md#ad-hoc-subprocess-and-tool-activation) for the pattern.
 
+## Evaluation assertions *(8.9+)*
+
+For AI Agent Sub-process outputs use `CamundaAssert.assertThatEvaluation(...)` rather than `assertThat(instance).hasVariable(...)`. Two strategies are available — configure the backing models in `application.yml` (see [judge-configuration.md](judge-configuration.md)).
+
+### LLM-as-Judge
+
+```java
+CamundaAssert
+    .assertThatEvaluation(instance, "agentResponse")
+    .satisfiesCriteria("The response mentions the order status and includes an estimated delivery date.");
+```
+
+The judge LLM evaluates the runtime variable value against the `criteria` string. The assertion is satisfied when the judge returns a positive verdict. `instance` is the `ProcessInstanceEvent` returned by the client's `newCreateInstanceCommand()`.
+
+### Semantic similarity
+
+```java
+CamundaAssert
+    .assertThatEvaluation(instance, "agentSummary")
+    .isSemanticallySimilarTo(
+        "The order has shipped and will arrive in 3–5 business days.",
+        0.85);
+```
+
+The second argument overrides the project-level threshold for this one assertion. Omit it to use the configured default:
+
+```java
+CamundaAssert
+    .assertThatEvaluation(instance, "agentSummary")
+    .isSemanticallySimilarTo("The order has shipped and will arrive in 3–5 business days.");
+```
+
+Both methods throw `AssertionError` on failure, consistent with the rest of `CamundaAssert`. Pair them with `context.completeJobOfAdHocSubProcess(...)` or `context.completeJob(...)` calls that populate the variable before the assertion runs.
+
+The JSON equivalents (`ASSERT_EVALUATION` with `"judge": "llm"` or `"judge": "semantic-similarity"`) are documented in [authoring.md § Agentic evaluation assertions](authoring.md#agentic-evaluation-assertions-89).
+
 ## DMN-instance assertions
 
 `CamundaAssert.assertThatDecision(DecisionSelectors.byId("…"))` runs against a real or mocked decision evaluation. Selector factories:
