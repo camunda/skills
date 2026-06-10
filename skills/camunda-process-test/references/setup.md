@@ -39,6 +39,8 @@ Required entry in the project (or test harness) `pom.xml`:
 
 Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
 
+**Always use the latest stable (GA) release.** Never use RC, alpha, or SNAPSHOT versions in project pom files. RC and SNAPSHOT tags are not published for `camunda/connectors-bundle` on Docker Hub, so enabling the Connectors runtime with a non-GA version causes a `ContainerFetchException` at test startup. If an existing project uses an RC version, update it to the GA release before running tests with connectors enabled.
+
 ### Spring Boot 4.x pin (CPT 8.9.x only)
 
 CPT 8.9.x ships against Spring Boot 4.x. If the project already imports `spring-boot-dependencies` (e.g. via a parent BOM), pin the version explicitly or omit the BOM:
@@ -147,6 +149,36 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 ```
 
 Confirm the scaffold by running `mvn test-compile` from `test/`.
+
+## Failsafe plugin (integration tests)
+
+When adding an `*IT.java` class alongside `ProcessTest.java` (e.g. a Web Modeler integration test), add `maven-failsafe-plugin` to `pom.xml`. Surefire runs `*Test.java` on `mvn test`; failsafe runs `*IT.java` on `mvn verify`.
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-failsafe-plugin</artifactId>
+  <version>3.2.5</version>
+  <executions>
+    <execution>
+      <goals>
+        <goal>integration-test</goal>
+        <goal>verify</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+```
+
+See [web-modeler-scenarios.md](web-modeler-scenarios.md) for the full classpath and test-class setup for WM scenario files.
+
+## Connectors bundle image version
+
+If `connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. RC and SNAPSHOT tags are not published for this image on Docker Hub — always use a GA stable release as `camunda.version`. If you must use a different tag, override it:
+
+```
+io.camunda.process.test.connectors-docker-image-version=8.9.0
+```
 
 ## Filename hygiene
 
