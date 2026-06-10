@@ -82,7 +82,7 @@ Two additions are needed: a `<testResource>` block to put the WM scenario file o
     <directory>../src/main/resources</directory>   <!-- adjust to project layout -->
     <targetPath>integration-scenarios</targetPath>
     <includes>
-      <include>*test scenarios.json</include>       <!-- glob picks up all WM files -->
+      <include>* test scenarios.json</include>       <!-- space before "test" is literal; matches WM pattern, not .test.json -->
     </includes>
   </testResource>
 </testResources>
