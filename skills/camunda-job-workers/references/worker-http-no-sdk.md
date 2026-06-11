@@ -102,7 +102,7 @@ poll();
 }
 ```
 
-Response: `{ "jobs": [ { "jobKey": 123, "variables": {...}, "retries": 3, ... } ] }`
+Response: `{ "jobs": [ { "jobKey": "2251799813830779", "variables": {...}, "retries": 3, ... } ] }` — note `jobKey` is a string (the v2 REST API returns all `*Key` fields as strings, not `int64`).
 
 **Complete** — `POST /v2/jobs/{jobKey}/completion`
 
