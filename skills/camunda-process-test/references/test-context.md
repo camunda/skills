@@ -136,41 +136,47 @@ Common conditions:
 
 Cross-link: ad-hoc tool orchestration is the most common use case — see [coverage-strategy.md § Ad-hoc subprocess and tool activation](coverage-strategy.md#ad-hoc-subprocess-and-tool-activation) for the pattern.
 
-## Evaluation assertions *(8.9+)*
+## Judge and similarity assertions
 
-For AI Agent Sub-process outputs use `CamundaAssert.assertThatEvaluation(...)` rather than `assertThat(instance).hasVariable(...)`. Two strategies are available — configure the backing models in `application.yml` (see [judge-configuration.md](judge-configuration.md)).
+For AI Agent Sub-process outputs that can't be exact-matched, extend the normal `assertThat(processInstance)` chain with judge or similarity assertions rather than `hasVariable(...)`. Configure the backing models in `application.yml` (see [judge-configuration.md](judge-configuration.md)). All methods throw `AssertionError` on failure, consistent with the rest of `CamundaAssert`. Signatures verified against [docs.camunda.io/docs/next/apis-tools/testing/assertions](https://docs.camunda.io/docs/next/apis-tools/testing/assertions/).
 
-### LLM-as-Judge
+### LLM-as-Judge *(8.9+)*
 
-```java
-CamundaAssert
-    .assertThatEvaluation(instance, "agentResponse")
-    .satisfiesCriteria("The response mentions the order status and includes an estimated delivery date.");
-```
-
-The judge LLM evaluates the runtime variable value against the `criteria` string. The assertion is satisfied when the judge returns a positive verdict. `instance` is the `ProcessInstanceEvent` returned by the client's `newCreateInstanceCommand()`.
-
-### Semantic similarity
+A configured chat model scores the variable's runtime value against a natural-language expectation; the assertion fails when the score is below the configured threshold (default 0.5).
 
 ```java
-CamundaAssert
-    .assertThatEvaluation(instance, "agentSummary")
-    .isSemanticallySimilarTo(
-        "The order has shipped and will arrive in 3–5 business days.",
-        0.85);
+assertThat(processInstance)
+    .hasVariableSatisfiesJudge("agentResponse",
+        "The response mentions the order status and includes an estimated delivery date.");
 ```
 
-The second argument overrides the project-level threshold for this one assertion. Omit it to use the configured default:
+Variants:
+
+- `hasLocalVariableSatisfiesJudge(ElementSelectors.byName("Greet Customer"), "output", "Contains a polite greeting addressed to the customer.")` — a local variable in an element scope.
+- `assertThatValue("The order has shipped and will arrive tomorrow.").satisfiesJudge("Confirms the order is on its way to the customer.")` — an arbitrary string, independent of a process instance.
+
+Override the global threshold (or custom prompt) for one chain with `withJudgeConfig`:
 
 ```java
-CamundaAssert
-    .assertThatEvaluation(instance, "agentSummary")
-    .isSemanticallySimilarTo("The order has shipped and will arrive in 3–5 business days.");
+assertThat(processInstance)
+    .withJudgeConfig(config -> config.withThreshold(0.9))
+    .hasVariableSatisfiesJudge("agentResponse", "Contains a valid JSON response with status OK.");
 ```
 
-Both methods throw `AssertionError` on failure, consistent with the rest of `CamundaAssert`. Pair them with `context.completeJobOfAdHocSubProcess(...)` or `context.completeJob(...)` calls that populate the variable before the assertion runs.
+### Semantic similarity *(8.10+)*
 
-The JSON equivalents (`ASSERT_EVALUATION` with `"judge": "llm"` or `"judge": "semantic-similarity"`) are documented in [authoring.md § Agentic evaluation assertions](authoring.md#agentic-evaluation-assertions-89).
+An embedding model encodes the variable value and the expected string, then compares cosine similarity against the configured threshold (default 0.5).
+
+```java
+assertThat(processInstance)
+    .hasVariableSimilarTo("agentSummary", "The order has shipped and will arrive in 3-5 business days.");
+```
+
+Variants mirror the judge methods: `hasLocalVariableSimilarTo(selector, "output", "...")` and `assertThatValue("...").isSimilarTo("...")`. Override the threshold per chain with `withSemanticSimilarityConfig(config -> config.withThreshold(0.9))`.
+
+Pair either family with `context.completeJobOfAdHocSubProcess(...)` or `context.completeJob(...)` calls that populate the variable before the assertion runs.
+
+The JSON equivalents (`ASSERT_VARIABLE` with `satisfiesJudge` or `similarTo`, *(8.10+)*) are documented in [authoring.md § Agentic evaluation assertions](authoring.md#agentic-evaluation-assertions-810).
 
 ## DMN-instance assertions
 

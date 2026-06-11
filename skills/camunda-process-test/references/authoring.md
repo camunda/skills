@@ -374,46 +374,52 @@ A segment that rejoins the happy path does **not** need to assert every downstre
 - Repeated complete-the-final-task tail across every segment. If a segment rejoins the happy path before the tail, end the segment there.
 - Copy-paste assertions whose values come from FEEL inside the process. The process already evaluates the FEEL; asserting the same value tests the test, not the process.
 
-## Agentic evaluation assertions *(8.9+)*
+## Agentic evaluation assertions *(8.10+)*
 
-AI Agent Sub-processes produce free-text outputs that cannot be verified with exact-match `ASSERT_VARIABLES`. CPT 8.9 adds `ASSERT_EVALUATION` — the one exception to the "no data assertions" rule — with two judge strategies: **LLM-as-Judge** and **semantic similarity**. Both require a [judge configuration](judge-configuration.md).
+AI Agent Sub-processes produce free-text outputs that cannot be verified with exact-match `ASSERT_VARIABLES`. The JSON instruction set extends `ASSERT_VARIABLE` with two judge strategies — **LLM-as-Judge** (`satisfiesJudge`) and **semantic similarity** (`similarTo`) — the one exception to the "no data assertions" rule. Both require a [judge / similarity configuration](judge-configuration.md).
 
-> **Scope note**: `ASSERT_EVALUATION` against AI agent output is the only case where asserting LLM-produced data values is in scope for a process test. The general rule — do not write `ASSERT_VARIABLE` on service-task output — still applies everywhere else.
+> **Version & availability**: these JSON judge instructions are *(8.10+)* and the schema is not yet released (docs in [camunda-docs#8983](https://github.com/camunda/camunda-docs/pull/8983)). The Java equivalents — LLM-as-Judge `*(8.9+)*`, semantic similarity `*(8.10+)*` — are available now; see [test-context.md § Judge and similarity assertions](test-context.md#judge-and-similarity-assertions). Field names below are taken from camunda-docs#8983; re-verify when the schema ships.
 
-### `ASSERT_EVALUATION` — criteria (LLM-as-Judge)
+> **Scope note**: judging AI agent output is the only case where asserting LLM-produced data values is in scope for a process test. The general rule — do not write `ASSERT_VARIABLE` value assertions on service-task output — still applies everywhere else.
 
-The judge LLM evaluates whether the variable's runtime value satisfies the stated `criteria`. The assertion passes when the judge returns a positive verdict.
+### `satisfiesJudge` — LLM-as-Judge
 
-```json
-{
-  "type": "ASSERT_EVALUATION",
-  "processInstanceSelector": { "processDefinitionId": "order-support" },
-  "variable": "agentResponse",
-  "criteria": "The response mentions the order status and includes an estimated delivery date.",
-  "judge": "llm"
-}
-```
-
-`criteria` must be a specific, falsifiable statement — avoid criteria that any non-empty string would satisfy (e.g. "response is non-empty"). One assertion per variable per segment; do not stack multiple `ASSERT_EVALUATION` instructions on the same variable.
-
-### `ASSERT_EVALUATION` — semantic similarity
-
-Embeds both the actual variable value and `expectedValue` using the configured embedding model, then asserts that their cosine similarity meets or exceeds `threshold`.
+A configured chat model scores the variable's runtime value against the natural-language `expectation`. The assertion passes when the score meets `threshold` (default 0.5, configurable).
 
 ```json
 {
-  "type": "ASSERT_EVALUATION",
+  "type": "ASSERT_VARIABLE",
   "processInstanceSelector": { "processDefinitionId": "order-support" },
-  "variable": "agentSummary",
-  "expectedValue": "The order has shipped and will arrive in 3–5 business days.",
-  "judge": "semantic-similarity",
-  "threshold": 0.85
+  "variableName": "agentResponse",
+  "satisfiesJudge": {
+    "expectation": "The response mentions the order status and includes an estimated delivery date.",
+    "threshold": 0.8
+  }
 }
 ```
 
-`threshold` (0–1) is optional and overrides the project-level default for this one assertion. Omit it to inherit the configured default. Use a higher threshold only when the expected and actual text should be very close in meaning; lower values tolerate paraphrasing.
+`expectation` must be a specific, falsifiable statement — avoid expectations any non-empty string would satisfy (e.g. "response is non-empty"). `threshold` and `customPrompt` are optional; omit `threshold` to inherit the configured default. One judge assertion per variable per segment.
 
-Pair either assertion type with the `COMPLETE_JOB_AD_HOC_SUB_PROCESS` or `COMPLETE_JOB` instruction that produces the variable — the agent job must complete before the assertion runs. The Java equivalent is `CamundaAssert.assertThatEvaluation(...)` — see [test-context.md § Evaluation assertions](test-context.md#evaluation-assertions-89).
+### `similarTo` — semantic similarity
+
+Embeds both the actual variable value and `expectedValue` with the configured embedding model, then passes when their cosine similarity meets or exceeds `threshold` (default 0.5). Add an optional `elementSelector` to target a local variable.
+
+```json
+{
+  "type": "ASSERT_VARIABLE",
+  "processInstanceSelector": { "processDefinitionId": "order-support" },
+  "elementSelector": { "elementId": "ReviewMissionPlan" },
+  "variableName": "agentSummary",
+  "similarTo": {
+    "expectedValue": "The order has shipped and will arrive in 3-5 business days.",
+    "threshold": 0.85
+  }
+}
+```
+
+`threshold` (0–1) is optional and overrides the project-level default for this one assertion. Use a higher threshold only when the expected and actual text should be very close in meaning; lower values tolerate paraphrasing.
+
+Pair either assertion with the `COMPLETE_JOB_AD_HOC_SUB_PROCESS` or `COMPLETE_JOB` instruction that produces the variable — the agent job must complete before the assertion runs.
 
 ## Schema-version reminder
 
