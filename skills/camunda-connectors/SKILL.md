@@ -18,6 +18,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl element-template` commands
 - **Local OOTB catalog synced** — run `c8ctl element-template sync` **once** before using `search`, `info`, `get-properties`, `get`, or `apply` with an OOTB template ID. Re-run (optionally with `--prune`) to pick up upstream changes. Applying a template from a local file path or `https://` URL bypasses the cache and does not require sync.
+- **c8ctl ≥ 3.2.0** for `--engine-version` and `--set` FEEL auto-`=`. If a flag is unrecognised, ask the user to upgrade: `npm install -g @camunda8/cli`
 
 ## Cross-References
 

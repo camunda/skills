@@ -40,7 +40,7 @@ c8ctl get topology --json   # confirm it's alive (use --json per command for scr
 
 ## Tooling
 
-All skill tooling is unified under c8ctl plugin commands. `bpmn format`, `--engine-version` on discovery commands, and auto-`=` for FEEL `--set` require **c8ctl ≥ 3.2.0**; if a flag is unrecognised, prompt the user to upgrade: `npm install -g @camunda8/cli`.
+All skill tooling is unified under c8ctl plugin commands:
 
 - **BPMN validation**: `c8ctl bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
 - **BPMN canonicalization**: `c8ctl bpmn format [<file.bpmn>] [-i]` — round-trip through bpmn-moddle to normalize whitespace, attribute order, and element shapes (same pass as Modeler save); `-i` rewrites in place, default prints to stdout
