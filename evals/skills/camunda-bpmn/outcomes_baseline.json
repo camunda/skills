@@ -1,16 +1,28 @@
 {
-  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
       "exclusive-gateway-routing": {
-        "tokens": 67246,
+        "tokens": {
+          "input": 7,
+          "cache_write": 8081,
+          "cache_read": 66007,
+          "output": 4548
+        },
         "turns": 5,
-        "tool_calls": 5
+        "tool_calls": 5,
+        "duration_s": 101
       },
       "linear-invoice-review": {
-        "tokens": 77856,
-        "turns": 6,
-        "tool_calls": 6
+        "tokens": {
+          "input": 7,
+          "cache_write": 1754,
+          "cache_read": 69650,
+          "output": 2295
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 74
       }
     }
   }

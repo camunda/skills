@@ -1,41 +1,83 @@
 {
-  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
       "ai-agent-ticket-triage": {
-        "tokens": 31777,
+        "tokens": {
+          "input": 7,
+          "cache_write": 9368,
+          "cache_read": 27108,
+          "output": 2387
+        },
         "turns": 3,
-        "tool_calls": 2
+        "tool_calls": 2,
+        "duration_s": 67
       },
       "custom-inbound-webhook": {
-        "tokens": 29634,
-        "turns": 3,
-        "tool_calls": 2
+        "tokens": {
+          "input": 8,
+          "cache_write": 11465,
+          "cache_read": 41034,
+          "output": 2032
+        },
+        "turns": 4,
+        "tool_calls": 3,
+        "duration_s": 67
       },
       "public-rest-api": {
-        "tokens": 16749,
-        "turns": 2,
-        "tool_calls": 1
+        "tokens": {
+          "input": 7,
+          "cache_write": 7750,
+          "cache_read": 27066,
+          "output": 1175
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 38
       },
       "reusable-internal-api": {
-        "tokens": 30295,
+        "tokens": {
+          "input": 7,
+          "cache_write": 7976,
+          "cache_read": 27114,
+          "output": 2050
+        },
         "turns": 3,
-        "tool_calls": 2
+        "tool_calls": 2,
+        "duration_s": 61
       },
       "slack-notification": {
-        "tokens": 29735,
+        "tokens": {
+          "input": 7,
+          "cache_write": 7790,
+          "cache_read": 27070,
+          "output": 1237
+        },
         "turns": 3,
-        "tool_calls": 2
+        "tool_calls": 2,
+        "duration_s": 41
       },
       "spring-embedded-throughput": {
-        "tokens": 46092,
+        "tokens": {
+          "input": 8,
+          "cache_write": 12260,
+          "cache_read": 40521,
+          "output": 2312
+        },
         "turns": 4,
-        "tool_calls": 4
+        "tool_calls": 4,
+        "duration_s": 74
       },
       "ts-node-stack": {
-        "tokens": 42977,
+        "tokens": {
+          "input": 8,
+          "cache_write": 9434,
+          "cache_read": 40455,
+          "output": 2179
+        },
         "turns": 4,
-        "tool_calls": 3
+        "tool_calls": 3,
+        "duration_s": 69
       }
     }
   }
