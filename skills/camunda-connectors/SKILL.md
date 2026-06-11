@@ -118,7 +118,7 @@ Note the `string(userId)` wrapper — `userId` is a number and FEEL does not aut
 
 `apply` errors with a helpful list of valid names if you pass an unknown property, and with the qualified-name list if a bare key is ambiguous.
 
-**FEEL value syntax.** `feel: required` values must start with `=`. Use `--set key='=value'` (outer quotes make `=` obvious) or `--set 'key==value'` (compact). Avoid `--set 'key== value'` — the space writes `source="= ..."` and Modeler shows the property as un-set. `c8ctl` writes verbatim; check `get-properties --detailed <name>` when unsure.
+**FEEL value syntax.** `feel: required` values must start with `=`. The canonical form is `--set key='=value'`; `--set 'key==value'` (compact) also works. *(c8ctl 3.2.0+)* For `feel: required` properties, c8ctl auto-prepends `=` when the value doesn't start with one, so `--set key=expression` stores `=expression`; value-side whitespace is trimmed. Check `get-properties --detailed <name>` when unsure about the `feel` setting for a property.
 
 **Defaults bake in.** `apply` materializes every active property with a default into the BPMN — `<zeebe:input>`, `<zeebe:output>`, `<zeebe:taskHeaders>`, and `<zeebe:property>` entries — not just the keys you `--set`. The defaults are captured at apply time — if the template later ships a new default, this BPMN keeps the old value.
 
