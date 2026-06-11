@@ -9,7 +9,9 @@ name: 🧪 Run skill evals
 #   - evals:run-all   → every target (suite integration check)
 #   - evals:compare   → also run the without-skill arm of outcome evals
 # workflow_dispatch (requires write access) can run a single target and toggle
-# the comparison. Model: the EVAL_MODEL repo var (default a Bedrock Claude).
+# the comparison. Model: the EVAL_MODEL repo var (default an Anthropic Claude);
+# the key is ANTHROPIC_API_KEY, read by Inspect on the runner — the sandbox
+# bridge proxies model calls back to it, so the container carries no credential.
 on:
   workflow_dispatch:
     inputs:
@@ -164,16 +166,16 @@ jobs:
 
       - name: Run eval
         # Single model via EVAL_MODEL. For a multi-model sweep, add a `model`
-        # axis to the matrix include built in `detect`. AWS creds wire the
-        # default Bedrock provider; swap if EVAL_MODEL points elsewhere.
+        # axis to the matrix include built in `detect`. ANTHROPIC_API_KEY is
+        # read by Inspect on the runner; the sandbox bridge proxies model calls
+        # back to it (the container carries no credential). Point EVAL_MODEL
+        # elsewhere + swap the key if running another provider.
         working-directory: evals
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --display ${{ matrix.display }} ${{ matrix.limit }} \
-            --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
+            --model "${{ vars.EVAL_MODEL || 'anthropic/claude-sonnet-4-6' }}" \
             --temperature 0 \
             ${{ matrix.targs }}
 

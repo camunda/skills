@@ -137,10 +137,8 @@ jobs:
       - name: Run eval + regenerate baseline
         working-directory: evals
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
-          MODEL: ${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL: ${{ vars.EVAL_MODEL || 'anthropic/claude-sonnet-4-6' }}
         run: |
           spec="${{ matrix.spec }}"
           dir="${spec%/outcomes.py}"   # skills/<name> or scenarios/<name>
