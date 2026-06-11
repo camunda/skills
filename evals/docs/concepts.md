@@ -163,6 +163,12 @@ What's gated and what isn't:
   is the cheapest, most volatile category — gating the total would police cache
   churn rather than the work the agent actually did. `cache_write`/`cache_read`
   are recorded (and the summary flags a ≥10% swing) for diagnosis, never gated.
+  They're also **timing-dependent across regenerations and indicative only**:
+  prompt caching shifts the static prefix between the write/read buckets
+  depending on whether an earlier epoch (run within the cache TTL) already warmed
+  it, so the committed split can move run-to-run even when nothing changed. The
+  gated I+O is unaffected — a cached prefix bills as `cache_*`, never as fresh
+  `input`, so `input` stays tiny whether the cache is warm or cold.
 - **`turns`, `tool_calls`, and `duration_s` are diagnostic too.** They're stored
   purely so the summary can show a *delta* ("+20% I+O, +2 turns") and point at
   *why* a cost moved — never a ceiling of their own (a second gate on noisy,
