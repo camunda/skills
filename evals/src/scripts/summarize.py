@@ -216,8 +216,20 @@ def render(
     grand = dict.fromkeys(USAGE_FIELDS, 0.0)  # run-wide token total (every arm)
     models: set[str] = set()
 
+    # Job-retry resilience: the summarize step merges every attempt's per-job log
+    # artifact, so re-running a failed job leaves two logs for the same eval×arm.
+    # Keep only the newest per (eval_name, arm) — else the table doubles the row
+    # and the headline double-counts that eval's tokens. Logs are timestamp-
+    # prefixed, so the greatest filename is the latest run.
+    latest: dict[tuple[str, str], tuple[str, object]] = {}
     for info in infos:
-        log = read_eval_log(getattr(info, "name", str(info)))
+        iname = getattr(info, "name", str(info))
+        log = read_eval_log(iname)
+        key = (eval_name(log) or "(unknown)", task_arg(log, "arm") or "with_skill")
+        if key not in latest or iname > latest[key][0]:
+            latest[key] = (iname, log)
+
+    for _iname, log in sorted(latest.values(), key=lambda v: v[0]):
         name = eval_name(log) or "(unknown)"
         is_trigger = name.startswith("trigger-")
         arm = task_arg(log, "arm") or "with_skill"
