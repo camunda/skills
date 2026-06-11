@@ -134,7 +134,7 @@ run-outcome-evals:
 	for s in "$$@"; do \
 		ms=$$(printf '%s' "$$targets" | uv run python -c "import sys,json; print(next((t['max_sandboxes'] for t in json.load(sys.stdin) if t['path']==sys.argv[1]), 1))" "$$s"); \
 		echo "=== $$s (max-sandboxes $$ms) ==="; \
-		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --model $(MODEL) --temperature $(TEMPERATURE) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
+		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --max-samples $$ms --model $(MODEL) --temperature $(TEMPERATURE) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 
