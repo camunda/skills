@@ -12,13 +12,15 @@ description: |
 
 # Camunda BPMN Modeling
 
-Create and edit executable BPMN 2.0 processes for Camunda 8.8+.
+Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid XML with Zeebe extensions and diagram coordinates.
 
 ## Prerequisites
 
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl bpmn lint`
 - **c8ctl ≥ 3.2.0** for `bpmn format`. If the command is unavailable, ask the user to upgrade: `npm install -g @camunda8/cli`
 - Node.js 18+ recommended — enables the bpmnkit authoring path (check with `node --version`)
+
+Authoring and linting are offline — no cluster needed. A Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed) is only required for the deploy-and-run step, which is delegated to **camunda-process-mgmt** / **camunda-process-test**.
 
 ## Authoring Path
 
@@ -35,16 +37,9 @@ node --version   # ≥ 18 → use bpmnkit  |  not found → manual XML
 
 ## Path A — bpmnkit (primary)
 
-`@bpmnkit/core` generates valid BPMN 2.0 XML with mandatory Camunda 8 namespace headers, Zeebe extensions, and DI coordinates via its auto-layout engine.
+`@bpmnkit/core` is a Node.js library that builds valid BPMN 2.0 XML — mandatory Camunda 8 namespace headers, Zeebe extensions, and DI coordinates — from a fluent API, at far fewer tokens than hand-writing XML. It runs under Node (baseline), Bun, or Deno.
 
-### Setup
-
-```bash
-mkdir -p /tmp/bpmnkit && cd /tmp/bpmnkit
-[ -d node_modules/@bpmnkit ] || npm install @bpmnkit/core
-```
-
-Write your script in that directory (`generate.mjs`) and run it with `node generate.mjs`. Write the output BPMN to wherever the task needs it — use an absolute path so the file ends up in the right place regardless of the script's working directory.
+Install into a scratch dir (`npm install @bpmnkit/core`), then run your script with `node script.mjs`. Write the output to an absolute path so it lands in the right place regardless of the script's working directory. Setup variants (Bun/Deno) are in [references/bpmnkit.md](references/bpmnkit.md).
 
 ### Minimal pattern
 
@@ -62,74 +57,9 @@ const defs = Bpmn.createProcess("my-process", "My Process")
 writeFileSync("/path/to/output/process.bpmn", Bpmn.export(defs));
 ```
 
-**Always pass `{ name: "..." }` to start events, end events, and gateways** — without it, `c8ctl bpmn lint` reports `label-required` errors.
+**Always pass `{ name: "..." }`** to start events, end events, and gateways — without it `c8ctl bpmn lint` reports `label-required`.
 
-### User task caveat
-
-bpmnkit does not emit `<zeebe:userTask />` automatically. After `Bpmn.export()`, inject it for user tasks that have a linked form:
-
-```javascript
-xml = xml.replace(/<zeebe:formDefinition /g, "<zeebe:userTask />\n        <zeebe:formDefinition ");
-```
-
-For user tasks without a form, add `<bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>` with the Edit tool after generation.
-
-Setting `formId` makes `formId.form` a required deliverable — author it via **camunda-forms**, or flag the gap in your final message.
-
-### Exclusive gateway (XOR)
-
-```javascript
-.exclusiveGateway("Check", { name: "Amount exceeds limit?" })
-.branch("high", b => b.condition("= amount > 1000")
-  .serviceTask("ApproveManually", { name: "Approve manually", taskType: "manual-approval" })
-  .connectTo("Join")
-)
-.branch("standard", b => b.defaultFlow()
-  .serviceTask("AutoApprove", { name: "Auto-approve", taskType: "auto-approval" })
-  .connectTo("Join")
-)
-.exclusiveGateway("Join", { name: "Approved" })
-```
-
-FEEL condition prefix `=` is required — `b.condition("= amount > 1000")`, not `"amount > 1000"`. Encode `>` as-is in the JS string; bpmnkit escapes it to `&gt;` in the XML attribute.
-
-### Parallel gateway (AND)
-
-```javascript
-.parallelGateway("Fork", { name: "Notify in parallel" })
-.branch("email", b => b.serviceTask("SendEmail", { name: "Send email", taskType: "send-email" }).connectTo("Join"))
-.branch("sms",   b => b.serviceTask("SendSms",   { name: "Send SMS",   taskType: "send-sms"   }).connectTo("Join"))
-.parallelGateway("Join", { name: "Notifications sent" })
-```
-
-### Timer boundary event
-
-```javascript
-.userTask("ReviewTask", { name: "Review" })
-.boundaryEvent("Timeout", {
-  attachedTo: "ReviewTask",
-  name: "5-min timeout",
-  timerDuration: "PT5M",
-  cancelActivity: true,
-})
-.serviceTask("Escalate", { name: "Escalate", taskType: "escalate" })
-.endEvent("Escalated", { name: "Escalated" })
-.element("ReviewTask")          // return cursor to the main path
-.endEvent("Done", { name: "Done" })
-```
-
-### Editing existing BPMN
-
-```javascript
-import { Bpmn } from "@bpmnkit/core";
-import { readFileSync, writeFileSync } from "fs";
-
-const defs = Bpmn.parse(readFileSync("process.bpmn", "utf-8"));
-// inspect or modify defs...
-writeFileSync("process.bpmn", Bpmn.export(defs));
-```
-
-Parse/export round-trips are lossless for bpmnkit-generated files. For Modeler-authored files with non-standard structure (e.g. missing `id` on `<definitions>`), fall back to manual Edit.
+**Two post-export fixes for Camunda 8.8+:** the exporter stamps `executionPlatformVersion="8.6.0"` and omits `<zeebe:userTask />`. Bump the version and inject the user-task element after `Bpmn.export()` — see [references/bpmnkit.md](references/bpmnkit.md), which also covers gateways, events, and editing existing files.
 
 ## Path B — Manual XML
 
@@ -185,6 +115,7 @@ Lint catches structure, not runtime behaviour. After lint passes, validate by ru
 
 ## References
 
+- [bpmnkit.md](references/bpmnkit.md) — bpmnkit setup, recipes (gateways, events), 8.8 compatibility, editing
 - [element-catalog.md](references/element-catalog.md)
 - [zeebe-extensions.md](references/zeebe-extensions.md)
 - [layout-rules.md](references/layout-rules.md)
