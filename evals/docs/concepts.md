@@ -44,7 +44,7 @@ Inspect's `react()` loop with `bash_session`, `text_editor`, `grep`,
 all 13 skills to the model. Cross-skill routing falls out of *which* skills the
 model chooses to load (a transcript signal), not from seeding files. The model
 is picked with Inspect's `--model` flag (default
-`anthropic/bedrock/global.anthropic.claude-sonnet-4-6`, set via the `EVAL_MODEL`
+`anthropic/claude-sonnet-4-6`, set via the `EVAL_MODEL`
 repo variable in CI). Two agent loops are selectable via `AGENT=` (`-T
 agent=`): `react` (the default, with the tools above) and `claude_code`, the
 `inspect_swe` Claude Code bridge. CI pins `react`; a full cross-harness matrix
@@ -124,17 +124,23 @@ If both arms pass equally, the skill may not be earning its keep. `without_skill
 is a *comparison, not a bar* — it's never gated. Triggers can't do this (you
 can't measure "the right skill loads" with it removed), so they run one arm only.
 
-## The cost baseline (tokens only)
+## The cost baseline (input+output tokens)
 
 Each outcome eval dir holds an `outcomes_baseline.json` recording, per arm, each
-passing sample's token count (plus turns and tool-calls):
+passing sample's token split (`input` / `cache_write` / `cache_read` / `output`)
+plus turns, tool-calls, and wall-clock duration:
 
 ```json
 {
-  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
-      "gateway-condition": { "tokens": 4200, "turns": 3, "tool_calls": 2 }
+      "gateway-condition": {
+        "tokens": { "input": 9, "cache_write": 0, "cache_read": 41000, "output": 620 },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 18
+      }
     }
   }
 }
@@ -147,16 +153,20 @@ A few terms, plainly:
 - **Median** — the middle of those runs. The baseline stores the **median across
   epochs** so one weird outlier run doesn't set the number.
 - **The `× 1.5` ceiling** — a sample may spend up to **1.5× its recorded
-  tokens** before the gate flags it. Loose enough to absorb normal run-to-run
-  wobble, tight enough to catch a real blow-up. It's a coarse cost *tripwire*,
-  not a precise budget.
+  input+output tokens** before the gate flags it. Loose enough to absorb normal
+  run-to-run wobble, tight enough to catch a real blow-up. It's a coarse cost
+  *tripwire*, not a precise budget.
 
 What's gated and what isn't:
 
-- **Only `tokens` is gated.** `turns` and `tool_calls` are stored purely so the
-  summary can show a *delta* ("+20% tokens, +2 turns") and point at *why* a cost
-  moved — they're never a ceiling of their own (a second gate on noisy,
-  correlated counts would just flake).
+- **Only `input + output` is gated.** Cache-read is ~90% of the all-in total and
+  is the cheapest, most volatile category — gating the total would police cache
+  churn rather than the work the agent actually did. `cache_write`/`cache_read`
+  are recorded (and the summary flags a ≥10% swing) for diagnosis, never gated.
+- **`turns`, `tool_calls`, and `duration_s` are diagnostic too.** They're stored
+  purely so the summary can show a *delta* ("+20% I+O, +2 turns") and point at
+  *why* a cost moved — never a ceiling of their own (a second gate on noisy,
+  correlated counts would just flake; duration is runner-noisy).
 - **Outcome correctness is gated by the scorers, never the baseline.** The
   baseline is a cost ceiling, full stop.
 - **A baseline is all-green or nothing.** Regeneration writes one only from a

@@ -6,12 +6,16 @@ existing comparison):
 1. **Outcome** — every gating scorer on a sample must score ≥ ``--threshold``
    (default 1.0). The "works / doesn't work anymore" signal. Diagnostic
    scorers (``metadata.gating == False``) are shown but don't gate.
-2. **Cost** — only when an ``outcomes_baseline.json`` exists for the eval AND the sample
-   passed outcome: observed tokens must be ≤ ``baseline.<arm>.samples.<id>.tokens
-   × 1.5`` (upper ceiling only). The "still works but costs ~2× now" signal.
-   A sample with no baseline entry is reported, not gated. The whole cost stage
-   is skipped (with a warning) when the run's model differs from the baseline's
-   — token ceilings are model-specific, so cross-model gating is invalid.
+2. **Cost** — only when an ``outcomes_baseline.json`` exists for the eval AND
+   the sample passed outcome: observed **input + output** tokens must be ≤
+   ``baseline.<arm>.samples.<id>`` (input + output) ``× 1.5`` (upper ceiling
+   only). The "still works but costs ~2× now" signal. We gate input+output, not
+   the all-in total: the total is ~90% cache-read — the cheapest, most volatile
+   category — so a total-token ceiling polices cache churn while letting real
+   output growth through. Cache-read/-write are recorded (in the baseline and
+   the summary) for diagnosis, not gated. A sample with no baseline entry is
+   reported, not gated. The whole cost stage is skipped (with a warning) when
+   the run's model differs from the baseline's — ceilings are model-specific.
 
 Exit 0 on full pass, 1 otherwise. Wire as the CI gate after a run.
 
@@ -28,12 +32,13 @@ from pathlib import Path
 from inspect_ai.log import list_eval_logs, read_eval_log
 
 from core.metrics import (
+    REDUCED_FIELDS,
     baseline_dir,
+    eval_name,
     gating_by_scorer,
     model_id,
     reduced_metrics,
     reduced_scores,
-    eval_name,
     task_arg,
 )
 from core.paths import EVALS_ROOT
@@ -54,14 +59,34 @@ def _resolve_log_path(arg: str | None) -> str:
     return max(logs, key=lambda li: li.name).name
 
 
+def _io(d: dict) -> float | None:
+    """input + output (the gated quantity) from a flat metrics dict — a
+    ``reduced_metrics`` row, whose token categories sit at the top level. None
+    when either component is missing."""
+    i, o = d.get("input"), d.get("output")
+    if isinstance(i, (int, float)) and isinstance(o, (int, float)):
+        return float(i) + float(o)
+    return None
+
+
+def _baseline_io(entry: dict) -> float | None:
+    """input + output from a committed baseline entry, whose token categories are
+    nested under ``tokens`` (``{input, cache_write, cache_read, output}``). None
+    when the entry predates the nested schema or is partial."""
+    if not isinstance(entry, dict):
+        return None
+    tokens = entry.get("tokens")
+    return _io(tokens) if isinstance(tokens, dict) else None
+
+
 def _outcome_rows(log, threshold: float) -> tuple[list[dict], bool]:
     """Per-sample scorer breakdown + overall outcome-pass bit.
 
     One row per distinct sample id, reading epoch-reduced scores
-    (``reduced_scores``) and cost/effort signals (``reduced_metrics``) — so a multi-epoch run
-    yields one verdict per sample, not one per id×epoch. With a ``mean`` reducer
-    and the default threshold 1.0, a sample must pass *every* epoch to be green;
-    a flaky 2/3 reduces to 0.67 and fails.
+    (``reduced_scores``) and cost/effort signals (``reduced_metrics``) — so a
+    multi-epoch run yields one verdict per sample, not one per id×epoch. With a
+    ``mean`` reducer and the default threshold 1.0, a sample must pass *every*
+    epoch to be green; a flaky 2/3 reduces to 0.67 and fails.
     """
     gating = gating_by_scorer(log)
     metrics = reduced_metrics(log)
@@ -78,10 +103,9 @@ def _outcome_rows(log, threshold: float) -> tuple[list[dict], bool]:
                 "sample_id": sample_id,
                 "scorers": values,
                 "diagnostic": sorted(diagnostic),
-                # tokens gates the cost ceiling; turns/tool_calls are diagnostic.
-                "tokens": m.get("tokens", 0.0),
-                "turns": m.get("turns", 0.0),
-                "tool_calls": m.get("tool_calls", 0.0),
+                # input/output gate the cost ceiling; cache_*/tokens/turns/
+                # tool_calls/duration_s are diagnostic (see REDUCED_FIELDS).
+                **{f: m.get(f, 0.0) for f in REDUCED_FIELDS},
                 "pass": ok,
             }
         )
@@ -104,12 +128,11 @@ def _load_baseline(name: str | None) -> dict | None:
 def _model_mismatch(log, baseline: dict) -> str | None:
     """A reason string when the run's model differs from the baseline's, else None.
 
-    Token ceilings are model-specific (see concepts), so gating a run against a
-    baseline recorded on a different model is invalid — it false-fails on a
-    pricier model and false-passes on a cheaper one. When both models are known
-    and differ, the caller skips the cost gate. ``"unknown"`` on either side
-    (an older baseline, a log without a model) is treated as no-info, not a
-    mismatch — gate as before.
+    Token ceilings are model-specific, so gating a run against a baseline
+    recorded on a different model is invalid — it false-fails on a pricier model
+    and false-passes on a cheaper one. When both models are known and differ, the
+    caller skips the cost gate. ``"unknown"`` on either side (an older baseline,
+    a log without a model) is treated as no-info, not a mismatch — gate as before.
     """
     run = model_id(log)
     base = baseline.get("model")
@@ -121,7 +144,7 @@ def _model_mismatch(log, baseline: dict) -> str | None:
 def _cost_checks(
     rows: list[dict], baseline: dict, arm: str | None
 ) -> tuple[list[dict], bool]:
-    """Per-sample token ceiling for samples that passed outcome."""
+    """Per-sample input+output ceiling for samples that passed outcome."""
     arm_block = baseline.get(arm or "with_skill") or {}
     sample_baselines = arm_block.get("samples") or {}
     checks: list[dict] = []
@@ -130,8 +153,8 @@ def _cost_checks(
         if not row["pass"]:
             continue
         entry = sample_baselines.get(row["sample_id"])
-        tokens = entry.get("tokens") if isinstance(entry, dict) else None
-        if not isinstance(tokens, (int, float)):
+        base_io = _baseline_io(entry)
+        if base_io is None:
             checks.append(
                 {
                     "sample_id": row["sample_id"],
@@ -140,16 +163,19 @@ def _cost_checks(
                 }
             )
             continue
-        ceiling = tokens * CEILING_MULTIPLIER
-        ok = row["tokens"] <= ceiling
+        obs_io = _io(row) or 0.0
+        ceiling = base_io * CEILING_MULTIPLIER
+        ok = obs_io <= ceiling
         all_passed = all_passed and ok
         checks.append(
             {
                 "sample_id": row["sample_id"],
                 "pass": ok,
-                "tokens": round(row["tokens"]),
-                "baseline": tokens,
+                "io": round(obs_io),
+                "baseline": round(base_io),
                 "ceiling": round(ceiling),
+                # total tokens carried for the summary's headline; not gated.
+                "tokens": round(row.get("tokens", 0.0)),
             }
         )
     return checks, all_passed
@@ -161,21 +187,27 @@ def _render(rows, cost_checks, name, arm, threshold) -> str:
         "",
     ]
     for r in rows:
-        scs = " ".join(f"{n}={v:.2f}" for n, v in sorted(r["scorers"].items()))
+        scs = " ".join(
+            f"{n}={v:.2f}{'*' if n in r['diagnostic'] else ''}"
+            for n, v in sorted(r["scorers"].items())
+        )
         lines.append(f"  [{'PASS' if r['pass'] else 'FAIL'}] {r['sample_id']}: {scs}")
     passed = sum(1 for r in rows if r["pass"])
     lines.append(
-        f"\noutcome: {passed}/{len(rows)} sample(s) passed every gating scorer (≥ {threshold})"
+        f"\noutcome: {passed}/{len(rows)} sample(s) passed every gating scorer "
+        f"(≥ {threshold})"
     )
+    if any(r["diagnostic"] for r in rows):
+        lines.append("(* = diagnostic scorer, shown but not gating)")
     if cost_checks:
-        lines.append("\ntoken budget (baseline × 1.5):")
+        lines.append("\ncost gate — input+output (baseline × 1.5):")
         for c in cost_checks:
             if "note" in c:
                 lines.append(f"  [warn] {c['sample_id']}: {c['note']}")
             else:
                 lines.append(
                     f"  [{'PASS' if c['pass'] else 'FAIL'}] {c['sample_id']}: "
-                    f"{c['tokens']} / ceiling {c['ceiling']} (baseline {c['baseline']})"
+                    f"io {c['io']} / ceiling {c['ceiling']} (baseline {c['baseline']})"
                 )
     return "\n".join(lines)
 
