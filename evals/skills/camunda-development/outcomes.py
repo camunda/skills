@@ -31,7 +31,7 @@ METADATA = EvalMetadata(
         "camunda-ai-agents",
     ],
     without_skill_excludes="all",
-    max_sandboxes=10,  # judge-only, no cluster — run all samples concurrently
+    max_sandboxes=15,  # judge-only, no cluster — run samples concurrently
 )
 
 # Strict pass/fail (no partial credit) — routing has one right answer.

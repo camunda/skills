@@ -30,8 +30,11 @@ def build_specs(targets: list[EvalTarget], compare: bool) -> list[dict]:
 
     Triggers are sandbox-free single-shot routing calls (samples run in
     parallel). Outcome evals run one sandbox per sample (= a Camunda cluster),
-    so concurrency is capped from the target's ``max_sandboxes``, and they run
-    ``with_skill`` plus ``without_skill`` when ``compare``.
+    so concurrency is capped from the target's ``max_sandboxes`` — passed as both
+    ``--max-sandboxes`` AND ``--max-samples`` (Inspect's ``max_samples`` defaults
+    to 1, so without the latter samples run serially however many sandboxes are
+    allowed; cluster targets keep this at 1, judge-only targets parallelize).
+    They run ``with_skill`` plus ``without_skill`` when ``compare``.
     """
     specs: list[dict] = []
     for t in targets:
@@ -61,7 +64,7 @@ def build_specs(targets: list[EvalTarget], compare: bool) -> list[dict]:
                     "targs": f"-T agent=react -T arm={arm} {base_targs}".strip(),
                     "arm": arm,
                     "sandbox": True,
-                    "limit": f"--max-sandboxes {t.max_sandboxes}",
+                    "limit": f"--max-sandboxes {t.max_sandboxes} --max-samples {t.max_sandboxes}",
                     "display": "conversation",
                 }
             )

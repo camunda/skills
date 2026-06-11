@@ -33,7 +33,7 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 **Gating is the label.** Only collaborators with triage or higher can label a
 PR, and `workflow_dispatch` requires write access — so there's no separate
 authorization job. Because the workflows use `pull_request` (not
-`pull_request_target`), a fork PR never receives the AWS secrets: model runs only
+`pull_request_target`), a fork PR never receives the model secret: model runs only
 happen on branches in this repo.
 
 ## Labels
@@ -140,20 +140,19 @@ prompts, modulo model non-determinism (`--epochs 3` to check flake).
 
 ## Credentials & secrets
 
-The model id is configuration. CI defaults to
-`anthropic/bedrock/global.anthropic.claude-sonnet-4-6` (Inspect's `anthropic`
-provider with the `bedrock/` qualifier), switchable in one place — the
-`EVAL_MODEL` repo variable. For the Bedrock default the workflows read:
+The model id is configuration. CI defaults to `anthropic/claude-sonnet-4-6`
+(Inspect's `anthropic` provider), switchable in one place — the `EVAL_MODEL` repo
+variable. The workflows read:
 
 | Kind | Name | Purpose |
 |---|---|---|
-| Secret | `AWS_ACCESS_KEY_ID` | model auth |
-| Secret | `AWS_SECRET_ACCESS_KEY` | model auth |
-| Variable | `AWS_DEFAULT_REGION` | region (default `us-east-1`) |
+| Secret | `ANTHROPIC_API_KEY` | model auth |
 | Variable | `EVAL_MODEL` | optional — overrides the CI model id |
 
-Set these under **Settings → Secrets and variables → Actions**. Point
-`EVAL_MODEL` at a non-AWS provider and swap the credential env in the run step.
+Set these under **Settings → Secrets and variables → Actions**. `ANTHROPIC_API_KEY`
+is read by Inspect on the runner; the sandbox bridge proxies model calls back to
+it, so the container carries no credential. Point `EVAL_MODEL` at another provider
+and swap the credential env in the run step.
 
 ## Cost controls
 

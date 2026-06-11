@@ -1,17 +1,20 @@
 """Render a Markdown summary of an eval run. Non-gating signal.
 
-Always: a headline verdict and the run's model + token usage (total tokens
-with an `[I/CW/CR/O]` input / cache-write / cache-read / output split), an
-outcome table (pass + tokens vs committed baseline), a trigger routing table,
-and a with/without-skill delta when an
-``evals:compare`` run provides both arms. ``--detail`` adds a per-eval token
-column plus a per-sample breakdown (tokens/turns/tool-calls vs baseline) — the
-job-summary deep dive, omitted from the lean PR comment.
+Always: a headline verdict and the run's model + token usage (total tokens with
+an `[I/CW/CR/O]` input / cache-write / cache-read / output split), an outcome
+table (pass + the gated **I+O** tokens vs committed baseline), a trigger routing
+table, and a with/without-skill delta when an ``evals:compare`` run provides both
+arms. When an outcome eval has a failing sample, a **Needs attention** section
+names the sample and the gating scorer that dipped (or the cost-ceiling breach),
+so the lean PR comment is self-sufficient — no opening the matrix job's Gate step.
+``--detail`` adds a per-eval token-split column plus a per-sample breakdown
+(I+O / turns / tool-calls / duration vs baseline) — the job-summary deep dive,
+omitted from the lean PR comment.
 
-Tables are column-aligned so the raw output is readable on a CLI; GitHub
-renders them identically. Consumed by ``.github/workflows/eval.yml`` (PR
-comment + ``$GITHUB_STEP_SUMMARY``) and ``eval-nightly.yml`` (job summary).
-The workflow prepends its own hidden find-comment marker for the PR comment.
+Tables are column-aligned so the raw output is readable on a CLI; GitHub renders
+them identically. Consumed by ``.github/workflows/eval.yml`` (PR comment +
+``$GITHUB_STEP_SUMMARY``) and ``eval-nightly.yml`` (job summary). The workflow
+prepends its own hidden find-comment marker for the PR comment.
 """
 
 from __future__ import annotations
@@ -24,16 +27,18 @@ from inspect_ai.log import list_eval_logs, read_eval_log
 
 from core.metrics import (
     USAGE_FIELDS,
+    eval_name,
     eval_source_path,
     model_id,
-    eval_name,
     task_arg,
     token_usage,
 )
 from core.paths import EVALS_ROOT
 from scripts.pass_fail import (
     CEILING_MULTIPLIER,
+    _baseline_io,
     _cost_checks,
+    _io,
     _load_baseline,
     _outcome_rows,
 )
@@ -95,6 +100,7 @@ def _verdict(passed: int, total: int) -> str:
 
 
 def _token_cell(cost_checks: list[dict] | None) -> str:
+    """The outcome-table cost cell: summed observed I+O vs summed baseline I+O."""
     if cost_checks is None:
         return "— no baseline"
     graded = [c for c in cost_checks if "baseline" in c]
@@ -104,7 +110,7 @@ def _token_cell(cost_checks: list[dict] | None) -> str:
     hint = f" · {no_base} no baseline" if no_base else ""
     if not graded:
         return "— regenerate baseline" + hint
-    observed = sum(c["tokens"] for c in graded)
+    observed = sum(c["io"] for c in graded)
     base = sum(c["baseline"] for c in graded)
     pct = (observed - base) / base * 100 if base else 0.0
     over = [c for c in graded if not c["pass"]]
@@ -112,19 +118,19 @@ def _token_cell(cost_checks: list[dict] | None) -> str:
     return f"{icon} `{_fmt(observed)}` ({pct:+.0f}% vs `{_fmt(base)}`){hint}"
 
 
-def _over_ceiling(obs: float, base: dict | None) -> bool:
-    b = base.get("tokens") if base else None
-    return isinstance(b, (int, float)) and obs > b * CEILING_MULTIPLIER
+def _over_ceiling(obs_io: float, base: dict | None) -> bool:
+    b = _baseline_io(base) if isinstance(base, dict) else None
+    return isinstance(b, (int, float)) and obs_io > b * CEILING_MULTIPLIER
 
 
-def _tok_detail(obs: float, base: dict | None) -> str:
-    """Per-sample observed tokens, backticked, with Δ% vs baseline when it
-    moved (≥5%); a bare value otherwise, or ``(new)`` with no baseline."""
-    b = base.get("tokens") if base else None
+def _io_detail(obs_io: float, base: dict | None) -> str:
+    """Per-sample observed I+O, backticked, with Δ% vs baseline when it moved
+    (≥5%); a bare value otherwise, or ``(new)`` with no baseline."""
+    b = _baseline_io(base) if isinstance(base, dict) else None
     if not isinstance(b, (int, float)):
-        return f"`{_fmt(obs)}` (new)"
-    pct = (obs - b) / b * 100 if b else 0.0
-    return f"`{_fmt(obs)}` {pct:+.0f}%" if abs(pct) >= 5 else f"`{_fmt(obs)}`"
+        return f"`{_fmt(obs_io)}` (new)"
+    pct = (obs_io - b) / b * 100 if b else 0.0
+    return f"`{_fmt(obs_io)}` {pct:+.0f}%" if abs(pct) >= 5 else f"`{_fmt(obs_io)}`"
 
 
 def _count_detail(obs: float, base: dict | None, key: str) -> str:
@@ -137,16 +143,44 @@ def _count_detail(obs: float, base: dict | None, key: str) -> str:
     return f"`{obs}`"
 
 
+def _dur_detail(obs_s: float, base: dict | None) -> str:
+    """Per-sample wall time in seconds, backticked, with Δ% vs baseline when it
+    moved (≥10%). Diagnostic only — runner-noisy, never gates."""
+    obs = round(obs_s)
+    b = base.get("duration_s") if base else None
+    if not isinstance(b, (int, float)) or not b:
+        return f"`{obs}s`"
+    pct = (obs - b) / b * 100
+    return f"`{obs}s` {pct:+.0f}%" if abs(pct) >= 10 else f"`{obs}s`"
+
+
 def _usage(u: dict[str, float]) -> str:
     """Token breakdown: total tokens [I, CW, CR, O] (their sum)."""
     i, cw, cr, o = (round(u[f]) for f in USAGE_FIELDS)
     return f"{i + cw + cr + o:,} tokens [I: {i:,}, CW: {cw:,}, CR: {cr:,}, O: {o:,}]"
 
 
-def _split(u: dict[str, float]) -> str:
-    """Per-eval token split as a backticked (monospace) I·CW·CR·O cell."""
+def _split(u: dict[str, float], base: dict | None = None) -> str:
+    """Per-eval token split as a backticked (monospace) I·CW·CR·O cell.
+
+    With a baseline split, appends Δ% on the **cache** categories (CW/CR) when
+    they moved ≥10% — the diagnostic the cost gate (I+O only) doesn't surface, so
+    a cache-read blow-up is visible even though it never gates. I and O carry no
+    Δ here; their movement is the gated quantity shown in the I+O column.
+    """
+
+    def cache(cat: str, val: float) -> str:
+        val = round(val)
+        b = base.get(cat) if base else None
+        if isinstance(b, (int, float)) and b and abs((val - b) / b * 100) >= 10:
+            return f"{val:,} ({(val - b) / b * 100:+.0f}%)"
+        return f"{val:,}"
+
     i, cw, cr, o = (round(u[f]) for f in USAGE_FIELDS)
-    return f"`I {i:,} · CW {cw:,} · CR {cr:,} · O {o:,}`"
+    return (
+        f"`I {i:,} · CW {cache('cache_write', cw)} · "
+        f"CR {cache('cache_read', cr)} · O {o:,}`"
+    )
 
 
 def _name_cell(name: str, blob_base: str | None, is_trigger: bool) -> str:
@@ -169,8 +203,8 @@ def render(
     """Render the run summary as Markdown.
 
     ``detail`` adds a per-eval token-split (I·CW·CR·O) column and a per-sample
-    breakdown (tokens/turns/tool-calls, each with its Δ vs baseline) — the
-    job-summary deep dive, omitted from the lean PR comment. ``blob_base``
+    breakdown (I+O / turns / tool-calls / duration, each with its Δ vs baseline)
+    — the job-summary deep dive, omitted from the lean PR comment. ``blob_base``
     (a ``…/blob/<ref>`` URL) links each eval name to its source; ``run_url``
     appends a footer pointing at the run (used by the PR comment).
     """
@@ -180,13 +214,25 @@ def render(
 
     # rows carry their gating-arm usage dict so --detail can append a token column
     triggers: list[tuple] = []  # (skill, passed, total, usage)
-    results: list[tuple] = []  # (name, passed, total, cost, usage)
+    results: list[tuple] = []  # (name, passed, total, cost, split, base_split, samples)
     outcomes: dict[str, dict[str, float]] = {}  # name -> {arm: rate} for the delta
     grand = dict.fromkeys(USAGE_FIELDS, 0.0)  # run-wide token total (every arm)
     models: set[str] = set()
 
+    # Job-retry resilience: the summarize step merges every attempt's per-job log
+    # artifact, so re-running a failed job leaves two logs for the same eval×arm.
+    # Keep only the newest per (eval_name, arm) — else the table doubles the row
+    # and the headline double-counts that eval's tokens. Logs are timestamp-
+    # prefixed, so the greatest filename is the latest run.
+    latest: dict[tuple[str, str], tuple[str, object]] = {}
     for info in infos:
-        log = read_eval_log(getattr(info, "name", str(info)))
+        iname = getattr(info, "name", str(info))
+        log = read_eval_log(iname)
+        key = (eval_name(log) or "(unknown)", task_arg(log, "arm") or "with_skill")
+        if key not in latest or iname > latest[key][0]:
+            latest[key] = (iname, log)
+
+    for _iname, log in sorted(latest.values(), key=lambda v: v[0]):
         name = eval_name(log) or "(unknown)"
         is_trigger = name.startswith("trigger-")
         arm = task_arg(log, "arm") or "with_skill"
@@ -208,19 +254,55 @@ def render(
                 _cost_checks(rows, baseline, arm)[0] if baseline is not None else None
             )
             arm_samples = ((baseline or {}).get(arm) or {}).get("samples") or {}
+            # Per-eval split from the reduced rows (median per sample), not the
+            # raw token_usage(log) sum — so it's epoch-robust and comparable to
+            # the baseline's per-sample medians. The baseline split sums the
+            # nested tokens.* across the arm's samples; None when no baseline.
+            live_split = {f: sum(r.get(f, 0.0) for r in rows) for f in USAGE_FIELDS}
+            base_split = (
+                {
+                    f: sum(
+                        t.get(f, 0)
+                        for s in arm_samples.values()
+                        if isinstance((t := s.get("tokens")), dict)
+                    )
+                    for f in USAGE_FIELDS
+                }
+                if arm_samples
+                else None
+            )
             samples_detail = [
                 {
                     "id": r["sample_id"],
-                    "tokens": r["tokens"],
+                    "io": _io(r) or 0.0,
                     "turns": r["turns"],
                     "tool_calls": r["tool_calls"],
+                    "duration_s": r["duration_s"],
+                    # The gating scorers that dipped below threshold on this
+                    # sample — what to name in "Needs attention". Diagnostic
+                    # scorers (metadata.gating == False) don't gate, so skip them.
+                    "fail_scorers": {
+                        n: v
+                        for n, v in r["scorers"].items()
+                        if n not in r["diagnostic"] and v < 1.0
+                    },
                     "base": b
                     if isinstance((b := arm_samples.get(r["sample_id"])), dict)
                     else None,
                 }
                 for r in sorted(rows, key=lambda r: r["sample_id"])
             ]
-            results.append((name, passed, total, cost_checks, u, samples_detail))
+            results.append(
+                (
+                    name,
+                    passed,
+                    total,
+                    cost_checks,
+                    live_split,
+                    base_split,
+                    samples_detail,
+                )
+            )
 
     def outcome_ok(it) -> bool:
         return it[1] == it[2] and it[2]
@@ -250,13 +332,14 @@ def render(
         f"{headline}. Non-blocking signal (doesn't block merge).",
         "",
         f"Model {model_str} · {_usage(grand)}",
-        "_I input · CW cache-write · CR cache-read · O output._",
+        "_I input · CW cache-write · CR cache-read · O output. Cost gate keys on "
+        "I+O; CW/CR are diagnostic._",
     ]
 
     if results:
         out += ["", "#### Outcome evals"]
         out += _table(
-            ["Eval", "Outcome", "Tokens (vs baseline)"]
+            ["Eval", "Outcome", "I+O (vs baseline)"]
             + (["Token split (I·CW·CR·O)"] if detail else []),
             [
                 [
@@ -264,35 +347,61 @@ def render(
                     _verdict(passed, total),
                     _token_cell(cost),
                 ]
-                + ([_split(u)] if detail else [])
-                for name, passed, total, cost, u, _ in sorted(
+                + ([_split(split, base_split)] if detail else [])
+                for name, passed, total, cost, split, base_split, _ in sorted(
                     results, key=lambda r: r[0]
                 )
             ],
             ["l", "c", "r"] + (["l"] if detail else []),
         )
 
+        # Name exactly which sample + scorer (or cost ceiling) tripped, so the
+        # lean PR comment is self-sufficient — no opening the matrix job's Gate
+        # step to find out. Shown in both the lean and --detail surfaces.
+        attention_lines: list[str] = []
+        for name, _p, _t, cost, _ls, _bs, samples in sorted(
+            results, key=lambda r: r[0]
+        ):
+            for s in samples:
+                if s["fail_scorers"]:
+                    scs = ", ".join(
+                        f"{n} `{v:.2f}`" for n, v in sorted(s["fail_scorers"].items())
+                    )
+                    attention_lines.append(f"- `{name}` › `{s['id']}` — {scs} (< 1.0)")
+            for c in cost or []:
+                if "io" in c and not c.get("pass", True):
+                    attention_lines.append(
+                        f"- `{name}` › `{c['sample_id']}` — I+O `{_fmt(c['io'])}` "
+                        f"> ceiling `{_fmt(c['ceiling'])}` (baseline `{_fmt(c['baseline'])}`)"
+                    )
+        if attention_lines:
+            out += ["", "#### Needs attention", *attention_lines]
+
     if detail and results:
         out += ["", "#### Per-sample detail"]
         out += _table(
-            ["Eval · Sample", "Tokens (vs baseline)", "Turns", "Tools"],
+            ["Eval · Sample", "I+O (vs baseline)", "Turns", "Tools", "Duration"],
             [
                 [
-                    f"{'🔴 ' if _over_ceiling(s['tokens'], s['base']) else ''}"
+                    f"{'🔴 ' if _over_ceiling(s['io'], s['base']) else ''}"
                     f"{name.removeprefix('camunda-')} · `{s['id']}`",
-                    _tok_detail(s["tokens"], s["base"]),
+                    _io_detail(s["io"], s["base"]),
                     _count_detail(s["turns"], s["base"], "turns"),
                     _count_detail(s["tool_calls"], s["base"], "tool_calls"),
+                    _dur_detail(s["duration_s"], s["base"]),
                 ]
-                for name, _p, _t, _c, _u, samples in sorted(results, key=lambda r: r[0])
+                for name, _p, _t, _c, _ls, _bs, samples in sorted(
+                    results, key=lambda r: r[0]
+                )
                 for s in samples
             ],
-            ["l", "r", "r", "r"],
+            ["l", "r", "r", "r", "r"],
         )
         out += [
             "",
-            "_Δ is vs the committed baseline; a bare number means within ±5% "
-            "(tokens) or unchanged (turns/tools). “(new)” = no baseline yet._",
+            "_Δ is vs the committed baseline; a bare number means within ±5% (I+O), "
+            "±10% (duration), or unchanged (turns/tools). “(new)” = no baseline yet. "
+            "Only I+O gates; duration is diagnostic._",
         ]
 
     if triggers:
