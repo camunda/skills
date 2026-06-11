@@ -4,7 +4,10 @@ Always: a headline verdict and the run's model + token usage (total tokens with
 an `[I/CW/CR/O]` input / cache-write / cache-read / output split), an outcome
 table (pass + the gated **I+O** tokens vs committed baseline), a trigger routing
 table, and a with/without-skill delta when an ``evals:compare`` run provides both
-arms. ``--detail`` adds a per-eval token-split column plus a per-sample breakdown
+arms. When an outcome eval has a failing sample, a **Needs attention** section
+names the sample and the gating scorer that dipped (or the cost-ceiling breach),
+so the lean PR comment is self-sufficient — no opening the matrix job's Gate step.
+``--detail`` adds a per-eval token-split column plus a per-sample breakdown
 (I+O / turns / tool-calls / duration vs baseline) — the job-summary deep dive,
 omitted from the lean PR comment.
 
@@ -275,6 +278,14 @@ def render(
                     "turns": r["turns"],
                     "tool_calls": r["tool_calls"],
                     "duration_s": r["duration_s"],
+                    # The gating scorers that dipped below threshold on this
+                    # sample — what to name in "Needs attention". Diagnostic
+                    # scorers (metadata.gating == False) don't gate, so skip them.
+                    "fail_scorers": {
+                        n: v
+                        for n, v in r["scorers"].items()
+                        if n not in r["diagnostic"] and v < 1.0
+                    },
                     "base": b
                     if isinstance((b := arm_samples.get(r["sample_id"])), dict)
                     else None,
@@ -343,6 +354,28 @@ def render(
             ],
             ["l", "c", "r"] + (["l"] if detail else []),
         )
+
+        # Name exactly which sample + scorer (or cost ceiling) tripped, so the
+        # lean PR comment is self-sufficient — no opening the matrix job's Gate
+        # step to find out. Shown in both the lean and --detail surfaces.
+        attention_lines: list[str] = []
+        for name, _p, _t, cost, _ls, _bs, samples in sorted(
+            results, key=lambda r: r[0]
+        ):
+            for s in samples:
+                if s["fail_scorers"]:
+                    scs = ", ".join(
+                        f"{n} `{v:.2f}`" for n, v in sorted(s["fail_scorers"].items())
+                    )
+                    attention_lines.append(f"- `{name}` › `{s['id']}` — {scs} (< 1.0)")
+            for c in cost or []:
+                if "io" in c and not c.get("pass", True):
+                    attention_lines.append(
+                        f"- `{name}` › `{c['sample_id']}` — I+O `{_fmt(c['io'])}` "
+                        f"> ceiling `{_fmt(c['ceiling'])}` (baseline `{_fmt(c['baseline'])}`)"
+                    )
+        if attention_lines:
+            out += ["", "#### Needs attention", *attention_lines]
 
     if detail and results:
         out += ["", "#### Per-sample detail"]
