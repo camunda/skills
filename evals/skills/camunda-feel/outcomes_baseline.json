@@ -5,8 +5,8 @@
       "bool-guard": {
         "tokens": {
           "input": 5,
-          "cache_write": 160,
-          "cache_read": 29691,
+          "cache_write": 2449,
+          "cache_read": 27474,
           "output": 310
         },
         "turns": 3,
@@ -16,20 +16,20 @@
       "list-sum": {
         "tokens": {
           "input": 7,
-          "cache_write": 505,
-          "cache_read": 51524,
-          "output": 624
+          "cache_write": 506,
+          "cache_read": 51512,
+          "output": 647
         },
         "turns": 5,
         "tool_calls": 4,
-        "duration_s": 41
+        "duration_s": 42
       },
       "string-greeting": {
         "tokens": {
           "input": 6,
-          "cache_write": 499,
-          "cache_read": 40703,
-          "output": 500
+          "cache_write": 484,
+          "cache_read": 40709,
+          "output": 514
         },
         "turns": 4,
         "tool_calls": 4,

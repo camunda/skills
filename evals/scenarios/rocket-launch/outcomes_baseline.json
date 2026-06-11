@@ -4,14 +4,14 @@
     "samples": {
       "timer-countdown": {
         "tokens": {
-          "input": 25,
-          "cache_write": 22179,
-          "cache_read": 598876,
-          "output": 7455
+          "input": 16,
+          "cache_write": 19496,
+          "cache_read": 313206,
+          "output": 4854
         },
-        "turns": 23,
-        "tool_calls": 25,
-        "duration_s": 208
+        "turns": 14,
+        "tool_calls": 16,
+        "duration_s": 153
       }
     }
   }

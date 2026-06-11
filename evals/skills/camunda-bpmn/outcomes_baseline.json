@@ -5,24 +5,24 @@
       "exclusive-gateway-routing": {
         "tokens": {
           "input": 7,
-          "cache_write": 8081,
-          "cache_read": 66007,
-          "output": 4548
+          "cache_write": 8105,
+          "cache_read": 65917,
+          "output": 4470
         },
         "turns": 5,
         "tool_calls": 5,
-        "duration_s": 101
+        "duration_s": 98
       },
       "linear-invoice-review": {
         "tokens": {
           "input": 7,
-          "cache_write": 1754,
-          "cache_read": 69650,
-          "output": 2295
+          "cache_write": 5995,
+          "cache_read": 63754,
+          "output": 2315
         },
         "turns": 5,
         "tool_calls": 5,
-        "duration_s": 74
+        "duration_s": 78
       }
     }
   }
