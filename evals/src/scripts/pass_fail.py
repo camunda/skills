@@ -5,7 +5,11 @@ existing comparison):
 
 1. **Outcome** — every gating scorer on a sample must score ≥ ``--threshold``
    (default 1.0). The "works / doesn't work anymore" signal. Diagnostic
-   scorers (``metadata.gating == False``) are shown but don't gate.
+   scorers (``metadata.gating == False``) are shown but don't gate. A sample
+   that ran but never scored (errored / aborted), or a run with no scored
+   samples at all, fails too — the gate sees only scored samples, so an
+   all-errored run must not pass by omission (mirrors the all-green guard in
+   ``regenerate_baseline``).
 2. **Cost** — only when an ``outcomes_baseline.json`` exists for the eval AND
    the sample passed outcome: observed **input + output** tokens must be ≤
    ``baseline.<arm>.samples.<id>`` (input + output) ``× 1.5`` (upper ceiling
@@ -227,6 +231,16 @@ def main() -> None:
     arm = task_arg(log, "arm")
     rows, outcome_passed = _outcome_rows(log, args.threshold)
 
+    # A sample that ran but never scored (errored / aborted), or a run with no
+    # scored samples at all, is a failure — not a pass by omission. The outcome
+    # gate above only sees scored samples, so catch the gap here against the ids
+    # that actually ran. ``s.id`` repeats across epochs; the set dedupes it, so
+    # this is epoch-safe (same comparison regenerate_baseline uses).
+    scored_ids = {r["sample_id"] for r in rows}
+    ran_ids = {str(s.id) for s in (getattr(log, "samples", None) or [])}
+    unscored = sorted(ran_ids - scored_ids)
+    run_complete = bool(rows) and not unscored
+
     cost_checks: list[dict] = []
     cost_passed = True
     cost_skipped: str | None = None
@@ -237,7 +251,7 @@ def main() -> None:
             if cost_skipped is None:
                 cost_checks, cost_passed = _cost_checks(rows, baseline, arm)
 
-    overall = outcome_passed and cost_passed
+    overall = outcome_passed and cost_passed and run_complete
     if args.json:
         print(
             json.dumps(
@@ -246,6 +260,7 @@ def main() -> None:
                     "arm": arm,
                     "threshold": args.threshold,
                     "samples": rows,
+                    "unscored": unscored,
                     "cost_checks": cost_checks,
                     "cost_gate_skipped": cost_skipped,
                     "pass": overall,
@@ -256,6 +271,13 @@ def main() -> None:
         )
     else:
         print(_render(rows, cost_checks, name, arm, args.threshold))
+        if not rows:
+            print("\n[FAIL] no samples scored")
+        elif unscored:
+            print(
+                f"\n[FAIL] {len(unscored)} sample(s) ran but never scored "
+                f"(errored/aborted): {', '.join(unscored)}"
+            )
         if cost_skipped:
             print(f"\n[warn] {cost_skipped}")
     sys.exit(0 if overall else 1)
