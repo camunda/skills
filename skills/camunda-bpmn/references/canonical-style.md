@@ -37,7 +37,7 @@ Write BPMN in canonical form up front. Then Modeler saves produce empty diffs (j
 </bpmn:definitions>
 ```
 
-## Canonicalizing with `c8ctl bpmn format` *(c8ctl 3.2.0+)*
+## Canonicalizing with `c8ctl bpmn format`
 
 `c8ctl bpmn format` runs a bpmn-moddle round-trip — the same pass that Modeler and `c8ctl element-template apply` execute on save:
 

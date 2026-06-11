@@ -47,7 +47,7 @@ c8ctl element-template search "REST"                              # find HTTP/RE
 c8ctl element-template search "slack"                             # find Slack connectors
 c8ctl element-template search "kafka"                             # find Kafka connectors
 c8ctl element-template search "connector" --limit 5              # cap results (default 20)
-c8ctl element-template search "REST" --engine-version 8.8.0      # latest version compatible with 8.8.0 *(c8ctl 3.2.0+)*
+c8ctl element-template search "REST" --engine-version 8.8.0      # latest version compatible with 8.8.0
 ```
 
 Each result shows the template name, ID (e.g. `io.camunda.connectors.HttpJson.v2`), version, `appliesTo`, engine constraint, and description. The header reads `Showing N of M matches for '<query>'` — if `M > N`, narrow the query or raise `--limit`. Pick the ID that matches your use case.
@@ -58,8 +58,8 @@ Inbound integrations typically ship as a *family* of templates — one per BPMN 
 
 Two commands cover the questions you'll ask before applying:
 
-- **`c8ctl element-template info <id> [--engine-version <x.y.z>]`** *(c8ctl 3.2.0+)* — metadata card (applies-to, engine constraint, description, docs link). Pass `--engine-version` to resolve the latest version compatible with that engine. Useful when the connector is unfamiliar.
-- **`c8ctl element-template get-properties <id> [<name>...] [--engine-version <x.y.z>]`** *(c8ctl 3.2.0+)* — settable properties (condensed: name + description, grouped). Accepts positional names (shell-style globs work, quote them) and `--group <id>` to narrow. Pass `--engine-version` to resolve the latest version compatible with that engine. Add `--detailed` for per-property cards showing **Required**, **FEEL**, **Active when**, **Pattern**, **Default**, **Choices** — reach for `--detailed` when an `apply --set` call fails or when you need to know whether to prefix a value with `=`.
+- **`c8ctl element-template info <id> [--engine-version <x.y.z>]`** — metadata card (applies-to, engine constraint, description, docs link). Pass `--engine-version` to resolve the latest version compatible with that engine. Useful when the connector is unfamiliar.
+- **`c8ctl element-template get-properties <id> [<name>...] [--engine-version <x.y.z>]`** — settable properties (condensed: name + description, grouped). Accepts positional names (shell-style globs work, quote them) and `--group <id>` to narrow. Pass `--engine-version` to resolve the latest version compatible with that engine. Add `--detailed` for per-property cards showing **Required**, **FEEL**, **Active when**, **Pattern**, **Default**, **Choices** — reach for `--detailed` when an `apply --set` call fails or when you need to know whether to prefix a value with `=`.
 
 ```bash
 c8ctl element-template get-properties io.camunda.connectors.HttpJson.v2 url method
@@ -92,7 +92,7 @@ c8ctl element-template apply <id> <element> process.bpmn | c8ctl bpmn lint      
 
 Apply writes `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:modelerTemplateIcon`, `zeebe:taskDefinition`, the **entire `zeebe:ioMapping` block (inputs *and* outputs)**, and the `zeebe:taskHeaders` onto the element. All of those must stay consistent — `apply` owns them. In particular, custom `<zeebe:output>` mappings hand-added to a connector element will be wiped on the next `apply` — put downstream extraction on a separate activity, or on the next flow element's `<zeebe:ioMapping>` (end events accept it too).
 
-`apply` auto-resolves the latest OOTB template version compatible with the BPMN's `executionPlatformVersion`. Pass `--engine-version <x.y.z>` to `search`, `info`, or `get-properties` to apply the same engine-compatibility filter during discovery — `search` returns the latest compatible version per template, and `info` / `get-properties` resolve via the same check. *(c8ctl 3.2.0+)* A pinned `@<version>` (e.g. `io.camunda.connectors.HttpJson.v2@12`) always takes precedence over `--engine-version` and produces a warning when the two differ.
+`apply` auto-resolves the latest OOTB template version compatible with the BPMN's `executionPlatformVersion`. Pass `--engine-version <x.y.z>` to `search`, `info`, or `get-properties` to apply the same engine-compatibility filter during discovery — `search` returns the latest compatible version per template, and `info` / `get-properties` resolve via the same check. A pinned `@<version>` (e.g. `io.camunda.connectors.HttpJson.v2@12`) always takes precedence over `--engine-version` and produces a warning when the two differ.
 
 ### Setting Property Values at Apply Time
 
@@ -118,7 +118,7 @@ Note the `string(userId)` wrapper — `userId` is a number and FEEL does not aut
 
 `apply` errors with a helpful list of valid names if you pass an unknown property, and with the qualified-name list if a bare key is ambiguous.
 
-**FEEL value syntax.** `feel: required` values must start with `=`. The canonical form is `--set key='=value'`; `--set 'key==value'` (compact) also works. *(c8ctl 3.2.0+)* For `feel: required` properties, c8ctl auto-prepends `=` when the value doesn't start with one, so `--set key=expression` stores `=expression`; value-side whitespace is trimmed. Check `get-properties --detailed <name>` when unsure about the `feel` setting for a property.
+**FEEL value syntax.** `feel: required` values must start with `=`. The canonical form is `--set key='=value'`; `--set 'key==value'` (compact) also works. For `feel: required` properties, c8ctl auto-prepends `=` when the value doesn't start with one, so `--set key=expression` stores `=expression`; value-side whitespace is trimmed. Check `get-properties --detailed <name>` when unsure about the `feel` setting for a property.
 
 **Defaults bake in.** `apply` materializes every active property with a default into the BPMN — `<zeebe:input>`, `<zeebe:output>`, `<zeebe:taskHeaders>`, and `<zeebe:property>` entries — not just the keys you `--set`. The defaults are captured at apply time — if the template later ships a new default, this BPMN keeps the old value.
 
