@@ -20,7 +20,7 @@ from solvers.collect_artifacts import with_artifact_collection
 
 
 METADATA = EvalMetadata(
-    skills=["camunda-bpmn", "camunda-process-mgmt"],
+    skills="all",
     without_skill_excludes="all",
 )
 

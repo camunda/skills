@@ -37,7 +37,7 @@ NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 class EvalTarget:
     id: str  # "scenario:<id>" | "skill:<skill>" | "trigger:<skill>"
     kind: str
-    skills: list[str]
+    skills: list[str] | str  # str is the "all" sentinel
     path: str  # relative to EVALS_ROOT
     task: str | None = None  # explicit @task name, if any
     args: dict[str, str] = field(default_factory=dict)
@@ -102,7 +102,7 @@ def _outcome_targets(base: Path, scope: str) -> list[EvalTarget]:
             EvalTarget(
                 id=f"{scope}:{d.name}",
                 kind="outcome",
-                skills=list(meta.skills),
+                skills=meta.skills if meta.skills == "all" else list(meta.skills),
                 path=_rel(outcomes_py),
                 max_sandboxes=meta.max_sandboxes,
             )
@@ -146,7 +146,7 @@ def filter_by_changed_skills(
     targets: list[EvalTarget], changed_skills: list[str]
 ) -> list[EvalTarget]:
     changed = set(changed_skills)
-    return [t for t in targets if changed.intersection(t.skills)]
+    return [t for t in targets if t.skills == "all" or changed.intersection(t.skills)]
 
 
 def main() -> None:
@@ -174,7 +174,8 @@ def main() -> None:
         return
     print(f"{'id':<34} {'kind':<9} skills")
     for t in targets:
-        print(f"{t.id:<34} {t.kind:<9} {','.join(t.skills)}")
+        skills_str = t.skills if t.skills == "all" else ",".join(t.skills)
+        print(f"{t.id:<34} {t.kind:<9} {skills_str}")
 
 
 if __name__ == "__main__":
