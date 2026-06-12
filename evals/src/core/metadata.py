@@ -26,9 +26,9 @@ class EvalMetadata(BaseModel):
 
     without_skill_excludes: list[str] | Literal["all"] | None = None
     """Skills the ``without_skill`` arm drops. Defaults to ``skills`` (drop the
-    skills under test); ``"all"`` drops every skill — used by the
-    ``camunda-development`` meta-router and cross-skill scenarios, where the
-    skill's value only shows once the whole catalog is gone."""
+    skills under test); ``"all"`` drops every skill — used by meta-routers and
+    cross-skill scenarios, where the skill's value only shows once the whole
+    catalog is gone."""
 
     max_sandboxes: int = Field(1, ge=1)
     """How many sandboxes Inspect may run in parallel (the ``--max-sandboxes``
