@@ -64,4 +64,6 @@ All skill tooling is unified under c8ctl plugin commands:
 
 ## Maintaining this repo
 
-Contributing to or maintaining the skills in this repo? See [CONTRIBUTING.md](CONTRIBUTING.md) for skill structure, the self-containment rule, cross-references, linting, evals, commit conventions, and the PR process. Working on the eval suite specifically? Start at [evals/README.md](evals/README.md).
+Contributing to or maintaining the skills in this repo? See [CONTRIBUTING.md](CONTRIBUTING.md) for skill structure, the self-containment rule, cross-references, linting, evals, commit conventions, and the PR process.
+
+**The skills have a behavioural eval suite (`evals/`), and it's meant to evolve with them.** When you add or change skill functionality, assess whether an eval should be added or adapted to cover it and raise it with the user — don't fabricate one where none earns its keep, but don't silently skip one that would catch a real failure mode. Evals are opt-in on CI and maintainer-gated by label: when a change warrants a run, the maintainer applies `evals:run` (skills the PR touches) or `evals:run-all` (whole suite) to the PR, or `evals:regenerate-baselines` after an intentional token-moving change. Surface this and suggest it — assume the user is a maintainer who can label — rather than waiting to be asked. Mechanics and the local loop: [evals/README.md](evals/README.md).
