@@ -21,7 +21,7 @@ skills/camunda-<name>/
 
 **Skills must be self-contained.** A skill directory is the unit of distribution — installers copy `skills/<name>/` into the consuming agent's skills path, and nothing else travels with it. `SKILL.md` and files under it may only reference paths inside their own skill directory or cross-reference other skills by name (see [SKILL.md Format](#skillmd-format)). Do not reach into sibling skills' `references/`/`scripts/`/`assets/`, and do not depend on any repo-level path. If two skills need the same asset, duplicate it or promote the shared content into a third skill that both cross-reference. This is what the [Agent Skills](https://agentskills.io) spec assumes, and it's why these skills work in Claude Code, Cursor, Copilot, Codex, Gemini CLI, and other compatible agents without modification.
 
-Eval suites are intentionally not checked in right now — see "Evals" below.
+Eval suites live at the repo root under `evals/`, not inside skill directories — skills must stay self-contained. See "Evals" below.
 
 ## SKILL.md Format
 
@@ -79,7 +79,12 @@ After install, the `azd waza` command is on PATH and `make lint` works. The Make
 The `evals/` suite verifies skills *work* — the right skill loads for a prompt,
 and the agent produces deployable, working artifacts. It's the behavioural gate
 alongside `waza check` (lint), built on [Inspect AI](https://inspect.aisi.org.uk/).
-Start at [`evals/README.md`](evals/README.md); the details live in three docs:
+Treat it as living: when you add or change skill functionality, assess whether an
+eval should cover it and discuss with a maintainer (don't fabricate one where
+none earns its keep); when a change warrants a CI run, label the PR `evals:run` /
+`evals:run-all`, or `evals:regenerate-baselines` after an intentional
+token-moving change. Start at [`evals/README.md`](evals/README.md); the details
+live in three docs:
 
 - [`evals/docs/concepts.md`](evals/docs/concepts.md) — the model: two kinds (trigger/outcome), two-phase sandbox, with/without-skill arms, the cost baseline
 - [`evals/docs/runbook.md`](evals/docs/runbook.md) — run · interpret · add · maintain evals (for contributors and AI agents)

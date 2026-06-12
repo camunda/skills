@@ -11,6 +11,7 @@ behavioural gate alongside `waza check` (lint); it's built on
 Prerequisites: [uv](https://docs.astral.sh/uv/); Docker for outcome evals only.
 
 ```bash
+export ANTHROPIC_API_KEY=sk-...                        # required — the evals call a model
 make run-trigger-evals SKILL=camunda-feel              # routing: does the skill load?  (no Docker)
 make build-docker-images                                   # one-time: build sandbox images
 make run-outcome-evals TARGET=skills/camunda-feel      # behaviour: does the agent get it right?
