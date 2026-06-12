@@ -138,13 +138,8 @@ camunda.client.auth.enabled=false
 **Verify the connector runtime is connected to the local cluster, not SaaS**, via the actuator health endpoint:
 
 ```bash
-curl -s http://localhost:8086/actuator/health | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-zc = d.get('components', {}).get('zeebeClient', {})
-brokers = zc.get('details', {}).get('numBrokers', 0)
-print(f'status={d[\"status\"]} | zeebeClient={zc.get(\"status\")} | numBrokers={brokers}')
-"
+curl -s http://localhost:8086/actuator/health \
+  | jq -r '"status=\(.status) | zeebeClient=\(.components.zeebeClient.status) | numBrokers=\(.components.zeebeClient.details.numBrokers)"'
 ```
 
 `numBrokers: 1` = local Zeebe. `numBrokers: 3` = connected to SaaS cluster — stop the process and restart with the cloud env vars unset.
