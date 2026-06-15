@@ -24,6 +24,7 @@ const AUTH = 'Basic ' + Buffer.from('demo:demo').toString('base64');
 
 ```javascript
 const http = require('http');
+const https = require('https');
 
 const BASE_URL = 'http://localhost:8080';
 const AUTH = 'Basic ' + Buffer.from('demo:demo').toString('base64');
@@ -32,17 +33,18 @@ const JOB_TYPE = 'your-job-type';          // must match zeebe:taskDefinition ty
 async function request(method, path, body) {
   return new Promise((resolve, reject) => {
     const url = new URL(BASE_URL + path);
+    const client = url.protocol === 'https:' ? https : http;
     const opts = {
       hostname: url.hostname,
-      port: url.port || 80,
-      path: url.pathname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,   // preserve any query string
       method,
       headers: {
         'Authorization': AUTH,
         'Content-Type': 'application/json',
       },
     };
-    const req = http.request(opts, (res) => {
+    const req = client.request(opts, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
@@ -75,17 +77,29 @@ async function poll() {
     } catch (err) {
       // Fail the job — engine will redeliver after retries
       await request('POST', `/v2/jobs/${job.jobKey}/failure`, {
-        errorMessage: err.message,
-        retries: (job.retries ?? 1) - 1,
+        errorMessage: String(err?.message ?? err),   // non-Error throws stringify cleanly
+        retries: Math.max(0, (job.retries ?? 1) - 1), // never go negative (0 → incident)
         retryBackOff: 5000,
       });
     }
   }
 }
 
+// Self-scheduling loop: await each poll before the next, so polls never
+// overlap, and catch errors so a thrown rejection doesn't crash the process.
+async function loop() {
+  for (;;) {
+    try {
+      await poll();
+    } catch (err) {
+      console.error('poll failed:', err);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
+
 console.log(`Worker polling for ${JOB_TYPE}...`);
-setInterval(poll, 1000);
-poll();
+loop();
 ```
 
 ## Key API shapes
