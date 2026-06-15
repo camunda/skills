@@ -59,24 +59,26 @@ def worker_is_zero_dependency(workspace: str = "/workspace") -> Scorer:
     """Score 1.0 when the worker uses only Node built-ins and pulls in no npm.
 
     Fails (0.0) if a ``package.json`` or ``node_modules`` directory is present
-    under ``workspace``, or if any ``.js`` file imports a non-built-in module.
+    under ``workspace``, or if any JS file (``.js``/``.mjs``/``.cjs``) imports
+    a non-built-in module.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
         sb = sandbox()
         ws = workspace.rstrip("/")
-        skills_glob = f"{ws}/skills/*"
+        skills_dir = f"{ws}/skills"
 
         # 1. No package.json / node_modules anywhere in the agent's workspace.
+        # Prune the skill() plant tree (don't descend it) and search at any
+        # depth — a deep node_modules must not slip past as a false pass.
         manifest = await sb.exec(
             [
                 "find",
                 ws,
-                "-maxdepth",
-                "4",
-                "-not",
                 "-path",
-                skills_glob,
+                skills_dir,
+                "-prune",
+                "-o",
                 "(",
                 "-name",
                 "package.json",
@@ -84,6 +86,7 @@ def worker_is_zero_dependency(workspace: str = "/workspace") -> Scorer:
                 "-name",
                 "node_modules",
                 ")",
+                "-print",
             ],
             timeout=10,
         )
@@ -98,18 +101,28 @@ def worker_is_zero_dependency(workspace: str = "/workspace") -> Scorer:
                 metadata={"npm_artifacts": offenders},
             )
 
-        # 2. Collect the agent's .js files (excluding skill plants).
+        # 2. Collect the agent's JS files (excluding skill plants). Match
+        # .js/.mjs/.cjs at any depth; a worker may legitimately be an ES
+        # module (.mjs) or be nested below the workspace root.
         find = await sb.exec(
             [
                 "find",
                 ws,
-                "-maxdepth",
-                "4",
+                "-path",
+                skills_dir,
+                "-prune",
+                "-o",
+                "(",
                 "-name",
                 "*.js",
-                "-not",
-                "-path",
-                skills_glob,
+                "-o",
+                "-name",
+                "*.mjs",
+                "-o",
+                "-name",
+                "*.cjs",
+                ")",
+                "-print",
             ],
             timeout=10,
         )
@@ -117,7 +130,7 @@ def worker_is_zero_dependency(workspace: str = "/workspace") -> Scorer:
         if not js_paths:
             return Score(
                 value=0.0,
-                explanation=f"no .js worker found under {workspace}",
+                explanation=f"no JS worker (.js/.mjs/.cjs) found under {workspace}",
             )
 
         # 3. Every import must resolve to a Node built-in or a local path.
@@ -147,7 +160,7 @@ def worker_is_zero_dependency(workspace: str = "/workspace") -> Scorer:
         return Score(
             value=1.0,
             explanation=(
-                f"zero-dependency: {len(js_paths)} .js file(s) import only "
+                f"zero-dependency: {len(js_paths)} JS file(s) import only "
                 "Node built-ins, no package.json/node_modules"
             ),
             metadata={"js_files": js_paths},

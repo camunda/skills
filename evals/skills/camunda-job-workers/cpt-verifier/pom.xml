@@ -5,11 +5,12 @@
   Runs in **remote runtime mode** against the orchestration cluster
   the agent worked against (shared via `network_mode: service:orchestration`
   so localhost:8080 reaches the REST API and localhost:9600 the
-  management endpoint). The test re-deploys the agent's BPMN file
-  from /agent-workspace and asserts a process instance completes.
+  management endpoint). The test deploys committed BPMN fixtures from
+  the test classpath (src/test/resources) and asserts a process
+  instance completes.
 
   Uses the Spring variant of CPT (`camunda-process-test-spring`) for
-  cleaner application.yml configuration. The minimal @SpringBootApplication
+  cleaner application.yml configuration. The minimal @SpringBootConfiguration
   inside the test class provides the context Spring needs.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0">
