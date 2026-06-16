@@ -33,7 +33,8 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 ## Scope boundaries
 
 - **In scope**: BPMN reachability (every element visited at least once), gateway-branch selection, DMN rule selection, error-boundary firing, timer / escalation boundary firing, end-event selection.
-- **Out of scope**: asserting data values produced by service tasks, external system payloads, UI behavior, agent / LLM output. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
+- **Out of scope**: asserting exact data values produced by service tasks, external system payloads, UI behavior. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
+- **Agentic exception**: behavioral quality of AI agent output (LLM-as-Judge, semantic similarity) is **in scope** for agentic process segments when the agent's response text drives downstream routing or is itself the test subject (e.g. regression detection on model swap). These assertions are Java-only — they are not renderable in Web Modeler. See [references/judge-configuration.md](references/judge-configuration.md).
 
 ## Workflow
 
@@ -46,6 +47,8 @@ Find the BPMN under test in priority order:
 3. `../resources/` (Node.js layouts where the test harness lives in `test/`)
 
 Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, list them and ask which to target.
+
+**Web Modeler scenario files.** After finding the BPMN, also scan the same resources directory for `* test scenarios.json` files (spaces in the name, no `.test.json` suffix). If found, do **not** author new CPT unit-test scenarios for those processes — go to [references/web-modeler-scenarios.md](references/web-modeler-scenarios.md) instead and follow the one-shot setup guide there. WM scenario files and hand-authored CPT scenarios serve different purposes and must live in separate test classes.
 
 Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 2.
 
@@ -67,7 +70,7 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 For each segment, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). Accept that Java tests are invisible to Web Modeler.
+Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), LLM behavioral quality assertions on agent output (8.9+), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md) and [references/judge-configuration.md](references/judge-configuration.md). Accept that Java tests are invisible to Web Modeler.
 
 ### 5. Run
 
@@ -167,8 +170,10 @@ Duplicates flagged: 0
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
+- [web-modeler-scenarios.md](references/web-modeler-scenarios.md) — running Web Modeler-exported scenario files in CI/CD; cluster mode decision; ephemeral and remote templates; one-shot checklist
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
-- [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
-- [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
+- [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback, agentic evaluation assertions
+- [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior, evaluation assertions)
+- [judge-configuration.md](references/judge-configuration.md) — LLM-as-Judge and semantic similarity configuration; provider setup; threshold tuning; use cases
 - [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
