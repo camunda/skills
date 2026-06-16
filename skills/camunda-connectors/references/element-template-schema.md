@@ -10,7 +10,7 @@ When inspecting a template property (typically via `c8ctl element-template get-p
 2. **Does `constraints.notEmpty` apply?** → the property is required; `apply` will fail without a value.
 3. **Does `condition` apply?** → the property is active only when another property equals (or `oneOf`s) a specific value. Set the parent first.
 4. **What is `binding.type`?** → determines the BPMN XML the value lands in (`zeebe:input`, `zeebe:taskHeader`, etc. — see the mapping table below).
-5. **What is `feel`?** → `required` ⇒ value must start with `=`. `optional` ⇒ plain literal or FEEL. `static` ⇒ raw value, persisted as FEEL automatically (Boolean, Number).
+5. **What is `feel`?** → `required` ⇒ value must start with `=`; c8ctl auto-prepends `=` for `--set` when absent. `optional` ⇒ plain literal or FEEL. `static` ⇒ raw value, persisted as FEEL automatically (Boolean, Number).
 6. **Is there a `value`?** → that's the default. Override only if needed.
 7. **Are there `choices`?** → the value must be one of them.
 
