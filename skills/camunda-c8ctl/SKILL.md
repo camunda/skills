@@ -205,7 +205,7 @@ Don't run `c8ctl load plugin` on the agent's initiative — plugin code runs in 
 - **`c8ctl: command not found`** (or `c8: command not found`) — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
 - **`Node.js version too old`** — c8ctl requires Node ≥ 22.18.0 for native TypeScript support. Use `nvm` or `asdf` to upgrade.
 - **Local cluster won't start** — check `c8ctl cluster status` and `c8ctl cluster logs`. Common causes: port 8080 already in use, Java not installed (c8run needs JRE 21+), insufficient disk space for the binary download.
-- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Run `c8ctl cluster start` on the host directly.
+- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Ask the user to run `c8ctl cluster start` directly in their host terminal (outside the agent sandbox).
 - **c8ctl can't write to its default data directory** (sandboxed agents, restricted filesystems) — set `C8CTL_DATA_DIR=<writable-path>` before invoking c8ctl.
 - **OAuth errors against SaaS** — verify the profile is configured correctly. The cluster URL for SaaS is the *Zeebe REST address*, not the dashboard URL. See the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) for OAuth flags.
 
