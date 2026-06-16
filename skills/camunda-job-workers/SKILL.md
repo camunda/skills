@@ -85,6 +85,7 @@ The Java client and TypeScript SDK **do not** auto-complete — the handler must
 | **Camunda Spring Boot Starter** — `camunda-spring-boot-starter` ([ref](references/worker-sdk-spring.md)) | New Java applications. Annotation-driven (`@JobWorker`), auto-complete, config via `application.yaml`. The default Java path. |
 | **Java client** — `camunda-client-java` ([ref](references/worker-sdk-java.md)) | Standalone JVM applications, non-Spring frameworks, libraries embedding Zeebe access. Lower-level builder API. Replaces the deprecated Zeebe Java Client (removed in 8.10). |
 | **TypeScript** — `@camunda8/orchestration-cluster-api` ([ref](references/worker-sdk-typescript.md)) | Node.js workers, browser-hosted clients, 8.9+ projects. Fall back to `@camunda8/sdk` (Node-only) only when gRPC streaming, sub-8.8 targets, or migration friction explicitly require it. |
+| **Zero-dependency Node.js** — raw `http` module ([ref](references/worker-http-no-sdk.md)) | Demos, CI scripts, locked-down environments where npm is unavailable. No `package.json` required. Not for production — use the TypeScript SDK there. |
 
 ### Spring Boot 4 vs. 3 — high-stakes routing
 
@@ -107,3 +108,4 @@ For SDK-specific detail, read from `references/`:
 - [worker-sdk-java.md](references/worker-sdk-java.md) — `camunda-client-java`: client bootstrap, `JobWorkerBuilder`, command builders, streaming, multi-tenancy, OAuth config
 - [worker-sdk-spring.md](references/worker-sdk-spring.md) — Camunda Spring Boot Starter: `@JobWorker` parameter reference, `@Variable` / `@VariablesAsType`, `CamundaError`, configuration property tree, Spring Boot 4 vs 3 starter selection
 - [worker-sdk-typescript.md](references/worker-sdk-typescript.md) — `@camunda8/orchestration-cluster-api`: `createJobWorker` / `createThreadedJobWorker`, job-handler return shapes, when to fall back to `@camunda8/sdk`
+- [worker-http-no-sdk.md](references/worker-http-no-sdk.md) — Zero-dependency Node.js worker using raw `http` module and `/v2/jobs/activation` REST API. No npm packages — use for demos, CI scripts, or locked-down environments. Includes activate/complete/fail/error API shapes and local c8run basic-auth setup.
