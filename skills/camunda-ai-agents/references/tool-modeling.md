@@ -40,16 +40,22 @@ snippet above shows the resulting XML shape.
 
 ## Script tool
 
-A FEEL script task. Two `fromAi()` calls in the expression auto-derive
-two LLM-supplied parameters; `resultVariable="toolCallResult"` returns
-the computed value to the agent.
+A FEEL script task. Two `fromAi()` calls in the **input mappings**
+declare LLM-supplied parameters; the `zeebe:script` expression
+references the resulting local variables.
+`resultVariable="toolCallResult"` returns the computed value to the
+agent.
 
 ```xml
 <bpmn:scriptTask id="ComputeRefund" name="Compute refund amount">
   <bpmn:documentation>Compute the refund amount for an order, taking partial refunds into account.</bpmn:documentation>
   <bpmn:extensionElements>
+    <zeebe:ioMapping>
+      <zeebe:input source="=fromAi(toolCall.orderTotal, &quot;Order total&quot;, &quot;number&quot;)" target="orderTotal" />
+      <zeebe:input source="=fromAi(toolCall.refundRatio, &quot;Refund ratio between 0 and 1&quot;, &quot;number&quot;)" target="refundRatio" />
+    </zeebe:ioMapping>
     <zeebe:script
-      expression="=fromAi(toolCall.orderTotal, &quot;Order total&quot;, &quot;number&quot;) * (1 - fromAi(toolCall.refundRatio, &quot;Refund ratio between 0 and 1&quot;, &quot;number&quot;))"
+      expression="=orderTotal * (1 - refundRatio)"
       resultVariable="toolCallResult" />
   </bpmn:extensionElements>
 </bpmn:scriptTask>
