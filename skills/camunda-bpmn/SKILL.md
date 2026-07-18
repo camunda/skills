@@ -14,6 +14,22 @@ description: |
 
 Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid XML with Zeebe extensions and diagram coordinates.
 
+## Copilot DI-Free Mode
+
+When the host explicitly states that **Copilot DI-free mode** is active, it provides a staged
+semantic BPMN working copy and guarantees a deterministic layout and final validation boundary.
+In this mode:
+
+- Do not create, retain, edit, or repair `<bpmndi:BPMNDiagram>` content.
+- Do not emit coordinates, dimensions, or waypoints.
+- Make semantic XML edits only and preserve unchanged element IDs.
+- Do not run `c8ctl bpmn lint` during the agent loop; the host restores DI and runs final validation.
+- Do not treat a semantic edit as a finished user-visible BPMN artifact. The host returns the
+  fully laid-out candidate for review.
+
+This mode applies only when the host has declared it. Otherwise follow the standalone workflow
+below, including complete BPMN DI and the lint loop.
+
 ## Prerequisites
 
 - Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed)
@@ -41,7 +57,7 @@ When writing a BPMN file from scratch, follow the canonical bpmn-js style — si
 
 The `zeebe` namespace, `isExecutable="true"`, and `modeler:executionPlatform="Camunda Cloud"` are mandatory — without them, Camunda won't recognize the process correctly.
 
-The `<bpmndi:BPMNDiagram>` block is also mandatory, not optional polish: `c8ctl bpmn lint` flags missing DI (`no-bpmndi`) as an error, and Modeler can't render a process without it. Every `<bpmn:process>` flow element needs a matching `<bpmndi:BPMNShape>`, every `<bpmn:sequenceFlow>` a `<bpmndi:BPMNEdge>`. Coordinates, sizes, and waypoint conventions: [references/layout-rules.md](references/layout-rules.md). Note that Zeebe deploys a DI-less BPMN happily — the missing DI surfaces only at lint and in Modeler, so don't rely on a successful deploy as evidence the file is well-formed.
+Outside Copilot DI-free mode, the `<bpmndi:BPMNDiagram>` block is mandatory, not optional polish: `c8ctl bpmn lint` flags missing DI (`no-bpmndi`) as an error, and Modeler can't render a process without it. Every `<bpmn:process>` flow element needs a matching `<bpmndi:BPMNShape>`, every `<bpmn:sequenceFlow>` a `<bpmndi:BPMNEdge>`. Coordinates, sizes, and waypoint conventions: [references/layout-rules.md](references/layout-rules.md). Note that Zeebe deploys a DI-less BPMN happily — the missing DI surfaces only at lint and in Modeler, so don't rely on a successful deploy as evidence the file is well-formed.
 
 ### Symbol Encoding
 
@@ -109,12 +125,12 @@ BPMN files can be large. Follow these rules:
 - Follow canonical bpmn-js style — see [references/canonical-style.md](references/canonical-style.md)
 - Self-close empty elements with `<el />` (single space before `/>`)
 - Keep unique, descriptive IDs
-- Include BPMN DI section for visual layout (see [references/layout-rules.md](references/layout-rules.md))
+- Outside Copilot DI-free mode, include BPMN DI for visual layout (see [references/layout-rules.md](references/layout-rules.md))
 - Include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
 
 ### Lint loop — structural exit gate
 
-A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing structural step of every BPMN task — generation, modification, refactor, or merge.
+Outside Copilot DI-free mode, a BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing structural step of every BPMN task — generation, modification, refactor, or merge. In Copilot DI-free mode, the host owns this final gate after it restores DI.
 
 1. Run the linter against the file you touched:
 
