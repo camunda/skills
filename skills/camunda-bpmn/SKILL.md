@@ -1,4 +1,3 @@
----
 name: camunda-bpmn
 description: |
   Use this skill to create, edit, and validate BPMN 2.0 process diagrams for Camunda 8 (Zeebe).
@@ -8,7 +7,153 @@ description: |
   Do not use for: writing FEEL expressions inside BPMN (use camunda-feel), designing form schemas (use camunda-forms), or deploying and running processes (use camunda-process-mgmt).
 
   **Workflow skill** — multi-step BPMN authoring. Covers c8ctl bpmn lint for validation.
+name: camunda-bpmn
+description: |
+  Use this skill to create, edit, and validate BPMN 2.0 process diagrams for Camunda 8 (Zeebe).
+
+  Use for: new BPMN processes, modifying existing diagrams, adding tasks/gateways/events/subprocesses, configuring Zeebe extensions (taskDefinition, ioMapping, loop characteristics), validating BPMN XML.
+
+  Do not use for: writing FEEL expressions inside BPMN (use camunda-feel), designing form schemas (use camunda-forms), or deploying and running processes (use camunda-process-mgmt).
+
+  **Workflow skill** — use bpmn-cli for BPMN modeling and c8ctl for linting.
 ---
+
+# Camunda BPMN Modeling
+
+Create and edit executable Camunda 8.8+ BPMN with `bpmn-cli`. It owns semantic
+inspection, descriptor-aware mutations, serialization, and deterministic layout.
+Never hand-edit BPMN XML, including Diagram Interchange (DI).
+
+## Prerequisites
+
+- `bpmn-cli` installed and on `PATH`
+- c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl bpmn lint`
+
+## Cross-References
+
+- **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
+- **camunda-dmn**: Use for authoring the DMN decision behind a business rule task
+- **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
+- **camunda-connectors**: Use for configuring pre-built connectors via c8ctl element templates
+- **camunda-development**: Use to decide whether a service task needs a connector or job worker
+- **camunda-job-workers**: Use to implement the handler a `zeebe:taskDefinition` activates
+- **camunda-connectors-development**: Use to build custom connectors
+- **camunda-process-test**: Use for embedded-engine process tests
+- **camunda-process-mgmt**: Use for deployment and instance operations
+- **camunda-ai-agents**: Use when modeling an AI agent
+
+## Modeling Workflow
+
+### Discover before changing
+
+Use JSON output for every agent decision. Discover IDs, `$type` values, exact
+references, and writable descriptor property names; do not infer them from XML.
+
+```bash
+bpmn-cli inspect process.bpmn --json
+bpmn-cli inspect process.bpmn --process Process_1 --json
+bpmn-cli inspect process.bpmn --element Task_Review --json
+bpmn-cli trace process.bpmn --from Gateway_Risk --json
+```
+
+For a new process, begin from a valid BPMN starter supplied by the host or
+project, then use the same workflow. Do not create BPMN XML by hand.
+
+### Preview, apply, verify
+
+1. Discover the Edit v1 request schema when needed:
+
+   ```bash
+   bpmn-cli edit --schema --json
+   ```
+
+2. Write a request containing only `add`, `remove`, `replace`, and `move`
+   operations. Every operation needs explicit `expect` assertions.
+
+3. Preview without writing BPMN and review the `planHash`, generated IDs,
+   derived effects, semantic changes, and layout:
+
+   ```bash
+   bpmn-cli edit process.bpmn --request edit.json --json > preview.json
+   ```
+
+4. Apply only the exact reviewed hash. Prefer a separate output file when the
+   environment supports reviewable artifacts; use in-place apply only when the
+   host stages changes separately from the user’s source:
+
+   ```bash
+   PLAN_HASH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('preview.json', 'utf8')).planHash)")
+   bpmn-cli edit process.bpmn --request edit.json --apply "$PLAN_HASH" --json
+   ```
+
+5. Run the lint loop and fix every error and warning:
+
+   ```bash
+   c8ctl bpmn lint process.bpmn
+   ```
+
+`bpmn-cli edit` lays out BPMN by default. Do not use `--no-layout` unless a
+host explicitly requires a DI-free artifact. Do not create, preserve, or repair
+coordinates, shapes, edges, bounds, or waypoints directly.
+
+### Connector and element-template changes
+
+Use **camunda-connectors** and retain `c8ctl` as the sole element-template
+authority. Run `c8ctl element-template sync` once per session, then discover,
+inspect, and apply the template with `c8ctl element-template apply -i`.
+
+After template application, re-run `bpmn-cli inspect` before previewing any
+later edit: the source changed, so any earlier `planHash` is stale. Always close
+the complete BPMN change with `c8ctl bpmn lint`.
+
+### Recover from edit errors
+
+| Error code | Required action |
+| --- | --- |
+| `STALE_PLAN` | Re-inspect and preview again. Do not reuse the hash. |
+| `EDIT_PRECONDITION_FAILED` | Re-inspect the target and correct the request; do not weaken `expect`. |
+| `EDIT_BPMN_STRUCTURE_INVALID` | Change the requested semantics; do not bypass structural validation. |
+| `EXTERNAL_REFERENCE_CONFLICT` | Inspect all references and make required changes explicit. |
+| `EDIT_TARGET_NOT_FOUND` | Discover the actual ID or create and alias it in an earlier operation. |
+| `PROFILE_ERROR` | Use the correct moddle descriptor and avoid namespace collisions. |
+
+## Core Modeling Rules
+
+**Start and end events:** Every path starts at a Start Event and reaches an End
+Event. Use None for ordinary starts, Message for external triggers, and Timer
+for schedules.
+
+**Tasks:** Model one atomic action per task and use verb-plus-object names.
+
+- User tasks use `<zeebe:userTask />`, a `<zeebe:formDefinition formId="X" />`,
+  and appropriate assignment. `formId="X"` requires an `X.form` deliverable via
+  **camunda-forms**.
+- Service tasks require a `<zeebe:taskDefinition type="..." retries="3" />`.
+  The type exactly matches the worker registration. Apply connector templates
+  through **camunda-connectors**; do not model their generated mappings manually.
+- Script tasks use `<zeebe:script expression="=..." resultVariable="..." />`.
+- Business rule tasks use `<zeebe:calledDecision decisionId="X" resultVariable="..." />`.
+  `decisionId="X"` requires an `X.dmn` deliverable via **camunda-dmn**.
+
+**Gateways:** XOR gateways have one default flow and labeled conditional flows.
+AND and OR forks have matching joins. Fix fake joins reported by lint.
+
+**FEEL:** Conditions, timers, and mappings use an `=` prefix. Validate anything
+beyond a simple variable reference with **camunda-feel**.
+
+**IDs:** Use descriptive PascalCase, such as `ReviewInvoice`,
+`AmountExceedsLimit`, and `Flow_ToApproval`. Preserve unrelated IDs.
+
+See [references/zeebe-extensions.md](references/zeebe-extensions.md) for
+variable scoping, mappings, task definitions, forms, and secrets; see
+[references/element-catalog.md](references/element-catalog.md) for BPMN and
+Zeebe element details.
+
+## Behavioural Validation
+
+Lint validates structural and policy concerns, not worker availability or all
+runtime behavior. After a clean lint, use **camunda-process-test** or
+**camunda-process-mgmt** to validate the intended execution path.
 
 # Camunda BPMN Modeling
 

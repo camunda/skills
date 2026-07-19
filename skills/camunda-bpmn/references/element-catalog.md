@@ -250,7 +250,8 @@ Declarative properties (internal Zeebe mode only):
 - `<bpmn:completionCondition>` — boolean FEEL expression evaluated each time an inner element completes; when `true`, the subprocess completes. If absent, the subprocess completes when all activated elements complete.
 - `cancelRemainingInstances` attribute on `<bpmn:adHocSubProcess>` (default `true`) — when the completion condition fires, terminate any still-running inner activities; set `false` to wait for them.
 
-Diagram-interchange: the `<bpmndi:BPMNShape>` for the ad-hoc subprocess must enclose every inner shape with ≥50px padding on all sides (same rule as embedded subprocesses — see [layout-rules.md](layout-rules.md)).
+`bpmn-cli` owns the ad-hoc subprocess's diagram interchange and layout. Do not
+author or adjust its shape bounds directly.
 
 ## Multi-Instance
 
