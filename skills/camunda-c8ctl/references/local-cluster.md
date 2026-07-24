@@ -80,12 +80,31 @@ An agent should *offer* these to the user rather than run them unprompted — in
 
 ## Common Workflows
 
+### Preflight: reuse an existing local cluster
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/topology
+```
+
+If this returns `200`, a local cluster is already serving requests on `localhost:8080` and you can skip `c8ctl cluster start`.
+
 ### First-time local setup
 
 ```bash
 # One command — downloads binary, starts cluster, waits until healthy
 c8ctl cluster start
 c8ctl get topology   # confirm it's alive
+```
+
+### Java shim pitfall (asdf / mise)
+
+`c8ctl cluster start` runs c8run as a child process. In non-interactive shells, tool-manager shims can make `java -version` succeed while `JAVA_HOME` is still unset for child processes, which can cause startup failures.
+
+If Java is managed by asdf or mise and startup fails unexpectedly, set `JAVA_HOME` explicitly before starting the cluster:
+
+```bash
+export JAVA_HOME="$(asdf where java 2>/dev/null || mise where java 2>/dev/null)"
+c8ctl cluster start
 ```
 
 ### Switching between rolling minors
