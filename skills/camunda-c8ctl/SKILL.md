@@ -112,8 +112,8 @@ c8ctl cluster start alpha
 # Check status (running? what version? connection details?)
 c8ctl cluster status
 
-# Verify REST topology directly (HTTP 200 means ready)
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/topology
+# Verify the cluster is responding after start
+c8ctl get topology
 
 # Stream logs
 c8ctl cluster logs
