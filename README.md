@@ -1,5 +1,5 @@
 > [!NOTE]
-> Technical preview. Skills depend on c8ctl features not yet released in a stable version.
+> Technical preview. Skills are under heavy development and are subject to change.
 
 # Camunda Skills
 
@@ -15,10 +15,14 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-docs** | Look up the official Camunda 8 docs via the camunda-docs MCP server (with `llms.txt` fallback) |
 | **camunda-bpmn** | Create and edit BPMN 2.0 processes for Camunda 8/Zeebe |
 | **camunda-feel** | Write and debug FEEL expressions |
+| **camunda-dmn** | Author DMN decisions — decision tables, hit policies, literal expressions, business-rule task wiring |
 | **camunda-forms** | Create Camunda Form JSON schemas for user tasks |
 | **camunda-connectors** | Browse and configure pre-built connectors via element templates |
+| **camunda-development** | Choose between OOTB connectors, custom connector templates, custom Java connectors, and job workers before writing integration code |
+| **camunda-job-workers** | Implement job workers in Java, Camunda Spring Boot, or TypeScript |
+| **camunda-connectors-development** | Build custom Camunda 8 connectors — JSON-only template on a protocol connector, or custom Java connector via the Connectors SDK (outbound + inbound) |
 | **camunda-process-mgmt** | Deploy resources, start/inspect instances, resolve incidents, complete tasks — via c8ctl |
-| **camunda-ai-agent** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
+| **camunda-ai-agents** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
 
 ## Prerequisites
 
@@ -68,7 +72,7 @@ make try
 
 1. Install c8ctl and start a local cluster:
    ```bash
-   npm install -g @camunda8/cli@3.0.0-alpha.1
+   npm install -g @camunda8/cli
    c8ctl cluster start          # downloads c8run on first run
    ```
 

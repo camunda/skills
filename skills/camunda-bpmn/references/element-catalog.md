@@ -99,6 +99,10 @@ An empty `<bpmn:errorEventDefinition/>` catches ANY error (wildcard).
 
 ## Tasks
 
+**Child-element order is XSD-enforced.** Inside every task element (`scriptTask`, `serviceTask`, `userTask`, `businessRuleTask`, etc.), children must appear in this order: `<bpmn:extensionElements>` → `<bpmn:incoming>` → `<bpmn:outgoing>`. Putting `<extensionElements>` after `<outgoing>` makes Zeebe reject the deployment with `cvc-complex-type.2.4.a: Invalid content was found starting with element 'extensionElements'` — even if `c8ctl bpmn lint` passed.
+
+The examples below omit `<bpmn:incoming>` / `<bpmn:outgoing>` for brevity; when you add them, they go *after* `<bpmn:extensionElements>`, never before.
+
 ### User Task
 ```xml
 <bpmn:userTask id="Task_Review" name="Review application">
@@ -133,6 +137,8 @@ For connectors (REST, Slack, etc.), use the **camunda-connectors** skill to appl
   </bpmn:extensionElements>
 </bpmn:scriptTask>
 ```
+
+All `zeebe:*` extensions (including `<zeebe:script />`) must be wrapped in `<bpmn:extensionElements>` — Zeebe rejects them as direct children of the task with `cvc-complex-type` errors at deploy, even though `c8ctl bpmn lint` may pass. Do not use the Camunda 7 `<bpmn:script>` element either; Camunda 8 consumes only the zeebe-namespaced form.
 
 ### Business Rule Task
 ```xml
@@ -211,6 +217,40 @@ Triggered by events within a parent scope. Must have a start event (message, tim
   <!-- handler logic -->
 </bpmn:subProcess>
 ```
+
+### Ad-hoc Subprocess
+
+An embedded subprocess marked with the **ad-hoc** flag (BPMN's `~` tilde). Inner activities are not connected to start/end events — they're activated dynamically (either by an `activeElementsCollection` FEEL list or by a job worker), can run in any order, and can be skipped or repeated. The primary consumer of this shape is the AI Agent Sub-process connector (see **camunda-ai-agents**).
+
+```xml
+<bpmn:adHocSubProcess id="AgentTools" name="Agent tools" cancelRemainingInstances="true">
+  <bpmn:extensionElements>
+    <zeebe:adHoc activeElementsCollection="=requestedTools" />
+  </bpmn:extensionElements>
+  <bpmn:completionCondition xsi:type="bpmn:tFormalExpression">=allDone</bpmn:completionCondition>
+  <!-- inner activities (one per tool/action), with no start or end events -->
+  <bpmn:serviceTask id="LookupCustomer" name="Look up customer"> ... </bpmn:serviceTask>
+  <bpmn:serviceTask id="EscalateToHuman" name="Escalate to human"> ... </bpmn:serviceTask>
+</bpmn:adHocSubProcess>
+```
+
+Engine-enforced constraints (both modes):
+
+- **Must have at least one inner activity.**
+- **Must not contain start or end events** — inner activities are entered directly when activated. Sequence flows between inner activities are allowed (and turn them into sub-sequences), but they're not required.
+
+**Two implementation modes:**
+
+- **Internal Zeebe mode** (default — no `<zeebe:taskDefinition>` on the ad-hoc subprocess). Zeebe drives activation and completion from the declarative properties below.
+- **Job-worker mode** (add `<zeebe:taskDefinition type="...">` to the ad-hoc subprocess). Zeebe creates a job on entry; the worker reads the `adHocSubProcessElements` process variable (inner-element metadata: id, name, documentation, properties, `fromAi()` parameters) and returns a job result that activates elements and/or signals completion/cancellation. The declarative properties below are not used — the worker decides programmatically. The AI Agent Sub-process connector uses this mode (see **camunda-ai-agents**).
+
+Declarative properties (internal Zeebe mode only):
+
+- `<zeebe:adHoc activeElementsCollection="...">` — FEEL expression returning a list of inner-element IDs (strings). Evaluated on entry; every listed element is activated and runs concurrently. If the list is empty or the expression is missing, no element activates and the subprocess remains active.
+- `<bpmn:completionCondition>` — boolean FEEL expression evaluated each time an inner element completes; when `true`, the subprocess completes. If absent, the subprocess completes when all activated elements complete.
+- `cancelRemainingInstances` attribute on `<bpmn:adHocSubProcess>` (default `true`) — when the completion condition fires, terminate any still-running inner activities; set `false` to wait for them.
+
+Diagram-interchange: the `<bpmndi:BPMNShape>` for the ad-hoc subprocess must enclose every inner shape with ≥50px padding on all sides (same rule as embedded subprocesses — see [layout-rules.md](layout-rules.md)).
 
 ## Multi-Instance
 

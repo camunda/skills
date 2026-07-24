@@ -1,0 +1,26 @@
+# Sandbox compose — advisory archetype.
+#
+# Used by routing / advisory scenarios where the agent only produces a
+# text recommendation — no Camunda cluster, no deploys, no artifacts
+# to verify. Uses the with-c8ctl image so the agent can reach for
+# ``c8ctl element-template search`` to verify which OOTB templates
+# exist before recommending one. No orchestration service: c8ctl's
+# template catalog is a local cache populated at image-build time and
+# doesn't need a live cluster.
+
+services:
+  default:
+    image: camunda-skills-evals-with-c8ctl:latest
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+
+volumes:
+  workspace:

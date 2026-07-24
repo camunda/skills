@@ -1,0 +1,29 @@
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "exclusive-gateway-routing": {
+        "tokens": {
+          "input": 7,
+          "cache_write": 8105,
+          "cache_read": 65917,
+          "output": 4470
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 98
+      },
+      "linear-invoice-review": {
+        "tokens": {
+          "input": 7,
+          "cache_write": 5995,
+          "cache_read": 63754,
+          "output": 2315
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 78
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+# Sandbox compose — with-c8ctl archetype.
+#
+# Referenced directly from an eval's outcomes.py via
+# ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")))``.
+# Used by evals that need c8ctl pre-installed but no separate verifier
+# service (the FEEL eval scores by running c8ctl in this same container).
+#
+# A Camunda 8.9 orchestration service runs alongside the agent using
+# H2 (no Elasticsearch / Postgres). The agent's `default` service
+# shares orchestration's network namespace so c8ctl's default
+# localhost URL reaches the REST API.
+
+services:
+  orchestration:
+    image: camunda/camunda:8.9.5
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /v1/topology HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n\" >&3 && head -n 1 <&3 | grep -q 200'"]
+      interval: 1s
+      retries: 60
+      start_period: 30s
+    configs:
+      - source: orchestration-config
+        target: /usr/local/camunda/config/application.yaml
+
+  default:
+    image: camunda-skills-evals-with-c8ctl:latest
+    network_mode: "service:orchestration"
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
+
+configs:
+  orchestration-config:
+    file: ./orchestration/application-h2.yaml
+
+volumes:
+  workspace:

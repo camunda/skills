@@ -21,9 +21,12 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 
 ## Cross-References
 
-- **camunda-c8ctl**: Use for c8ctl install, profile management, local cluster operations, and cluster-safety rules
+- **camunda-c8ctl**: Use for c8ctl setup, cluster safety, and shared conventions (flags, profiles, output modes)
 - **camunda-bpmn**: Use for fixing BPMN process issues found during debugging
+- **camunda-dmn**: Use for fixing DMN decision issues — `EXTRACT_VALUE_ERROR` / `DECISION_EVALUATION_FAILED` incidents typically trace back to the decision file
 - **camunda-connectors**: Use for fixing connector configuration issues found during debugging
+- **camunda-job-workers**: Use when an incident traces back to handler code rather than the process model — the worker side of `zeebe:taskDefinition type`
+- **camunda-connectors-development**: Use when an incident traces back to a custom connector's runtime / registration / hosting rather than its template configuration
 - **camunda-feel**: Use for diagnosing FEEL evaluation errors (EXTRACT_VALUE_ERROR, CONDITION_ERROR) in incidents
 - **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
 
@@ -100,6 +103,8 @@ With a custom request timeout:
 c8ctl await pi --id MyProcess --requestTimeout 60000
 ```
 
+**Not for long-running activities.** `await pi` uses the cluster's start-and-wait REST endpoint, which times out before any single activity that runs longer than the request timeout (LLM agents, slow HTTP calls, user tasks). The timed-out response carries no instance key, so you can't follow up on the partial run. For those processes, use `c8ctl create pi` and poll `c8ctl get pi <key>` until terminal state, or fall back to `c8ctl search pi --state=ACTIVE` to recover the orphaned instance after a failed `await`.
+
 ### Watch Mode (Development)
 
 Auto-redeploy on file changes during local development:
@@ -145,6 +150,18 @@ c8ctl get pd <key> --xml
 ### Resolving Incidents
 
 Incidents are the cluster's way of pausing an instance when something fails non-recoverably (FEEL error, missing variable, connector failure, job timeout exceeded retries). Always inspect before resolving.
+
+**First-response triage** — when a user reports "instance X is stuck", run these four in sequence to assess before deciding to resolve:
+
+```bash
+PI=<instanceKey>
+c8ctl get pi $PI                                              # state (ACTIVE = stuck on a step), processDefinitionId
+c8ctl search inc --processInstanceKey=$PI                     # any incidents on this PI, with errorType
+c8ctl search variables --processInstanceKey=$PI --fullValue   # variables at the failure point
+c8ctl get inc <incidentKey> --json                            # full error message
+```
+
+The four together usually localise the cause without needing to open Operate.
 
 List active incidents:
 
@@ -223,17 +240,12 @@ c8ctl cancel pi <instanceKey>
 
 ### JSON Output for Scripting
 
-Switch to structured output globally:
+Pass `--json` per call, optionally narrowed with `--fields`. Don't toggle session-wide output mode — see **camunda-c8ctl** for the why.
 
 ```bash
-c8ctl output json
-```
-
-Reduce noise by limiting fields:
-
-```bash
-c8ctl list pi --fields Key,State,ProcessDefinitionId
-c8ctl list pd --fields Key,Name,Version
+c8ctl list pi --json --fields=key,state,bpmnProcessId
+c8ctl list pd --json --fields=key,bpmnProcessId,version
+c8ctl get inc <key> --json
 ```
 
 ### Troubleshooting

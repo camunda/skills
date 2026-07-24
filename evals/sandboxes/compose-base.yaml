@@ -1,0 +1,62 @@
+# Sandbox compose — base archetype.
+#
+# Referenced directly from an eval's outcomes.py via
+# ``Task(sandbox=("docker", str(SANDBOXES_DIR / "compose-base.yaml")))``.
+#
+# Used by the camunda-c8ctl outcome eval's install-cli sample. The agent
+# container does NOT have c8ctl pre-installed — the eval tests the install path.
+#
+# A Camunda 8.9 orchestration service runs alongside the agent using
+# H2 (no Elasticsearch / Postgres). c8run is not used: it has no
+# aarch64 build and the camunda/camunda image is multi-arch.
+#
+# The agent's `default` service shares the orchestration container's
+# network namespace via `network_mode: "service:orchestration"`, so
+# c8ctl's default fallback URL (http://localhost:8080/v2) reaches the
+# REST API without any profile configuration.
+#
+# The agent loop runs in the Inspect host process (react() with
+# bash_session + text_editor + skill); only the tool calls execute
+# inside this container, so no model API keys need to be passed
+# through.
+
+services:
+  orchestration:
+    image: camunda/camunda:8.9.5
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /v1/topology HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n\" >&3 && head -n 1 <&3 | grep -q 200'"]
+      interval: 1s
+      retries: 60
+      start_period: 30s
+    configs:
+      - source: orchestration-config
+        target: /usr/local/camunda/config/application.yaml
+
+  default:
+    image: camunda-skills-evals-base:latest
+    # Share orchestration's network namespace so localhost:8080
+    # reaches the Camunda REST API. Cannot define own ports.
+    network_mode: "service:orchestration"
+    # Keep the container alive so Inspect can `docker exec` for each
+    # tool call.
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
+
+configs:
+  orchestration-config:
+    file: ./orchestration/application-h2.yaml
+
+volumes:
+  workspace:

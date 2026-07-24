@@ -14,6 +14,7 @@ Diagnose `mvn test` failures. Each row classifies the failure as a **test proble
 | `FORM_NOT_FOUND` incident | `.form` file missing from `@TestDeployment` | Test | Add the form file (no `classpath:`). |
 | Test times out on a service task | No `COMPLETE_JOB` instruction for the task | Test | Add `COMPLETE_JOB` with the right `elementId`. |
 | Test times out on a user task | No `COMPLETE_USER_TASK` instruction | Test | Add `COMPLETE_USER_TASK`. |
+| Test hangs on `<bpmn:adHocSubProcess>` with no incident | `COMPLETE_JOB` does not handle the worker contract of a job-worker-mode AHSP (has a `<zeebe:taskDefinition>`) — the worker must return a result picking elements to activate | Test | Switch to the `COMPLETE_JOB_AD_HOC_SUB_PROCESS` JSON instruction or `context.completeJobOfAdHocSubProcess(...)` (Java). For internal-mode AHSP (no `<zeebe:taskDefinition>`), drive routing through `activeElementsCollection` input variables instead — there is no outer job. |
 | Wrong end event reached | Variable name or value drives the wrong branch | **Investigate** | Read the FEEL condition on the gateway and the `CREATE_PROCESS_INSTANCE` variables. Either the variable name in the test is wrong **or** the FEEL in the BPMN uses the wrong identifier. |
 | `THROW_BPMN_ERROR_FROM_JOB` doesn't trigger boundary | `errorCode` mismatch between the instruction and `<bpmn:error errorCode="…">` | Test or process | Compare the two strings exactly. Whichever is the typo wins. |
 | `IS_COMPLETED` on process fails, an element is `IS_ACTIVE` | A waiting element has no instruction telling it to proceed | Test | Add `COMPLETE_JOB` / `COMPLETE_USER_TASK` / `THROW_BPMN_ERROR_FROM_JOB` for the active element. |
@@ -23,6 +24,8 @@ Diagnose `mvn test` failures. Each row classifies the failure as a **test proble
 | `BPMN error code mismatch` | `THROW_BPMN_ERROR_FROM_JOB errorCode` does not match `<bpmn:error errorCode>` | Test | Match exactly. Case-sensitive. |
 | Assertion failed on variable value | Value mismatch | **Investigate** | If the variable feeds a downstream gateway or DMN, fix whichever side is wrong. If nothing reads the variable, the assertion itself is out of scope — remove it. |
 | `IllegalStateException: Report resources not found in classpath` | Known SNAPSHOT bug in CPT coverage report generator | Infra | Non-blocking. Tests pass. Ignore until a GA release fixes it. |
+| DMN behaves wrong but no incident; process completes normally with wrong outputs | BPMN-completes tests can't catch wrong DMN outputs unless a downstream gateway consumes them | Test | Add `ASSERT_DECISION` (JSON) or `CamundaAssert.assertThatDecision(...)` (Java) — see authoring.md § Instructions for DMN, and **camunda-dmn** § testing-decisions for what to assert per hit policy. |
+| `DECISION_EVALUATION_ERROR: expected '<typeRef>' but found '[...]'` | Decision-table `<variable typeRef="string"/>` declared but the hit policy returns a list (RULE ORDER / COLLECT without aggregator) | Process | Drop the decision-level `<variable>` element on the decision table, or remove its `typeRef`. See **camunda-dmn** § Decision-level `<variable>` declarations. |
 
 ## Repair discipline
 

@@ -3,7 +3,7 @@ name: camunda-c8ctl
 description: |
   Use this skill to install, configure, and operate c8ctl (the Camunda 8 CLI), the foundation the other camunda-* skills build on.
 
-  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed via already-configured profiles, switching between connection profiles, managing connector secrets for the local cluster, switching output to JSON for scripting, also when another camunda-* skill needs c8ctl and it isn't installed yet.
+  Use for: starting a local cluster via c8run, connecting to Camunda 8 SaaS or Self-Managed via already-configured profiles, switching between connection profiles, managing connector secrets for the local cluster, switching c8ctl output modes for AI and scripting use, and any time another camunda-* skill calls c8ctl — load this first for the conventions (flags, profiles, output modes) shared across commands.
 
   Do not use for: writing BPMN (use camunda-bpmn), writing FEEL (use camunda-feel), or deploying and operating running processes (use camunda-process-mgmt — that skill builds on c8ctl).
 
@@ -12,11 +12,11 @@ description: |
 
 # Camunda c8ctl CLI
 
-Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-dependency CLI for Camunda 8.8+ — for connecting to clusters, deploying resources, and managing process automation. c8ctl is the foundation for the other camunda-* skills (`camunda-bpmn`, `camunda-connectors`, `camunda-feel`, `camunda-process-mgmt`, `camunda-ai-agent`).
+Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-dependency CLI for Camunda 8.8+ — for connecting to clusters, deploying resources, and managing process automation. c8ctl is the foundation for the other camunda-* skills (`camunda-bpmn`, `camunda-connectors`, `camunda-feel`, `camunda-process-mgmt`, `camunda-ai-agents`).
 
 ## Prerequisites
 
-- **Node.js ≥ 22.18.0** (required for native TypeScript support)
+- **Node.js ≥ 22.18.0** (required for native TypeScript support) — see **camunda-development** for installing it locally
 
 ## Cross-References
 
@@ -24,16 +24,16 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 - **camunda-connectors**: Uses `c8ctl element-template search/info/get-properties/apply`
 - **camunda-feel**: Uses `c8ctl feel evaluate`
 - **camunda-process-mgmt**: Uses `c8ctl deploy`, `c8ctl run`, `c8ctl watch`, `c8ctl list pi`, `c8ctl search inc`, `c8ctl complete ut`, `c8ctl resolve inc`, etc.
-- **camunda-ai-agent**: Uses `c8ctl element-template search/apply` to apply the AI Agent connector template
+- **camunda-ai-agents**: Uses `c8ctl element-template search/apply` to apply the AI Agent connector template
 
 ## Instructions
 
 ### Install
 
-Install c8ctl globally from npm. The other camunda-* skills depend on the `bpmn`, `element-template`, and `feel` plugins, which require **c8ctl ≥ 3.0.0-alpha.1**. Pin the alpha explicitly — npm's `latest` tag still points at the 2.x line, which ships without these plugins:
+Install c8ctl globally from npm. The other camunda-* skills depend on the `bpmn`, `element-template`, and `feel` plugins, which require **c8ctl ≥ 3.0.0**:
 
 ```bash
-npm install -g @camunda8/cli@3.0.0-alpha.1
+npm install -g @camunda8/cli
 ```
 
 After installation, both `c8ctl` and the shorter alias `c8` are available. The other camunda-* skills use the `c8ctl` form for clarity.
@@ -47,18 +47,18 @@ c8ctl help
 
 ### Verify default plugins
 
-The other camunda-* skills depend on three plugins that ship with c8ctl ≥ 3.0.0-alpha.1: `bpmn`, `element-template`, and `feel`. Verify each is available:
+The other camunda-* skills depend on three plugins that ship with c8ctl ≥ 3.0.0: `bpmn`, `element-template`, and `feel`. Verify each is available:
 
 ```bash
 c8ctl bpmn --help              # camunda-bpmn
-c8ctl element-template --help  # camunda-connectors, camunda-ai-agent
+c8ctl element-template --help  # camunda-connectors, camunda-ai-agents
 c8ctl feel --help              # camunda-feel
 ```
 
-If any command exits non-zero, the installed c8ctl is older than 3.0.0-alpha.1 and lacks these plugins. **Ask the user to confirm before installing** — don't run the install unprompted — then run:
+If any command exits non-zero, the installed c8ctl is older than 3.0.0 and lacks these plugins. **Ask the user to confirm before installing** — don't run the install unprompted — then run:
 
 ```bash
-npm install -g @camunda8/cli@3.0.0-alpha.1
+npm install -g @camunda8/cli
 ```
 
 ### Pick a Cluster
@@ -205,7 +205,7 @@ Don't run `c8ctl load plugin` on the agent's initiative — plugin code runs in 
 - **`c8ctl: command not found`** (or `c8: command not found`) — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
 - **`Node.js version too old`** — c8ctl requires Node ≥ 22.18.0 for native TypeScript support. Use `nvm` or `asdf` to upgrade.
 - **Local cluster won't start** — check `c8ctl cluster status` and `c8ctl cluster logs`. Common causes: port 8080 already in use, Java not installed (c8run needs JRE 21+), insufficient disk space for the binary download.
-- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Run `c8ctl cluster start` on the host directly.
+- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Ask the user to run `c8ctl cluster start` directly in their host terminal (outside the agent sandbox).
 - **c8ctl can't write to its default data directory** (sandboxed agents, restricted filesystems) — set `C8CTL_DATA_DIR=<writable-path>` before invoking c8ctl.
 - **OAuth errors against SaaS** — verify the profile is configured correctly. The cluster URL for SaaS is the *Zeebe REST address*, not the dashboard URL. See the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) for OAuth flags.
 

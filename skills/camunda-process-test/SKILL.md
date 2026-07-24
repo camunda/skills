@@ -24,6 +24,10 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 
 - **camunda-bpmn**: Run `c8ctl bpmn lint` on the process under test before authoring scenarios — failing lints surface as deploy-time `@TestDeployment` failures.
 - **camunda-feel**: Use when a gateway condition or DMN entry is unclear; FEEL semantics drive which segment hits which branch.
+- **camunda-dmn**: Use when a DMN decision is the unit under test — CPT exercises it via the calling business rule task; pair with `npx dmnlint` for structural checks.
+- **camunda-job-workers**: Use when the handler code that backs a service task is itself under test — CPT drives BPMN reachability; worker unit tests drive handler behaviour.
+- **camunda-connectors-development**: Use when a custom connector is the unit under test — CPT exercises it from the BPMN side; SDK-side tests cover the connector class directly.
+- **camunda-ai-agents**: Use when testing an AI Agent Sub-process — drives the BPMN shape that `COMPLETE_JOB_AD_HOC_SUB_PROCESS` and `context.when().then()` orchestrate.
 - **camunda-process-mgmt**: CPT runs against an **embedded** Zeebe engine — it does **not** use the c8ctl-managed cluster or any profile. No `c8ctl` call deploys a process under test.
 
 ## Scope boundaries
@@ -63,7 +67,7 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 For each segment, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-Use the Java fallback (covered in the same `authoring.md`) only when the segment needs Spring bean mocking, parameterized data tables, or assertions richer than the JSON instruction set offers — accept that Java tests are invisible to Web Modeler.
+Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). Accept that Java tests are invisible to Web Modeler.
 
 ### 5. Run
 
@@ -119,14 +123,7 @@ PY
 
 Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_]+"' <bpmn>`, exclude `_di`, `BPMNDiagram`, `BPMNPlane`, `Definitions_`, `ErrorDef_`, `TimerDef_`, `Signal_`, `Message_`).
 
-**Open the HTML report in the user's browser as soon as `mvn test` exits — pass or fail.** Default command (macOS):
-
-```bash
-REPORT="target/coverage-report/report.html"
-[ -f "$REPORT" ] && open "$REPORT"
-```
-
-On Linux substitute `xdg-open`; on Windows substitute `start`. Default behavior, not opt-in — every run ends with the report visible.
+**Surface the HTML report path to the user as soon as `mvn test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
 
 **Patch-loop on prediction misses — default behavior.** Set-cover planning in step 3 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
 
@@ -144,7 +141,7 @@ Hard blockers that terminate the loop:
 
 Do not declare the suite done while ids remain uncovered and no hard blocker applies.
 
-> **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios manually to confirm coverage in that case.
+> **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios from source to confirm coverage in that case.
 
 ### 7. Verify no redundancy slipped through
 
@@ -169,7 +166,9 @@ Duplicates flagged: 0
 
 ## References
 
-- [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout
-- [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type
-- [authoring.md](references/authoring.md) — `.test.json` schema, instruction reference, Java fallback
+- [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
+- [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
+- [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
+- [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
+- [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
