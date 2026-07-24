@@ -198,11 +198,12 @@ npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema
 cat > validate-form.cjs << 'EOF'
 const Ajv = require('ajv');
 const addErrors = require('ajv-errors');
+const fs = require('fs');
 const schema = require('@bpmn-io/form-json-schema/resources/schema.json');
 const file = process.argv[2];
 if (!file) { console.error('Usage: node validate-form.cjs <form-file>'); process.exit(1); }
 let form;
-try { form = JSON.parse(require('fs').readFileSync(file, 'utf8')); }
+try { form = JSON.parse(fs.readFileSync(file, 'utf8')); }
 catch (e) { console.error(`Cannot read/parse ${file}: ${e.message}`); process.exit(1); }
 const ajv = new Ajv({ allErrors: true, strict: false });
 addErrors(ajv);
