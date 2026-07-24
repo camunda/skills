@@ -62,6 +62,30 @@ Deploy an entire directory (recursive):
 c8ctl deploy ./my-project
 ```
 
+Pre-deploy checks (recommended):
+
+1. Lint BPMN before deployment:
+
+   ```bash
+   c8ctl bpmn lint process.bpmn
+   ```
+
+2. Validate DMN and form files if present (see **camunda-dmn** and **camunda-forms** workflows), then deploy only the resources that are ready.
+
+Spring Boot resource-tree tip:
+
+- In projects that keep deployables under `src/main/resources/`, prefer deploying `processes/`, `decisions/`, and `forms/` paths explicitly.
+- Avoid deploying the parent `src/main/resources` directory wholesale when it contains non-deployable files (`application.yaml`, `application.properties`, etc.).
+
+Example:
+
+```bash
+c8ctl deploy \
+  src/main/resources/processes \
+  src/main/resources/decisions \
+  src/main/resources/forms
+```
+
 After deploying, verify:
 
 ```bash
