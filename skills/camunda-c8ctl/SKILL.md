@@ -76,6 +76,24 @@ If the user hasn't decided and is doing local development, **suggest local c8run
 
 c8ctl ships with a default `cluster` plugin that wraps [c8run](https://docs.camunda.io/docs/self-managed/setup/deploy/local/c8run/). It downloads, starts, and stops a local Camunda 8 cluster for you.
 
+Before starting a new local cluster, run a quick preflight so you don't restart unnecessarily and you catch Java/runtime issues early:
+
+```bash
+# Is a local cluster already responding?
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/topology
+
+# Is Java available (c8run needs JRE 21+)?
+java -version
+```
+
+- If topology returns `200`, a local cluster is already running; continue with your task.
+- If Java is missing or too old, install JRE/JDK 21+ first.
+- In some non-interactive shells, `java -version` can work while `JAVA_HOME` is still unset (common with `asdf`/`mise` shims). If startup fails even though Java is installed, set `JAVA_HOME` explicitly before `c8ctl cluster start`:
+
+```bash
+export JAVA_HOME="$(asdf where java 2>/dev/null || mise where java 2>/dev/null)"
+```
+
 **Examples**:
 
 ```bash
@@ -93,6 +111,9 @@ c8ctl cluster start alpha
 
 # Check status (running? what version? connection details?)
 c8ctl cluster status
+
+# Verify REST topology directly (HTTP 200 means ready)
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/topology
 
 # Stream logs
 c8ctl cluster logs
