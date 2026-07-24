@@ -51,7 +51,7 @@ Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missin
 
 ### 2. Setup (only if missing)
 
-Follow [references/setup.md](references/setup.md): verify Java 21+, Maven, Docker; add the CPT dependency; scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
+Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
 
 ### 3. Plan segments (set-cover, not per-element)
 
