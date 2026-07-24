@@ -195,14 +195,14 @@ After creating or editing `.form` files, validate them against the official Camu
 ```bash
 npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema
 
-# Write the validation helper (add validate-form.cjs to .gitignore if you don't want to commit it)
+# Create the validation helper and commit it as a project tool
 cat > validate-form.cjs << 'EOF'
 const Ajv = require('ajv');
 const addErrors = require('ajv-errors');
 const fs = require('fs');
 const schema = require('@bpmn-io/form-json-schema/resources/schema.json');
 const file = process.argv[2];
-if (!file) { console.error('Usage: node validate-form.cjs <form-file>'); process.exit(1); }
+if (!file) { console.error('Usage: node validate-form.cjs <path-to-form.form>'); process.exit(1); }
 let form;
 try { form = JSON.parse(fs.readFileSync(file, 'utf8')); }
 catch (e) { console.error(`Cannot read/parse ${file}: ${e.message}`); process.exit(1); }
