@@ -87,7 +87,7 @@ and never sees the internal steps.
 reads the root node only; declaring on a child task produces an empty
 schema and every downstream value comes back `null`. `toolCallResult` has
 no such restriction — any activity in the sub-flow can set it, since that
-part is scope-based rather than root-based. Below, the subProcess root
+part is scope-based rather than root-based. Below, the `bpmn:subProcess` root
 declares the `fromAi()`-sourced params; `ComposeEmail` merely references
 them (already in scope); `RecordSent` shapes the final `toolCallResult`.
 
