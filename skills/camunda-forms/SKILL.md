@@ -190,16 +190,32 @@ Generate complete `.form` JSON files. Ensure:
 
 ### Schema Validation Loop (Lint Before Deploy)
 
-After creating or editing `.form` files, validate them against the official Camunda form schema before deployment:
+After creating or editing `.form` files, validate them against the official Camunda form schema before deployment. Use `ajv` with the `ajv-errors` plugin directly — `ajv-cli` cannot be used because the schema uses the `errorMessage` keyword that `ajv-cli` does not support:
 
 ```bash
-npm install --save-dev ajv-cli @bpmn-io/form-json-schema
-npx ajv validate \
-  -s node_modules/@bpmn-io/form-json-schema/resources/schema.json \
-  -d path/to/form.form
+npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema
+
+cat > /tmp/validate-form.cjs << 'EOF'
+const Ajv = require('ajv');
+const addErrors = require('ajv-errors');
+const schema = require('@bpmn-io/form-json-schema/resources/schema.json');
+const form = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));
+const ajv = new Ajv({ allErrors: true, strict: false });
+addErrors(ajv);
+const validate = ajv.compile(schema);
+if (!validate(form)) { console.error(ajv.errorsText(validate.errors)); process.exit(1); }
+console.log('Valid ✓');
+EOF
+
+# NODE_PATH points to the project's node_modules so the script can find the packages
+NODE_PATH=$(pwd)/node_modules node /tmp/validate-form.cjs path/to/form.form
 ```
 
-For multiple forms, run the same command per file (or script over `*.form`) and keep fixing until all files validate cleanly.
+For multiple forms, loop over each file and keep fixing until all validate cleanly:
+
+```bash
+for f in *.form; do NODE_PATH=$(pwd)/node_modules node /tmp/validate-form.cjs "$f" || echo "FAILED: $f"; done
+```
 
 Common schema keywords and fixes:
 
