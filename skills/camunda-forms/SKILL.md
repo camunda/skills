@@ -199,11 +199,15 @@ cat > validate-form.cjs << 'EOF'
 const Ajv = require('ajv');
 const addErrors = require('ajv-errors');
 const schema = require('@bpmn-io/form-json-schema/resources/schema.json');
-const form = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));
+const file = process.argv[2];
+if (!file) { console.error('Usage: node validate-form.cjs <form-file>'); process.exit(1); }
+let form;
+try { form = JSON.parse(require('fs').readFileSync(file, 'utf8')); }
+catch (e) { console.error(`Cannot read/parse ${file}: ${e.message}`); process.exit(1); }
 const ajv = new Ajv({ allErrors: true, strict: false });
 addErrors(ajv);
 const validate = ajv.compile(schema);
-if (!validate(form)) { console.error(ajv.errorsText(validate.errors)); process.exit(1); }
+if (!validate(form)) { console.error(JSON.stringify(validate.errors, null, 2)); process.exit(1); }
 console.log('Valid ✓');
 EOF
 
@@ -213,7 +217,11 @@ node validate-form.cjs path/to/form.form
 For multiple forms, loop over each file and keep fixing until all validate cleanly:
 
 ```bash
-for f in *.form; do node validate-form.cjs "$f" || echo "FAILED: $f"; done
+failed=0
+for f in *.form; do
+  node validate-form.cjs "$f" || { echo "FAILED: $f"; failed=1; }
+done
+exit $failed
 ```
 
 Common schema keywords and fixes:
