@@ -188,6 +188,29 @@ Generate complete `.form` JSON files. Ensure:
 - `layout.row` values increment sequentially (`row_0`, `row_1`, ...)
 - Metadata fields are present and correct
 
+### Schema Validation Loop (Lint Before Deploy)
+
+After creating or editing `.form` files, validate them against the official Camunda form schema before deployment:
+
+```bash
+npm install --save-dev ajv-cli @bpmn-io/form-json-schema
+npx ajv validate \
+  -s node_modules/@bpmn-io/form-json-schema/resources/schema.json \
+  -d path/to/form.form
+```
+
+For multiple forms, run the same command per file (or script over `*.form`) and keep fixing until all files validate cleanly.
+
+Common schema keywords and fixes:
+
+| Keyword | Typical meaning | Typical fix |
+|---|---|---|
+| `required` | Required field missing | Add the missing property named in the error message |
+| `additionalProperties` | Unknown property for this object | Remove the unsupported property |
+| `type` | Wrong JSON value type | Change value to the expected type (string/number/boolean/object/array) |
+| `enum` / `const` | Value not in allowed set | Replace with one of the allowed values |
+| `pattern` | String format invalid (often `id`/`key`) | Rename to match the required regex (usually alnum/underscore style) |
+
 ## Troubleshooting
 
 - **Form doesn't appear in Tasklist** — verify the user task in BPMN includes `<zeebe:userTask/>` and `<zeebe:formDefinition formId="..."/>` matching the form's `id` field. The legacy `formKey` attribute was removed in Camunda 8.10.
