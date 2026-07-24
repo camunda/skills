@@ -52,7 +52,7 @@ c8ctl cluster status 2>/dev/null || echo "local cluster: not running"
 ```
 
 - **Node.js** and **c8ctl** are required. If either is missing, install before continuing.
-- If any default plugin is missing, upgrade c8ctl to a current version (`npm install -g @camunda8/cli`).
+- If any default plugin is missing, the installed c8ctl is older than 3.0.0. **Ask the user to confirm before upgrading** — don't run the install unprompted — then run `npm install -g @camunda8/cli`.
 - Missing profile/local cluster is not an error; it only means profile or cluster setup is still pending.
 
 ### Install
