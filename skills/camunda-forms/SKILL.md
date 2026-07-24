@@ -195,6 +195,7 @@ After creating or editing `.form` files, validate them against the official Camu
 ```bash
 npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema
 
+# Write the validation helper (add validate-form.cjs to .gitignore if you don't want to commit it)
 cat > validate-form.cjs << 'EOF'
 const Ajv = require('ajv');
 const addErrors = require('ajv-errors');
@@ -215,13 +216,14 @@ EOF
 node validate-form.cjs path/to/form.form
 ```
 
-For multiple forms, loop over each file and keep fixing until all validate cleanly:
+For multiple forms (including nested directories), loop over every file and collect all failures before exiting:
 
 ```bash
 failed=0
-for f in *.form; do
+# Use find for recursive discovery; replace with *.form for flat directories
+while IFS= read -r f; do
   node validate-form.cjs "$f" || { echo "FAILED: $f"; failed=1; }
-done
+done < <(find . -name '*.form' -not -path '*/node_modules/*')
 exit $failed
 ```
 
