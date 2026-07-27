@@ -16,134 +16,107 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 
 ## Prerequisites
 
-- Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed)
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl bpmn lint`
 - **c8ctl ≥ 3.2.0** for `bpmn format`. If the command is unavailable, ask the user to upgrade: `npm install -g @camunda8/cli`
+- Node.js 18+ recommended — enables the bpmnkit authoring path (check with `node --version`)
+
+Authoring and linting are offline — no cluster needed. A Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed) is only required for the deploy-and-run step, which is delegated to **camunda-process-mgmt** / **camunda-process-test**.
+
+## Authoring Path
+
+Check for Node.js first:
+
+```bash
+node --version   # ≥ 18 → use bpmnkit  |  not found → manual XML
+```
+
+| Node.js? | Path | Best for |
+|---|---|---|
+| Yes | **bpmnkit** (`@bpmnkit/core`) | New processes, structural edits |
+| No | **Manual XML** | Small edits to existing files, no Node.js |
+
+## Path A — bpmnkit (primary)
+
+`@bpmnkit/core` is a Node.js library that builds valid BPMN 2.0 XML — mandatory Camunda 8 namespace headers, Zeebe extensions, and DI coordinates — from a fluent API, at far fewer tokens than hand-writing XML. It runs under Node (baseline), Bun, or Deno.
+
+Install into a scratch dir (`npm install @bpmnkit/core`), then run your script with `node script.mjs`. Write the output to an absolute path so it lands in the right place regardless of the script's working directory. Setup variants (Bun/Deno) are in [references/bpmnkit.md](references/bpmnkit.md).
+
+### Minimal pattern
+
+```javascript
+import { Bpmn } from "@bpmnkit/core";
+import { writeFileSync } from "fs";
+
+const defs = Bpmn.createProcess("my-process", "My Process")
+  .startEvent("Start", { name: "Start" })
+  .serviceTask("DoWork", { name: "Do work", taskType: "my-worker" })
+  .endEvent("End", { name: "Done" })
+  .withAutoLayout()
+  .build();
+
+writeFileSync("/path/to/output/process.bpmn", Bpmn.export(defs));
+```
+
+**Always pass `{ name: "..." }`** to start events, end events, and gateways — without it `c8ctl bpmn lint` reports `label-required`.
+
+**Two post-export fixes for Camunda 8.8+:** the exporter stamps `executionPlatformVersion="8.6.0"` and omits `<zeebe:userTask />`. Bump the version and inject the user-task element after `Bpmn.export()` — see [references/bpmnkit.md](references/bpmnkit.md), which also covers gateways, events, and editing existing files.
+
+## Path B — Manual XML
+
+For small textual edits to existing BPMN, or when Node.js is unavailable. Follow the canonical bpmn-js style; any round-trip through Modeler or `c8ctl element-template apply` reformats the file otherwise, breaking Edit matches.
+
+Mandatory on every file: `xmlns:zeebe`, `isExecutable="true"`, `modeler:executionPlatform="Camunda Cloud"`, and a `<bpmndi:BPMNDiagram>` block with a shape per flow element and an edge per sequence flow.
+
+References for manual authoring:
+- [canonical-style.md](references/canonical-style.md) — XML formatting, attribute order, self-closing form
+- [element-catalog.md](references/element-catalog.md) — element types with Zeebe attributes
+- [zeebe-extensions.md](references/zeebe-extensions.md) — task definitions, form links, IO mappings
+- [layout-rules.md](references/layout-rules.md) — DI coordinates, element sizes, spacing rules
+
+## Lint gate (both paths)
+
+**A BPMN edit is not done until lint reports zero errors and zero warnings:**
+
+```bash
+c8ctl bpmn lint path/to/process.bpmn
+```
+
+`c8ctl bpmn lint` auto-detects the execution platform version from the BPMN file. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
+
+Once lint reports zero issues the file is complete — no need to read it back.
+
+Fix every issue and re-run. Common categories:
+
+- **label-required** — add `name` to the element
+- **fake-join** — match join gateway type to its fork (XOR fork → XOR join, AND fork → AND join)
+- **no-bpmndi** — add the `<bpmndi:BPMNDiagram>` section
+- **no-overlapping-elements** — adjust coordinates per [references/layout-rules.md](references/layout-rules.md)
+- **no-disconnected** — every element must lie on a complete start-to-end path
+- **no-implicit-split** — exclusive gateway outgoing flows need conditions + a default
+
+Suppress a genuine false positive in a project-level `.bpmnlintrc` and note the suppression in your final message.
+
+## Behavioural validation
+
+Lint catches structure, not runtime behaviour. After lint passes, validate by running the process: **camunda-process-test** (embedded engine) or **camunda-process-mgmt** (deploy and start an instance).
 
 ## Cross-References
 
-- **camunda-feel**: Use for FEEL expressions in gateway conditions, input/output mappings, timer definitions
-- **camunda-dmn**: Use for authoring the DMN decision behind a business rule task — `<zeebe:calledDecision decisionId="..." resultVariable="..."/>`
-- **camunda-forms**: Use for creating Camunda Form JSON schemas linked to user tasks
-- **camunda-connectors**: Use for configuring pre-built connectors (REST, Slack, Kafka, etc.) via element templates
-- **camunda-development**: Use to decide whether a service task should be backed by an OOTB connector, a custom connector, or a job worker
-- **camunda-job-workers**: Use to implement the handler code that a service task's `zeebe:taskDefinition type` activates
-- **camunda-connectors-development**: Use to build a custom connector (JSON-only template or Java SDK) that attaches to a service task or event element
-- **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
-- **camunda-process-mgmt**: Use for deploying to a cluster and running instances
-- **camunda-ai-agents**: Use when modeling an AI agent — ad-hoc subprocess hosting tools driven by the AI Agent connector
-
-## Instructions
-
-### XML Structure
-
-When writing a BPMN file from scratch, follow the canonical bpmn-js style — single-line `<bpmn:definitions>`, two-space indent, no blank lines between siblings, `<el />` self-closing form. Otherwise any round-trip through Camunda Modeler, Web Modeler, or `c8ctl element-template apply` reformats the file, breaking `Edit` matches and adding diff noise. Rules and a worked skeleton: [references/canonical-style.md](references/canonical-style.md).
-
-The `zeebe` namespace, `isExecutable="true"`, and `modeler:executionPlatform="Camunda Cloud"` are mandatory — without them, Camunda won't recognize the process correctly.
-
-The `<bpmndi:BPMNDiagram>` block is also mandatory, not optional polish: `c8ctl bpmn lint` flags missing DI (`no-bpmndi`) as an error, and Modeler can't render a process without it. Every `<bpmn:process>` flow element needs a matching `<bpmndi:BPMNShape>`, every `<bpmn:sequenceFlow>` a `<bpmndi:BPMNEdge>`. Coordinates, sizes, and waypoint conventions: [references/layout-rules.md](references/layout-rules.md). Note that Zeebe deploys a DI-less BPMN happily — the missing DI surfaces only at lint and in Modeler, so don't rely on a successful deploy as evidence the file is well-formed.
-
-### Symbol Encoding
-
-Always encode special characters in XML attribute values:
-- `<` → `&lt;`, `>` → `&gt;`, `&` → `&amp;`, `"` → `&quot;`, `'` → `&apos;`
-
-### Core Modeling Rules
-
-**Start/End Events:**
-- Every path starts with a Start Event (no incoming flows) and reaches an End Event (no outgoing flows)
-- Use None start event for most processes; Message for external triggers; Timer for scheduled execution
-
-**Tasks** — one atomic action per task:
-- **User Task**: Human interaction. Use the Camunda user task implementation: include `<zeebe:userTask />` and link the form via `<zeebe:formDefinition formId="X" />`. Assign with `<zeebe:assignmentDefinition candidateGroups="..." />`. Setting `formId="X"` makes `X.form` a required deliverable — author it via **camunda-forms** in the same step, or flag the gap explicitly in your final message. `c8ctl bpmn lint` checks the attribute is present, not that the file resolves. Do NOT write the deprecated job-worker variant (no `<zeebe:userTask />`, `formKey` instead of `formId`) — see [references/zeebe-extensions.md](references/zeebe-extensions.md) § Form Definition.
-- **Service Task**: Automated work. Requires `<zeebe:taskDefinition type="..." retries="3" />`. The type must exactly match worker registration (case-sensitive). When backed by an out-of-the-box connector, apply the template via **camunda-connectors** — don't hand-write the connector input mappings.
-- **Script Task**: Inline FEEL expression. Uses `<zeebe:script expression="=..." resultVariable="..." />`.
-- **Business Rule Task**: DMN evaluation. Uses `<zeebe:calledDecision decisionId="X" resultVariable="..." />`. `decisionId="X"` makes the corresponding `X.dmn` a required deliverable — author it via **camunda-dmn**.
-- Name tasks with **verb + object** pattern: "Review invoice", "Send notification"
-
-**Gateways:**
-- **Exclusive (XOR)**: Exactly one path taken. Set `default` attribute for the fallback flow. Label condition flows.
-- **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
-- **Inclusive (OR)**: One or more paths. Also requires a matching join.
-- Fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
-
-**Sequence Flows:**
-- Conditions use FEEL expressions with `=` prefix:
-  ```xml
-  <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=amount &gt; 1000</bpmn:conditionExpression>
-  ```
-
-**FEEL Expressions in BPMN** — all FEEL must be prefixed with `=`:
-- Gateway conditions: `=riskLevel = "HIGH"`
-- Timer durations: `="PT7D"` (plain `PT7D` is rejected)
-- Input/output mappings: `=customer.name`
-
-Anything beyond a simple variable reference (function calls, operators, context literals, `for` / `every` / `some`) — validate via **camunda-feel** before committing.
-
-**IDs**: Use descriptive PascalCase — `ReviewInvoice`, `AmountExceedsLimit`, `Flow_ToApproval`
-
-### Input/Output Mappings
-
-Create local variables and control variable propagation:
-
-```xml
-<zeebe:ioMapping>
-  <!-- Input: create local variable from parent scope -->
-  <zeebe:input source="=customer.name" target="customerName" />
-  <!-- Output: propagate local result to parent scope -->
-  <zeebe:output source="=result.status" target="paymentStatus" />
-</zeebe:ioMapping>
-```
-
-See [references/zeebe-extensions.md](references/zeebe-extensions.md) for detailed variable scoping, propagation rules, and examples.
-
-### Working with Existing BPMN Files
-
-BPMN files can be large. Follow these rules:
-1. **Use Grep to find elements** — never read entire files unnecessarily
-2. **Use Edit for modifications** — locate the exact section with Grep first, then make precise edits
-3. **Read specific sections only** — use offset/limit when needed
-
-### Hygiene
-
-- Follow canonical bpmn-js style — see [references/canonical-style.md](references/canonical-style.md)
-- Self-close empty elements with `<el />` (single space before `/>`)
-- Keep unique, descriptive IDs
-- Include BPMN DI section for visual layout (see [references/layout-rules.md](references/layout-rules.md))
-- Include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
-
-### Lint loop — structural exit gate
-
-A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing structural step of every BPMN task — generation, modification, refactor, or merge.
-
-1. Run the linter against the file you touched:
-
-   ```bash
-   c8ctl bpmn lint path/to/process.bpmn
-   ```
-
-   `c8ctl bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
-
-2. If output is non-empty, fix every reported issue and run the linter again. Common categories:
-   - **no-overlapping-elements** — adjust DI coordinates per [references/layout-rules.md](references/layout-rules.md) spacing rules
-   - **fake-join** — make join gateways match their fork type (XOR forks → XOR joins, AND forks → AND joins)
-   - **label-required** — name every labeled element
-   - **no-disconnected** — ensure every element is on a complete start-to-end path
-   - **no-implicit-split** — exclusive gateway outgoing flows need conditions + a default
-   - **superfluous-gateway** — drop pass-through gateways with one in, one out
-
-3. Loop until the linter is clean. Do not declare the task structurally done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
-
-If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
-
-### Behavioural validation
-
-Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
+- **camunda-feel**: FEEL expressions in gateway conditions, input/output mappings, timer definitions
+- **camunda-dmn**: DMN decision behind a business rule task — `<zeebe:calledDecision decisionId="..." resultVariable="..."/>`
+- **camunda-forms**: Camunda Form JSON schemas linked to user tasks via `formId`
+- **camunda-connectors**: Pre-built connectors via element templates — apply with `c8ctl element-template apply`
+- **camunda-development**: Decide whether a service task uses an OOTB connector, custom connector, or job worker
+- **camunda-job-workers**: Implement the handler code for a service task's `taskDefinition type`
+- **camunda-connectors-development**: Build a custom connector attached to a service or event element
+- **camunda-process-test**: Test processes against an embedded Zeebe engine
+- **camunda-process-mgmt**: Deploy to a cluster and run instances
+- **camunda-ai-agents**: Model an AI agent with an ad-hoc subprocess and the AI Agent connector
 
 ## References
 
-For detailed reference material, read from `references/`:
-- [element-catalog.md](references/element-catalog.md) — complete BPMN element types with Camunda/Zeebe attributes (events, tasks, gateways, subprocesses)
-- [zeebe-extensions.md](references/zeebe-extensions.md) — input/output mappings, variable scoping, task definitions, form definitions, secrets
-- [layout-rules.md](references/layout-rules.md) — DI coordinate management, element sizes, spacing rules for diagram layout
-- [canonical-style.md](references/canonical-style.md) — canonical bpmn-js XML style: tag layout, attribute order, self-closing form, why hand-formatting drifts
+- [bpmnkit.md](references/bpmnkit.md) — bpmnkit setup, recipes (gateways, events), 8.8 compatibility, editing
+- [element-catalog.md](references/element-catalog.md)
+- [zeebe-extensions.md](references/zeebe-extensions.md)
+- [layout-rules.md](references/layout-rules.md)
+- [canonical-style.md](references/canonical-style.md)
