@@ -95,10 +95,10 @@ When a process spans multiple service tasks, user tasks, and business-rule tasks
    - BPMN execution wiring updates
 4. Run domain validation loops:
    - BPMN: `c8ctl bpmn lint` (and compatibility checks as needed)
-   - DMN: `npx dmnlint` (structural) + FEEL/hit-policy test execution (see **camunda-dmn**)
+   - DMN: `npx --yes dmnlint` (structural) + FEEL/hit-policy test execution (see **camunda-dmn**)
    - Forms: JSON schema validity — required fields, `schemaVersion`, component `key` uniqueness (see **camunda-forms**)
 5. Run a cross-artifact wiring audit before deployment:
-   - every non-connector `taskDefinition type` is implemented by a worker
+   - every non-connector `taskDefinition type` (typically values **without** connector-style colons, e.g. `check-credit`) is implemented by a worker; connector runtime task types (for example `io.camunda:slack:1`) are resolved by connector templates/runtime, not custom workers
    - every referenced `formId` exists and matches form `id`
    - every referenced `decisionId` exists in deployed DMN resources
 6. Deploy only categories that are validation-clean; if a category is intentionally excluded, record that explicitly and keep release status as partial until fixed.
