@@ -24,10 +24,10 @@ java -version
 ./mvnw -version 2>/dev/null || mvn -version
 
 # Docker runtime
-docker info
+docker info --format '{{.ServerVersion}}'
 ```
 
-If Docker is not running, start your runtime (Docker Desktop, OrbStack, or Rancher Desktop) and re-run `docker info`.
+If Docker is not running, start your runtime (Docker Desktop, OrbStack, or Rancher Desktop) and re-run `docker info --format '{{.ServerVersion}}'`.
 
 If Java or Maven resolves in an interactive shell but fails in non-interactive runs, check tool-manager shims (`asdf`/`mise`) and set the project toolchain explicitly (for example via `.tool-versions`) before running CPT.
 
