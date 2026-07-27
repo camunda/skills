@@ -83,8 +83,8 @@ Example:
 c8ctl deploy \
   src/main/resources/processes \
   src/main/resources/decisions \
-  src/main/resources/forms
-```
+  src/main/resources/forms \
+  --profile=local
 
 After deploying, verify:
 
