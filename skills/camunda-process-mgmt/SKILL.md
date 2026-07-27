@@ -85,6 +85,7 @@ c8ctl deploy \
   src/main/resources/decisions \
   src/main/resources/forms \
   --profile=local
+```
 
 After deploying, verify:
 
