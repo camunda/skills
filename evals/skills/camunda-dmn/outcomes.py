@@ -1,4 +1,4 @@
-"""camunda-dmn outcome eval: author lintable DMN decision tables with expected logic."""
+"""camunda-dmn outcome eval: author DMN decision tables with expected logic."""
 
 from __future__ import annotations
 
