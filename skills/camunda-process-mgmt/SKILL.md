@@ -104,7 +104,7 @@ Pick the start verb by intent:
 |---|---|
 | Start and return immediately (default) | `c8ctl create pi` |
 | Deploy + start in one shot | `c8ctl run` |
-| Start and block until terminal state | `c8ctl await pi` |
+| Start and block until completion | `c8ctl await pi` |
 
 Create an instance for a deployed process:
 
