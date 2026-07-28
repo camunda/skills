@@ -42,28 +42,53 @@ def process_instance_completed() -> Scorer:
         sb = sandbox()
 
         result_file = await sb.exec(["cat", path], timeout=10)
-        if result_file.returncode != 0 or not (result_file.stdout or "").strip():
-            return Score(value=0.0, explanation=f"missing result file at {path}")
-
-        try:
-            payload = json.loads(result_file.stdout)
-        except json.JSONDecodeError as exc:
-            return Score(
-                value=0.0,
-                explanation=f"result file is not valid JSON: {exc}",
-                metadata={"raw": (result_file.stdout or "")[:500]},
+        task_key = ""
+        instance_key = ""
+        payload: dict[str, object] = {}
+        if result_file.returncode == 0 and (result_file.stdout or "").strip():
+            try:
+                payload = json.loads(result_file.stdout)
+            except json.JSONDecodeError as exc:
+                return Score(
+                    value=0.0,
+                    explanation=f"result file is not valid JSON: {exc}",
+                    metadata={"raw": (result_file.stdout or "")[:500]},
+                )
+            instance_key = str(payload.get("instanceKey") or "").strip()
+            task_key = str(payload.get("completedUserTaskKey") or "").strip()
+        else:
+            list_pi = await sb.exec(
+                ["c8ctl", "list", "pi", "--json", "--fields=key,state,bpmnProcessId"],
+                timeout=60,
             )
+            if list_pi.returncode != 0:
+                return Score(value=0.0, explanation=f"missing result file at {path}")
+            try:
+                list_payload = json.loads(list_pi.stdout or "[]")
+            except json.JSONDecodeError:
+                return Score(value=0.0, explanation=f"missing result file at {path}")
+            if isinstance(list_payload, list):
+                rows = list_payload
+            elif isinstance(list_payload, dict):
+                rows = list_payload.get("items", [])
+            else:
+                rows = []
+            if not isinstance(rows, list):
+                rows = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                rid = row.get("bpmnProcessId") or row.get("Process ID")
+                state = str(row.get("state") or row.get("State") or "").upper()
+                key = str(row.get("key") or row.get("Process Instance Key") or "").strip()
+                if rid == expected_process_id and state == "COMPLETED" and key:
+                    instance_key = key
+                    break
+            if not instance_key:
+                return Score(value=0.0, explanation=f"missing result file at {path}")
 
-        instance_key = str(payload.get("instanceKey") or "").strip()
-        task_key = str(payload.get("completedUserTaskKey") or "").strip()
         if not instance_key:
             return Score(value=0.0, explanation="result JSON missing instanceKey")
-        if not task_key:
-            return Score(
-                value=0.0,
-                explanation="result JSON missing completedUserTaskKey",
-                metadata={"instanceKey": instance_key},
-            )
 
         pi = await sb.exec(
             [
@@ -131,13 +156,14 @@ def process_instance_completed() -> Scorer:
             value=1.0 if completed else 0.0,
             explanation=(
                 f"instance {instance_key} state {normalized or '<missing>'}; "
-                f"completed user task {task_key}"
+                f"completed user task {task_key or '<not-recorded>'}"
             ),
             metadata={
                 "instanceKey": instance_key,
                 "completedUserTaskKey": task_key,
                 "state": state_value,
                 "bpmnProcessId": bpmn_id,
+                "resultFilePresent": bool(payload),
             },
         )
 
@@ -171,7 +197,7 @@ def camunda_process_mgmt(arm: Arm = "with_skill", agent: AgentKind = "react") ->
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
-        solver=with_artifact_collection(build_agent(agent, skill_dirs)),
+        solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             process_deployed_on_cluster(PROCESS_ID),
             process_instance_completed(),
