@@ -32,7 +32,7 @@ If the project already has a `.dmnlintrc` with a different `extends`, do not ove
 Skip these directories during discovery: `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`.
 
 ```bash
-find path/to/dir -type d \( -name .git -o -name node_modules -o -name target -o -name build -o -name .gradle -o -name .mvn -o -name .idea -o -name .settings -o -name .snapshots \) -prune -o -type f -name '*.dmn' -print0 | while IFS= read -r -d '' file; do npx --yes dmnlint "$file"; done
+find path/to/dir -type d \( -name .git -o -name node_modules -o -name target -o -name build -o -name .gradle -o -name .mvn -o -name .idea -o -name .settings -o -name .snapshots \) -prune -o -type f -name '*.dmn' -print0 | xargs -0 -n1 npx --yes dmnlint
 ```
 
 Run lint on each discovered file and repeat the loop until clean:
