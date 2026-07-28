@@ -155,8 +155,13 @@ def form_outcome() -> Scorer:
                     explanation=f"top-level {key!r} mismatch: expected {expected!r}, got {form.get(key)!r}",
                 )
 
-        if not isinstance(form.get("exporter"), dict):
+        exporter = form.get("exporter")
+        if not isinstance(exporter, dict):
             return Score(value=0.0, explanation="missing or invalid exporter object")
+        if not isinstance(exporter.get("name"), str) or not exporter["name"]:
+            return Score(value=0.0, explanation="exporter.name is missing or empty")
+        if "version" not in exporter:
+            return Score(value=0.0, explanation="exporter.version is missing")
 
         if form.get("id") != expected_form_id:
             return Score(
@@ -170,17 +175,32 @@ def form_outcome() -> Scorer:
 
         flattened = _flatten_components(components)
 
-        ids = [c.get("id") for c in flattened if isinstance(c.get("id"), str)]
+        missing_id = [
+            str(i) for i, c in enumerate(flattened) if not isinstance(c.get("id"), str)
+        ]
+        if missing_id:
+            return Score(
+                value=0.0,
+                explanation=f"components at indices {', '.join(missing_id)} have missing or non-string id",
+            )
+
+        ids = [c["id"] for c in flattened]
         if len(ids) != len(set(ids)):
             return Score(value=0.0, explanation="component ids are not unique")
 
-        keys = [
-            c.get("key")
+        _KEYLESS_TYPES = {"text", "html", "image", "separator", "button", "group", "spacer"}
+        missing_key = [
+            c["id"]
             for c in flattened
-            if isinstance(c.get("key"), str)
-            and c.get("type")
-            not in {"text", "html", "image", "separator", "button", "group", "spacer"}
+            if c.get("type") not in _KEYLESS_TYPES and not isinstance(c.get("key"), str)
         ]
+        if missing_key:
+            return Score(
+                value=0.0,
+                explanation=f"input components missing key: {missing_key}",
+            )
+
+        keys = [c["key"] for c in flattened if c.get("type") not in _KEYLESS_TYPES]
         if len(keys) != len(set(keys)):
             return Score(value=0.0, explanation="component keys are not unique")
 
