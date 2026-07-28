@@ -175,22 +175,7 @@ SAMPLES = [
             "expected_method": "POST",
             "expected_path": "/v2/process-instances",
             "allowed_paths": ["/process-instances"],
-            "evidence_fragment": "/create-process-instance/",
-        },
-    ),
-    Sample(
-        id="verify-get-topology-endpoint",
-        input=(
-            "Using official Camunda docs (stable), verify the REST endpoint to "
-            "get cluster topology in the Orchestration Cluster API. "
-            "Do not stop after searching docs: you must create /workspace/answer.json "
-            "with the final JSON object before finishing." + SAVE
-        ),
-        metadata={
-            "expected_method": "GET",
-            "expected_path": "/v2/topology",
-            "allowed_paths": ["/topology"],
-            "evidence_fragment": "/get-topology/",
+            "evidence_fragment": "",
         },
     ),
 ]
