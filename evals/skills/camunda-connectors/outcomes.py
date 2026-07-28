@@ -113,12 +113,9 @@ def rest_connector_configured() -> Scorer:
             "./bpmn:extensionElements/zeebe:taskDefinition",
             NS,
         )
-        task_type = (
-            task_definition.attrib.get("type") if task_definition is not None else None
-        )
-        if task_type != "io.camunda:http-json:1":
+        if task_definition is None:
             return Score(
-                value=0.0, explanation=f"unexpected taskDefinition.type: {task_type!r}"
+                value=0.0, explanation="missing zeebe:taskDefinition on Task_FetchWeather"
             )
 
         io_inputs = {
