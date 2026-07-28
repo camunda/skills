@@ -86,7 +86,7 @@ jobs:
             ' changed-files.txt | sort -u > changed-targets.txt
 
             # Harness/framework changes still require full-suite-by-skill.
-            if grep -qE '^evals/src/|^evals/sandboxes/|^evals/docs/|^evals/README\.md$|^pyproject\.toml$|^uv\.lock$|^\.python-version$|^\.github/workflows/eval(-nightly|-baseline)?\.yml$' changed-files.txt; then
+            if grep -qE '^evals/src/|^evals/sandboxes/|^evals/README\.md$|^pyproject\.toml$|^uv\.lock$|^\.python-version$|^\.github/workflows/eval\.yml$|^\.github/workflows/eval-(nightly|baseline)\.yml$' changed-files.txt; then
               ls skills > changed-skills.txt
               : > changed-targets.txt
             fi
