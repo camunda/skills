@@ -267,13 +267,13 @@ c8ctl cancel pi <instanceKey>
 
 Use this lightweight loop for ongoing process health checks:
 
-1. **Scan active incidents** and group by error type / element:
+1. **Scan active incidents** — the command returns a flat JSON list; group or filter by `errorType` / `elementId` in your tooling or shell:
 
    ```bash
    c8ctl search inc --state=ACTIVE --json --fields=key,errorType,errorMessage,elementId,processInstanceKey
    ```
 
-2. **Measure whether incidents are recurring** (same `elementId` + similar error message across multiple instances). Recurrence signals a process/model/worker defect, not a one-off runtime glitch.
+2. **Measure whether incidents are recurring** by inspecting the flat list for repeated `elementId` + similar `errorMessage` values across multiple instances. Recurrence signals a process/model/worker defect, not a one-off runtime glitch.
 3. **Correlate with variables and instance state** on at least one failing example:
 
    ```bash
@@ -282,7 +282,7 @@ Use this lightweight loop for ongoing process health checks:
    c8ctl get inc <incidentKey> --json
    ```
 
-4. **Apply the smallest root-cause fix**, then resolve one incident and confirm new instances no longer fail in the same way.
+4. **Apply the smallest root-cause fix**, then resolve one incident and confirm new instances no longer fail in the same way. Repeat from step 1 until the flat list shows no active incidents of that type.
 
 For SLA and throughput trends (not just incident triage), pair this runbook with your metrics tooling (Operate/Optimize dashboards) and feed findings back into BPMN changes or worker reliability work.
 
