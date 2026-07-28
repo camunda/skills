@@ -4,7 +4,7 @@ Deterministic, machine-checkable scoring:
 - process_deployed_on_cluster: confirms the BPMN process ID is deployed.
 - process_instance_completed: validates the created instance reaches COMPLETED.
 
-The sample focuses on runtime operations (deploy/start/complete user task)
+The sample focuses on runtime operations (deploy/start/verify completion)
 rather than BPMN design, while still being fully self-contained in sandbox.
 """
 
@@ -176,15 +176,14 @@ SAMPLES = [
         input=(
             "Use c8ctl to run a full process-management flow on the local cluster.\n"
             "Create /workspace/process.bpmn with process id ProcessMgmtOutcome and this behavior: "
-            "start event -> user task 'Review request' (id ReviewRequest, with a zeebe form definition) -> end event.\n"
+            "start event -> end event (no user tasks).\n"
             "Then do all of the following:\n"
             "1) Deploy /workspace/process.bpmn\n"
             "2) Start one instance of ProcessMgmtOutcome and capture its instance key\n"
-            "3) Find the user task for that instance and complete it\n"
-            "4) Verify the instance reaches COMPLETED\n"
+            "3) Verify the instance reaches COMPLETED\n"
             "5) Save /workspace/process_mgmt_result.json with exactly: "
-            "{\"instanceKey\": \"<key>\", \"completedUserTaskKey\": \"<taskKey>\"}\n"
-            "Do not run c8ctl bpmn lint and do not create /workspace/.bpmnlintrc; proceed directly with deploy/start/complete operations.\n"
+            "{\"instanceKey\": \"<key>\"}\n"
+            "Do not run c8ctl bpmn lint and do not create /workspace/.bpmnlintrc; proceed directly with deploy/start/verify operations.\n"
             "Use --profile=local on mutating c8ctl commands."
         ),
         metadata={"result_path": RESULT_PATH, "process_id": PROCESS_ID},
