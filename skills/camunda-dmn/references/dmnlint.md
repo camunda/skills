@@ -24,6 +24,23 @@ Drop a `.dmnlintrc` at the project root:
 
 If the project already has a `.dmnlintrc` with a different `extends`, do not overwrite it — respect the project's choice and surface any rule disagreements in your final message.
 
+## Targeting modes
+
+- **Single file**: lint one `.dmn` file.
+- **Directory**: discover `.dmn` files recursively and lint each file.
+
+Skip these directories during discovery: `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`.
+
+```bash
+find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o -name build -o -name .gradle -o -name .mvn -o -name .idea -o -name .settings -o -name .snapshots \) -prune -o -type f -name '*.dmn' -print
+```
+
+Run lint on each discovered file and repeat the loop until clean:
+
+1. lint
+2. apply targeted XML fixes from the rule map below
+3. lint again
+
 ## Recommended rule set
 
 `dmnlint:recommended` enables these rules (both errors by default):
