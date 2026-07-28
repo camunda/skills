@@ -52,7 +52,7 @@ Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missin
 If scenarios already exist, run a drift check before editing tests:
 
 ```bash
-git diff HEAD -- <bpmn-path>
+git diff main...HEAD -- <bpmn-path>
 ```
 
 Then classify current suite gaps:
