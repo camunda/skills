@@ -61,8 +61,16 @@ push while present (remove to stop):
 No tiers. `evals-list --json` emits one entry per target —
 `{id, kind, skills, path, task, args, max_sandboxes}` — where `id` is e.g.
 `trigger:camunda-feel`, `skill:camunda-feel`, or `scenario:rocket-launch`, and
-`kind` is `trigger | outcome`. PR runs intersect `metadata.skills` with the
-changed skills; nightly runs everything. Adding a target needs no workflow change.
+`kind` is `trigger | outcome`.
+
+PR target selection is a union:
+
+- skill-driven selection (`metadata.skills ∩ changed_skills`) for product-skill edits
+- exact eval-path selection for changed eval files (so an edit to
+  `evals/skills/<skill>/outcomes.py` runs that target only)
+
+Harness/framework edits (`evals/src`, sandboxes, workflow plumbing, Python
+project files) still widen to all skills. Nightly runs everything.
 
 ## Jobs and what goes red
 
