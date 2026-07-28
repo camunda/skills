@@ -31,7 +31,8 @@ SAMPLES = [
             "Create one DMN 1.3 decision table in a file named decision.dmn. "
             "Use decision id shippingMethod, name 'Shipping Method', hit policy UNIQUE. "
             "One input: packageWeight (number). One output: method (string). "
-            "Rules: packageWeight < 2 -> \"LETTER\"; packageWeight <= 20 -> \"PARCEL\"; "
+            "Rules (mutually exclusive): packageWeight < 2 -> \"LETTER\"; "
+            "2 <= packageWeight <= 20 -> \"PARCEL\"; "
             "packageWeight > 20 -> \"FREIGHT\"." + SAVE
         ),
         metadata={"check": "shipping-method-unique"},
@@ -61,7 +62,7 @@ def _rule_pairs(table: ET.Element) -> set[tuple[tuple[str, ...], str]]:
     pairs: set[tuple[tuple[str, ...], str]] = set()
     for rule in table.findall("dmn:rule", NS):
         inputs = tuple(
-            _normalize(entry.findtext("dmn:text", default="", namespaces=NS))
+            _normalize(entry.findtext("dmn:text", default="", namespaces=NS)) or "-"
             for entry in rule.findall("dmn:inputEntry", NS)
         )
         output = _normalize(
@@ -112,6 +113,15 @@ def dmn_outcome() -> Scorer:
         if common_error:
             return Score(value=0.0, explanation=common_error)
 
+        lint = await sb.exec(
+            ["npx", "--yes", "dmnlint", "/workspace/decision.dmn"], timeout=60
+        )
+        if lint.returncode != 0:
+            return Score(
+                value=0.0,
+                explanation=f"dmnlint failed:\n{(lint.stdout + lint.stderr).strip()[-800:]}",
+            )
+
         table = root.find("dmn:decision/dmn:decisionTable", NS)
         decision = root.find("dmn:decision", NS)
         if table is None or decision is None:
@@ -130,7 +140,7 @@ def dmn_outcome() -> Scorer:
                 )
             expected = {
                 (("< 2",), '"LETTER"'),
-                (("<= 20",), '"PARCEL"'),
+                (("[2..20]",), '"PARCEL"'),
                 (("> 20",), '"FREIGHT"'),
             }
             actual = _rule_pairs(table)
