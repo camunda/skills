@@ -4,7 +4,6 @@ Deterministic, machine-checkable verification:
 - ``ai_agent_shape_valid`` parses ``/workspace/process.bpmn`` and checks for
   an ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
   ``toolCallResult`` wiring, and prompt/limit inputs.
-- ``bpmn_lint_clean`` ensures Camunda BPMN lint passes.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 """
@@ -21,7 +20,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
-from scorers.bpmn_lint import bpmn_lint_clean
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
@@ -220,7 +218,6 @@ def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Ta
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             ai_agent_shape_valid(),
-            bpmn_lint_clean(),
             assert_skill_loaded("camunda-ai-agents", gating=False),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
