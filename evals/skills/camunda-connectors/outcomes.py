@@ -181,24 +181,20 @@ SAMPLES = [
     Sample(
         id="rest-template-apply",
         input=(
-            "Create a BPMN 2.0 process named 'Weather lookup' with process id "
-            "`weather-lookup`. It must include exactly: a start event "
-            "'Request received', a service task with id `Task_FetchWeather` and "
-            "name 'Fetch weather', then an end event 'Done'.\n\n"
-            "Then configure that service task with the REST outbound connector "
-            "template by following this workflow:\n"
-            "1) sync the OOTB template catalog\n"
-            "2) search for REST templates\n"
-            "3) inspect the chosen template's settable properties\n"
-            "4) apply `io.camunda.connectors.HttpJson.v2` to Task_FetchWeather\n"
-            "5) set these values during apply:\n"
-            "   - method=GET\n"
-            '   - url=\'="https://api.weather.gov/points/" + string(latitude) + '
-            '"," + string(longitude)\'\n'
-            "   - resultVariable=weatherResponse\n"
-            "   - resultExpression='={forecast: "
-            "response.body.properties.forecast}'\n\n"
-            "Save the final BPMN to /workspace/process.bpmn."
+            "Create /workspace/process.bpmn directly (no exploratory docs reads).\n"
+            "It must contain one executable process named 'Weather lookup' with id "
+            "`weather-lookup`, with exactly:\n"
+            "- start event 'Request received'\n"
+            "- service task id `Task_FetchWeather` name 'Fetch weather'\n"
+            "- end event 'Done'\n"
+            "- sequence flows start -> Task_FetchWeather -> end\n\n"
+            "Configure `Task_FetchWeather` as REST connector "
+            "`io.camunda.connectors.HttpJson.v2` and set:\n"
+            "- method: GET\n"
+            '- url: ="https://api.weather.gov/points/" + string(latitude) + "," + string(longitude)\n'
+            "- resultVariable: weatherResponse\n"
+            "- resultExpression: ={forecast: response.body.properties.forecast}\n\n"
+            "Save only the final BPMN to /workspace/process.bpmn."
         ),
     )
 ]
