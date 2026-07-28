@@ -8,7 +8,6 @@ Scoring is deterministic: exact method/path match + evidence URL shape checks.
 from __future__ import annotations
 
 import json
-import re
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -43,20 +42,18 @@ def docs_endpoint_outcome() -> Scorer:
         sb = sandbox()
         result = await sb.exec(["cat", "/workspace/answer.json"], timeout=10)
         if result.returncode != 0 or not (result.stdout or "").strip():
-            payload = _extract_payload_from_messages(state, expected_path or "")
-            if payload is None:
-                return Score(
-                    value=0.0,
-                    explanation="/workspace/answer.json not created",
-                )
-        else:
-            try:
-                payload = json.loads(result.stdout)
-            except json.JSONDecodeError as exc:
-                return Score(
-                    value=0.0,
-                    explanation=f"/workspace/answer.json is not valid JSON: {exc}",
-                )
+            return Score(
+                value=0.0,
+                explanation="/workspace/answer.json not created",
+            )
+
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            return Score(
+                value=0.0,
+                explanation=f"/workspace/answer.json is not valid JSON: {exc}",
+            )
 
         if not isinstance(payload, dict):
             return Score(value=0.0, explanation="answer JSON must be an object")
@@ -112,56 +109,6 @@ def docs_endpoint_outcome() -> Scorer:
         )
 
     return score
-
-
-def _extract_payload_from_messages(
-    state: TaskState, expected_path: str
-) -> dict[str, str] | None:
-    """Best-effort fallback when answer.json is missing."""
-
-    messages = getattr(state, "messages", []) or []
-    for msg in reversed(messages):
-        if getattr(msg, "role", "") != "assistant":
-            continue
-        content = _message_text(msg)
-        if not content:
-            continue
-        method_match = re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", content, re.I)
-        path_matches = re.findall(r"/v2/[a-z0-9\-\/]+|/[a-z0-9\-\/]+", content, re.I)
-        url_match = re.search(r"https://docs\.camunda\.io/docs/[^\s)\"']+", content)
-        preferred = expected_path.split("/")[-1] if expected_path else ""
-        path = ""
-        if preferred:
-            for candidate in path_matches:
-                if preferred in candidate:
-                    path = candidate
-                    break
-        if not path and path_matches:
-            path = path_matches[0]
-        if method_match and path and url_match:
-            return {
-                "method": method_match.group(1).upper(),
-                "path": path.rstrip(".,"),
-                "evidence_url": url_match.group(0).rstrip(".,"),
-            }
-    return None
-
-
-def _message_text(message: object) -> str:
-    content = getattr(message, "content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                text = item.get("text")
-                if isinstance(text, str):
-                    parts.append(text)
-        return "\n".join(parts)
-    return ""
 
 
 SAMPLES = [
