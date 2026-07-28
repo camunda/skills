@@ -180,6 +180,16 @@ Segments: 1 happy path + 5 secondary
 Duplicates flagged: 0
 ```
 
+## Maintenance workflows for existing suites
+
+When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
+
+1. **Run and diagnose failures** — execute `mvn test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
+2. **Evaluate coverage gaps before writing new tests** — explain current suite coverage in business terms, list uncovered branches/boundaries/rules, and recommend the smallest next set of scenarios. See [references/evaluation.md](references/evaluation.md).
+3. **Wire tests into CI** — configure CI to run CPT reliably and publish JUnit artifacts, with optional integration profile runs gated to trusted branches. See [references/ci.md](references/ci.md).
+
+These workflows are complementary: evaluate gaps first, implement new scenarios, then run/diagnose locally and in CI.
+
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
@@ -188,3 +198,6 @@ Duplicates flagged: 0
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
 - [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
+- [run-and-diagnose.md](references/run-and-diagnose.md) — test-run execution loop and failure-batch repair strategy
+- [evaluation.md](references/evaluation.md) — coverage-gap assessment and recommendation workflow
+- [ci.md](references/ci.md) — CI pipeline patterns for CPT execution and test-report publishing
