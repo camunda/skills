@@ -138,13 +138,7 @@ If a warning is genuinely a false positive, suppress it explicitly in a project-
 
 ### Batch linting and fix guidance
 
-When the task targets a directory (not a single file), discover BPMN files recursively and lint them explicitly:
-
-```bash
-find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o -name build -o -name .gradle -o -name .mvn -o -name .idea -o -name .settings -o -name .snapshots \) -prune -o -type f -name '*.bpmn' -print
-```
-
-Then run `c8ctl bpmn lint` on each discovered file and keep the loop open until all touched files are clean. For rule-by-rule fixes (including less obvious recommended rules such as `event-sub-process-typed-start-event`, `link-event`, and `superfluous-termination`), use [references/bpmn-lint.md](references/bpmn-lint.md).
+When the task targets a directory (not a single file), use the directory workflow in [references/bpmn-lint.md](references/bpmn-lint.md): discover BPMN files recursively (with skip directories), lint each file, apply targeted fixes, then re-lint until clean.
 
 ### Behavioural validation
 
