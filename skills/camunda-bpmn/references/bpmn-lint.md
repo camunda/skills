@@ -16,7 +16,7 @@ find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o
 ## Run + fix loop
 
 1. Run `c8ctl bpmn lint` on each target file.
-2. Parse each report line as: `<elementId>  <severity>  <message>  <ruleId>`.
+2. Parse each report line by extracting these fields (without assuming exact spacing): `elementId`, `severity`, `message`, `ruleId`.
 3. Apply targeted XML edits for each issue (never whole-file rewrites).
 4. Re-run lint on the same target set.
 5. Repeat until all files are clean.
