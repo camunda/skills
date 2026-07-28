@@ -155,8 +155,15 @@ def form_outcome() -> Scorer:
                     explanation=f"top-level {key!r} mismatch: expected {expected!r}, got {form.get(key)!r}",
                 )
 
-        if not isinstance(form.get("exporter"), dict):
+        exporter = form.get("exporter")
+        if not isinstance(exporter, dict):
             return Score(value=0.0, explanation="missing or invalid exporter object")
+        for field in ("name", "version"):
+            if not isinstance(exporter.get(field), str) or not exporter.get(field).strip():
+                return Score(
+                    value=0.0,
+                    explanation=f"exporter.{field} must be a non-empty string",
+                )
 
         if form.get("id") != expected_form_id:
             return Score(
@@ -170,6 +177,36 @@ def form_outcome() -> Scorer:
 
         flattened = _flatten_components(components)
 
+        for component in flattened:
+            cid = component.get("id")
+            ctype = component.get("type")
+            if not isinstance(cid, str) or not cid.strip():
+                return Score(
+                    value=0.0, explanation="all components must have non-empty string id"
+                )
+            if not isinstance(ctype, str) or not ctype.strip():
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"component {cid!r} must have non-empty string type"
+                    ),
+                )
+
+        non_data_types = {"text", "html", "image", "separator", "button", "group", "spacer"}
+        for component in flattened:
+            ctype = component.get("type")
+            if ctype in non_data_types:
+                continue
+            key = component.get("key")
+            if not isinstance(key, str) or not key.strip():
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"component {component.get('id')!r} of type {ctype!r} "
+                        "must have non-empty string key"
+                    ),
+                )
+
         ids = [c.get("id") for c in flattened if isinstance(c.get("id"), str)]
         if len(ids) != len(set(ids)):
             return Score(value=0.0, explanation="component ids are not unique")
@@ -178,8 +215,7 @@ def form_outcome() -> Scorer:
             c.get("key")
             for c in flattened
             if isinstance(c.get("key"), str)
-            and c.get("type")
-            not in {"text", "html", "image", "separator", "button", "group", "spacer"}
+            and c.get("type") not in non_data_types
         ]
         if len(keys) != len(set(keys)):
             return Score(value=0.0, explanation="component keys are not unique")
