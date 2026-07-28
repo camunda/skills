@@ -46,10 +46,10 @@ SAMPLES = [
             "We already run a Spring Boot 3.5.x service and must add a Camunda "
             "job worker inside this app right now (no platform upgrade yet). "
             "Choose ONE recommendation enum from this list: "
-            "spring-job-worker-sb3-starter, spring-job-worker-sb4-starter, "
+            "camunda-spring-boot-3-starter, camunda-spring-boot-starter, "
             "java-job-worker, typescript-job-worker." + SAVE
         ),
-        metadata={"expected": {"recommendation": "spring-job-worker-sb3-starter"}},
+        metadata={"expected": {"recommendation": "camunda-spring-boot-3-starter"}},
     ),
     Sample(
         id="payment-declined-path",
@@ -85,11 +85,25 @@ def job_worker_outcome() -> Scorer:
         if not expected:
             return Score(value=0.0, explanation="missing expected metadata")
 
+        extra_keys = set(actual.keys()) - set(expected.keys())
+        missing_keys = set(expected.keys()) - set(actual.keys())
+        if extra_keys or missing_keys:
+            parts = []
+            if extra_keys:
+                parts.append(f"unexpected keys: {sorted(extra_keys)}")
+            if missing_keys:
+                parts.append(f"missing keys: {sorted(missing_keys)}")
+            return Score(
+                value=0.0,
+                explanation="; ".join(parts),
+                metadata={"actual": actual, "expected": expected},
+            )
+
         mismatches = []
         for key, expected_value in expected.items():
-            if actual.get(key) != expected_value:
+            if actual[key] != expected_value:
                 mismatches.append(
-                    f"{key}: expected {expected_value!r}, got {actual.get(key)!r}"
+                    f"{key}: expected {expected_value!r}, got {actual[key]!r}"
                 )
 
         if mismatches:
