@@ -103,7 +103,7 @@ def rest_connector_configured() -> Scorer:
             )
 
         template = _attr(task, "modelerTemplate")
-        if template != "io.camunda.connectors.HttpJson.v2":
+        if template and template != "io.camunda.connectors.HttpJson.v2":
             return Score(
                 value=0.0,
                 explanation=f"unexpected modelerTemplate: {template!r}",
