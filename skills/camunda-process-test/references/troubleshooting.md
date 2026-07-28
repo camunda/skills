@@ -27,6 +27,15 @@ Diagnose `mvn test` failures. Each row classifies the failure as a **test proble
 | DMN behaves wrong but no incident; process completes normally with wrong outputs | BPMN-completes tests can't catch wrong DMN outputs unless a downstream gateway consumes them | Test | Add `ASSERT_DECISION` (JSON) or `CamundaAssert.assertThatDecision(...)` (Java) — see authoring.md § Instructions for DMN, and **camunda-dmn** § testing-decisions for what to assert per hit policy. |
 | `DECISION_EVALUATION_ERROR: expected '<typeRef>' but found '[...]'` | Decision-table `<variable typeRef="string"/>` declared but the hit policy returns a list (RULE ORDER / COLLECT without aggregator) | Process | Drop the decision-level `<variable>` element on the decision table, or remove its `typeRef`. See **camunda-dmn** § Decision-level `<variable>` declarations. |
 
+## BPMN drift sync checklist
+
+When BPMN changed since the last passing suite, sync tests before deep debugging:
+
+1. Diff BPMN changes: `git diff HEAD -- <bpmn-path>`.
+2. Re-read BPMN IDs and compare with scenario `elementId`/`processDefinitionId` references.
+3. Update broken IDs first, then variable-driven branch expectations, then add missing branch segments.
+4. Re-run `mvn test` and return to the quick-triage table for remaining failures.
+
 ## Repair discipline
 
 1. Diagnose **every** failure first. Do not start fixing until the full list is classified.
