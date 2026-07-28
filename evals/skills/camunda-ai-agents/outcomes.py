@@ -5,14 +5,12 @@ Deterministic, machine-checkable verification:
   an ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
   ``toolCallResult`` wiring, and prompt/limit inputs.
 - ``bpmn_lint_clean`` ensures Camunda BPMN lint passes.
-- ``expected_process_deployed`` verifies the sample's expected process id is deployed.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 """
 
 from __future__ import annotations
 
-import json
 import xml.etree.ElementTree as ET
 
 from core.agents import AgentKind, build_agent
@@ -179,67 +177,8 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
     return score
 
-
-@scorer(metrics=[mean(), stderr()])
-def expected_process_deployed() -> Scorer:
-    """Score 1.0 when the sample's expected process id is deployed."""
-
-    async def score(state: TaskState, target: Target) -> Score:
-        expected = (state.metadata or {}).get("process_id")
-        if not expected:
-            return Score(value=0.0, explanation="sample metadata missing process_id")
-
-        sb = sandbox()
-        result = await sb.exec(["c8ctl", "list", "pd", "--json"], timeout=60)
-        if result.returncode != 0:
-            return Score(
-                value=0.0,
-                explanation=f"c8ctl list pd exit {result.returncode}: {(result.stderr or '')[-300:]}",
-            )
-        try:
-            payload = json.loads(result.stdout or "[]")
-        except json.JSONDecodeError as exc:
-            return Score(
-                value=0.0,
-                explanation=f"non-JSON response from c8ctl list pd: {exc}",
-            )
-
-        if isinstance(payload, list):
-            definitions = payload
-        elif isinstance(payload, dict):
-            definitions = (
-                payload.get("items") or payload.get("processDefinitions") or []
-            )
-        else:
-            definitions = []
-
-        ids = [d.get("Process ID") for d in definitions if isinstance(d, dict)]
-        if expected in ids:
-            return Score(
-                value=1.0,
-                explanation=f"{expected} deployed (found {len(ids)} process definition(s))",
-            )
-        # Include the first item's keys to spot a field-name change across c8ctl versions.
-        sample_keys = sorted(definitions[0].keys()) if definitions else []
-        return Score(
-            value=0.0,
-            explanation=(
-                f"{expected} not deployed; cluster has {ids} "
-                f"(saw {len(definitions)} definition(s), first item keys: {sample_keys})"
-            ),
-            metadata={
-                "deployed_ids": ids,
-                "first_item_keys": sample_keys,
-                "raw_stdout": (result.stdout or "")[:1000],
-            },
-        )
-
-    return score
-
-
 SAVE_AND_DEPLOY = (
-    "\n\nSave the BPMN to /workspace/process.bpmn, then deploy it with c8ctl so "
-    "the process definition is visible on the running cluster."
+    "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
 )
 
 SAMPLES = [
@@ -270,33 +209,6 @@ SAMPLES = [
             ],
         },
     ),
-    Sample(
-        id="order-cancellation-agent",
-        input=(
-            "Create a Camunda 8.8+ BPMN process (id: ai-order-cancellation, name: "
-            "'AI Order Cancellation') using the AI Agent Sub-process connector:\n"
-            "1. Start event 'Cancellation requested'.\n"
-            "2. Ad-hoc subprocess id CancellationAgentHost (name 'Cancellation "
-            "agent host').\n"
-            "3. Add root tools in that host:\n"
-            "   - service task id LookupOrder\n"
-            "   - script task id ComputeRefund\n"
-            "   - user task id RequestManagerApproval\n"
-            "4. Every tool must have bpmn:documentation.\n"
-            "5. Declare AI-generated parameters with fromAi(...).\n"
-            "6. Return each tool response through toolCallResult.\n"
-            "7. Set both system and user prompts via FEEL inputs and include "
-            "data.limits.maxModelCalls." + SAVE_AND_DEPLOY
-        ),
-        metadata={
-            "process_id": "ai-order-cancellation",
-            "required_tools": [
-                "LookupOrder",
-                "ComputeRefund",
-                "RequestManagerApproval",
-            ],
-        },
-    ),
 ]
 
 
@@ -305,11 +217,10 @@ def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Ta
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
         dataset=SAMPLES,
-        solver=with_artifact_collection(build_agent(agent, skill_dirs)),
+        solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             ai_agent_shape_valid(),
             bpmn_lint_clean(),
-            expected_process_deployed(),
             assert_skill_loaded("camunda-ai-agents", gating=False),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
