@@ -125,25 +125,6 @@ def rest_connector_configured() -> Scorer:
                 NS,
             )
         }
-        expected_inputs = {
-            "method": "GET",
-            "url": '="https://api.weather.gov/points/"+string(latitude)+","+string(longitude)',
-        }
-        method = _norm(io_inputs.get("method"))
-        if method.startswith('"') and method.endswith('"'):
-            method = method[1:-1]
-        missing_inputs = {}
-        if method != "GET":
-            missing_inputs["method"] = "GET"
-        if _norm(io_inputs.get("url")) != expected_inputs["url"]:
-            missing_inputs["url"] = expected_inputs["url"]
-        if missing_inputs:
-            return Score(
-                value=0.0,
-                explanation=f"missing/incorrect inputs: {missing_inputs}",
-                metadata={"found_inputs": io_inputs},
-            )
-
         headers = {
             header.attrib.get("key"): header.attrib.get("value")
             for header in task.findall(
@@ -151,6 +132,24 @@ def rest_connector_configured() -> Scorer:
                 NS,
             )
         }
+        expected_inputs = {
+            "method": "GET",
+            "url": '="https://api.weather.gov/points/"+string(latitude)+","+string(longitude)',
+        }
+        method = _norm(io_inputs.get("method") or headers.get("method"))
+        if method.startswith('"') and method.endswith('"'):
+            method = method[1:-1]
+        missing_inputs = {}
+        if method != "GET":
+            missing_inputs["method"] = "GET"
+        if _norm(io_inputs.get("url") or headers.get("url")) != expected_inputs["url"]:
+            missing_inputs["url"] = expected_inputs["url"]
+        if missing_inputs:
+            return Score(
+                value=0.0,
+                explanation=f"missing/incorrect inputs: {missing_inputs}",
+                metadata={"found_inputs": io_inputs, "found_headers": headers},
+            )
         result_variable = headers.get("resultVariable") or io_inputs.get("resultVariable")
         result_expression = headers.get("resultExpression") or io_inputs.get(
             "resultExpression"
