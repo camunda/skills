@@ -63,7 +63,10 @@ def process_instance_completed() -> Scorer:
                 metadata={"instanceKey": instance_key},
             )
 
-        pi = await sb.exec(["c8ctl", "get", "pi", instance_key, "--json"], timeout=60)
+        pi = await sb.exec(
+            ["c8ctl", "get", "pi", instance_key, "--json", "--fields=key,state,bpmnProcessId"],
+            timeout=60,
+        )
         if pi.returncode != 0:
             return Score(
                 value=0.0,
@@ -83,20 +86,35 @@ def process_instance_completed() -> Scorer:
                 },
             )
 
-        state_value = None
+        # Resolve the data dict: c8ctl may return a flat dict or wrap it in an
+        # "item" key; with --fields we prefer the flat shape when present.
+        data: dict = {}
         if isinstance(pi_payload, dict):
-            state_value = (
-                pi_payload.get("state")
-                or pi_payload.get("State")
-                or pi_payload.get("processInstanceState")
+            if "state" in pi_payload or "bpmnProcessId" in pi_payload:
+                data = pi_payload
+            elif isinstance(pi_payload.get("item"), dict):
+                data = pi_payload["item"]
+            else:
+                data = pi_payload
+
+        # Validate the instance belongs to the expected process to avoid false
+        # positives from unrelated processes that happen to reach COMPLETED.
+        bpmn_id = data.get("bpmnProcessId")
+        if bpmn_id and bpmn_id != PROCESS_ID:
+            return Score(
+                value=0.0,
+                explanation=(
+                    f"instance {instance_key} belongs to '{bpmn_id}', "
+                    f"not expected '{PROCESS_ID}'"
+                ),
+                metadata={"instanceKey": instance_key, "bpmnProcessId": bpmn_id},
             )
-            if state_value is None and isinstance(pi_payload.get("item"), dict):
-                item = pi_payload["item"]
-                state_value = (
-                    item.get("state")
-                    or item.get("State")
-                    or item.get("processInstanceState")
-                )
+
+        state_value = (
+            data.get("state")
+            or data.get("State")
+            or data.get("processInstanceState")
+        )
 
         normalized = str(state_value or "").upper()
         completed = normalized == "COMPLETED"
@@ -110,6 +128,7 @@ def process_instance_completed() -> Scorer:
                 "instanceKey": instance_key,
                 "completedUserTaskKey": task_key,
                 "state": state_value,
+                "bpmnProcessId": bpmn_id,
             },
         )
 
