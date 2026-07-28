@@ -136,6 +136,10 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
 
+### Batch linting and fix guidance
+
+When the task targets a directory (not a single file), use the directory workflow in [references/bpmn-lint.md](references/bpmn-lint.md): discover BPMN files recursively (with skip directories), lint each file, apply targeted fixes, then re-lint until clean.
+
 ### Behavioural validation
 
 Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
@@ -147,3 +151,4 @@ For detailed reference material, read from `references/`:
 - [zeebe-extensions.md](references/zeebe-extensions.md) — input/output mappings, variable scoping, task definitions, form definitions, secrets
 - [layout-rules.md](references/layout-rules.md) — DI coordinate management, element sizes, spacing rules for diagram layout
 - [canonical-style.md](references/canonical-style.md) — canonical bpmn-js XML style: tag layout, attribute order, self-closing form, why hand-formatting drifts
+- [bpmn-lint.md](references/bpmn-lint.md) — single-file vs directory lint workflow, output parsing, and recommended-rule fix mapping
