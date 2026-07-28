@@ -33,10 +33,12 @@ RESULT_PATH = "/workspace/process_mgmt_result.json"
 
 @scorer(metrics=[mean(), stderr()])
 def process_instance_completed() -> Scorer:
-    """Score 1.0 when the agent records an instance key that is COMPLETED."""
+    """Score 1.0 when the recorded instance belongs to the expected process and is COMPLETED."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        path = (state.metadata or {}).get("result_path", RESULT_PATH)
+        metadata = state.metadata or {}
+        path = metadata.get("result_path", RESULT_PATH)
+        expected_process_id = metadata.get("process_id", PROCESS_ID)
         sb = sandbox()
 
         result_file = await sb.exec(["cat", path], timeout=10)
@@ -64,7 +66,14 @@ def process_instance_completed() -> Scorer:
             )
 
         pi = await sb.exec(
-            ["c8ctl", "get", "pi", instance_key, "--json", "--fields=key,state,bpmnProcessId"],
+            [
+                "c8ctl",
+                "get",
+                "pi",
+                instance_key,
+                "--json",
+                "--fields=key,state,bpmnProcessId",
+            ],
             timeout=60,
         )
         if pi.returncode != 0:
@@ -100,12 +109,12 @@ def process_instance_completed() -> Scorer:
         # Validate the instance belongs to the expected process to avoid false
         # positives from unrelated processes that happen to reach COMPLETED.
         bpmn_id = data.get("bpmnProcessId")
-        if bpmn_id and bpmn_id != PROCESS_ID:
+        if bpmn_id and bpmn_id != expected_process_id:
             return Score(
                 value=0.0,
                 explanation=(
                     f"instance {instance_key} belongs to '{bpmn_id}', "
-                    f"not expected '{PROCESS_ID}'"
+                    f"not expected '{expected_process_id}'"
                 ),
                 metadata={"instanceKey": instance_key, "bpmnProcessId": bpmn_id},
             )
@@ -141,7 +150,7 @@ SAMPLES = [
         input=(
             "Use c8ctl to run a full process-management flow on the local cluster.\n"
             "Create /workspace/process.bpmn with process id ProcessMgmtOutcome and this behavior: "
-            "start event -> user task 'Review request' (id ReviewRequest) -> end event.\n"
+            "start event -> user task 'Review request' (id ReviewRequest, with a zeebe form definition) -> end event.\n"
             "Then do all of the following:\n"
             "1) Deploy /workspace/process.bpmn\n"
             "2) Start one instance of ProcessMgmtOutcome and capture its instance key\n"
@@ -149,9 +158,10 @@ SAMPLES = [
             "4) Verify the instance reaches COMPLETED\n"
             "5) Save /workspace/process_mgmt_result.json with exactly: "
             "{\"instanceKey\": \"<key>\", \"completedUserTaskKey\": \"<taskKey>\"}\n"
+            "Do not run c8ctl bpmn lint and do not create /workspace/.bpmnlintrc; proceed directly with deploy/start/complete operations.\n"
             "Use --profile=local on mutating c8ctl commands."
         ),
-        metadata={"result_path": RESULT_PATH},
+        metadata={"result_path": RESULT_PATH, "process_id": PROCESS_ID},
     )
 ]
 
