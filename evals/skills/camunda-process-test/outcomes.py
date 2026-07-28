@@ -18,10 +18,9 @@ from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = EvalMetadata(skills=["camunda-process-test"], max_sandboxes=1)
 
-SAVE = (
-    "\n\nSave ONLY the scenario JSON to "
-    "/workspace/src/test/resources/scenarios/invoice-approval.test.json."
-)
+SCENARIO_PATH = "/workspace/invoice-approval.test.json"
+
+SAVE = "\n\nSave ONLY the scenario JSON to /workspace/invoice-approval.test.json."
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -29,11 +28,13 @@ def cpt_scenario_shape() -> Scorer:
     """Check that the authored `.test.json` covers both gateway outcomes."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        path = "/workspace/src/test/resources/scenarios/invoice-approval.test.json"
         sb = sandbox()
-        read = await sb.exec(["cat", path], timeout=10)
+        read = await sb.exec(["cat", SCENARIO_PATH], timeout=10)
         if read.returncode != 0:
-            return Score(value=0.0, explanation=f"missing scenario file at {path}")
+            return Score(
+                value=0.0,
+                explanation=f"missing scenario file at {SCENARIO_PATH}",
+            )
 
         try:
             payload = json.loads(read.stdout)
@@ -71,11 +72,18 @@ def cpt_scenario_shape() -> Scorer:
                 if not isinstance(instructions, list):
                     continue
                 for inst in instructions:
+                    variables = (
+                        inst.get("variables") if isinstance(inst, dict) else None
+                    )
+                    approved = (
+                        variables.get("approved")
+                        if isinstance(variables, dict)
+                        else None
+                    )
                     if (
                         isinstance(inst, dict)
                         and inst.get("type") == "CREATE_PROCESS_INSTANCE"
-                        and ((inst.get("variables") or {}).get("approved"))
-                        == approved_value
+                        and approved == approved_value
                     ):
                         matching_case = case
                         break
