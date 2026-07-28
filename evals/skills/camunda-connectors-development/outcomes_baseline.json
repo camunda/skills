@@ -1,0 +1,18 @@
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "path-a-template-specialization": {
+        "tokens": {
+          "input": 8,
+          "cache_write": 6200,
+          "cache_read": 21500,
+          "output": 1500
+        },
+        "turns": 4,
+        "tool_calls": 3,
+        "duration_s": 52
+      }
+    }
+  }
+}
