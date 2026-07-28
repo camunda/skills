@@ -15,15 +15,14 @@ from __future__ import annotations
 import json
 import xml.etree.ElementTree as ET
 
+from core.agents import AgentKind, build_agent
+from core.metadata import EvalMetadata
+from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
-
-from core.agents import AgentKind, build_agent
-from core.metadata import EvalMetadata
-from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.bpmn_lint import bpmn_lint_clean
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
@@ -220,9 +219,19 @@ def expected_process_deployed() -> Scorer:
                 value=1.0,
                 explanation=f"{expected} deployed (found {len(ids)} process definition(s))",
             )
+        # Include the first item's keys to spot a field-name change across c8ctl versions.
+        sample_keys = sorted(definitions[0].keys()) if definitions else []
         return Score(
             value=0.0,
-            explanation=f"{expected} not deployed; cluster process ids: {ids}",
+            explanation=(
+                f"{expected} not deployed; cluster has {ids} "
+                f"(saw {len(definitions)} definition(s), first item keys: {sample_keys})"
+            ),
+            metadata={
+                "deployed_ids": ids,
+                "first_item_keys": sample_keys,
+                "raw_stdout": (result.stdout or "")[:1000],
+            },
         )
 
     return score
