@@ -28,6 +28,33 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 
 ## Instructions
 
+### Quick readiness check (onboarding)
+
+Use this quick check when a user is new to c8ctl and you want to confirm the machine is ready before deeper setup:
+
+```bash
+# Required runtime
+node --version 2>/dev/null || echo "NOT FOUND"
+
+# Required CLI
+c8ctl --version 2>/dev/null || echo "NOT FOUND"
+
+# Required default plugins for camunda-* skills
+c8ctl bpmn --help >/dev/null 2>&1 && echo "bpmn: OK" || echo "bpmn: MISSING"
+c8ctl element-template --help >/dev/null 2>&1 && echo "element-template: OK" || echo "element-template: MISSING"
+c8ctl feel --help >/dev/null 2>&1 && echo "feel: OK" || echo "feel: MISSING"
+
+# Optional: check current active profile
+c8ctl which profile 2>/dev/null || echo "no active profile"
+
+# Optional: check whether a local c8run cluster is already running
+c8ctl cluster status 2>/dev/null || echo "local cluster: not running"
+```
+
+- **Node.js** and **c8ctl** are required. Node must be **≥ 22.18.0**. If either is missing (or Node is older), install/upgrade before continuing.
+- If any default plugin is missing, the installed c8ctl is older than 3.0.0. **Ask the user to confirm before upgrading** — don't run the install unprompted — then run `npm install -g @camunda8/cli`.
+- Missing profile/local cluster is not an error; it only means profile or cluster setup is still pending.
+
 ### Install
 
 Install c8ctl globally from npm. The other camunda-* skills depend on the `bpmn`, `element-template`, and `feel` plugins, which require **c8ctl ≥ 3.0.0**:
