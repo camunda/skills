@@ -36,6 +36,7 @@ def docs_endpoint_outcome() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         expected_method = (state.metadata or {}).get("expected_method")
         expected_path = (state.metadata or {}).get("expected_path")
+        allowed_paths = (state.metadata or {}).get("allowed_paths", [])
         evidence_fragment = (state.metadata or {}).get("evidence_fragment")
 
         sb = sandbox()
@@ -79,9 +80,14 @@ def docs_endpoint_outcome() -> Scorer:
                 metadata={"payload": payload},
             )
 
+        method = method.strip().upper()
+        path = path.strip()
+        evidence_url = evidence_url.strip()
+
+        accepted_paths = {expected_path, *allowed_paths}
         checks = {
             "method": method == expected_method,
-            "path": path == expected_path,
+            "path": path in accepted_paths,
             "evidence_url_prefix": evidence_url.startswith(
                 "https://docs.camunda.io/docs/"
             ),
@@ -112,7 +118,8 @@ SAMPLES = [
         ),
         metadata={
             "expected_method": "POST",
-            "expected_path": "/process-instances",
+            "expected_path": "/v2/process-instances",
+            "allowed_paths": ["/process-instances"],
             "evidence_fragment": "/create-process-instance/",
         },
     ),
@@ -124,7 +131,8 @@ SAMPLES = [
         ),
         metadata={
             "expected_method": "GET",
-            "expected_path": "/topology",
+            "expected_path": "/v2/topology",
+            "allowed_paths": ["/topology"],
             "evidence_fragment": "/get-topology/",
         },
     ),
