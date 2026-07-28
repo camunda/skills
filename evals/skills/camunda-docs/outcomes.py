@@ -127,7 +127,9 @@ SAMPLES = [
         id="verify-get-topology-endpoint",
         input=(
             "Using official Camunda docs (stable), verify the REST endpoint to "
-            "get cluster topology in the Orchestration Cluster API." + SAVE
+            "get cluster topology in the Orchestration Cluster API. "
+            "Do not stop after searching docs: you must create /workspace/answer.json "
+            "with the final JSON object before finishing." + SAVE
         ),
         metadata={
             "expected_method": "GET",
@@ -153,5 +155,5 @@ def camunda_docs(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         metadata=METADATA.model_dump(),
         time_limit=180,
         token_limit=120_000,
-        message_limit=40,
+        message_limit=60,
     )
