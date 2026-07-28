@@ -136,9 +136,26 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
 
+### Batch linting and fix guidance
+
+When the task targets a directory (not a single file), use the directory workflow in [references/bpmn-lint.md](references/bpmn-lint.md): discover BPMN files recursively (with skip directories), lint each file, apply targeted fixes, then re-lint until clean.
+
 ### Behavioural validation
 
 Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
+
+### Runtime compatibility gate
+
+Before a BPMN change moves to deployment/testing, run a compatibility pass with `c8ctl bpmn lint` against the exact files you intend to deploy (single file or full directory set). This is a required runtime-compatibility check, but it is not by itself a deployment-success guarantee.
+
+Use this troubleshooting mapping when lint flags compatibility issues:
+
+- **implementation/task-definition** failures: task missing required Zeebe extension (`<zeebe:taskDefinition>`, `<zeebe:calledDecision>`, etc.) for its BPMN type.
+- **feel / io-mapping** failures: expressions are not valid FEEL for Camunda 8 (for example legacy `${...}` or non-FEEL mapping syntax). Cross-check with **camunda-feel**.
+- **element-type / gateway** failures: model uses unsupported or discouraged constructs for the target runtime profile.
+- **timer / event-definition** failures: timer or event configuration is structurally present but invalid for runtime execution.
+
+For a full compatibility workflow (target selection, directory runs, and fix loop), use [references/runtime-compatibility.md](references/runtime-compatibility.md).
 
 ## References
 
@@ -147,3 +164,5 @@ For detailed reference material, read from `references/`:
 - [zeebe-extensions.md](references/zeebe-extensions.md) — input/output mappings, variable scoping, task definitions, form definitions, secrets
 - [layout-rules.md](references/layout-rules.md) — DI coordinate management, element sizes, spacing rules for diagram layout
 - [canonical-style.md](references/canonical-style.md) — canonical bpmn-js XML style: tag layout, attribute order, self-closing form, why hand-formatting drifts
+- [bpmn-lint.md](references/bpmn-lint.md) — single-file vs directory lint workflow, output parsing, and recommended-rule fix mapping
+- [runtime-compatibility.md](references/runtime-compatibility.md) — deployment-readiness compatibility linting workflow and fix categories
