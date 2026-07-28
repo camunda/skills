@@ -3,9 +3,7 @@ name: 🧪 Run skill evals
 # Non-blocking PR eval signal — posts outcome + token-budget vs baseline as a
 # PR comment. Does NOT gate merge (keep out of required status checks).
 #
-# Maintainer-gated by labels (only triage+ can label; fork PRs never get the
-# secrets — this is `pull_request`, not `pull_request_target`):
-#   - evals:run       → targets whose skills ∩ changed skills
+# Auto-runs on PRs that touch skills/evals paths; labels refine scope:
 #   - evals:run-all   → every target (suite integration check)
 #   - evals:compare   → also run the without-skill arm of outcome evals
 # workflow_dispatch (requires write access) can run a single target and toggle
@@ -24,7 +22,16 @@ on:
         type: boolean
         default: false
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [opened, reopened, synchronize, labeled]
+    paths:
+      - 'skills/**'
+      - 'evals/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.python-version'
+      - '.github/workflows/eval.yml'
+      - '.github/workflows/eval-nightly.yml'
+      - '.github/workflows/eval-baseline.yml'
 
 permissions:
   contents: read
@@ -37,10 +44,7 @@ concurrency:
 jobs:
   detect:
     name: Detect affected targets
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'evals:run') ||
-      contains(github.event.pull_request.labels.*.name, 'evals:run-all')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       specs: ${{ steps.matrix.outputs.specs }}

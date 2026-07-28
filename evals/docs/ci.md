@@ -7,11 +7,9 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 ## A skill-change PR, end to end
 
 1. **Iterate locally** (see [`runbook.md`](runbook.md)).
-2. **Open the PR.** Nothing runs automatically — evals are opt-in and
-   maintainer-gated by label.
-3. **A maintainer adds `evals:run`** — runs the targets your change can affect,
-   on the `with_skill` arm, gated against the committed baseline, and posts a
-   rolling comment.
+2. **Open the PR.** Evals auto-run for PRs that touch skill/eval/harness files.
+3. **Default run scope** is targets your change can affect, on the `with_skill`
+   arm, gated against the committed baseline, with a rolling PR comment.
 4. **Read it** — the PR comment for the verdict, the run's job summary for token
    usage, the trajectory viewer for a failing sample.
 5. **Occasionally** add `evals:compare` (does the skill earn its keep — the
@@ -26,34 +24,31 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 | Workflow | Trigger | Scope |
 |---|---|---|
 | `lint.yml` | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
-| `eval.yml` | `evals:run` / `evals:run-all` / `evals:compare` label, or the Actions tab | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
+| `eval.yml` | PR changes to skill/eval/harness paths, or the Actions tab (`evals:run-all` / `evals:compare` labels optional) | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
 | `eval-nightly.yml` | `workflow_dispatch` only (cron re-enabled in a follow-up) | Every target; uploads logs as artifacts |
 | `eval-baseline.yml` | `evals:regenerate-baselines` label, or the Actions tab | Re-runs outcome evals, regenerates baselines, commits them to the branch |
 
-**Gating is the label.** Only collaborators with triage or higher can label a
-PR, and `workflow_dispatch` requires write access — so there's no separate
-authorization job. Because the workflows use `pull_request` (not
-`pull_request_target`), a fork PR never receives the model secret: model runs only
-happen on branches in this repo.
+Auto-runs come from `pull_request` path filters; labels are optional refinements
+for scope/arms. `workflow_dispatch` still requires write access. Because the
+workflow uses `pull_request` (not `pull_request_target`), fork PRs do not
+receive model secrets.
 
 ## Labels
 
-Labels make two **orthogonal** choices — *scope* and *arms* — and re-run on each
-push while present (remove to stop):
+Labels are optional refinements and re-run on each push while present (remove
+to stop):
 
-- **`evals:run`** — targets whose `metadata.skills` intersect the changed skills
-  (the everyday signal).
 - **`evals:run-all`** — every target (whole-suite / harness check).
 - **`evals:compare`** — *also* run the `without_skill` arm of outcome evals.
   Without it, outcome evals run `with_skill` only.
 
 | You want to… | Label(s) | Runs | Gated vs baseline? |
 |---|---|---|---|
-| Check the skills your PR touched | `evals:run` | affected, `with_skill` | ✅ |
+| Check the skills your PR touched | none (default) | affected, `with_skill` | ✅ |
 | Check the whole suite | `evals:run-all` | every target, `with_skill` | ✅ |
-| See what a skill *adds* | either + `evals:compare` | adds `without_skill` | `with_skill` ✅ · `without_skill` ❌ |
+| See what a skill *adds* | optional `evals:compare` | adds `without_skill` | `with_skill` ✅ · `without_skill` ❌ |
 
-`workflow_dispatch` accepts `target` (substring filter over target ids) and
+`workflow_dispatch` accepts `target` (substring filter over target paths) and
 `compare` (run the second arm).
 
 ## Target selection
