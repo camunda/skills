@@ -43,7 +43,15 @@ def connector_template_valid() -> Scorer:
         except json.JSONDecodeError as exc:
             return Score(value=0.0, explanation=f"invalid JSON: {exc}")
 
-        template = parsed[0] if isinstance(parsed, list) and parsed else parsed
+        if isinstance(parsed, list):
+            if len(parsed) != 1:
+                return Score(
+                    value=0.0,
+                    explanation=f"array output must have exactly one element, got {len(parsed)}",
+                )
+            template = parsed[0]
+        else:
+            template = parsed
         if not isinstance(template, dict):
             return Score(value=0.0, explanation="template must be a JSON object")
 
@@ -56,11 +64,15 @@ def connector_template_valid() -> Scorer:
         if template.get("version") != 1:
             failures.append("version must be 1")
 
-        applies_to = template.get("appliesTo") or []
+        applies_to = template.get("appliesTo")
+        if not isinstance(applies_to, list):
+            applies_to = []
         if "bpmn:ServiceTask" not in applies_to:
             failures.append("appliesTo must include bpmn:ServiceTask")
 
-        element_type = template.get("elementType") or {}
+        element_type = template.get("elementType")
+        if not isinstance(element_type, dict):
+            element_type = {}
         if element_type.get("value") != "bpmn:ServiceTask":
             failures.append("elementType.value must be bpmn:ServiceTask")
 
