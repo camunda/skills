@@ -49,6 +49,22 @@ Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, lis
 
 Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 2.
 
+If scenarios already exist, run a drift check before editing tests:
+
+```bash
+git diff <base-branch>...HEAD -- <bpmn-path>
+```
+
+Use the PR base branch or repository default branch as `<base-branch>` (often `main`).
+
+Then classify current suite gaps:
+
+- **Broken**: scenario references an `elementId` or `processDefinitionId` that no longer exists.
+- **Stale**: IDs still exist, but branch-driving variables or assumptions no longer match gateway/DMN behavior.
+- **Missing**: new branches, boundary events, or end events have no segment coverage.
+
+Fix in this order: broken → stale → missing, then run `mvn test` and continue with coverage verification.
+
 ### 2. Setup (only if missing)
 
 Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
