@@ -140,7 +140,7 @@ c8ctl await pi --id MyProcess --requestTimeout 60000
 
 **Not for long-running activities.** `await pi` uses the cluster's start-and-wait REST endpoint, which times out before any single activity that runs longer than the request timeout (LLM agents, slow HTTP calls, user tasks). The timed-out response carries no instance key, so you can't follow up on the partial run. For those processes, use `c8ctl create pi` and poll `c8ctl get pi <key>` until terminal state, or fall back to `c8ctl search pi --state=ACTIVE` to recover the orphaned instance after a failed `await`.
 
-For scripting, run `create pi` with `--json`, capture the `processInstanceKey` field, then use it for follow-up operations (`c8ctl get pi <key>`, `c8ctl cancel pi <key>`, incident lookups by process-instance key).
+For scripting, run `create pi` with `--json`, capture the returned `key` field (the process-instance key), then use it for follow-up operations (`c8ctl get pi <key>`, `c8ctl cancel pi <key>`, incident lookups by process-instance key).
 
 ### Watch Mode (Development)
 
