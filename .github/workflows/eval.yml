@@ -136,7 +136,11 @@ jobs:
 
           specs=$(cat specs.json)
           echo "$specs"
-          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          {
+            echo "specs<<SPECS_EOF"
+            cat specs.json
+            echo "SPECS_EOF"
+          } >> "$GITHUB_OUTPUT"
           [ "$specs" = "[]" ] && echo "has=false" >> "$GITHUB_OUTPUT" || echo "has=true" >> "$GITHUB_OUTPUT"
           # Only build the sandbox images when an outcome target is in scope
           # (triggers run sandbox-free), so a triggers-only run skips the build.
