@@ -136,6 +136,16 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
 
+### Batch linting and fix guidance
+
+When the task targets a directory (not a single file), discover BPMN files recursively and lint them explicitly:
+
+```bash
+find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o -name build -o -name .gradle -o -name .mvn -o -name .idea -o -name .settings -o -name .snapshots \) -prune -o -type f -name '*.bpmn' -print
+```
+
+Then run `c8ctl bpmn lint` on each discovered file and keep the loop open until all touched files are clean. For rule-by-rule fixes (including less obvious recommended rules such as `event-sub-process-typed-start-event`, `link-event`, and `superfluous-termination`), use [references/bpmn-lint.md](references/bpmn-lint.md).
+
 ### Behavioural validation
 
 Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
@@ -147,3 +157,4 @@ For detailed reference material, read from `references/`:
 - [zeebe-extensions.md](references/zeebe-extensions.md) — input/output mappings, variable scoping, task definitions, form definitions, secrets
 - [layout-rules.md](references/layout-rules.md) — DI coordinate management, element sizes, spacing rules for diagram layout
 - [canonical-style.md](references/canonical-style.md) — canonical bpmn-js XML style: tag layout, attribute order, self-closing form, why hand-formatting drifts
+- [bpmn-lint.md](references/bpmn-lint.md) — single-file vs directory lint workflow, output parsing, and recommended-rule fix mapping
