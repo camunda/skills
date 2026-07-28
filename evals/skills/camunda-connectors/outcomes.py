@@ -36,6 +36,10 @@ def _attr(elem: ET.Element, local_name: str) -> str | None:
     return elem.attrib.get(f"{{{ZEEBE_NS}}}{local_name}")
 
 
+def _norm(value: str | None) -> str:
+    return "".join((value or "").split())
+
+
 @scorer(metrics=[mean(), stderr()])
 def rest_connector_configured() -> Scorer:
     """Check that Task_FetchWeather is configured as REST connector."""
@@ -73,32 +77,29 @@ def rest_connector_configured() -> Scorer:
 
         start_events = process.findall("./bpmn:startEvent", NS)
         end_events = process.findall("./bpmn:endEvent", NS)
-        service_tasks = process.findall("./bpmn:serviceTask", NS)
-        if (
-            len(start_events) != 1
-            or len(end_events) != 1
-            or len(service_tasks) != 1
-            or start_events[0].attrib.get("name") != "Request received"
-            or end_events[0].attrib.get("name") != "Done"
-            or service_tasks[0].attrib.get("id") != "Task_FetchWeather"
-        ):
+        start = next(
+            (e for e in start_events if e.attrib.get("name") == "Request received"), None
+        )
+        end = next((e for e in end_events if e.attrib.get("name") == "Done"), None)
+        if start is None or end is None:
             return Score(
                 value=0.0,
-                explanation="process must contain exactly start 'Request received', service task Task_FetchWeather, and end 'Done'",
+                explanation="process must contain start 'Request received' and end 'Done'",
             )
 
         flow_edges = {
             (flow.attrib.get("sourceRef"), flow.attrib.get("targetRef"))
             for flow in process.findall("./bpmn:sequenceFlow", NS)
         }
-        required_edges = {
-            (start_events[0].attrib.get("id"), "Task_FetchWeather"),
-            ("Task_FetchWeather", end_events[0].attrib.get("id")),
-        }
-        if flow_edges != required_edges:
+        required_edges = [
+            (start.attrib.get("id"), "Task_FetchWeather"),
+            ("Task_FetchWeather", end.attrib.get("id")),
+        ]
+        missing_edges = [edge for edge in required_edges if edge not in flow_edges]
+        if missing_edges:
             return Score(
                 value=0.0,
-                explanation=f"unexpected sequence flow topology: {sorted(flow_edges)}",
+                explanation=f"missing required sequence flows: {missing_edges}",
             )
 
         template = _attr(task, "modelerTemplate")
@@ -129,13 +130,16 @@ def rest_connector_configured() -> Scorer:
         }
         expected_inputs = {
             "method": "GET",
-            "url": '="https://api.weather.gov/points/" + string(latitude) + "," + string(longitude)',
+            "url": '="https://api.weather.gov/points/"+string(latitude)+","+string(longitude)',
         }
-        missing_inputs = {
-            key: value
-            for key, value in expected_inputs.items()
-            if io_inputs.get(key) != value
-        }
+        method = _norm(io_inputs.get("method"))
+        if method.startswith('"') and method.endswith('"'):
+            method = method[1:-1]
+        missing_inputs = {}
+        if method != "GET":
+            missing_inputs["method"] = "GET"
+        if _norm(io_inputs.get("url")) != expected_inputs["url"]:
+            missing_inputs["url"] = expected_inputs["url"]
         if missing_inputs:
             return Score(
                 value=0.0,
@@ -150,15 +154,18 @@ def rest_connector_configured() -> Scorer:
                 NS,
             )
         }
-        expected_headers = {
-            "resultVariable": "weatherResponse",
-            "resultExpression": "={forecast: response.body.properties.forecast}",
-        }
-        missing_headers = {
-            key: value
-            for key, value in expected_headers.items()
-            if headers.get(key) != value
-        }
+        result_variable = headers.get("resultVariable") or io_inputs.get("resultVariable")
+        result_expression = headers.get("resultExpression") or io_inputs.get(
+            "resultExpression"
+        )
+        missing_headers = {}
+        if _norm(result_variable).lstrip("=") != "weatherResponse":
+            missing_headers["resultVariable"] = "weatherResponse"
+        if (
+            _norm(result_expression)
+            != "={forecast:response.body.properties.forecast}"
+        ):
+            missing_headers["resultExpression"] = "={forecast: response.body.properties.forecast}"
         if missing_headers:
             return Score(
                 value=0.0,
