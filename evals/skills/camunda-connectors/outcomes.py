@@ -56,6 +56,51 @@ def rest_connector_configured() -> Scorer:
                 value=0.0, explanation="service task Task_FetchWeather missing"
             )
 
+        process = root.find(".//bpmn:process[@id='weather-lookup']", NS)
+        if process is None:
+            return Score(value=0.0, explanation="process weather-lookup missing")
+        if process.attrib.get("name") != "Weather lookup":
+            return Score(
+                value=0.0,
+                explanation=f"unexpected process name: {process.attrib.get('name')!r}",
+            )
+
+        if task.attrib.get("name") != "Fetch weather":
+            return Score(
+                value=0.0,
+                explanation=f"unexpected Task_FetchWeather name: {task.attrib.get('name')!r}",
+            )
+
+        start_events = process.findall("./bpmn:startEvent", NS)
+        end_events = process.findall("./bpmn:endEvent", NS)
+        service_tasks = process.findall("./bpmn:serviceTask", NS)
+        if (
+            len(start_events) != 1
+            or len(end_events) != 1
+            or len(service_tasks) != 1
+            or start_events[0].attrib.get("name") != "Request received"
+            or end_events[0].attrib.get("name") != "Done"
+            or service_tasks[0].attrib.get("id") != "Task_FetchWeather"
+        ):
+            return Score(
+                value=0.0,
+                explanation="process must contain exactly start 'Request received', service task Task_FetchWeather, and end 'Done'",
+            )
+
+        flow_edges = {
+            (flow.attrib.get("sourceRef"), flow.attrib.get("targetRef"))
+            for flow in process.findall("./bpmn:sequenceFlow", NS)
+        }
+        required_edges = {
+            (start_events[0].attrib.get("id"), "Task_FetchWeather"),
+            ("Task_FetchWeather", end_events[0].attrib.get("id")),
+        }
+        if flow_edges != required_edges:
+            return Score(
+                value=0.0,
+                explanation=f"unexpected sequence flow topology: {sorted(flow_edges)}",
+            )
+
         template = _attr(task, "modelerTemplate")
         if template != "io.camunda.connectors.HttpJson.v2":
             return Score(
