@@ -7,7 +7,7 @@ Run CPT suites in CI as a quality gate and publish test artifacts.
 - Java toolchain compatible with project build
 - Maven cache enabled where possible
 - Docker available to the test job (CPT/Testcontainers requirement)
-- JUnit XML artifact upload from `target/surefire-reports/*.xml`
+- JUnit XML artifact upload from `**/target/surefire-reports/*.xml` (glob covers multi-module layouts)
 
 ## GitHub Actions baseline
 
@@ -36,13 +36,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
-          path: target/surefire-reports/*.xml
+          path: "**/target/surefire-reports/*.xml"
 ```
 
 ## Optional split: process vs integration profile
 
 - Keep `mvn test` on pull requests for fast feedback.
-- Run integration profile jobs (`mvn test -P integration-test`) on protected branches or scheduled runs.
+- Run integration profile jobs (`mvn verify -P integration-test`) on protected branches or scheduled runs.
 - Store required cluster credentials in CI secrets, never in repo files.
 
 ## Common CI failure causes
