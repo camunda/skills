@@ -2,23 +2,12 @@
   "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
-      "order-cancellation-agent": {
-        "tokens": {
-          "input": 8,
-          "cache_write": 8200,
-          "cache_read": 64000,
-          "output": 2800
-        },
-        "turns": 5,
-        "tool_calls": 5,
-        "duration_s": 95
-      },
       "ticket-triage-subprocess": {
         "tokens": {
           "input": 8,
           "cache_write": 8200,
           "cache_read": 64000,
-          "output": 2800
+          "output": 6600
         },
         "turns": 5,
         "tool_calls": 5,
