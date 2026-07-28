@@ -146,7 +146,7 @@ Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unr
 
 ### Runtime compatibility gate
 
-Before a BPMN change is considered deployment-ready, run a compatibility pass with `c8ctl bpmn lint` against the exact files you intend to deploy (single file or full directory set). This catches Camunda-runtime constraints that may still pass generic XML checks.
+Before a BPMN change moves to deployment/testing, run a compatibility pass with `c8ctl bpmn lint` against the exact files you intend to deploy (single file or full directory set). This is a required runtime-compatibility check, but it is not by itself a deployment-success guarantee.
 
 Use this troubleshooting mapping when lint flags compatibility issues:
 

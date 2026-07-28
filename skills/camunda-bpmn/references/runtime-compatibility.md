@@ -6,16 +6,12 @@ Use this before deploy/test runs against a real Camunda 8 runtime.
 
 - After BPMN edits are structurally clean.
 - Before `c8ctl deploy`, smoke runs, or handing off for release.
-- On all changed `.bpmn` files, not just one representative file.
+- On the full `.bpmn` target set for the intended deploy/test run (single file or directory set), not just one representative file.
 
 ## Targeting mode
 
 - **Single file**: run lint on the file directly.
-- **Directory**: discover `.bpmn` files recursively, skipping `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`.
-
-```bash
-find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o -name build -o -name .gradle -o -name .mvn -o -name .idea -o -name .settings -o -name .snapshots \) -prune -o -type f -name '*.bpmn' -print
-```
+- **Directory**: use the discovery workflow in [bpmn-lint.md](bpmn-lint.md) to recursively find target `.bpmn` files (including the shared skip-directory list), then lint each discovered file.
 
 Then run:
 
