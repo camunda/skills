@@ -31,7 +31,7 @@ Diagnose `mvn test` failures. Each row classifies the failure as a **test proble
 
 When BPMN changed since the last passing suite, sync tests before deep debugging:
 
-1. Diff BPMN changes: `git diff main...HEAD -- <bpmn-path>`.
+1. Diff BPMN changes: `git diff <base-branch>...HEAD -- <bpmn-path>` (often `main`).
 2. Re-read BPMN IDs and compare with scenario `elementId`/`processDefinitionId` references.
 3. Update broken IDs first, then variable-driven branch expectations, then add missing branch segments.
 4. Re-run `mvn test` and return to the quick-triage table for remaining failures.
