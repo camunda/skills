@@ -29,6 +29,7 @@ METADATA = EvalMetadata(skills=["camunda-process-mgmt"])
 
 PROCESS_ID = "ProcessMgmtOutcome"
 RESULT_PATH = "/workspace/process_mgmt_result.json"
+PROFILE = "local"
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -58,7 +59,15 @@ def process_instance_completed() -> Scorer:
             task_key = str(payload.get("completedUserTaskKey") or "").strip()
         else:
             list_pi = await sb.exec(
-                ["c8ctl", "list", "pi", "--json", "--fields=key,state,bpmnProcessId"],
+                [
+                    "c8ctl",
+                    "list",
+                    "pi",
+                    "--profile",
+                    PROFILE,
+                    "--json",
+                    "--fields=key,state,bpmnProcessId",
+                ],
                 timeout=60,
             )
             if list_pi.returncode != 0:
@@ -96,6 +105,8 @@ def process_instance_completed() -> Scorer:
                 "get",
                 "pi",
                 instance_key,
+                "--profile",
+                PROFILE,
                 "--json",
                 "--fields=key,state,bpmnProcessId",
             ],
