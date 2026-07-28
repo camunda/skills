@@ -7,7 +7,7 @@
           "input": 7,
           "cache_write": 8120,
           "cache_read": 27190,
-          "output": 1840
+          "output": 2600
         },
         "turns": 3,
         "tool_calls": 2,
