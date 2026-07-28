@@ -183,6 +183,7 @@ SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
+            "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
@@ -196,7 +197,9 @@ SAMPLES = [
             "5. Use fromAi(...) for at least one tool input parameter.\n"
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
             "7. Configure agent prompts as FEEL strings and set "
-            "data.limits.maxModelCalls." + SAVE_AND_DEPLOY
+            "data.limits.maxModelCalls.\n"
+            "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
+            + SAVE_AND_DEPLOY
         ),
         metadata={
             "process_id": "ai-ticket-triage",
