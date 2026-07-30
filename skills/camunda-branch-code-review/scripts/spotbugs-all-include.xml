@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs "everything" include filter. Used by camunda-static-analysis.sh with
+  `-p all`. Maximum recall (all categories, run at effort=Max / threshold=Low).
+  Noisy - intended for a deep, focused review of a small changeset, ideally
+  combined with --changed-only.
+-->
+<FindBugsFilter
+  xmlns="https://github.com/spotbugs/filter/3.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Bug category="CORRECTNESS"/>
+  <Bug category="MT_CORRECTNESS"/>
+  <Bug category="SECURITY"/>
+  <Bug category="BAD_PRACTICE"/>
+  <Bug category="STYLE"/>
+  <Bug category="PERFORMANCE"/>
+  <Bug category="MALICIOUS_CODE"/>
+  <Bug category="I18N"/>
+  <Bug category="EXPERIMENTAL"/>
+</FindBugsFilter>

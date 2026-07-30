@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs "PR review" include filter (high signal, low noise).
+
+  Used by camunda-static-analysis.sh with `-p review`. It is INTENTIONALLY
+  broader than the repo/CI filter (which only enables CORRECTNESS +
+  MT_CORRECTNESS) so it also catches logic smells that the CI scan ignores -
+  most notably BC_VACUOUS_INSTANCEOF ("instanceof always true"), dead/useless
+  code, self-comparisons and == on Strings.
+
+  Each <Match> is OR'd. Full high-value categories are enabled wholesale;
+  individually-listed patterns pull in only the high-signal members of noisier
+  categories (STYLE / BAD_PRACTICE) so we don't drown in dead-store noise.
+-->
+<FindBugsFilter
+  xmlns="https://github.com/spotbugs/filter/3.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+  <!-- Whole categories that are almost always worth reviewing. -->
+  <Bug category="CORRECTNESS"/>
+  <Bug category="MT_CORRECTNESS"/>
+  <Bug category="SECURITY"/>
+
+  <!-- High-signal STYLE patterns: logic that is provably useless/wrong. -->
+  <Bug pattern="BC_VACUOUS_INSTANCEOF"/>          <!-- instanceof always true -->
+  <Bug pattern="UC_USELESS_CONDITION"/>
+  <Bug pattern="UC_USELESS_CONDITION_TYPE"/>
+  <Bug pattern="UC_USELESS_OBJECT"/>
+  <Bug pattern="UC_USELESS_OBJECT_STACK"/>
+  <Bug pattern="UC_USELESS_VOID_METHOD"/>
+  <Bug pattern="UCF_USELESS_CONTROL_FLOW"/>
+  <Bug pattern="UCF_USELESS_CONTROL_FLOW_NEXT_LINE"/>
+  <Bug pattern="RpC_REPEATED_CONDITIONAL_TEST"/>
+  <Bug pattern="SA_LOCAL_SELF_ASSIGNMENT"/>
+  <Bug pattern="SA_LOCAL_SELF_COMPUTATION"/>
+  <Bug pattern="SA_LOCAL_SELF_COMPARISON"/>
+  <Bug pattern="SA_FIELD_SELF_ASSIGNMENT"/>
+  <Bug pattern="SA_FIELD_SELF_COMPARISON"/>
+  <Bug pattern="SA_FIELD_SELF_COMPUTATION"/>
+  <Bug pattern="INT_BAD_COMPARISON_WITH_NONNEGATIVE_VALUE"/>
+  <Bug pattern="INT_VACUOUS_COMPARISON"/>
+  <Bug pattern="INT_VACUOUS_BIT_OPERATION"/>
+  <Bug pattern="SF_SWITCH_FALLTHROUGH"/>
+  <Bug pattern="SF_SWITCH_NO_DEFAULT"/>
+  <Bug pattern="REC_CATCH_EXCEPTION"/>
+  <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+  <Bug pattern="RCN_REDUNDANT_COMPARISON_TO_NULL"/>
+  <Bug pattern="RCN_REDUNDANT_COMPARISON_OF_NULL_AND_NONNULL_VALUE"/>
+  <Bug pattern="DLS_DEAD_LOCAL_STORE_IN_RETURN"/>
+  <Bug pattern="DLS_DEAD_STORE_OF_CLASS_LITERAL"/>
+
+  <!-- High-signal BAD_PRACTICE patterns. -->
+  <Bug pattern="ES_COMPARING_STRINGS_WITH_EQ"/>
+  <Bug pattern="ES_COMPARING_PARAMETER_STRING_WITH_EQ"/>
+  <Bug pattern="EQ_COMPARETO_USE_OBJECT_EQUALS"/>
+  <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE"/>
+  <Bug pattern="RV_EXCEPTION_NOT_THROWN"/>
+  <Bug pattern="NP_BOOLEAN_RETURN_NULL"/>
+  <Bug pattern="DE_MIGHT_IGNORE"/>
+  <Bug pattern="ODR_OPEN_DATABASE_RESOURCE"/>
+  <Bug pattern="OS_OPEN_STREAM"/>
+  <Bug pattern="OS_OPEN_STREAM_EXCEPTION_PATH"/>
+</FindBugsFilter>

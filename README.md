@@ -23,6 +23,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-connectors-development** | Build custom Camunda 8 connectors — JSON-only template on a protocol connector, or custom Java connector via the Connectors SDK (outbound + inbound) |
 | **camunda-process-mgmt** | Deploy resources, start/inspect instances, resolve incidents, complete tasks — via c8ctl |
 | **camunda-ai-agents** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
+| **camunda-branch-code-review** | Explicitly invoked ("review this branch using the skill") to review the current branch of the camunda/camunda monorepo — SpotBugs static analysis plus a manual SOLID/DRY/KISS/clean-code pass |
 
 ## Prerequisites
 
