@@ -176,7 +176,11 @@ info "Analyzers: ${ANALYZERS}"
 has spotbugs && info "SpotBugs profile: ${BOLD}${SB_PROFILE}${RESET}$( [[ "$CHANGED_ONLY" -eq 1 ]] && echo " (changed files only)")"
 
 # Build the set of changed Java source files for --changed-only reporting.
+# Match on the package-relative source path (e.g. io/camunda/.../Foo.java) so
+# same-named files in different modules don't collide in a monorepo; keep a
+# basename set as a fallback for SpotBugs entries that lack a sourcepath.
 declare -A CHANGED_SET=()
+declare -A CHANGED_BASENAMES=()
 if [[ "$CHANGED_ONLY" -eq 1 ]]; then
   if [[ -n "$CHANGED_BASE" ]]; then
     mapfile -t _cf < <(git diff --name-only "$CHANGED_BASE" -- '*.java')
@@ -185,8 +189,19 @@ if [[ "$CHANGED_ONLY" -eq 1 ]]; then
                           git diff --cached --name-only -- '*.java'; \
                           git ls-files --others --exclude-standard -- '*.java'; } | sort -u )
   fi
-  for f in "${_cf[@]}"; do [[ -n "$f" ]] && CHANGED_SET["$(basename "$f")"]=1; done
-  info "Changed Java files: ${#CHANGED_SET[@]}"
+  for f in "${_cf[@]}"; do
+    [[ -z "$f" ]] && continue
+    rel="$f"
+    case "$f" in
+      */src/main/java/*) rel="${f#*/src/main/java/}" ;;
+      */src/test/java/*) rel="${f#*/src/test/java/}" ;;
+      src/main/java/*)   rel="${f#src/main/java/}" ;;
+      src/test/java/*)   rel="${f#src/test/java/}" ;;
+    esac
+    CHANGED_SET["$rel"]=1
+    CHANGED_BASENAMES["$(basename "$f")"]=1
+  done
+  info "Changed Java files: ${#CHANGED_BASENAMES[@]}"
 fi
 
 # Optimize lives behind the `include-optimize` profile, which is auto-disabled
@@ -226,14 +241,18 @@ run_step() {
 #             spotbugs:spotbugs goal, then parse + print findings ourselves
 #             (optionally scoped to changed files).
 print_spotbugs_findings() {
+  command -v python3 >/dev/null 2>&1 \
+    || die "python3 is required to parse SpotBugs findings but was not found on PATH."
   CHANGED_ONLY="$CHANGED_ONLY" \
   CHANGED_LIST="$(printf '%s\n' "${!CHANGED_SET[@]}")" \
+  CHANGED_BASENAMES="$(printf '%s\n' "${!CHANGED_BASENAMES[@]}")" \
   python3 - "$@" <<'PY'
 import os, sys, glob
 import xml.etree.ElementTree as ET
 
 changed_only = os.environ.get("CHANGED_ONLY") == "1"
 changed = {l for l in os.environ.get("CHANGED_LIST", "").splitlines() if l}
+changed_basenames = {l for l in os.environ.get("CHANGED_BASENAMES", "").splitlines() if l}
 RED, YEL, GRN, BOLD, RST = "\033[31m", "\033[33m", "\033[32m", "\033[1m", "\033[0m"
 prio = {"1": f"{RED}HIGH{RST}", "2": f"{YEL}MED {RST}", "3": f"{GRN}LOW {RST}"}
 
@@ -245,15 +264,23 @@ for module in sys.argv[1:]:
     root = ET.parse(xml).getroot()
     for b in root.iter("BugInstance"):
         sl = b.find("SourceLine")
+        # Prefer the package-relative sourcepath (unique across modules); fall
+        # back to the bare sourcefile only when sourcepath is unavailable.
+        sp = sl.get("sourcepath") if sl is not None else None
         src = sl.get("sourcefile") if sl is not None else None
-        if changed_only and (src is None or src not in changed):
-            continue
+        if changed_only:
+            if sp is not None:
+                if sp not in changed:
+                    continue
+            elif src is None or src not in changed_basenames:
+                continue
         cls = next((c.get("classname", "") for c in b.findall("Class")), "")
         line = sl.get("start") if sl is not None else "?"
+        loc = sp or src or "?"
         msg = b.findtext("LongMessage") or b.findtext("ShortMessage") or ""
         p = prio.get(b.get("priority", "2"), "    ")
         print(f"  [{p}] {BOLD}{b.get('type')}{RST} ({b.get('category')})")
-        print(f"        {src}:{line}  {cls}")
+        print(f"        {loc}:{line}  {cls}")
         print(f"        {msg}")
         total += 1
 
@@ -308,8 +335,6 @@ if has sonar; then
         key="${PROJECT_KEY}"
         [[ ${#MODULES[@]} -gt 1 ]] && key="${PROJECT_KEY}-$(echo "$m" | tr '/' '-')"
         info "Sonar scan: ${BOLD}${m}${RESET} (key=${key})"
-        bin="$m/target/classes"; tbin="$m/target/test-classes"
-        binaries="$bin"; [[ -d "$tbin" ]] && binaries="$bin,$tbin"
         org_arg=(); [[ -n "$SONAR_ORG" ]] && org_arg=(-Dsonar.organization="$SONAR_ORG")
         ( cd "$m" && sonar-scanner \
             -Dsonar.host.url="$SONAR_HOST_URL" \

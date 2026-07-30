@@ -112,7 +112,8 @@ KISS, clean, hygiene — as defined in the skill's Severity tags section.
 OUTPUT: only finding lines, one per line, no preamble:
   `path/File.java:NN [tag] message`
 Cite file:line for every finding; suffix SpotBugs hits with "(SpotBugs)".
-High signal only — "No findings" is a valid result; do not invent issues.
+High signal only — do not invent issues. If you have nothing to report, output
+the single literal line `No findings` (exactly that, no file:line, nothing else).
 ```
 
 ### Phase 2 — Fan out to parallel review agents
@@ -216,7 +217,7 @@ Collect every agent's finding lines and merge into one report:
   agents (e.g. `spotbugs` and `dead-code` both flag an unused private). Keep one
   line, preferring the SpotBugs-attributed wording when they coincide.
 - Normalise tags and order by severity per the Severity tags section.
-- If an agent returned nothing, that's fine ("no findings" is valid). If one
+- If an agent returned nothing (the literal `No findings`), that's fine. If one
   failed, note it and re-run just that topic yourself — don't block the report.
 - Emit the single report below.
 
