@@ -1,6 +1,6 @@
 ---
 name: camunda-branch-code-review
-description: Reviews the code introduced/changed on the current git branch of the camunda/camunda monorepo against SOLID, DRY, KISS, clean-code principles and the refactoring.guru code-smell & design-pattern catalogs, combined with a SpotBugs static-analysis pass. Use when asked to review a branch/PR, do a code review, check a diff for design or correctness issues, or before opening a pull request in the camunda/camunda monorepo.
+description: Reviews the code introduced/changed on the current git branch of the camunda/camunda monorepo against SOLID, DRY, KISS, clean-code principles and the refactoring.guru code-smell & design-pattern catalogs, combined with a SpotBugs static-analysis pass. Use ONLY when the user explicitly asks to run this skill/review by name (e.g. "review this branch using the skill", "run the branch code-review skill", "do a branch review with the camunda-branch-code-review skill"). Do NOT trigger on a generic, unqualified "review my code / this PR / this diff" request.
 ---
 
 # Branch Code Review
@@ -16,9 +16,15 @@ references and severity tags.
 
 ## When to use
 
-- "Review this branch / PR / my changes"
-- "Code review before I open the PR"
-- "Check this diff for design / correctness issues"
+Trigger **only on an explicit, by-name request to run this skill** — not on a
+generic "review my code" ask. Examples that should invoke it:
+
+- "Review this branch using the skill"
+- "Run the branch code-review skill (before I open the PR)"
+- "Do a branch review with the camunda-branch-code-review skill on this diff"
+
+A bare "review my changes / this PR / this diff", with no reference to this
+skill, should **not** auto-trigger it.
 
 ## Tooling prerequisite
 
