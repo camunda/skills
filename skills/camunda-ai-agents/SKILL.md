@@ -200,7 +200,6 @@ Non-obvious failure modes the lint loop will not catch.
 - **Bare-string prompts** — both system and user prompts are FEEL. Even literals must be `="..."`.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
 - **Hyphenated memory storage type** — `in-process`, `camunda-document`, `custom`. Not camelCase.
-- **Sub-flow tool params come back `null`** — `fromAi()` was declared on a child activity instead of the `bpmn:subProcess` root's own `zeebe:ioMapping`. The tool's schema was empty at discovery time, so the LLM called it with no arguments. Move the `fromAi()` inputs to the `bpmn:subProcess` element itself; see "Defining Tools" above.
 
 ## Closing Step
 
@@ -209,6 +208,8 @@ Run the BPMN lint loop (see **camunda-bpmn**) before declaring the agent process
 ```bash
 c8ctl bpmn lint process.bpmn
 ```
+
+Lint now catches `fromAi()` misplacement on sub-flow tools — the **agent-fromai-contract** rule in bpmnlint-plugin-camunda-compat flags a `fromAi()` call declared on a descendant activity instead of the tool's entry element (for a sub-flow tool, the `bpmn:subProcess` root's own `zeebe:ioMapping`). Run lint first; if it's clean but a sub-flow tool's params still come back `null`, re-check against "Defining Tools" above.
 
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by reading the BPMN:
 
