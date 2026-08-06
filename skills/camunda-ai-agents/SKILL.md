@@ -104,6 +104,8 @@ Three things determine whether the LLM picks a tool correctly:
 
 A tool can be a **single activity** (service task, script task, user task) or a **sub-flow** rooted at a `bpmn:subProcess` containing further activities. In both cases the LLM only sees the root node — descriptions, inputs, and schema are read from there. The internal sub-flow steps are invisible to the LLM; they execute in sequence per normal BPMN semantics and propagate variables up when the sub-process completes.
 
+For a sub-flow tool this is literal: put `fromAi()` calls on the `bpmn:subProcess` root's own `zeebe:ioMapping`, not on a descendant activity — a `fromAi()` on a child task yields an empty schema, so the LLM calls the tool with no arguments and every downstream value (form fields included) comes back `null`.
+
 Worked XML for each of the four shapes (REST, script, user task, sub-flow) is in [references/tool-modeling.md](references/tool-modeling.md).
 
 ## fromAi() — Declaring AI-Generated Parameters
@@ -198,6 +200,7 @@ Non-obvious failure modes the lint loop will not catch.
 - **Bare-string prompts** — both system and user prompts are FEEL. Even literals must be `="..."`.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
 - **Hyphenated memory storage type** — `in-process`, `camunda-document`, `custom`. Not camelCase.
+- **Sub-flow tool params come back `null`** — `fromAi()` was declared on a child activity instead of the `bpmn:subProcess` root's own `zeebe:ioMapping`. The tool's schema was empty at discovery time, so the LLM called it with no arguments. Move the `fromAi()` inputs to the `bpmn:subProcess` element itself; see "Defining Tools" above.
 
 ## Closing Step
 

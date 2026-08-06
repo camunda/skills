@@ -88,15 +88,25 @@ fetch-then-transform, a small business workflow), wrap the steps in a
 description, `fromAi()` declarations, and the final `toolCallResult` —
 and never sees the internal steps.
 
-`toolCallResult` can be written by any activity inside the sub-flow,
-not just the first or last. The variable just needs to exist in the
-sub-process scope when the sub-process completes. In the example below,
-the first activity writes an intermediate variable (`emailResponse`)
-and the second shapes the final tool result.
+**`fromAi()` declarations go on the `bpmn:subProcess` root's own
+`zeebe:ioMapping` — not on a descendant activity** — schema derivation
+reads the root node only; declaring on a child task produces an empty
+schema and every downstream value comes back `null`. `toolCallResult` has
+no such restriction — any activity in the sub-flow can set it, since that
+part is scope-based rather than root-based. Below, the `bpmn:subProcess` root
+declares the `fromAi()`-sourced params; `ComposeEmail` merely references
+them (already in scope); `RecordSent` shapes the final `toolCallResult`.
 
 ```xml
 <bpmn:subProcess id="SendCustomerEmail" name="Send email to customer">
   <bpmn:documentation>Send an email to the customer and record that it was sent. Use this when the resolution should be communicated by email.</bpmn:documentation>
+  <bpmn:extensionElements>
+    <zeebe:ioMapping>
+      <zeebe:input source='=fromAi(toolCall.recipient, "Recipient email", "string")' target="recipient" />
+      <zeebe:input source='=fromAi(toolCall.subject, "Email subject", "string")' target="subject" />
+      <zeebe:input source='=fromAi(toolCall.body, "Email body", "string")' target="body" />
+    </zeebe:ioMapping>
+  </bpmn:extensionElements>
   <bpmn:startEvent id="SendStart" />
   <bpmn:sequenceFlow sourceRef="SendStart" targetRef="ComposeEmail" />
 
@@ -105,7 +115,7 @@ and the second shapes the final tool result.
       <zeebe:taskDefinition type="io.camunda:http-json:1" />
       <zeebe:ioMapping>
         <zeebe:input
-          source='={"to": fromAi(toolCall.recipient, "Recipient", "string"), "subject": fromAi(toolCall.subject, "Subject", "string"), "body": fromAi(toolCall.body, "Body", "string")}'
+          source='={"to": recipient, "subject": subject, "body": body}'
           target="body" />
         <!-- method, url, etc. -->
       </zeebe:ioMapping>
