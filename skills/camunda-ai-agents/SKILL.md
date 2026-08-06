@@ -209,7 +209,7 @@ Run the BPMN lint loop (see **camunda-bpmn**) before declaring the agent process
 c8ctl bpmn lint process.bpmn
 ```
 
-Lint now catches `fromAi()` misplacement on sub-flow tools — the **agent-fromai-contract** rule in bpmnlint-plugin-camunda-compat flags a `fromAi()` call declared on a descendant activity instead of the tool's entry element (for a sub-flow tool, the `bpmn:subProcess` root's own `zeebe:ioMapping`). Run lint first; if it's clean but a sub-flow tool's params still come back `null`, re-check against "Defining Tools" above.
+Lint now catches `fromAi()` misplacement on sub-flow tools — the `agent-fromai-contract` rule in `bpmnlint-plugin-camunda-compat` flags a `fromAi()` call declared on a descendant activity instead of the tool's entry element (for a sub-flow tool, the `bpmn:subProcess` root's own `zeebe:ioMapping`). Run lint first; if it's clean but a sub-flow tool's params still come back `null`, re-check against "Defining Tools" above.
 
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by reading the BPMN:
 
