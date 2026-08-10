@@ -58,7 +58,7 @@ Required entry in the project (or test harness) `pom.xml`:
 
 Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
 
-**Always use the latest stable (GA) release.** Never use RC, alpha, or SNAPSHOT versions in project pom files. RC and SNAPSHOT tags are not published for `camunda/connectors-bundle` on Docker Hub, so enabling the Connectors runtime with a non-GA version causes a `ContainerFetchException` at test startup. If an existing project uses an RC version, update it to the GA release before running tests with connectors enabled.
+**Use a GA release, aligned with the version the target production cluster runs.** If connectors are enabled, the version also has to be one the connectors bundle image was published for — see [Connectors bundle image version](#connectors-bundle-image-version) below.
 
 ### Spring Boot 4.x pin (CPT 8.9.x only)
 
@@ -193,7 +193,11 @@ See [web-modeler-scenarios.md](web-modeler-scenarios.md) for the full classpath 
 
 ## Connectors bundle image version
 
-If `connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. RC and SNAPSHOT tags are not published for this image on Docker Hub — always use a GA stable release as `camunda.version`. If you must use a different tag, override it:
+If `connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. Prefer a GA release for `camunda.version`.
+
+The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. `8.7.0-alpha3-rc2`, `8.8.0-alpha3-rc3`, and `8.6.12-rc1` all exist for `camunda/camunda` with no connectors-bundle counterpart. When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
+
+So: pin a GA version, or check the exact tag exists on Docker Hub first. To use a tag that differs from `camunda.version`, override it:
 
 ```
 io.camunda.process.test.connectors-docker-image-version=8.9.0

@@ -1,4 +1,4 @@
-# Running Web Modeler scenario files in CI/CD
+# Running Web Modeler scenario files
 
 Web Modeler exports test scenarios alongside BPMN/DMN files as part of its Git sync. These files use the same CPT 8.9 instruction grammar as hand-authored `.test.json` scenarios but have a different file envelope. This reference covers how to detect them, how to choose a test cluster, and how to get them running in one pass.
 
@@ -155,7 +155,7 @@ public class MyProcessIntegrationIT {
 
 Notes:
 - `connectors-enabled=true` starts the `camunda/connectors-bundle` container so the HTTP JSON connector and other outbound connectors execute for real.
-- The connectors bundle image tag is derived from `camunda.version` in `pom.xml`. Use a GA stable release — RC and SNAPSHOT tags are not published for this image. Set `io.camunda.process.test.connectors-docker-image-version` to override if needed.
+- The connectors bundle image tag is derived from `camunda.version` in `pom.xml`, so `camunda.version` must be a version that image was published for — see the version guidance in [setup.md](setup.md).
 - 60 seconds is a safe default timeout for a single external HTTP call. Increase it if the process has multiple sequential connector calls.
 
 #### Remote cluster (shared or WM cluster)
@@ -227,7 +227,7 @@ mvn verify
 |---------|-------|-----|
 | Element ID in `metadata.coveredFlowNodes` not found in BPMN | BPMN was modified after the scenario was exported from Web Modeler | Re-export the scenario from Web Modeler, or update element IDs manually |
 | `ASSERT_PROCESS_INSTANCE IS_COMPLETED` fails but process is running | Assertion timeout too short for real connector calls | Increase `CamundaAssert.setAssertionTimeout` |
-| `ContainerFetchException` for `camunda/connectors-bundle:<version>` | RC or SNAPSHOT tag not published on Docker Hub | Pin `camunda.version` to a GA stable release; or set `io.camunda.process.test.connectors-docker-image-version` explicitly |
+| `ContainerFetchException` for `camunda/connectors-bundle:<version>` | No connectors-bundle tag for the version CPT derived from `camunda.version` — common with non-GA versions | Pin `camunda.version` to a GA release; or set `io.camunda.process.test.connectors-docker-image-version` explicitly |
 | Remote mode: `NullPointerException` on `ZEEBE_GRPC_ADDRESS` | Environment variable not set | Set the required env vars (see table above) |
 | Remote mode: process not found | BPMN not deployed to target cluster, or wrong cluster credentials | Deploy via Web Modeler or `c8ctl deploy`; verify `ZEEBE_GRPC_ADDRESS` points to the right cluster |
 | WM scenario file not discovered by `@TestCaseSource` | File not on classpath, or `<targetPath>` missing from pom.xml | Confirm the `<testResource>` block in pom.xml uses `<targetPath>integration-scenarios</targetPath>` and the glob matches the filename |
