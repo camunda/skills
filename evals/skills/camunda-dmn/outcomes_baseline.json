@@ -1,0 +1,29 @@
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "discount-collect-sum": {
+        "tokens": {
+          "input": 6,
+          "cache_write": 5920,
+          "cache_read": 62410,
+          "output": 2490
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 84
+      },
+      "shipping-method-unique": {
+        "tokens": {
+          "input": 6,
+          "cache_write": 5470,
+          "cache_read": 60120,
+          "output": 2140
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 76
+      }
+    }
+  }
+}

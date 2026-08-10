@@ -13,12 +13,11 @@ TARGET ?=
 #   make run-outcome-evals TARGET=scenarios/rocket-launch ARM=without_skill
 ARM ?= with_skill
 # Model + agent loop, passed to every `inspect eval`. The suite is
-# model-agnostic; MODEL is just the default and uses Bedrock (supply AWS creds
-# in the environment). Override per run for another provider, e.g.
-# MODEL=anthropic/claude-sonnet-4-6 with ANTHROPIC_API_KEY, or AGENT=claude_code.
-# CI uses the same default via the EVAL_MODEL repo variable — see
-# .github/workflows/eval.yml.
-MODEL ?= anthropic/bedrock/global.anthropic.claude-sonnet-4-6
+# model-agnostic; MODEL is just the default and runs on the Anthropic API
+# (set ANTHROPIC_API_KEY in the environment). EVAL_MODEL (env/CI) wins when set;
+# override per run for another provider or AGENT=claude_code. CI uses the same
+# default via the EVAL_MODEL repo variable — see .github/workflows/eval.yml.
+MODEL ?= $(if $(EVAL_MODEL),$(EVAL_MODEL),anthropic/claude-sonnet-4-6)
 AGENT ?= react
 # Arbitrary extra flags forwarded to `inspect eval`.
 # Example: make run-outcome-evals TARGET=scenarios/rocket-launch ARGS="--epochs 3"
@@ -59,7 +58,7 @@ help:
 	@echo "  SKILL     Skill name (e.g. camunda-feel). For run-trigger-evals."
 	@echo "  TARGET    Outcome eval dir path (skills/<name> or scenarios/<name>), for run-outcome-evals / regenerate-baseline."
 	@echo "  ARM       Comparison arm: with_skill (default) or without_skill."
-	@echo "  MODEL     Inspect model id (default anthropic/bedrock/global.anthropic.claude-sonnet-4-6; needs AWS creds)."
+	@echo "  MODEL     Inspect model id (default anthropic/claude-sonnet-4-6; needs ANTHROPIC_API_KEY)."
 	@echo "  AGENT       Agent loop: react (default) or claude_code."
 	@echo "  TEMPERATURE Temperature for inspect eval (default 0 — deterministic). Override with TEMPERATURE=1 for stochastic runs."
 	@echo "  ARGS        Extra flags forwarded to 'inspect eval' (run-trigger-evals / run-outcome-evals)."
@@ -135,7 +134,7 @@ run-outcome-evals:
 	for s in "$$@"; do \
 		ms=$$(printf '%s' "$$targets" | uv run python -c "import sys,json; print(next((t['max_sandboxes'] for t in json.load(sys.stdin) if t['path']==sys.argv[1]), 1))" "$$s"); \
 		echo "=== $$s (max-sandboxes $$ms) ==="; \
-		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --model $(MODEL) --temperature $(TEMPERATURE) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
+		uv run inspect eval "$$s" --log-dir logs/ --max-sandboxes $$ms --max-samples $$ms --model $(MODEL) --temperature $(TEMPERATURE) -T arm=$(ARM) -T agent=$(AGENT) $(ARGS) || exit $$?; \
 		uv run evals-extract-artifacts || exit $$?; \
 	done
 

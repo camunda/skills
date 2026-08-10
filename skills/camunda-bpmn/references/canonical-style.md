@@ -37,7 +37,19 @@ Write BPMN in canonical form up front. Then Modeler saves produce empty diffs (j
 </bpmn:definitions>
 ```
 
+## Canonicalizing with `c8ctl bpmn format`
+
+`c8ctl bpmn format` runs a bpmn-moddle round-trip — the same pass that Modeler and `c8ctl element-template apply` execute on save:
+
+```bash
+c8ctl bpmn format process.bpmn         # print canonical XML to stdout
+c8ctl bpmn format -i process.bpmn      # rewrite in place
+cat process.bpmn | c8ctl bpmn format   # read from stdin (stdout only; -i requires a file path)
+```
+
+Use it to canonicalize a hand-authored file before the first `Edit` call, or to normalize output from an external tool. After running `format -i`, re-read the file — the round-trip may reorder attributes or normalize whitespace, making prior string matches stale.
+
 ## Why it matters
 
-- **`Edit` stays reliable.** `Edit` matches `old_string` byte-for-byte. After any Modeler save or `c8ctl element-template apply` call, a hand-formatted file gets canonicalized and the agent's mental model goes stale — every edit then needs a re-read first.
+- **`Edit` stays reliable.** `Edit` matches `old_string` byte-for-byte. After any Modeler save, `c8ctl element-template apply`, or `c8ctl bpmn format` call, a hand-formatted file gets canonicalized and the agent's mental model goes stale — every edit then needs a re-read first.
 - **Diffs read clean.** A Modeler save reformats a non-canonical file. Subsequent PR diffs mix the semantic change with whitespace and attribute-reorder churn, hiding what actually changed.

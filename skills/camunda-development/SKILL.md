@@ -79,6 +79,32 @@ The table is the why behind the matrix: connectors trade language reach for reus
 
 Workers and connectors are a **per-task** choice, not a per-project one. A single Spring Boot application can host job workers (via the Camunda Spring Boot Starter) and an embedded connector runtime (via `spring-boot-starter-camunda-connectors`) side by side — the Connectors SDK itself builds on the Spring Boot Starter. Pick the right shape for each integration; you do not need to commit the whole project to one path.
 
+## Multi-artifact delivery orchestration (BPMN + workers + DMN + forms)
+
+When a process spans multiple service tasks, user tasks, and business-rule tasks, orchestrate implementation as a structured handoff instead of ad-hoc generation:
+
+1. Build an explicit implementation plan from the BPMN:
+   - service task / message event integration points → connector or worker path
+   - user tasks with `formId` → `.form` deliverables
+   - business-rule tasks with `decisionId` → `.dmn` deliverables
+2. Review and approve that plan before generating artifacts.
+3. Implement independent domains in parallel where safe:
+   - workers/connectors
+   - DMN decisions
+   - forms
+   - BPMN execution wiring updates
+4. Run domain validation loops:
+   - BPMN: `c8ctl bpmn lint` (and compatibility checks as needed)
+   - DMN: `npx --yes dmnlint` (structural) + FEEL/hit-policy test execution (see **camunda-dmn**)
+   - Forms: JSON schema validity — required fields, `schemaVersion`, component `key` uniqueness (see **camunda-forms**)
+5. Run a cross-artifact wiring audit before deployment:
+   - every non-connector `taskDefinition type` (typically values **without** connector-style colons, e.g. `check-credit`) is implemented by a worker; connector runtime task types (for example `io.camunda:slack:1`) are resolved by connector templates/runtime, not custom workers
+   - every referenced `formId` exists and matches form `id`
+   - every referenced `decisionId` exists in deployed DMN resources
+6. Deploy only categories that are validation-clean; if a category is intentionally excluded, record that explicitly and keep release status as partial until fixed.
+
+This keeps large Camunda deliveries deterministic, reviewable, and safe to iterate.
+
 ## Inbound is a connector concern
 
 Inbound triggers — events flowing *into* a process from an external system — are implemented only via the Connectors SDK. There is no job-worker path for inbound: job workers exclusively handle outbound jobs the engine has already activated.

@@ -188,6 +188,55 @@ Generate complete `.form` JSON files. Ensure:
 - `layout.row` values increment sequentially (`row_0`, `row_1`, ...)
 - Metadata fields are present and correct
 
+### Schema Validation Loop (Lint Before Deploy)
+
+After creating or editing `.form` files, validate them against the official Camunda form schema before deployment. Use `ajv` with the `ajv-errors` plugin directly. A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
+
+```bash
+npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema
+
+# Create the validation helper and commit it as a project tool
+cat > validate-form.cjs << 'EOF'
+const Ajv = require('ajv');
+const addErrors = require('ajv-errors');
+const fs = require('fs');
+const schema = require('@bpmn-io/form-json-schema/resources/schema.json');
+const file = process.argv[2];
+if (!file) { console.error('Usage: node validate-form.cjs <path-to-form.form>'); process.exit(1); }
+let form;
+try { form = JSON.parse(fs.readFileSync(file, 'utf8')); }
+catch (e) { console.error(`Cannot read/parse ${file}: ${e.message}`); process.exit(1); }
+const ajv = new Ajv({ allErrors: true, strict: false });
+addErrors(ajv);
+const validate = ajv.compile(schema);
+if (!validate(form)) { console.error(JSON.stringify(validate.errors, null, 2)); process.exit(1); }
+console.log('Valid ✓');
+EOF
+
+node validate-form.cjs path/to/form.form
+```
+
+For multiple forms (including nested directories), loop over every file and collect all failures before exiting:
+
+```bash
+failed=0
+# Use find for recursive discovery; replace with *.form for flat directories
+while IFS= read -r f; do
+  node validate-form.cjs "$f" || { echo "FAILED: $f"; failed=1; }
+done < <(find . -name '*.form' -not -path '*/node_modules/*')
+exit $failed
+```
+
+Common schema keywords and fixes:
+
+| Keyword | Typical meaning | Typical fix |
+|---|---|---|
+| `required` | Required field missing | Add the missing property named in the error message |
+| `additionalProperties` | Unknown property for this object | Remove the unsupported property |
+| `type` | Wrong JSON value type | Change value to the expected type (string/number/boolean/object/array) |
+| `enum` / `const` | Value not in allowed set | Replace with one of the allowed values |
+| `pattern` | String format invalid (often `id`/`key`) | Rename to match the required regex (usually alnum/underscore style) |
+
 ## Troubleshooting
 
 - **Form doesn't appear in Tasklist** — verify the user task in BPMN includes `<zeebe:userTask/>` and `<zeebe:formDefinition formId="..."/>` matching the form's `id` field. The legacy `formKey` attribute was removed in Camunda 8.10.

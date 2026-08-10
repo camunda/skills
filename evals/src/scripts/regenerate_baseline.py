@@ -1,18 +1,19 @@
 """Regenerate an eval's ``outcomes_baseline.json`` from its most recent run.
 
-Records, per arm, the model and each sample's median token count across epochs
-— the ceiling gate in ``pass_fail`` allows up to ``tokens × 1.5``. No bands, no
-duration: outcome is gated per-sample by the scorers, not by a stored aggregate
-that would drift as samples are added.
+Records, per arm, the model and each sample's median metrics across epochs: the
+I/CW/CR/O token split + all-in total, plus turns, tool_calls, and duration. The
+cost gate in ``pass_fail`` keys on **input + output** (≤ baseline × 1.5); the
+cache-read/-write split, total tokens, turns, tool_calls, and duration_s are
+diagnostic — stored so the summary can show a delta, never gated.
 
-A baseline is an all-green snapshot or nothing: if any sample in the run
-failed a gating scorer (or errored / never scored), regeneration refuses to
-write and exits non-zero, naming the offenders. A partial baseline would leave
-half the eval ungated, and a failed sample's token count is unrepresentative
-anyway (a token-limit flail inflates it, an early error deflates it). Fix the
-eval, get a clean run, then regenerate.
+A baseline is an all-green snapshot or nothing: if any sample in the run failed
+a gating scorer (or errored / never scored), regeneration refuses to write and
+exits non-zero, naming the offenders. A partial baseline would leave half the
+eval ungated, and a failed sample's tokens are unrepresentative anyway (a
+token-limit flail inflates them, an early error deflates them). Fix the eval,
+get a clean run, then regenerate.
 
-    evals-regenerate-baseline --target camunda-feel [--arm with_skill]
+    evals-regenerate-baseline --target skills/camunda-feel [--arm with_skill]
 
 ``--target`` is the eval dir path (``skills/<name>`` or ``scenarios/<name>``).
 Review the diff before committing; regenerate one target at a time.
@@ -31,6 +32,14 @@ from core.paths import EVALS_ROOT
 from scripts.pass_fail import _outcome_rows
 
 LOGS_DIR = EVALS_ROOT / "logs"
+
+# Per-sample baseline layout. The four token categories nest under ``tokens``
+# (input/output feed the cost gate; cache_write/cache_read are recorded for
+# diagnosis); turns/tool_calls/duration_s sit top-level as effort diagnostics.
+# No all-in total — it's just the sum of the four, and nothing reads it. Stored
+# as rounded ints for a stable, readable diff.
+TOKEN_FIELDS = ("input", "cache_write", "cache_read", "output")
+EFFORT_FIELDS = ("turns", "tool_calls", "duration_s")
 
 
 def main() -> int:
@@ -98,15 +107,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    # Record the median per-id tokens/turns/tool_calls (rows carry the
-    # epoch-reduced figures); tokens gate the cost ceiling, turns and tool_calls
-    # are diagnostic (stored for the summary's delta, never gated). Sorted by id
-    # so the committed JSON is stable regardless of log ordering.
+    # Record the median per-id split + diagnostics (rows carry the epoch-reduced
+    # figures). Sorted by id so the committed JSON is stable regardless of log
+    # ordering.
     samples = {
         r["sample_id"]: {
-            "tokens": round(r["tokens"]),
-            "turns": round(r["turns"]),
-            "tool_calls": round(r["tool_calls"]),
+            "tokens": {f: round(r.get(f, 0.0)) for f in TOKEN_FIELDS},
+            **{f: round(r.get(f, 0.0)) for f in EFFORT_FIELDS},
         }
         for r in sorted(rows, key=lambda r: r["sample_id"])
     }

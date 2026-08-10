@@ -7,11 +7,9 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 ## A skill-change PR, end to end
 
 1. **Iterate locally** (see [`runbook.md`](runbook.md)).
-2. **Open the PR.** Nothing runs automatically — evals are opt-in and
-   maintainer-gated by label.
-3. **A maintainer adds `evals:run`** — runs the targets your change can affect,
-   on the `with_skill` arm, gated against the committed baseline, and posts a
-   rolling comment.
+2. **Open the PR.** Evals auto-run for PRs that touch skill/eval/harness files.
+3. **Default run scope** is targets your change can affect, on the `with_skill`
+   arm, gated against the committed baseline, with a rolling PR comment.
 4. **Read it** — the PR comment for the verdict, the run's job summary for token
    usage, the trajectory viewer for a failing sample.
 5. **Occasionally** add `evals:compare` (does the skill earn its keep — the
@@ -26,34 +24,31 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 | Workflow | Trigger | Scope |
 |---|---|---|
 | `lint.yml` | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
-| `eval.yml` | `evals:run` / `evals:run-all` / `evals:compare` label, or the Actions tab | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
+| `eval.yml` | PR changes to skill/eval/harness paths, or the Actions tab (`evals:run-all` / `evals:compare` labels optional) | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
 | `eval-nightly.yml` | `workflow_dispatch` only (cron re-enabled in a follow-up) | Every target; uploads logs as artifacts |
 | `eval-baseline.yml` | `evals:regenerate-baselines` label, or the Actions tab | Re-runs outcome evals, regenerates baselines, commits them to the branch |
 
-**Gating is the label.** Only collaborators with triage or higher can label a
-PR, and `workflow_dispatch` requires write access — so there's no separate
-authorization job. Because the workflows use `pull_request` (not
-`pull_request_target`), a fork PR never receives the AWS secrets: model runs only
-happen on branches in this repo.
+Auto-runs come from `pull_request` path filters; labels are optional refinements
+for scope/arms. `workflow_dispatch` still requires write access. Because the
+workflow uses `pull_request` (not `pull_request_target`), fork PRs do not
+receive model secrets.
 
 ## Labels
 
-Labels make two **orthogonal** choices — *scope* and *arms* — and re-run on each
-push while present (remove to stop):
+Labels are optional refinements and re-run on each push while present (remove
+to stop):
 
-- **`evals:run`** — targets whose `metadata.skills` intersect the changed skills
-  (the everyday signal).
 - **`evals:run-all`** — every target (whole-suite / harness check).
 - **`evals:compare`** — *also* run the `without_skill` arm of outcome evals.
   Without it, outcome evals run `with_skill` only.
 
 | You want to… | Label(s) | Runs | Gated vs baseline? |
 |---|---|---|---|
-| Check the skills your PR touched | `evals:run` | affected, `with_skill` | ✅ |
+| Check the skills your PR touched | none (default) | affected, `with_skill` | ✅ |
 | Check the whole suite | `evals:run-all` | every target, `with_skill` | ✅ |
-| See what a skill *adds* | either + `evals:compare` | adds `without_skill` | `with_skill` ✅ · `without_skill` ❌ |
+| See what a skill *adds* | optional `evals:compare` | adds `without_skill` | `with_skill` ✅ · `without_skill` ❌ |
 
-`workflow_dispatch` accepts `target` (substring filter over target ids) and
+`workflow_dispatch` accepts `target` (substring filter over target paths) and
 `compare` (run the second arm).
 
 ## Target selection
@@ -61,8 +56,16 @@ push while present (remove to stop):
 No tiers. `evals-list --json` emits one entry per target —
 `{id, kind, skills, path, task, args, max_sandboxes}` — where `id` is e.g.
 `trigger:camunda-feel`, `skill:camunda-feel`, or `scenario:rocket-launch`, and
-`kind` is `trigger | outcome`. PR runs intersect `metadata.skills` with the
-changed skills; nightly runs everything. Adding a target needs no workflow change.
+`kind` is `trigger | outcome`.
+
+PR target selection is a union:
+
+- skill-driven selection (`metadata.skills ∩ changed_skills`) for product-skill edits
+- exact eval-path selection for changed eval files (so an edit to
+  `evals/skills/<skill>/outcomes.py` runs that target only)
+
+Harness/framework edits (`evals/src`, sandboxes, workflow plumbing, Python
+project files) still widen to all skills. Nightly runs everything.
 
 ## Jobs and what goes red
 
@@ -140,20 +143,19 @@ prompts, modulo model non-determinism (`--epochs 3` to check flake).
 
 ## Credentials & secrets
 
-The model id is configuration. CI defaults to
-`anthropic/bedrock/global.anthropic.claude-sonnet-4-6` (Inspect's `anthropic`
-provider with the `bedrock/` qualifier), switchable in one place — the
-`EVAL_MODEL` repo variable. For the Bedrock default the workflows read:
+The model id is configuration. CI defaults to `anthropic/claude-sonnet-4-6`
+(Inspect's `anthropic` provider), switchable in one place — the `EVAL_MODEL` repo
+variable. The workflows read:
 
 | Kind | Name | Purpose |
 |---|---|---|
-| Secret | `AWS_ACCESS_KEY_ID` | model auth |
-| Secret | `AWS_SECRET_ACCESS_KEY` | model auth |
-| Variable | `AWS_DEFAULT_REGION` | region (default `us-east-1`) |
+| Secret | `ANTHROPIC_API_KEY` | model auth |
 | Variable | `EVAL_MODEL` | optional — overrides the CI model id |
 
-Set these under **Settings → Secrets and variables → Actions**. Point
-`EVAL_MODEL` at a non-AWS provider and swap the credential env in the run step.
+Set these under **Settings → Secrets and variables → Actions**. `ANTHROPIC_API_KEY`
+is read by Inspect on the runner; the sandbox bridge proxies model calls back to
+it, so the container carries no credential. Point `EVAL_MODEL` at another provider
+and swap the credential env in the run step.
 
 ## Cost controls
 

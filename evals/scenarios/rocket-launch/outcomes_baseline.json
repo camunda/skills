@@ -1,11 +1,17 @@
 {
-  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
       "timer-countdown": {
-        "tokens": 465076,
-        "turns": 21,
-        "tool_calls": 22
+        "tokens": {
+          "input": 16,
+          "cache_write": 19496,
+          "cache_read": 313206,
+          "output": 4854
+        },
+        "turns": 14,
+        "tool_calls": 16,
+        "duration_s": 153
       }
     }
   }

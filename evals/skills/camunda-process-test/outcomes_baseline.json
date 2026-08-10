@@ -1,0 +1,18 @@
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "invoice-approval-two-outcomes": {
+        "tokens": {
+          "input": 7,
+          "cache_write": 8120,
+          "cache_read": 27190,
+          "output": 2600
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 58
+      }
+    }
+  }
+}

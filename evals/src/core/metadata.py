@@ -18,15 +18,17 @@ class EvalMetadata(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    skills: list[str] = Field(..., min_length=1)
+    skills: list[str] | Literal["all"] = Field(..., min_length=1)
     """Skills the eval depends on. CI-orchestration only (drives the
-    ``eval.yml`` path-filter); does NOT restrict the runtime skill surface."""
+    ``eval.yml`` path-filter); does NOT restrict the runtime skill surface.
+    ``"all"`` runs the eval on any skill change — use for cross-skill scenarios
+    that exercise the full catalog."""
 
     without_skill_excludes: list[str] | Literal["all"] | None = None
     """Skills the ``without_skill`` arm drops. Defaults to ``skills`` (drop the
-    skills under test); ``"all"`` drops every skill — used by the
-    ``camunda-development`` meta-router and cross-skill scenarios, where the
-    skill's value only shows once the whole catalog is gone."""
+    skills under test); ``"all"`` drops every skill — used by meta-routers and
+    cross-skill scenarios, where the skill's value only shows once the whole
+    catalog is gone."""
 
     max_sandboxes: int = Field(1, ge=1)
     """How many sandboxes Inspect may run in parallel (the ``--max-sandboxes``

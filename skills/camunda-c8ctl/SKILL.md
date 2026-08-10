@@ -28,6 +28,33 @@ Install and use [c8ctl](https://github.com/camunda/c8ctl) — the minimal-depend
 
 ## Instructions
 
+### Quick readiness check (onboarding)
+
+Use this quick check when a user is new to c8ctl and you want to confirm the machine is ready before deeper setup:
+
+```bash
+# Required runtime
+node --version 2>/dev/null || echo "NOT FOUND"
+
+# Required CLI
+c8ctl --version 2>/dev/null || echo "NOT FOUND"
+
+# Required default plugins for camunda-* skills
+c8ctl bpmn --help >/dev/null 2>&1 && echo "bpmn: OK" || echo "bpmn: MISSING"
+c8ctl element-template --help >/dev/null 2>&1 && echo "element-template: OK" || echo "element-template: MISSING"
+c8ctl feel --help >/dev/null 2>&1 && echo "feel: OK" || echo "feel: MISSING"
+
+# Optional: check current active profile
+c8ctl which profile 2>/dev/null || echo "no active profile"
+
+# Optional: check whether a local c8run cluster is already running
+c8ctl cluster status 2>/dev/null || echo "local cluster: not running"
+```
+
+- **Node.js** and **c8ctl** are required. Node must be **≥ 22.18.0**. If either is missing (or Node is older), install/upgrade before continuing.
+- If any default plugin is missing, the installed c8ctl is older than 3.0.0. **Ask the user to confirm before upgrading** — don't run the install unprompted — then run `npm install -g @camunda8/cli`.
+- Missing profile/local cluster is not an error; it only means profile or cluster setup is still pending.
+
 ### Install
 
 Install c8ctl globally from npm. The other camunda-* skills depend on the `bpmn`, `element-template`, and `feel` plugins, which require **c8ctl ≥ 3.0.0**:
@@ -76,6 +103,24 @@ If the user hasn't decided and is doing local development, **suggest local c8run
 
 c8ctl ships with a default `cluster` plugin that wraps [c8run](https://docs.camunda.io/docs/self-managed/setup/deploy/local/c8run/). It downloads, starts, and stops a local Camunda 8 cluster for you.
 
+Before starting a new local cluster, run a quick preflight so you don't restart unnecessarily and you catch Java/runtime issues early:
+
+```bash
+# Is a local cluster already responding?
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v2/topology
+
+# Is Java available (c8run needs JRE 21+)?
+java -version
+```
+
+- If topology returns `200`, a local cluster is already running; continue with your task.
+- If Java is missing or too old, install JRE/JDK 21+ first.
+- In some non-interactive shells, `java -version` can work while `JAVA_HOME` is still unset (common with `asdf`/`mise` shims). If startup fails even though Java is installed, set `JAVA_HOME` explicitly before `c8ctl cluster start`:
+
+```bash
+export JAVA_HOME="$(asdf where java 2>/dev/null || mise where java 2>/dev/null)"
+```
+
 **Examples**:
 
 ```bash
@@ -93,6 +138,9 @@ c8ctl cluster start alpha
 
 # Check status (running? what version? connection details?)
 c8ctl cluster status
+
+# Verify the cluster is responding after start
+c8ctl get topology
 
 # Stream logs
 c8ctl cluster logs
@@ -205,7 +253,7 @@ Don't run `c8ctl load plugin` on the agent's initiative — plugin code runs in 
 - **`c8ctl: command not found`** (or `c8: command not found`) — npm's global bin directory isn't on `PATH`. Run `npm config get prefix` and add `<prefix>/bin` to `PATH`.
 - **`Node.js version too old`** — c8ctl requires Node ≥ 22.18.0 for native TypeScript support. Use `nvm` or `asdf` to upgrade.
 - **Local cluster won't start** — check `c8ctl cluster status` and `c8ctl cluster logs`. Common causes: port 8080 already in use, Java not installed (c8run needs JRE 21+), insufficient disk space for the binary download.
-- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Run `c8ctl cluster start` on the host directly.
+- **`c8ctl cluster start` reports "port 8080 in use" but the port is actually free** (`lsof`/`nc` show nothing listening) — sandboxed environments that block socket binding (some coding-agent harnesses, restricted container modes, macOS App Sandbox) surface this way. Ask the user to run `c8ctl cluster start` directly in their host terminal (outside the agent sandbox).
 - **c8ctl can't write to its default data directory** (sandboxed agents, restricted filesystems) — set `C8CTL_DATA_DIR=<writable-path>` before invoking c8ctl.
 - **OAuth errors against SaaS** — verify the profile is configured correctly. The cluster URL for SaaS is the *Zeebe REST address*, not the dashboard URL. See the [c8ctl docs](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/) for OAuth flags.
 

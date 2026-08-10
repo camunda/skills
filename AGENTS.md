@@ -43,10 +43,11 @@ c8ctl get topology --json   # confirm it's alive (use --json per command for scr
 All skill tooling is unified under c8ctl plugin commands:
 
 - **BPMN validation**: `c8ctl bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
+- **BPMN canonicalization**: `c8ctl bpmn format [<file.bpmn>] [-i]` — round-trip through bpmn-moddle to normalize whitespace, attribute order, and element shapes (same pass as Modeler save); `-i` rewrites in place, default prints to stdout
 - **Element templates** (run `c8ctl element-template sync` **once** before any OOTB-ID command; file/URL applies bypass the cache):
-  - `c8ctl element-template search "<query>" [--limit N]` — discover OOTB connector templates (default limit 20)
-  - `c8ctl element-template info <id>` — show metadata card (applies-to, engines, docs link)
-  - `c8ctl element-template get-properties <id> [<name>...]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern)
+  - `c8ctl element-template search "<query>" [--limit N] [--engine-version <x.y.z>]` — discover OOTB connector templates; `--engine-version` filters to the latest version compatible with that engine (default limit 20)
+  - `c8ctl element-template info <id> [--engine-version <x.y.z>]` — show metadata card (applies-to, engines, docs link); `--engine-version` resolves via engine-compatibility
+  - `c8ctl element-template get-properties <id> [<name>...] [--engine-version <x.y.z>]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern); `--engine-version` resolves via engine-compatibility
   - `c8ctl element-template apply -i <template> <element-id> <bpmn> [--set key=value ...]` — apply a template (omit `-i` to print to stdout)
   - `c8ctl element-template get <id>` — print raw template JSON
   - `c8ctl element-template sync [--prune]` — refresh the local OOTB cache (required once before first use; re-run to pick up upstream changes)
@@ -64,4 +65,6 @@ All skill tooling is unified under c8ctl plugin commands:
 
 ## Maintaining this repo
 
-Contributing to or maintaining the skills in this repo? See [CONTRIBUTING.md](CONTRIBUTING.md) for skill structure, the self-containment rule, cross-references, linting, evals, commit conventions, and the PR process. Working on the eval suite specifically? Start at [evals/README.md](evals/README.md).
+Contributing to or maintaining the skills in this repo? See [CONTRIBUTING.md](CONTRIBUTING.md) for skill structure, the self-containment rule, cross-references, linting, evals, commit conventions, and the PR process.
+
+**The skills have a behavioural eval suite (`evals/`), and it's meant to evolve with them.** When you add or change skill functionality, assess whether an eval should be added or adapted to cover it and raise it with the user — don't fabricate one where none earns its keep, but don't silently skip one that would catch a real failure mode. Evals are opt-in on CI and maintainer-gated by label: when a change warrants a run, the maintainer applies `evals:run` (skills the PR touches) or `evals:run-all` (whole suite) to the PR, or `evals:regenerate-baselines` after an intentional token-moving change. Surface this and suggest it — assume the user is a maintainer who can label — rather than waiting to be asked. Mechanics and the local loop: [evals/README.md](evals/README.md).

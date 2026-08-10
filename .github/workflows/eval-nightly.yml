@@ -98,12 +98,10 @@ jobs:
       - name: Run eval
         working-directory: evals
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           uv run inspect eval "${{ matrix.spec }}" --log-dir logs/ --display ${{ matrix.display }} ${{ matrix.limit }} \
-            --model "${{ vars.EVAL_MODEL || 'anthropic/bedrock/global.anthropic.claude-sonnet-4-6' }}" \
+            --model "${{ vars.EVAL_MODEL || 'anthropic/claude-sonnet-4-6' }}" \
             ${{ matrix.targs }}
 
       - name: Gate (evals-pass-fail)

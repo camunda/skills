@@ -1,8 +1,9 @@
-"""Shared metric helpers for reading Inspect eval logs.
+"""Shared helpers for reading Inspect eval logs.
 
-Used by ``scripts.regenerate_baseline`` to write the outcomes_baseline.json and by
-``scripts.pass_fail`` to gate against it. Kept domain-agnostic — no
-scenario-specific shaping lives here.
+Used by ``scripts.pass_fail`` (per-sample outcome + cost gate),
+``scripts.regenerate_baseline`` (writes ``outcomes_baseline.json``), and
+``scripts.summarize`` (the PR-comment / job-summary render). Domain-agnostic:
+no scenario-specific shaping lives here.
 """
 
 from __future__ import annotations
@@ -14,21 +15,21 @@ from inspect_ai.scorer import value_to_float
 
 from core.paths import SCENARIO_EVALS_DIR, SKILL_EVALS_DIR
 
-# Inspect's own Value→float conversion: letter grades C/P/I map to
-# 1.0/0.5/0.0, numbers pass through, and bool / "true" / "false" /
-# numeric strings are handled too. Using the framework helper keeps us
-# aligned with how ``accuracy()`` scores the same values, instead of
-# hand-rolling a letter map.
+# Inspect's own Value→float conversion: letter grades C/P/I map to 1.0/0.5/0.0,
+# numbers pass through, bool / "true" / "false" / numeric strings too. Using the
+# framework helper keeps us aligned with how ``accuracy()`` scores the same
+# values, instead of hand-rolling a letter map.
 score_to_float = value_to_float()
 
 
 def is_gating(score) -> bool:
     """Whether a Score contributes to the gating decision.
 
-    A scorer can mark its Scores non-gating by setting
-    ``metadata["gating"] = False`` (e.g. ``assert_skill_loaded`` in its
-    diagnostic mode) — those are surfaced for visibility but excluded
-    from gating decisions. Scores without the tag default to gating.
+    A scorer marks its Scores non-gating with ``metadata["gating"] = False``
+    (e.g. ``assert_skill_loaded`` in diagnostic mode) — those are surfaced for
+    visibility but excluded from the gate. Scores without the tag default to
+    gating. NB: built-in scorers (e.g. ``model_graded_qa``) can't carry the tag,
+    so they default to gating — intended.
     """
     meta = getattr(score, "metadata", None) or {}
     return meta.get("gating", True) is not False
@@ -38,10 +39,9 @@ def gating_by_scorer(log) -> dict[str, bool]:
     """Whether each scorer gates, keyed by scorer name.
 
     Read from raw ``log.samples`` (where every Score keeps its ``metadata``)
-    rather than from the reductions: a reducer may drop per-score metadata when
-    the epoch values differ, which would silently flip a diagnostic scorer like
-    ``assert_skill_loaded`` back to gating. A scorer's gating flag is constant
-    across samples, so the first occurrence wins.
+    rather than the reductions: a reducer may drop per-score metadata when epoch
+    values differ, silently flipping a diagnostic scorer back to gating. A
+    scorer's gating flag is constant across samples, so the first occurrence wins.
     """
     result: dict[str, bool] = {}
     for sample in getattr(log, "samples", None) or []:
@@ -56,10 +56,9 @@ def reduced_scores(log) -> dict[str, dict[str, float]]:
 
     Reads ``log.reductions`` (one entry per scorer × reducer, each holding the
     epoch-reduced score per sample id) instead of raw ``log.samples`` (one row
-    per id×epoch). At epochs=1 the reduction is the identity, so this is correct
-    for single- and multi-epoch runs alike. When several reducers are
-    configured, ``mean`` wins. Falls back to raw scores if a log predates
-    reductions.
+    per id×epoch). At epochs=1 the reduction is the identity. When several
+    reducers are configured, ``mean`` wins. Falls back to raw scores if a log
+    predates reductions.
     """
     by_scorer: dict[str, object] = {}
     for red in getattr(log, "reductions", None) or []:
@@ -97,11 +96,9 @@ def _usage_field(sample, field: str) -> float:
 
 
 def sample_tokens(sample) -> float:
-    """Total tokens consumed by a single sample across all models.
-
-    ``total_tokens`` is the all-in figure (input + output + cache read/write);
-    it's what the cost baseline gates on, so usage reporting uses it too.
-    """
+    """Total tokens consumed by a sample across all models — the all-in figure
+    (input + output + cache read/write). Shown for context; the cost gate keys
+    on input+output (see ``reduced_metrics``)."""
     return _usage_field(sample, "total_tokens")
 
 
@@ -117,23 +114,57 @@ def sample_tool_calls(sample) -> int:
     return sum(len(getattr(m, "tool_calls", None) or []) for m in msgs)
 
 
-# Per-sample signals reduced into the baseline. ``tokens`` gates the cost
-# ceiling; ``turns`` and ``tool_calls`` are diagnostic — stored so the summary
-# can show a delta ("+20% tokens, +2 turns"), never gated.
-REDUCED_FIELDS = ("tokens", "turns", "tool_calls")
+def sample_duration_s(sample) -> float:
+    """Per-sample wall time in seconds."""
+    return float(getattr(sample, "total_time", 0) or 0)
+
+
+# Token categories in display order; their sum is the all-in total, which prompt
+# caching makes far larger than fresh input + output. ``input``/``output`` feed
+# the cost gate (the work the agent actually did); ``cache_write``/``cache_read``
+# are recorded for diagnosis only — cache-read dominates the total and is the
+# cheapest category, so gating the total effectively gates cache churn.
+USAGE_FIELDS = ("input", "cache_write", "cache_read", "output")
+_USAGE_SOURCE = {
+    "input": "input_tokens",
+    "cache_write": "input_tokens_cache_write",
+    "cache_read": "input_tokens_cache_read",
+    "output": "output_tokens",
+}
+
+
+def token_usage(log) -> dict[str, float]:
+    """Per-category token totals across all samples (the keys in USAGE_FIELDS)."""
+    samples = getattr(log, "samples", None) or []
+    return {
+        f: sum(_usage_field(s, _USAGE_SOURCE[f]) for s in samples) for f in USAGE_FIELDS
+    }
+
+
+# Per-sample signals reduced into the baseline. The four ``USAGE_FIELDS`` carry
+# the I/CW/CR/O split (the gate keys on input+output); ``tokens`` is the all-in
+# total, and ``turns``/``tool_calls``/``duration_s`` are diagnostic — stored so
+# the summary can show a delta, never gated.
+REDUCED_FIELDS = (*USAGE_FIELDS, "tokens", "turns", "tool_calls", "duration_s")
 
 
 def reduced_metrics(log) -> dict[str, dict[str, float]]:
-    """Per-sample-id ``{tokens, turns, tool_calls}``, each the median across
-    epochs. These live on the raw samples (the reduced score carries no usage),
-    so we group ``log.samples`` by id and median each — robust to a single
-    runaway rollout, and the per-id granularity the cost gate and baseline use.
-    At epochs=1 it's just the sample's own values.
+    """Per-sample-id ``{REDUCED_FIELDS}``, each the median across epochs.
+
+    These live on the raw samples (the reduced score carries no usage), so we
+    group ``log.samples`` by id and median each — robust to a single runaway
+    rollout, and the per-id granularity the cost gate and baseline use. At
+    epochs=1 it's just the sample's own values.
     """
     getters = {
+        "input": lambda s: _usage_field(s, "input_tokens"),
+        "cache_write": lambda s: _usage_field(s, "input_tokens_cache_write"),
+        "cache_read": lambda s: _usage_field(s, "input_tokens_cache_read"),
+        "output": lambda s: _usage_field(s, "output_tokens"),
         "tokens": sample_tokens,
         "turns": sample_turns,
         "tool_calls": sample_tool_calls,
+        "duration_s": sample_duration_s,
     }
     by_id: dict[str, dict[str, list[float]]] = {}
     for sample in getattr(log, "samples", None) or []:
@@ -146,45 +177,20 @@ def reduced_metrics(log) -> dict[str, dict[str, float]]:
     }
 
 
-# Token categories in the order we display them; their sum is the all-in
-# total, which prompt caching makes far larger than fresh input + output.
-USAGE_FIELDS = (
-    "input_tokens",
-    "input_tokens_cache_write",
-    "input_tokens_cache_read",
-    "output_tokens",
-)
-
-
-def token_usage(log) -> dict[str, float]:
-    """Per-category token totals across all samples (the keys in USAGE_FIELDS)."""
-    samples = getattr(log, "samples", None) or []
-    return {f: sum(_usage_field(s, f) for s in samples) for f in USAGE_FIELDS}
-
-
 def model_id(log) -> str | None:
     """The model id the eval ran against (from the log's eval header)."""
     eval_meta = getattr(log, "eval", None)
     return getattr(eval_meta, "model", None) if eval_meta else None
 
 
-def sample_duration_s(sample) -> float:
-    """Per-sample wall time in seconds."""
-    return float(getattr(sample, "total_time", 0) or 0)
-
-
-def duration_s(log) -> float:
-    """Mean per-sample wall time (seconds).
-
-    Inspect tracks duration per sample, not on the log-level stats
-    object. With ``max_samples=1`` this is just the run's wall time;
-    with parallel samples it's the average — note that the arm-level
-    wall clock is bounded by the SLOWEST sample, not the sum.
-    """
-    samples = getattr(log, "samples", None) or []
-    if not samples:
-        return 0.0
-    return sum(sample_duration_s(s) for s in samples) / len(samples)
+def eval_name(log) -> str | None:
+    """The eval's display name: the log's task name, kebab-cased
+    (Inspect task names are snake_case; on-disk dirs are kebab-case)."""
+    eval_meta = getattr(log, "eval", None)
+    if eval_meta is None:
+        return None
+    task = getattr(eval_meta, "task", None)
+    return task.replace("_", "-") if task else None
 
 
 def task_arg(log, name: str, default: str | None = None) -> str | None:
@@ -194,20 +200,6 @@ def task_arg(log, name: str, default: str | None = None) -> str | None:
         return default
     args = getattr(eval_meta, "task_args", None) or {}
     return args.get(name, default)
-
-
-def eval_name(log) -> str | None:
-    """The eval's display name: the log's task name, kebab-cased.
-
-    Inspect task names are snake_case (``camunda_feel``); the on-disk
-    directory is kebab-case (``camunda-feel``). Returns ``None`` if the
-    log lacks a task name.
-    """
-    eval_meta = getattr(log, "eval", None)
-    if eval_meta is None:
-        return None
-    task = getattr(eval_meta, "task", None)
-    return task.replace("_", "-") if task else None
 
 
 def baseline_dir(name: str | None) -> Path | None:

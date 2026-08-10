@@ -1,0 +1,29 @@
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "approval-fields": {
+        "tokens": {
+          "input": 20,
+          "cache_write": 7000,
+          "cache_read": 52000,
+          "output": 5000
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 90
+      },
+      "priority-dropdown": {
+        "tokens": {
+          "input": 20,
+          "cache_write": 7000,
+          "cache_read": 52000,
+          "output": 5000
+        },
+        "turns": 5,
+        "tool_calls": 5,
+        "duration_s": 90
+      }
+    }
+  }
+}

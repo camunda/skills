@@ -1,21 +1,39 @@
 {
-  "model": "anthropic/bedrock/global.anthropic.claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
       "get-topology": {
-        "tokens": 57155,
+        "tokens": {
+          "input": 8,
+          "cache_write": 900,
+          "cache_read": 68751,
+          "output": 953
+        },
         "turns": 6,
-        "tool_calls": 5
+        "tool_calls": 5,
+        "duration_s": 49
       },
       "install-cli": {
-        "tokens": 90110,
+        "tokens": {
+          "input": 11,
+          "cache_write": 1572,
+          "cache_read": 107370,
+          "output": 1432
+        },
         "turns": 9,
-        "tool_calls": 8
+        "tool_calls": 8,
+        "duration_s": 86
       },
       "list-users": {
-        "tokens": 56652,
+        "tokens": {
+          "input": 8,
+          "cache_write": 502,
+          "cache_read": 68680,
+          "output": 693
+        },
         "turns": 6,
-        "tool_calls": 5
+        "tool_calls": 5,
+        "duration_s": 45
       }
     }
   }

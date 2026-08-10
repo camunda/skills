@@ -11,15 +11,16 @@ behavioural gate alongside `waza check` (lint); it's built on
 Prerequisites: [uv](https://docs.astral.sh/uv/); Docker for outcome evals only.
 
 ```bash
+export ANTHROPIC_API_KEY=sk-...                        # required — the evals call a model
 make run-trigger-evals SKILL=camunda-feel              # routing: does the skill load?  (no Docker)
 make build-docker-images                                   # one-time: build sandbox images
 make run-outcome-evals TARGET=skills/camunda-feel      # behaviour: does the agent get it right?
 make view-eval-logs                                   # trajectory viewer — http://localhost:7575
 ```
 
-The default model is `anthropic/bedrock/global.anthropic.claude-sonnet-4-6` (AWS
-creds in the environment); override with `MODEL=…` + that provider's creds. The
-uv project lives at the repo root, so `uv run …` works from anywhere without a `cd`.
+The default model is `anthropic/claude-sonnet-4-6` (`ANTHROPIC_API_KEY` in the
+environment); override with `MODEL=…` + that provider's creds. The uv project
+lives at the repo root, so `uv run …` works from anywhere without a `cd`.
 
 ## Layout
 
