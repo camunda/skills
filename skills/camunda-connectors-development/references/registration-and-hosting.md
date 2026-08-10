@@ -126,11 +126,12 @@ Or declare it as a Maven dependency (`<classifier>with-dependencies</classifier>
 Always start the local runtime with those vars explicitly unset:
 
 ```bash
+mkdir -p ./log   # the redirect below fails if this doesn't exist
 env -u ZEEBE_ADDRESS -u CAMUNDA_CLIENT_ID -u CAMUNDA_CLIENT_SECRET \
   -u ZEEBE_CLIENT_ID -u ZEEBE_CLIENT_SECRET \
   nohup java \
     -Dloader.path=./custom_connectors \
-    -jar connector-runtime-bundle-<version>-with-dependencies.jar \
+    -jar "connector-runtime-bundle-${VERSION}-with-dependencies.jar" \
     --spring.config.additional-location=./connectors-application.properties \
   > ./log/connectors.log 2>&1 &
 ```
@@ -151,7 +152,7 @@ curl -s http://localhost:8086/actuator/health \
   | jq -r '"status=\(.status) | zeebeClient=\(.components.zeebeClient.status) | numBrokers=\(.components.zeebeClient.details.numBrokers)"'
 ```
 
-`numBrokers: 1` = local Zeebe. `numBrokers: 3` = connected to SaaS cluster — stop the process and restart with the cloud env vars unset.
+c8run is a single broker, so `numBrokers: 1` is what a correctly wired local runtime reports. Any higher count means the runtime attached to a multi-broker cluster — typically SaaS, which is exactly the trap above. Stop the process and restart with the cloud env vars unset.
 
 ### Self-Managed embedded
 
