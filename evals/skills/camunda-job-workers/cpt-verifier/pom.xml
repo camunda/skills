@@ -5,7 +5,7 @@
   Runs in **remote runtime mode** against the orchestration cluster
   the agent worked against (shared via `network_mode: service:orchestration`
   so localhost:8080 reaches the REST API and localhost:9600 the
-  management endpoint). The test deploys committed BPMN fixtures from
+  management endpoint). The test deploys a committed BPMN fixture from
   the test classpath (src/test/resources) and asserts a process
   instance completes.
 

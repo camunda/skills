@@ -29,6 +29,8 @@ evals/
 ├── docs/                  # concepts · runbook · ci (see below)
 ├── sandboxes/             # Dockerfiles + docker-bake.hcl + compose-*.yaml (base / with-c8ctl / cpt-verifier / advisory)
 ├── skills/<skill>/        # triggers.py (routing) and, where one exists, outcomes.py
+│                          # plus any eval-local helper module, imported as a sibling
+│                          # (a scorer specific to this one skill belongs here, not in src/scorers/)
 ├── scenarios/<id>/        # cross-skill outcome evals (e.g. rocket-launch)
 └── src/
     ├── core/              # paths, metadata schema, registry, metrics, trigger builder

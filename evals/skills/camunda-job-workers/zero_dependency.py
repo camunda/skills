@@ -1,5 +1,9 @@
 """Scorer: assert the agent's Node.js worker is genuinely zero-dependency.
 
+Lives next to ``outcomes.py`` rather than in ``evals/src/scorers/``: it encodes
+one skill's claim (built-ins-only Node.js), so it is eval-local setup, not part
+of the shared scorer library.
+
 The ``worker-http-no-sdk.md`` sample is the unit under test: a worker that
 uses only Node built-ins over the ``/v2/jobs/*`` REST API — no ``package.json``,
 no ``node_modules``, no ``@camunda8`` SDK. This scorer checks that property

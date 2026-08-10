@@ -67,7 +67,20 @@ def _import_module(module_py: Path):
         raise RuntimeError(f"cannot load {module_py}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    # Put the eval's own directory on sys.path so it can import eval-local
+    # helper modules (an eval-specific scorer, say) as plain siblings. Mirrors
+    # what Inspect does when it loads the task file, so `evals-list` and
+    # `inspect eval` resolve the same imports. Appended, not inserted, so the
+    # shared `core`/`scorers`/`solvers` packages always win a name clash.
+    eval_dir = str(module_py.parent)
+    added = eval_dir not in sys.path
+    if added:
+        sys.path.append(eval_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if added:
+            sys.path.remove(eval_dir)
     return module
 
 

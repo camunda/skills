@@ -108,9 +108,18 @@ Secrets: the 8.9+ runtime reads from environment variables prefixed `SECRET_` by
 
 Use SPI registration. The standalone runtime is not a Spring Boot application that scans your beans.
 
-#### Local development: standalone JAR with custom connectors
+#### Local development: standalone runtime as an executable JAR
 
-When developing a custom connector locally, you need to run the standalone connector runtime JAR with your connector loaded into `-Dloader.path=./custom_connectors`. This is distinct from c8run's bundled runtime, which runs OOTB connectors only and does not load JARs from a custom directory.
+The standalone runtime also ships as an executable JAR, which is the form to use for local custom-connector development: run it directly with your connector loaded via `-Dloader.path=./custom_connectors`. This is distinct from c8run's bundled runtime, which runs OOTB connectors only and does not load JARs from a custom directory.
+
+**Where the JAR comes from.** It is published on Maven Central as `io.camunda.connector:connector-runtime-bundle`, classifier `with-dependencies` — that classifier is the self-contained executable; the plain artifact is a library JAR and will not boot. Download it directly:
+
+```bash
+VERSION=8.8.0   # match your cluster's minor; check Maven Central for the current patch
+curl -sSLO "https://repo1.maven.org/maven2/io/camunda/connector/connector-runtime-bundle/${VERSION}/connector-runtime-bundle-${VERSION}-with-dependencies.jar"
+```
+
+Or declare it as a Maven dependency (`<classifier>with-dependencies</classifier>`) and let the build resolve it.
 
 **The env-var override trap:** `ZEEBE_ADDRESS`, `CAMUNDA_CLIENT_ID`, and `CAMUNDA_CLIENT_SECRET` take precedence over any properties file. If those are set in your shell (common if you also use SaaS), the runtime will connect to the SaaS cluster even when you pass a local config file. Local jobs will never be picked up and no error is shown.
 
