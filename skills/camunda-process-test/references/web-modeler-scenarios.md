@@ -48,7 +48,7 @@ Ask the user which mode to use if it is not already clear from context.
 
 ### Step 2 — Create `application-integration.yml`
 
-Create `test/src/test/resources/application-integration.yml` (Spring profile `integration`). This file is committed to the repo and records the cluster choice. Credentials are always supplied via environment variables — never committed.
+Create `application-integration.yml` (Spring profile `integration`) in the test resources of the module that holds the tests — `src/test/resources/` in a standard Maven project, or `test/src/test/resources/` when the harness is the sibling `test/` module described in [setup.md](setup.md#nodejs-project-layout). This file is committed to the repo and records the cluster choice. Credentials are always supplied via environment variables — never committed.
 
 ```yaml
 # Cluster mode for Web Modeler integration tests.
