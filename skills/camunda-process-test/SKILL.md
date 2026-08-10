@@ -49,9 +49,25 @@ Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, lis
 
 Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 2.
 
+If scenarios already exist, run a drift check before editing tests:
+
+```bash
+git diff <base-branch>...HEAD -- <bpmn-path>
+```
+
+Use the PR base branch or repository default branch as `<base-branch>` (often `main`).
+
+Then classify current suite gaps:
+
+- **Broken**: scenario references an `elementId` or `processDefinitionId` that no longer exists.
+- **Stale**: IDs still exist, but branch-driving variables or assumptions no longer match gateway/DMN behavior.
+- **Missing**: new branches, boundary events, or end events have no segment coverage.
+
+Fix in this order: broken → stale → missing, then run `mvn test` and continue with coverage verification.
+
 ### 2. Setup (only if missing)
 
-Follow [references/setup.md](references/setup.md): verify Java 21+, Maven, Docker; add the CPT dependency; scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
+Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
 
 ### 3. Plan segments (set-cover, not per-element)
 
@@ -164,6 +180,16 @@ Segments: 1 happy path + 5 secondary
 Duplicates flagged: 0
 ```
 
+## Maintenance workflows for existing suites
+
+When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
+
+1. **Run and diagnose failures** — execute `mvn test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
+2. **Evaluate coverage gaps before writing new tests** — explain current suite coverage in business terms, list uncovered branches/boundaries/rules, and recommend the smallest next set of scenarios. See [references/evaluation.md](references/evaluation.md).
+3. **Wire tests into CI** — configure CI to run CPT reliably and publish JUnit artifacts, with optional integration profile runs gated to trusted branches. See [references/ci.md](references/ci.md).
+
+These workflows are complementary: evaluate gaps first, implement new scenarios, then run/diagnose locally and in CI.
+
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
@@ -172,3 +198,6 @@ Duplicates flagged: 0
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
 - [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
+- [run-and-diagnose.md](references/run-and-diagnose.md) — test-run execution loop and failure-batch repair strategy
+- [evaluation.md](references/evaluation.md) — coverage-gap assessment and recommendation workflow
+- [ci.md](references/ci.md) — CI pipeline patterns for CPT execution and test-report publishing

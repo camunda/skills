@@ -1,89 +1,141 @@
-"""camunda-job-workers — zero-dependency Node.js worker, end-to-end.
+"""camunda-job-workers outcome eval: choose the correct worker strategy.
 
-Unit under test: the ``references/worker-http-no-sdk.md`` sample — a worker
-using only Node built-ins over the ``/v2/jobs/*`` REST API (no ``package.json``,
-no ``node_modules``, no SDK). The agent writes the worker, deploys a fixed BPMN,
-runs the worker against the live cluster, and starts an instance.
-
-Three gating scorers:
-  - worker_is_zero_dependency  — the worker really is built-ins-only (the capability)
-  - process_deployed_on_cluster — the BPMN reached the cluster
-  - cpt_scorer                  — the CPT verifier starts an instance of the same
-      process and asserts it completes, which only the agent's real worker can do.
-
-The BPMN is a fixed fixture (the prompt hands the agent the exact XML to save).
-It is a test input, not the unit under test, so it is linted once at authoring.
+Deterministic, no judge. Each sample asks for one routing decision and the agent
+must write a strict JSON object to /workspace/answer.json. The scorer validates
+that the selected enum matches the expected outcome for the scenario.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
+from inspect_ai.solver import TaskState
+from inspect_ai.util import sandbox
 
 from core.agents import AgentKind, build_agent
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
-from scorers.cluster import process_deployed_on_cluster
-from scorers.cpt import cpt_scorer
+from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
-from zero_dependency import worker_is_zero_dependency
 
+METADATA = EvalMetadata(skills=["camunda-job-workers"])
 
-METADATA = EvalMetadata(
-    skills=["camunda-job-workers"],
+SAVE = (
+    "\n\nWrite ONLY this JSON object to /workspace/answer.json: "
+    '{"recommendation":"<one-enum-value>"}. No markdown, no extra keys, no commentary.'
 )
 
-# The exact BPMN the agent saves verbatim. Read from the CPT verifier's
-# committed fixture rather than duplicated here, so the XML the prompt hands the
-# agent and the XML the verifier deploys cannot drift apart. Fixed so the eval
-# tests the worker, not BPMN authoring; `process-order` is the job type the
-# worker must poll.
-FIXTURE_BPMN = (
-    Path(__file__).parent
-    / "cpt-verifier"
-    / "src"
-    / "test"
-    / "resources"
-    / "NoSdkWorkerDemo.bpmn"
-).read_text()
+SAMPLES = [
+    Sample(
+        id="node-no-jvm",
+        input=(
+            "Our backend stack is Node.js/TypeScript only. We need a Camunda 8 "
+            "service-task integration and do not want to run any JVM runtime. "
+            "Choose ONE recommendation enum from this list: "
+            "typescript-job-worker, spring-job-worker, java-job-worker, "
+            "custom-java-connector, ootb-rest-connector." + SAVE
+        ),
+        metadata={"expected": {"recommendation": "typescript-job-worker"}},
+    ),
+    Sample(
+        id="spring-boot-3-bridge",
+        input=(
+            "We already run a Spring Boot 3.5.x service and must add a Camunda "
+            "job worker inside this app right now (no platform upgrade yet). "
+            "Choose ONE recommendation enum from this list: "
+            "camunda-spring-boot-3-starter, camunda-spring-boot-starter, "
+            "java-job-worker, typescript-job-worker." + SAVE
+        ),
+        metadata={"expected": {"recommendation": "camunda-spring-boot-3-starter"}},
+    ),
+    Sample(
+        id="payment-declined-path",
+        input=(
+            "In a worker, a payment provider returns a business decline that the "
+            "BPMN model already handles with an error boundary event. "
+            "Choose ONE recommendation enum from this list: "
+            "fail-with-retries, throw-bpmn-error, unhandled-exception." + SAVE
+        ),
+        metadata={"expected": {"recommendation": "throw-bpmn-error"}},
+    ),
+]
 
-PROMPT = (
-    "My Camunda 8 cluster is already running locally (don't start a new one). "
-    "I need a job worker for it, but this environment has **no npm** — I can't "
-    "install any packages. Write a worker in plain Node.js using only built-in "
-    "modules (no `package.json`, no `node_modules`, no `@camunda8` SDK).\n\n"
-    "Save this exact BPMN as `NoSdkWorkerDemo.bpmn` (process id `NoSdkWorkerDemo`, "
-    "one service task with job type `process-order`):\n\n"
-    "```xml\n" + FIXTURE_BPMN + "```\n\n"
-    "Then:\n"
-    "1. Write the zero-dependency worker that handles the `process-order` job type "
-    "and completes each job.\n"
-    "2. Deploy `NoSdkWorkerDemo.bpmn` to the running cluster.\n"
-    "3. Start the worker in the background and leave it running — do not stop it.\n"
-    "4. Start a process instance and confirm it runs to completion.\n"
-)
+
+@scorer(metrics=[mean(), stderr()])
+def job_worker_outcome() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        _ = target
+        sb = sandbox()
+        read = await sb.exec(["cat", "/workspace/answer.json"], timeout=10)
+        if read.returncode != 0:
+            return Score(value=0.0, explanation="/workspace/answer.json not created")
+
+        try:
+            actual = json.loads(read.stdout)
+        except json.JSONDecodeError as exc:
+            return Score(value=0.0, explanation=f"answer.json is not valid JSON: {exc}")
+
+        if not isinstance(actual, dict):
+            return Score(value=0.0, explanation="answer.json must contain a JSON object")
+
+        expected = ((state.metadata or {}).get("expected") or {}).copy()
+        if not expected:
+            return Score(value=0.0, explanation="missing expected metadata")
+
+        extra_keys = set(actual.keys()) - set(expected.keys())
+        missing_keys = set(expected.keys()) - set(actual.keys())
+        if extra_keys or missing_keys:
+            parts = []
+            if extra_keys:
+                parts.append(f"unexpected keys: {sorted(extra_keys)}")
+            if missing_keys:
+                parts.append(f"missing keys: {sorted(missing_keys)}")
+            return Score(
+                value=0.0,
+                explanation="; ".join(parts),
+                metadata={"actual": actual, "expected": expected},
+            )
+
+        mismatches = []
+        for key, expected_value in expected.items():
+            if actual[key] != expected_value:
+                mismatches.append(
+                    f"{key}: expected {expected_value!r}, got {actual[key]!r}"
+                )
+
+        if mismatches:
+            return Score(
+                value=0.0,
+                explanation="; ".join(mismatches),
+                metadata={"actual": actual, "expected": expected},
+            )
+
+        return Score(
+            value=1.0,
+            explanation="recommendation matches expected outcome",
+            metadata={"actual": actual},
+        )
+
+    return score
 
 
 @task
 def camunda_job_workers(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
-        dataset=[
-            Sample(id="no-sdk-worker-completes", input=PROMPT),
-        ],
-        solver=with_artifact_collection(build_agent(agent, skill_dirs)),
+        dataset=SAMPLES,
+        # submit=False: the JSON decision file is the deliverable.
+        solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
-            worker_is_zero_dependency(),
-            process_deployed_on_cluster("NoSdkWorkerDemo"),
-            cpt_scorer(project_dir="/skills/camunda-job-workers/cpt-verifier"),
+            job_worker_outcome(),
+            assert_skill_loaded("camunda-job-workers", gating=False),
         ],
-        sandbox=("docker", str(SANDBOXES_DIR / "compose-cpt-verifier.yaml")),
+        sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),
         metadata=METADATA.model_dump(),
-        # time_limit covers the whole sample; Inspect reserves half for scoring,
-        # so 720s leaves 360s for the CPT scorer's `mvn test`.
-        time_limit=720,
-        token_limit=700_000,
-        message_limit=60,
+        time_limit=180,
+        token_limit=120_000,
+        message_limit=40,
     )

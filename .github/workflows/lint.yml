@@ -5,7 +5,11 @@ on:
     branches: [main]
     paths:
       - 'skills/**'
+      - 'evals/**'
       - '.waza.yaml'
+      - '.github/workflows/eval.yml'
+      - '.github/workflows/eval-nightly.yml'
+      - '.github/workflows/eval-baseline.yml'
       - '.github/workflows/lint.yml'
 
 permissions:

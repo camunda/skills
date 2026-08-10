@@ -43,10 +43,11 @@ c8ctl get topology --json   # confirm it's alive (use --json per command for scr
 All skill tooling is unified under c8ctl plugin commands:
 
 - **BPMN validation**: `c8ctl bpmn lint process.bpmn` (auto-detects Camunda execution platform version; uses `.bpmnlintrc` if present)
+- **BPMN canonicalization**: `c8ctl bpmn format [<file.bpmn>] [-i]` — round-trip through bpmn-moddle to normalize whitespace, attribute order, and element shapes (same pass as Modeler save); `-i` rewrites in place, default prints to stdout
 - **Element templates** (run `c8ctl element-template sync` **once** before any OOTB-ID command; file/URL applies bypass the cache):
-  - `c8ctl element-template search "<query>" [--limit N]` — discover OOTB connector templates (default limit 20)
-  - `c8ctl element-template info <id>` — show metadata card (applies-to, engines, docs link)
-  - `c8ctl element-template get-properties <id> [<name>...]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern)
+  - `c8ctl element-template search "<query>" [--limit N] [--engine-version <x.y.z>]` — discover OOTB connector templates; `--engine-version` filters to the latest version compatible with that engine (default limit 20)
+  - `c8ctl element-template info <id> [--engine-version <x.y.z>]` — show metadata card (applies-to, engines, docs link); `--engine-version` resolves via engine-compatibility
+  - `c8ctl element-template get-properties <id> [<name>...] [--engine-version <x.y.z>]` — list settable properties (condensed by default; supports glob filters and `--group <id>`); add `--detailed` for full per-property cards (Required, FEEL, Active when, Pattern); `--engine-version` resolves via engine-compatibility
   - `c8ctl element-template apply -i <template> <element-id> <bpmn> [--set key=value ...]` — apply a template (omit `-i` to print to stdout)
   - `c8ctl element-template get <id>` — print raw template JSON
   - `c8ctl element-template sync [--prune]` — refresh the local OOTB cache (required once before first use; re-run to pick up upstream changes)

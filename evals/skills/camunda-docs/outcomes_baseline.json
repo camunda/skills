@@ -1,0 +1,29 @@
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "with_skill": {
+    "samples": {
+      "verify-create-process-instance-endpoint": {
+        "tokens": {
+          "input": 8,
+          "cache_write": 8124,
+          "cache_read": 27103,
+          "output": 1486
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 48
+      },
+      "verify-get-topology-endpoint": {
+        "tokens": {
+          "input": 8,
+          "cache_write": 8069,
+          "cache_read": 27088,
+          "output": 1421
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 45
+      }
+    }
+  }
+}

@@ -3,9 +3,7 @@ name: 🧪 Run skill evals
 # Non-blocking PR eval signal — posts outcome + token-budget vs baseline as a
 # PR comment. Does NOT gate merge (keep out of required status checks).
 #
-# Maintainer-gated by labels (only triage+ can label; fork PRs never get the
-# secrets — this is `pull_request`, not `pull_request_target`):
-#   - evals:run       → targets whose skills ∩ changed skills
+# Auto-runs on PRs that touch skills/evals paths; labels refine scope:
 #   - evals:run-all   → every target (suite integration check)
 #   - evals:compare   → also run the without-skill arm of outcome evals
 # workflow_dispatch (requires write access) can run a single target and toggle
@@ -24,7 +22,16 @@ on:
         type: boolean
         default: false
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [opened, reopened, synchronize, labeled]
+    paths:
+      - 'skills/**'
+      - 'evals/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.python-version'
+      - '.github/workflows/eval.yml'
+      - '.github/workflows/eval-nightly.yml'
+      - '.github/workflows/eval-baseline.yml'
 
 permissions:
   contents: read
@@ -37,10 +44,7 @@ concurrency:
 jobs:
   detect:
     name: Detect affected targets
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'evals:run') ||
-      contains(github.event.pull_request.labels.*.name, 'evals:run-all')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       specs: ${{ steps.matrix.outputs.specs }}
@@ -57,25 +61,42 @@ jobs:
 
       - run: uv sync --frozen
 
-      - name: Compute changed skills
+      - name: Compute changed scope
         env:
           RUN_ALL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'evals:run-all') }}
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
-          # run-all (or a dispatch with no PR) → every skill. A change to the
-          # harness itself (evals/ tree or the Python project) also runs all.
+          : > changed-targets.txt
+          # run-all (or a dispatch with no PR) → every skill.
           if [ "$RUN_ALL" = "true" ] || [ -z "$base" ]; then
             ls skills > changed-skills.txt
           else
-            git diff --name-only "$base..$head" \
-              | awk -F/ '$1=="skills" && NF>1 {print $2}' | sort -u > changed-skills.txt
-            if git diff --name-only "$base..$head" \
-                 | grep -qE '^evals/|^pyproject\.toml$|^uv\.lock$|^\.python-version$'; then
+            git diff --name-only "$base..$head" > changed-files.txt
+            awk -F/ '$1=="skills" && NF>1 {print $2}' changed-files.txt | sort -u > changed-skills.txt
+
+            # Map changed eval target files to exact target paths so a PR that
+            # updates one eval runs that eval only.
+            awk -F/ '
+              $1=="evals" && $2=="skills" && NF>=4 && $4=="triggers.py" {
+                print "skills/" $3 "/triggers.py"
+              }
+              $1=="evals" && $2=="skills" && NF>=4 && $4!="triggers.py" {
+                print "skills/" $3 "/outcomes.py"
+              }
+              $1=="evals" && $2=="scenarios" && NF>=4 {
+                print "scenarios/" $3 "/outcomes.py"
+              }
+            ' changed-files.txt | sort -u > changed-targets.txt
+
+            # Harness/framework changes still require full-suite-by-skill.
+            if grep -qE '^evals/src/|^evals/sandboxes/|^evals/README\.md$|^pyproject\.toml$|^uv\.lock$|^\.python-version$|^\.github/workflows/eval\.yml$|^\.github/workflows/eval-(nightly|baseline)\.yml$' changed-files.txt; then
               ls skills > changed-skills.txt
+              : > changed-targets.txt
             fi
           fi
           echo "Changed skills:"; cat changed-skills.txt
+          echo "Changed eval targets:"; cat changed-targets.txt
 
       - name: Build run matrix
         id: matrix
@@ -83,13 +104,43 @@ jobs:
           COMPARE: ${{ contains(github.event.pull_request.labels.*.name, 'evals:compare') || github.event.inputs.compare == 'true' }}
           TARGET: ${{ github.event.inputs.target }}
         run: |
-          changed=$(tr '\n' ' ' < changed-skills.txt)
           compare_flag=""; [ "$COMPARE" = "true" ] && compare_flag="--compare"
-          # shellcheck disable=SC2086  # word-splitting is intended: one arg per skill
-          uv run evals-build-matrix --changed-skills $changed --target "$TARGET" $compare_flag > specs.json
+          echo '[]' > specs.json
+
+          merge_specs() {
+            tmp=$(mktemp)
+            jq -s 'add | unique_by(.slug)' specs.json "$1" > "$tmp"
+            mv "$tmp" specs.json
+          }
+
+          if [ -s changed-skills.txt ]; then
+            changed=$(tr '\n' ' ' < changed-skills.txt)
+            # shellcheck disable=SC2086  # word-splitting is intended: one arg per skill
+            uv run evals-build-matrix --changed-skills $changed --target "$TARGET" $compare_flag > specs-skill.json
+            merge_specs specs-skill.json
+          fi
+
+          if [ -s changed-targets.txt ]; then
+            while IFS= read -r target; do
+              [ -n "$target" ] || continue
+              uv run evals-build-matrix --target "$target" $compare_flag > specs-target.json
+              merge_specs specs-target.json
+            done < changed-targets.txt
+          fi
+
+          # workflow_dispatch with explicit target and no changed-skill context
+          if [ -n "$TARGET" ] && [ ! -s changed-skills.txt ] && [ ! -s changed-targets.txt ]; then
+            uv run evals-build-matrix --target "$TARGET" $compare_flag > specs-target.json
+            merge_specs specs-target.json
+          fi
+
           specs=$(cat specs.json)
           echo "$specs"
-          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          {
+            echo "specs<<SPECS_EOF"
+            cat specs.json
+            echo "SPECS_EOF"
+          } >> "$GITHUB_OUTPUT"
           [ "$specs" = "[]" ] && echo "has=false" >> "$GITHUB_OUTPUT" || echo "has=true" >> "$GITHUB_OUTPUT"
           # Only build the sandbox images when an outcome target is in scope
           # (triggers run sandbox-free), so a triggers-only run skips the build.

@@ -104,6 +104,8 @@ Three things determine whether the LLM picks a tool correctly:
 
 A tool can be a **single activity** (service task, script task, user task) or a **sub-flow** rooted at a `bpmn:subProcess` containing further activities. In both cases the LLM only sees the root node — descriptions, inputs, and schema are read from there. The internal sub-flow steps are invisible to the LLM; they execute in sequence per normal BPMN semantics and propagate variables up when the sub-process completes.
 
+For a sub-flow tool this is literal: put `fromAi()` calls on the `bpmn:subProcess` root's own `zeebe:ioMapping`, not on a descendant activity — a `fromAi()` on a child task yields an empty schema, so the LLM calls the tool with no arguments and every downstream value (form fields included) comes back `null`.
+
 Worked XML for each of the four shapes (REST, script, user task, sub-flow) is in [references/tool-modeling.md](references/tool-modeling.md).
 
 ## fromAi() — Declaring AI-Generated Parameters
@@ -206,6 +208,8 @@ Run the BPMN lint loop (see **camunda-bpmn**) before declaring the agent process
 ```bash
 c8ctl bpmn lint process.bpmn
 ```
+
+Lint now catches `fromAi()` misplacement on sub-flow tools — the `agent-fromai-contract` rule in `bpmnlint-plugin-camunda-compat` flags a `fromAi()` call declared on a descendant activity instead of the tool's entry element (for a sub-flow tool, the `bpmn:subProcess` root's own `zeebe:ioMapping`). Run lint first; if it's clean but a sub-flow tool's params still come back `null`, re-check against "Defining Tools" above.
 
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by reading the BPMN:
 

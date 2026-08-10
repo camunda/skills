@@ -12,6 +12,25 @@ See **camunda-development** for installing these locally.
 
 > Testcontainers pulls the matching Zeebe image automatically on first run (~500MB). Do not pre-pull `camunda/zeebe:latest` — the tag may not match the CPT version on the classpath.
 
+## Readiness preflight (first run)
+
+Run this quick check before scaffolding:
+
+```bash
+# Java runtime
+java -version
+
+# Maven (prefer wrapper when present)
+./mvnw -version 2>/dev/null || mvn -version
+
+# Docker runtime
+docker info --format '{{.ServerVersion}}'
+```
+
+If Docker is not running, start your runtime (Docker Desktop, OrbStack, or Rancher Desktop) and re-run `docker info --format '{{.ServerVersion}}'`.
+
+If Java or Maven resolves in an interactive shell but fails in non-interactive runs, check tool-manager shims (`asdf`/`mise`) and set the project toolchain explicitly (for example via `.tool-versions`) before running CPT.
+
 ## CPT dependency
 
 Required entry in the project (or test harness) `pom.xml`:

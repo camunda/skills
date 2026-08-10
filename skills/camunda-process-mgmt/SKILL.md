@@ -62,6 +62,31 @@ Deploy an entire directory (recursive):
 c8ctl deploy ./my-project
 ```
 
+Pre-deploy checks (recommended):
+
+1. Lint BPMN before deployment:
+
+   ```bash
+   c8ctl bpmn lint process.bpmn
+   ```
+
+2. Validate DMN and form files if present (see **camunda-dmn** and **camunda-forms** workflows), then deploy only the resources that are ready.
+
+Spring Boot resource-tree tip:
+
+- In projects that keep deployables under `src/main/resources/`, prefer deploying `processes/`, `decisions/`, and `forms/` paths explicitly.
+- Avoid deploying the parent `src/main/resources` directory wholesale when it contains non-deployable files (`application.yaml`, `application.properties`, etc.).
+
+Example:
+
+```bash
+c8ctl deploy \
+  src/main/resources/processes \
+  src/main/resources/decisions \
+  src/main/resources/forms \
+  --profile=local
+```
+
 After deploying, verify:
 
 ```bash
@@ -72,6 +97,14 @@ c8ctl search pd --iname="MyProcess"
 Each deployment creates a new version of any resource it contains. Use `c8ctl list pd --fields Key,Name,Version` to see versions.
 
 ### Starting Process Instances
+
+Pick the start verb by intent:
+
+| Need | Command |
+|---|---|
+| Start and return immediately (default) | `c8ctl create pi --id <bpmnProcessId> [--variables '{...}']` |
+| Deploy + start in one shot | `c8ctl run <file.bpmn> [--variables '{...}']` |
+| Start and block until completion | `c8ctl await pi --id <bpmnProcessId> [--variables '{...}']` |
 
 Create an instance for a deployed process:
 
@@ -84,6 +117,8 @@ With input variables:
 ```bash
 c8ctl create pi --id MyProcess --variables '{"orderId": "ORD-123", "amount": 1500}'
 ```
+
+`--id` maps to `<bpmn:process id="...">` (the BPMN process ID), not the numeric process-definition key.
 
 Deploy and start in one step:
 
@@ -104,6 +139,8 @@ c8ctl await pi --id MyProcess --requestTimeout 60000
 ```
 
 **Not for long-running activities.** `await pi` uses the cluster's start-and-wait REST endpoint, which times out before any single activity that runs longer than the request timeout (LLM agents, slow HTTP calls, user tasks). The timed-out response carries no instance key, so you can't follow up on the partial run. For those processes, use `c8ctl create pi` and poll `c8ctl get pi <key>` until terminal state, or fall back to `c8ctl search pi --state=ACTIVE` to recover the orphaned instance after a failed `await`.
+
+For scripting, run `create pi` with `--json`, capture the returned `key` field (the process-instance key), then use it for follow-up operations (`c8ctl get pi <key>`, `c8ctl cancel pi <key>`, incident lookups by process-instance key).
 
 ### Watch Mode (Development)
 
@@ -237,6 +274,29 @@ The correlation key must match the value resolved from the process's message sub
 ```bash
 c8ctl cancel pi <instanceKey>
 ```
+
+### Production monitoring loop
+
+Use this lightweight loop for ongoing process health checks:
+
+1. **Scan active incidents** — the command returns a flat JSON list; group or filter by `errorType` / `elementId` in your tooling or shell:
+
+   ```bash
+   c8ctl search inc --state=ACTIVE --json --fields=key,errorType,errorMessage,elementId,processInstanceKey
+   ```
+
+2. **Measure whether incidents are recurring** by inspecting the flat list for repeated `elementId` + similar `errorMessage` values across multiple instances. Recurrence signals a process/model/worker defect, not a one-off runtime glitch.
+3. **Correlate with variables and instance state** on at least one failing example:
+
+   ```bash
+   c8ctl get pi <instanceKey>
+   c8ctl search variables --processInstanceKey=<instanceKey> --fullValue
+   c8ctl get inc <incidentKey> --json
+   ```
+
+4. **Apply the smallest root-cause fix**, then resolve one incident and confirm new instances no longer fail in the same way. Repeat from step 1 until the flat list shows no active incidents of that type.
+
+For SLA and throughput trends (not just incident triage), pair this runbook with your metrics tooling (Operate/Optimize dashboards) and feed findings back into BPMN changes or worker reliability work.
 
 ### JSON Output for Scripting
 

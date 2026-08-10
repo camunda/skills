@@ -6,7 +6,7 @@ at tool-resolution time the connector scans for these calls and builds
 a JSON Schema from them.
 
 `fromAi()` is valid in any input mapping — service task ioMapping,
-script task expression, user task ioMapping, and inside
+script task ioMapping, user task ioMapping, and inside
 connector-template-provided input fields (which are also input mappings
 under the hood).
 
