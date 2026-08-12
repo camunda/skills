@@ -47,6 +47,8 @@ Find the BPMN under test in priority order:
 
 Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, list them and ask which to target.
 
+**Web Modeler scenario files.** After finding the BPMN, also scan the same resources directory for `* test scenarios.json` files (spaces in the name, no `.test.json` suffix). If found, do **not** author new CPT unit-test scenarios for those processes — go to [references/web-modeler-scenarios.md](references/web-modeler-scenarios.md) instead and follow the one-shot setup guide there. WM scenario files and hand-authored CPT scenarios serve different purposes and must live in separate test classes.
+
 Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 2.
 
 If scenarios already exist, run a drift check before editing tests:
@@ -193,6 +195,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
+- [web-modeler-scenarios.md](references/web-modeler-scenarios.md) — running Web Modeler-exported scenario files; cluster mode decision; ephemeral and remote templates; failsafe wiring and connectors bundle image version for any `*IT.java`
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)

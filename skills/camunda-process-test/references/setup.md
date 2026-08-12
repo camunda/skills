@@ -56,7 +56,9 @@ Required entry in the project (or test harness) `pom.xml`:
 </dependencies>
 ```
 
-Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
+Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it. `camunda-process-test.version` above is the property this guide means wherever it refers to the CPT dependency version; the upstream docs call the same thing `camunda.version`.
+
+**Use a GA release, aligned with the version the target production cluster runs.** If connectors are enabled, the version also has to be one the connectors bundle image was published for — see [Connectors bundle image version](web-modeler-scenarios.md#connectors-bundle-image-version).
 
 ### Spring Boot 4.x pin (CPT 8.9.x only)
 
@@ -166,6 +168,10 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 ```
 
 Confirm the scaffold by running `mvn test-compile` from `test/`.
+
+## Integration tests (`*IT.java`)
+
+Failsafe wiring, the connectors bundle image version constraint, and the classpath setup for integration tests live in [web-modeler-scenarios.md](web-modeler-scenarios.md). They apply only when you add an `*IT.java` class, so they are kept off this page — surefire runs `*Test.java` on `mvn test`, failsafe runs `*IT.java` on `mvn verify`.
 
 ## Filename hygiene
 
