@@ -6,7 +6,7 @@ Web Modeler exports test scenarios alongside BPMN/DMN files as part of its Git s
 
 A Web Modeler scenario file is present when:
 
-- **Location**: alongside BPMN/DMN in the project's resources directory (`src/main/resources/`, not `src/test/`)
+- **Location**: alongside BPMN/DMN in the project's resources directory — `src/main/resources/` in a standard Maven module, or `../resources/` relative to the sibling `test/` harness ([setup.md](setup.md#nodejs-project-layout)). Never under `src/test/`
 - **Filename**: `<Process Name> test scenarios.json` — spaces in the name, no `.test.json` suffix
 - **Format**: `processId` and `testCases` at root; no `$schema` field; each test case carries a `metadata` block with `processInstanceId` and `coveredFlowNodes` (the execution trace from a prior Web Modeler run)
 
@@ -88,8 +88,9 @@ Two additions are needed: a `<testResource>` block to put the WM scenario file o
   <testResources>
     <!-- existing testResource entries … -->
     <testResource>
-      <!-- standard Maven module: where WM exported the file.
-           Sibling test/ harness: ../resources (setup.md#nodejs-project-layout) -->
+      <!-- Where WM exported the file. Pick the line for your layout:
+             standard Maven module -> src/main/resources
+             sibling test/ harness -> ../resources  (setup.md#nodejs-project-layout) -->
       <directory>src/main/resources</directory>
       <targetPath>integration-scenarios</targetPath>
       <includes>
