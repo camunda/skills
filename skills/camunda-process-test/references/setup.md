@@ -200,9 +200,12 @@ The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does pu
 Rather than trusting a list of known-missing tags, check the one you intend to use — pre-release tag coverage changes on both images:
 
 ```bash
+TAG=8.9.0   # the version you intend to pin
 curl -sf "https://hub.docker.com/v2/repositories/camunda/connectors-bundle/tags/${TAG}" >/dev/null \
   && echo "exists" || echo "missing — pin a GA version or override the tag"
 ```
+
+Set `TAG` before running it. With `TAG` empty the URL collapses to the tag-listing endpoint, which answers `200` for every image and reports "exists" regardless.
 
 So: pin a GA version, or confirm the exact tag exists first. To use a tag that differs from the CPT dependency version, override it:
 

@@ -61,8 +61,9 @@ camunda:
   process-test:
     runtime-mode: managed   # change to remote for shared/WM cluster
   client:
-    # Addresses sit directly under camunda.client. The camunda.client.zeebe.*
-    # nesting is the pre-8.8 Spring Zeebe SDK shape and is not the current one.
+    # Addresses sit directly under camunda.client, per the Spring Boot Starter
+    # properties reference. The camunda.client.zeebe.* nesting is the older
+    # Spring Zeebe SDK shape, kept only for backwards compatibility.
     grpc-address: ${CAMUNDA_GRPC_ADDRESS:}
     rest-address: ${CAMUNDA_REST_ADDRESS:}
     auth:
@@ -71,7 +72,7 @@ camunda:
       issuer-url: ${CAMUNDA_OAUTH_URL:}
 ```
 
-`rest-address` is not optional for remote mode: the client prefers REST over gRPC by default (`camunda.client.prefer-rest-over-grpc` defaults to `true`), so a remote runtime configured with only a gRPC address has no address for the calls it actually makes.
+`rest-address` is not optional for remote mode: the client prefers REST over gRPC by default ([`camunda.client.prefer-rest-over-grpc`](https://docs.camunda.io/docs/apis-tools/camunda-spring-boot-starter/properties-reference/) defaults to `true`), so a remote runtime configured with only a gRPC address has no address for the calls it actually makes.
 
 For ephemeral mode the `client` block is unused; it can be left as-is for future flexibility.
 
