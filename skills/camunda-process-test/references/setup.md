@@ -193,7 +193,7 @@ See [web-modeler-scenarios.md](web-modeler-scenarios.md) for the full classpath 
 
 ## Connectors bundle image version
 
-If `connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. Prefer a GA release for `camunda.version`.
+If `io.camunda.process.test.connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. Prefer a GA release for `camunda.version`.
 
 The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. Pre-release tags in particular are published per image and pruned independently, so a version that resolves for `camunda/camunda` can have no connectors-bundle counterpart (`8.6.12-rc1` was one such tag). When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
 

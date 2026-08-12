@@ -145,7 +145,7 @@ public class MyProcessIntegrationIT {
         CamundaAssert.setAssertionTimeout(Duration.ofSeconds(60));
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}")
     @TestCaseSource(directory = "/integration-scenarios")
     void shouldRunWebModelerScenario(final TestCase testCase, final String fileName) {
         testCaseRunner.run(testCase);
@@ -154,7 +154,7 @@ public class MyProcessIntegrationIT {
 ```
 
 Notes:
-- `connectors-enabled=true` starts the `camunda/connectors-bundle` container so the HTTP JSON connector and other outbound connectors execute for real.
+- `io.camunda.process.test.connectors-enabled=true` starts the `camunda/connectors-bundle` container so the HTTP JSON connector and other outbound connectors execute for real.
 - The connectors bundle image tag is derived from `camunda.version` in `pom.xml`, so `camunda.version` must be a version that image was published for — see the version guidance in [setup.md](setup.md).
 - 60 seconds is a safe default timeout for a single external HTTP call. Increase it if the process has multiple sequential connector calls.
 
@@ -192,7 +192,7 @@ public class MyProcessIntegrationIT {
         CamundaAssert.setAssertionTimeout(Duration.ofSeconds(120));
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}")
     @TestCaseSource(directory = "/integration-scenarios")
     void shouldRunWebModelerScenario(final TestCase testCase, final String fileName) {
         testCaseRunner.run(testCase);
