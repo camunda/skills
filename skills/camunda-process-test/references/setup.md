@@ -171,9 +171,10 @@ Confirm the scaffold by running `mvn test-compile` from `test/`.
 
 ## Failsafe plugin (integration tests)
 
-When adding an `*IT.java` class alongside `ProcessTest.java` (e.g. a Web Modeler integration test), add `maven-failsafe-plugin` to `pom.xml`. Surefire runs `*Test.java` on `mvn test`; failsafe runs `*IT.java` on `mvn verify`.
+When adding an `*IT.java` class alongside `ProcessTest.java` (e.g. a Web Modeler integration test), add `maven-failsafe-plugin` under `<build><plugins>` in `pom.xml` — declared anywhere else it is silently ignored. Surefire runs `*Test.java` on `mvn test`; failsafe runs `*IT.java` on `mvn verify`.
 
 ```xml
+<!-- inside <build><plugins> -->
 <plugin>
   <groupId>org.apache.maven.plugins</groupId>
   <artifactId>maven-failsafe-plugin</artifactId>

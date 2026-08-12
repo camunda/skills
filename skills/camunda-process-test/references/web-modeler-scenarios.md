@@ -10,7 +10,7 @@ A Web Modeler scenario file is present when:
 - **Filename**: `<Process Name> test scenarios.json` — spaces in the name, no `.test.json` suffix
 - **Format**: `processId` and `testCases` at root; no `$schema` field; each test case carries a `metadata` block with `processInstanceId` and `coveredFlowNodes` (the execution trace from a prior Web Modeler run)
 
-```json
+```jsonc
 {
   "processId": "my-process",
   "testCases": [
@@ -81,33 +81,42 @@ For ephemeral mode the `client` block is unused; it can be left as-is for future
 Two additions are needed: a `<testResource>` block to put the WM scenario file on the classpath, and the `maven-failsafe-plugin` so the integration test class runs on `mvn verify` but not `mvn test`.
 
 ```xml
-<testResources>
-  <!-- existing testResource entries … -->
-  <testResource>
-    <directory>src/main/resources</directory>       <!-- standard Maven module: where WM exported the file. Sibling test/ harness: ../resources (setup.md#nodejs-project-layout) -->
-    <targetPath>integration-scenarios</targetPath>
-    <includes>
-      <include>**/* test scenarios.json</include>    <!-- ** so scenarios in subfolders are copied too; space before "test" is literal, matches the WM pattern not .test.json -->
-    </includes>
-  </testResource>
-</testResources>
+<!-- Both blocks belong inside <build>. Maven silently ignores testResources
+     and plugins declared anywhere else, so the scenarios never reach the
+     test classpath and failsafe never runs. -->
+<build>
+  <testResources>
+    <!-- existing testResource entries … -->
+    <testResource>
+      <!-- standard Maven module: where WM exported the file.
+           Sibling test/ harness: ../resources (setup.md#nodejs-project-layout) -->
+      <directory>src/main/resources</directory>
+      <targetPath>integration-scenarios</targetPath>
+      <includes>
+        <!-- ** so scenarios exported into a subfolder are copied too; the space
+             before "test" is literal, matching the WM pattern not .test.json -->
+        <include>**/* test scenarios.json</include>
+      </includes>
+    </testResource>
+  </testResources>
 
-<plugins>
-  <!-- existing plugins … -->
-  <plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-failsafe-plugin</artifactId>
-    <version>3.2.5</version>
-    <executions>
-      <execution>
-        <goals>
-          <goal>integration-test</goal>
-          <goal>verify</goal>
-        </goals>
-      </execution>
-    </executions>
-  </plugin>
-</plugins>
+  <plugins>
+    <!-- existing plugins … -->
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-failsafe-plugin</artifactId>
+      <version>3.2.5</version>
+      <executions>
+        <execution>
+          <goals>
+            <goal>integration-test</goal>
+            <goal>verify</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
 ```
 
 ### Step 4 — Write the integration test class
@@ -138,7 +147,7 @@ import java.time.Duration;
     "camunda.process-test.connectors-enabled=true"
 })
 @CamundaSpringProcessTest
-@TestDeployment(resources = {"MyProcess.bpmn", "my-decision.dmn"})
+@TestDeployment(resources = {"processes/MyProcess.bpmn", "processes/my-decision.dmn"})
 public class MyProcessIntegrationIT {
 
     @Autowired
