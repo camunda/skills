@@ -58,7 +58,7 @@ Required entry in the project (or test harness) `pom.xml`:
 
 Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it. `camunda-process-test.version` above is the property this guide means wherever it refers to the CPT dependency version; the upstream docs call the same thing `camunda.version`.
 
-**Use a GA release, aligned with the version the target production cluster runs.** If connectors are enabled, the version also has to be one the connectors bundle image was published for — see [Connectors bundle image version](#connectors-bundle-image-version) below.
+**Use a GA release, aligned with the version the target production cluster runs.** If connectors are enabled, the version also has to be one the connectors bundle image was published for — see [Connectors bundle image version](web-modeler-scenarios.md#connectors-bundle-image-version).
 
 ### Spring Boot 4.x pin (CPT 8.9.x only)
 
@@ -169,50 +169,9 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 
 Confirm the scaffold by running `mvn test-compile` from `test/`.
 
-## Failsafe plugin (integration tests)
+## Integration tests (`*IT.java`)
 
-When adding an `*IT.java` class alongside `ProcessTest.java` (e.g. a Web Modeler integration test), add `maven-failsafe-plugin` under `<build><plugins>` in `pom.xml` — declared anywhere else it is silently ignored. Surefire runs `*Test.java` on `mvn test`; failsafe runs `*IT.java` on `mvn verify`.
-
-```xml
-<!-- inside <build><plugins> -->
-<plugin>
-  <groupId>org.apache.maven.plugins</groupId>
-  <artifactId>maven-failsafe-plugin</artifactId>
-  <version>3.2.5</version>
-  <executions>
-    <execution>
-      <goals>
-        <goal>integration-test</goal>
-        <goal>verify</goal>
-      </goals>
-    </execution>
-  </executions>
-</plugin>
-```
-
-See [web-modeler-scenarios.md](web-modeler-scenarios.md) for the full classpath and test-class setup for WM scenario files.
-
-## Connectors bundle image version
-
-If `camunda.process-test.connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<version>`, where `<version>` defaults to the CPT dependency version on the classpath — the one pinned by `camunda-process-test.version` in the snippet above (the upstream docs pin the same dependency with a `camunda.version` property). Prefer a GA release for it.
-
-The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. Pre-release tags in particular are published per image and pruned independently, so a version that resolves for `camunda/camunda` can have no connectors-bundle counterpart (`8.6.12-rc1` was one such tag). When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
-
-Rather than trusting a list of known-missing tags, check the one you intend to use — pre-release tag coverage changes on both images:
-
-```bash
-TAG=8.9.0   # the version you intend to pin
-curl -sf "https://hub.docker.com/v2/repositories/camunda/connectors-bundle/tags/${TAG}" >/dev/null \
-  && echo "exists" || echo "missing — pin a GA version or override the tag"
-```
-
-Set `TAG` before running it. With `TAG` empty the URL collapses to the tag-listing endpoint, which answers `200` for every image and reports "exists" regardless.
-
-So: pin a GA version, or confirm the exact tag exists first. To use a tag that differs from the CPT dependency version, override it:
-
-```
-camunda.process-test.connectors-docker-image-version=8.9.0
-```
+Failsafe wiring, the connectors bundle image version constraint, and the classpath setup for integration tests live in [web-modeler-scenarios.md](web-modeler-scenarios.md). They apply only when you add an `*IT.java` class, so they are kept off this page — surefire runs `*Test.java` on `mvn test`, failsafe runs `*IT.java` on `mvn verify`.
 
 ## Filename hygiene
 

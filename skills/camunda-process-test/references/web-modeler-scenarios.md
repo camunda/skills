@@ -169,7 +169,7 @@ public class MyProcessIntegrationIT {
 
 Notes:
 - `camunda.process-test.connectors-enabled=true` starts the `camunda/connectors-bundle` container so the HTTP JSON connector and other outbound connectors execute for real.
-- The connectors bundle image tag defaults to the CPT dependency version on the classpath — whichever property the project pins it with (`camunda-process-test.version` in the setup.md snippet, `camunda.version` in the upstream docs). That version must be one the connectors image was published for; see the version guidance in [setup.md](setup.md).
+- The connectors bundle image tag defaults to the CPT dependency version on the classpath — whichever property the project pins it with (`camunda-process-test.version` in the setup.md snippet, `camunda.version` in the upstream docs). That version must be one the connectors image was published for; see [Connectors bundle image version](#connectors-bundle-image-version) below.
 - 60 seconds is a safe default timeout for a single external HTTP call. Increase it if the process has multiple sequential connector calls.
 
 #### Remote cluster (shared or WM cluster)
@@ -236,13 +236,35 @@ mvn verify
 
 `mvn test` alone runs surefire (`*Test.java`) only — it does not run the integration tests.
 
+## Connectors bundle image version
+
+If `camunda.process-test.connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<version>`, where `<version>` defaults to the CPT dependency version on the classpath — the one pinned by `camunda-process-test.version` in the `pom.xml` snippet in [setup.md](setup.md#cpt-dependency) (the upstream docs pin the same dependency with a `camunda.version` property). Prefer a GA release for it.
+
+The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. Pre-release tags in particular are published per image and pruned independently, so a version that resolves for `camunda/camunda` can have no connectors-bundle counterpart (`8.6.12-rc1` was one such tag). When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
+
+Rather than trusting a list of known-missing tags, check the one you intend to use — pre-release tag coverage changes on both images:
+
+```bash
+TAG=8.9.0   # the version you intend to pin
+curl -sf "https://hub.docker.com/v2/repositories/camunda/connectors-bundle/tags/${TAG}" >/dev/null \
+  && echo "exists" || echo "missing — pin a GA version or override the tag"
+```
+
+Set `TAG` before running it. With `TAG` empty the URL collapses to the tag-listing endpoint, which answers `200` for every image and reports "exists" regardless.
+
+So: pin a GA version, or confirm the exact tag exists first. To use a tag that differs from the CPT dependency version, override it:
+
+```
+camunda.process-test.connectors-docker-image-version=8.9.0
+```
+
 ## Troubleshooting WM scenarios
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | An instruction targets an element ID that no longer exists in the BPMN | BPMN was modified after the scenario was exported from Web Modeler | Re-export the scenario from Web Modeler, or update the element IDs in the scenario file. Stale IDs under `metadata` are not the cause — CPT does not read `metadata` |
 | `ASSERT_PROCESS_INSTANCE IS_COMPLETED` fails but process is running | Assertion timeout too short for real connector calls | Increase `CamundaAssert.setAssertionTimeout` |
-| `ContainerFetchException` for `camunda/connectors-bundle:<version>` | No connectors-bundle tag for the version CPT derived from the CPT dependency version — common with non-GA versions | Pin that version (`camunda-process-test.version` in the setup.md snippet) to a GA release; or set `camunda.process-test.connectors-docker-image-version` explicitly |
+| `ContainerFetchException` for `camunda/connectors-bundle:<version>` | No connectors-bundle tag for the version CPT derived from the CPT dependency version — common with non-GA versions | Pin that version (`camunda-process-test.version`, see [below](#connectors-bundle-image-version)) to a GA release; or set `camunda.process-test.connectors-docker-image-version` explicitly |
 | Remote mode: startup fails resolving the cluster address | A required environment variable is unset, so the client has no address to connect to | Set the required env vars (see table above) |
 | Remote mode: process not found | BPMN not deployed to target cluster, or wrong cluster credentials | Deploy via Web Modeler or `c8ctl deploy`; verify `CAMUNDA_GRPC_ADDRESS` / `CAMUNDA_REST_ADDRESS` point at the right cluster |
 | WM scenario file not discovered by `@TestCaseSource` | File not on classpath, or `<targetPath>` missing from pom.xml | Confirm the `<testResource>` block in pom.xml uses `<targetPath>integration-scenarios</targetPath>` and the glob matches the filename |

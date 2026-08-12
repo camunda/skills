@@ -195,7 +195,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
-- [web-modeler-scenarios.md](references/web-modeler-scenarios.md) — running Web Modeler-exported scenario files; cluster mode decision; ephemeral and remote templates; one-shot checklist
+- [web-modeler-scenarios.md](references/web-modeler-scenarios.md) — running Web Modeler-exported scenario files; cluster mode decision; ephemeral and remote templates; failsafe wiring and connectors bundle image version for any `*IT.java`
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
