@@ -195,9 +195,16 @@ See [web-modeler-scenarios.md](web-modeler-scenarios.md) for the full classpath 
 
 If `connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. Prefer a GA release for `camunda.version`.
 
-The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. `8.7.0-alpha3-rc2`, `8.8.0-alpha3-rc3`, and `8.6.12-rc1` all exist for `camunda/camunda` with no connectors-bundle counterpart. When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
+The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. Pre-release tags in particular are published per image and pruned independently, so a version that resolves for `camunda/camunda` can have no connectors-bundle counterpart (`8.6.12-rc1` was one such tag). When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
 
-So: pin a GA version, or check the exact tag exists on Docker Hub first. To use a tag that differs from `camunda.version`, override it:
+Rather than trusting a list of known-missing tags, check the one you intend to use — pre-release tag coverage changes on both images:
+
+```bash
+curl -sf "https://hub.docker.com/v2/repositories/camunda/connectors-bundle/tags/${TAG}" >/dev/null \
+  && echo "exists" || echo "missing — pin a GA version or override the tag"
+```
+
+So: pin a GA version, or confirm the exact tag exists first. To use a tag that differs from `camunda.version`, override it:
 
 ```
 io.camunda.process.test.connectors-docker-image-version=8.9.0

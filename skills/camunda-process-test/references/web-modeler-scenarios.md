@@ -79,7 +79,7 @@ Two additions are needed: a `<testResource>` block to put the WM scenario file o
 <testResources>
   <!-- existing testResource entries … -->
   <testResource>
-    <directory>../src/main/resources</directory>   <!-- adjust to project layout -->
+    <directory>src/main/resources</directory>       <!-- standard Maven module: where WM exported the file. Sibling test/ harness: ../resources (setup.md#nodejs-project-layout) -->
     <targetPath>integration-scenarios</targetPath>
     <includes>
       <include>* test scenarios.json</include>       <!-- space before "test" is literal; matches WM pattern, not .test.json -->
@@ -225,10 +225,10 @@ mvn verify
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Element ID in `metadata.coveredFlowNodes` not found in BPMN | BPMN was modified after the scenario was exported from Web Modeler | Re-export the scenario from Web Modeler, or update element IDs manually |
+| An instruction targets an element ID that no longer exists in the BPMN | BPMN was modified after the scenario was exported from Web Modeler | Re-export the scenario from Web Modeler, or update the element IDs in the scenario file. Stale IDs under `metadata` are not the cause — CPT does not read `metadata` |
 | `ASSERT_PROCESS_INSTANCE IS_COMPLETED` fails but process is running | Assertion timeout too short for real connector calls | Increase `CamundaAssert.setAssertionTimeout` |
 | `ContainerFetchException` for `camunda/connectors-bundle:<version>` | No connectors-bundle tag for the version CPT derived from `camunda.version` — common with non-GA versions | Pin `camunda.version` to a GA release; or set `io.camunda.process.test.connectors-docker-image-version` explicitly |
-| Remote mode: `NullPointerException` on `ZEEBE_GRPC_ADDRESS` | Environment variable not set | Set the required env vars (see table above) |
+| Remote mode: startup fails resolving the cluster address | A required environment variable is unset, so the client has no address to connect to | Set the required env vars (see table above) |
 | Remote mode: process not found | BPMN not deployed to target cluster, or wrong cluster credentials | Deploy via Web Modeler or `c8ctl deploy`; verify `ZEEBE_GRPC_ADDRESS` points to the right cluster |
 | WM scenario file not discovered by `@TestCaseSource` | File not on classpath, or `<targetPath>` missing from pom.xml | Confirm the `<testResource>` block in pom.xml uses `<targetPath>integration-scenarios</targetPath>` and the glob matches the filename |
 
