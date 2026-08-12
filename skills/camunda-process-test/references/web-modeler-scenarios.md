@@ -88,10 +88,11 @@ Two additions are needed: a `<testResource>` block to put the WM scenario file o
   <testResources>
     <!-- existing testResource entries … -->
     <testResource>
-      <!-- Where WM exported the file. Pick the line for your layout:
-             standard Maven module -> src/main/resources
-             sibling test/ harness -> ../resources  (setup.md#nodejs-project-layout) -->
+      <!-- Where WM exported the file. Keep exactly one of these two lines:
+           the first for a standard Maven module, the second for the sibling
+           test/ harness (setup.md#nodejs-project-layout). -->
       <directory>src/main/resources</directory>
+      <!-- <directory>../resources</directory> -->
       <targetPath>integration-scenarios</targetPath>
       <includes>
         <!-- ** so scenarios exported into a subfolder are copied too; the space
