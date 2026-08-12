@@ -56,7 +56,7 @@ Required entry in the project (or test harness) `pom.xml`:
 </dependencies>
 ```
 
-Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
+Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it. `camunda-process-test.version` above is the property this guide means wherever it refers to the CPT dependency version; the upstream docs call the same thing `camunda.version`.
 
 **Use a GA release, aligned with the version the target production cluster runs.** If connectors are enabled, the version also has to be one the connectors bundle image was published for — see [Connectors bundle image version](#connectors-bundle-image-version) below.
 
@@ -193,7 +193,7 @@ See [web-modeler-scenarios.md](web-modeler-scenarios.md) for the full classpath 
 
 ## Connectors bundle image version
 
-If `io.camunda.process.test.connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<camunda.version>`. Prefer a GA release for `camunda.version`.
+If `camunda.process-test.connectors-enabled=true` is set, CPT pulls `camunda/connectors-bundle:<version>`, where `<version>` defaults to the CPT dependency version on the classpath — the one pinned by `camunda-process-test.version` in the snippet above (the upstream docs pin the same dependency with a `camunda.version` property). Prefer a GA release for it.
 
 The reason is tag coverage, not tag absence: `camunda/connectors-bundle` does publish `-rc*`, `-alpha*`, and `SNAPSHOT` tags, but not for every version `camunda/camunda` has. Pre-release tags in particular are published per image and pruned independently, so a version that resolves for `camunda/camunda` can have no connectors-bundle counterpart (`8.6.12-rc1` was one such tag). When the derived tag doesn't exist, the test fails at startup with `ContainerFetchException` for `camunda/connectors-bundle:<version>`.
 
@@ -204,10 +204,10 @@ curl -sf "https://hub.docker.com/v2/repositories/camunda/connectors-bundle/tags/
   && echo "exists" || echo "missing — pin a GA version or override the tag"
 ```
 
-So: pin a GA version, or confirm the exact tag exists first. To use a tag that differs from `camunda.version`, override it:
+So: pin a GA version, or confirm the exact tag exists first. To use a tag that differs from the CPT dependency version, override it:
 
 ```
-io.camunda.process.test.connectors-docker-image-version=8.9.0
+camunda.process-test.connectors-docker-image-version=8.9.0
 ```
 
 ## Filename hygiene

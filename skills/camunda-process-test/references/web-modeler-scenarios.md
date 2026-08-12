@@ -40,9 +40,9 @@ Before writing any code, decide which cluster will execute the tests. This decis
 
 | Mode | When to use | `runtime-mode` value |
 |------|-------------|----------------------|
-| **Ephemeral** (CPT Testcontainers) | Full isolation; process + connectors under test; no shared infrastructure needed | `MANAGED` |
-| **Remote — shared cluster** | Dedicated test/staging environment already exists; team runs against it | `REMOTE` |
-| **Remote — same cluster as Web Modeler** | Developer wants to run scenarios against the exact cluster where they were authored | `REMOTE` |
+| **Ephemeral** (CPT Testcontainers) | Full isolation; process + connectors under test; no shared infrastructure needed | `managed` |
+| **Remote — shared cluster** | Dedicated test/staging environment already exists; team runs against it | `remote` |
+| **Remote — same cluster as Web Modeler** | Developer wants to run scenarios against the exact cluster where they were authored | `remote` |
 
 Ask the user which mode to use if it is not already clear from context.
 
@@ -54,20 +54,24 @@ Create `application-integration.yml` (Spring profile `integration`) in the test 
 # Cluster mode for Web Modeler integration tests.
 # Change runtime-mode to switch modes; do not commit credentials.
 #
-# cluster-mode: ephemeral          → runtime-mode: MANAGED
-# cluster-mode: remote-shared      → runtime-mode: REMOTE
-# cluster-mode: remote-wm-cluster  → runtime-mode: REMOTE
+# cluster-mode: ephemeral          → runtime-mode: managed
+# cluster-mode: remote-shared      → runtime-mode: remote
+# cluster-mode: remote-wm-cluster  → runtime-mode: remote
 camunda:
   process-test:
-    runtime-mode: MANAGED   # change to REMOTE for shared/WM cluster
+    runtime-mode: managed   # change to remote for shared/WM cluster
   client:
-    zeebe:
-      grpc-address: ${ZEEBE_GRPC_ADDRESS:}
+    # Addresses sit directly under camunda.client. The camunda.client.zeebe.*
+    # nesting is the pre-8.8 Spring Zeebe SDK shape and is not the current one.
+    grpc-address: ${CAMUNDA_GRPC_ADDRESS:}
+    rest-address: ${CAMUNDA_REST_ADDRESS:}
     auth:
       client-id: ${CAMUNDA_CLIENT_ID:}
       client-secret: ${CAMUNDA_CLIENT_SECRET:}
-      issuer: ${CAMUNDA_OAUTH_URL:}
+      issuer-url: ${CAMUNDA_OAUTH_URL:}
 ```
+
+`rest-address` is not optional for remote mode: the client prefers REST over gRPC by default (`camunda.client.prefer-rest-over-grpc` defaults to `true`), so a remote runtime configured with only a gRPC address has no address for the calls it actually makes.
 
 For ephemeral mode the `client` block is unused; it can be left as-is for future flexibility.
 
@@ -82,7 +86,7 @@ Two additions are needed: a `<testResource>` block to put the WM scenario file o
     <directory>src/main/resources</directory>       <!-- standard Maven module: where WM exported the file. Sibling test/ harness: ../resources (setup.md#nodejs-project-layout) -->
     <targetPath>integration-scenarios</targetPath>
     <includes>
-      <include>* test scenarios.json</include>       <!-- space before "test" is literal; matches WM pattern, not .test.json -->
+      <include>**/* test scenarios.json</include>    <!-- ** so scenarios in subfolders are copied too; space before "test" is literal, matches the WM pattern not .test.json -->
     </includes>
   </testResource>
 </testResources>
@@ -111,7 +115,7 @@ Name the class `<Process>IntegrationIT.java` (the `IT` suffix is what makes fail
 
 #### Ephemeral cluster (Testcontainers + Connectors runtime)
 
-Use this when `runtime-mode: MANAGED`. Include `@TestDeployment` so CPT deploys the BPMN/DMN into the embedded engine.
+Use this when `runtime-mode: managed`. Include `@TestDeployment` so CPT deploys the BPMN/DMN into the embedded engine.
 
 ```java
 package io.camunda.tests;
@@ -130,7 +134,7 @@ import java.time.Duration;
 
 @SpringBootTest(properties = {
     "spring.profiles.active=integration",
-    "io.camunda.process.test.connectors-enabled=true"
+    "camunda.process-test.connectors-enabled=true"
 })
 @CamundaSpringProcessTest
 @TestDeployment(resources = {"MyProcess.bpmn", "my-decision.dmn"})
@@ -154,13 +158,13 @@ public class MyProcessIntegrationIT {
 ```
 
 Notes:
-- `io.camunda.process.test.connectors-enabled=true` starts the `camunda/connectors-bundle` container so the HTTP JSON connector and other outbound connectors execute for real.
-- The connectors bundle image tag is derived from `camunda.version` in `pom.xml`, so `camunda.version` must be a version that image was published for — see the version guidance in [setup.md](setup.md).
+- `camunda.process-test.connectors-enabled=true` starts the `camunda/connectors-bundle` container so the HTTP JSON connector and other outbound connectors execute for real.
+- The connectors bundle image tag defaults to the CPT dependency version on the classpath — whichever property the project pins it with (`camunda-process-test.version` in the setup.md snippet, `camunda.version` in the upstream docs). That version must be one the connectors image was published for; see the version guidance in [setup.md](setup.md).
 - 60 seconds is a safe default timeout for a single external HTTP call. Increase it if the process has multiple sequential connector calls.
 
 #### Remote cluster (shared or WM cluster)
 
-Use this when `runtime-mode: REMOTE`. Drop `@TestDeployment` — the BPMN/DMN is already deployed on the target cluster, and the scenario runs against the live deployment.
+Use this when `runtime-mode: remote`. Drop `@TestDeployment` — the BPMN/DMN is already deployed on the target cluster, and the scenario runs against the live deployment.
 
 ```java
 package io.camunda.tests;
@@ -204,7 +208,8 @@ Required environment variables for remote mode (supply in CI secrets or local `.
 
 | Variable | Description |
 |----------|-------------|
-| `ZEEBE_GRPC_ADDRESS` | gRPC endpoint, e.g. `https://abc.zeebe.camunda.io:443` |
+| `CAMUNDA_GRPC_ADDRESS` | gRPC endpoint, e.g. `https://abc.zeebe.camunda.io:443` |
+| `CAMUNDA_REST_ADDRESS` | REST endpoint, e.g. `https://bru-2.zeebe.camunda.io:443/<cluster-id>` |
 | `CAMUNDA_CLIENT_ID` | OAuth client ID |
 | `CAMUNDA_CLIENT_SECRET` | OAuth client secret |
 | `CAMUNDA_OAUTH_URL` | Token issuer URL |
@@ -227,9 +232,9 @@ mvn verify
 |---------|-------|-----|
 | An instruction targets an element ID that no longer exists in the BPMN | BPMN was modified after the scenario was exported from Web Modeler | Re-export the scenario from Web Modeler, or update the element IDs in the scenario file. Stale IDs under `metadata` are not the cause — CPT does not read `metadata` |
 | `ASSERT_PROCESS_INSTANCE IS_COMPLETED` fails but process is running | Assertion timeout too short for real connector calls | Increase `CamundaAssert.setAssertionTimeout` |
-| `ContainerFetchException` for `camunda/connectors-bundle:<version>` | No connectors-bundle tag for the version CPT derived from `camunda.version` — common with non-GA versions | Pin `camunda.version` to a GA release; or set `io.camunda.process.test.connectors-docker-image-version` explicitly |
+| `ContainerFetchException` for `camunda/connectors-bundle:<version>` | No connectors-bundle tag for the version CPT derived from the CPT dependency version — common with non-GA versions | Pin that version (`camunda-process-test.version` in the setup.md snippet) to a GA release; or set `camunda.process-test.connectors-docker-image-version` explicitly |
 | Remote mode: startup fails resolving the cluster address | A required environment variable is unset, so the client has no address to connect to | Set the required env vars (see table above) |
-| Remote mode: process not found | BPMN not deployed to target cluster, or wrong cluster credentials | Deploy via Web Modeler or `c8ctl deploy`; verify `ZEEBE_GRPC_ADDRESS` points to the right cluster |
+| Remote mode: process not found | BPMN not deployed to target cluster, or wrong cluster credentials | Deploy via Web Modeler or `c8ctl deploy`; verify `CAMUNDA_GRPC_ADDRESS` / `CAMUNDA_REST_ADDRESS` point at the right cluster |
 | WM scenario file not discovered by `@TestCaseSource` | File not on classpath, or `<targetPath>` missing from pom.xml | Confirm the `<testResource>` block in pom.xml uses `<targetPath>integration-scenarios</targetPath>` and the glob matches the filename |
 
 ## What WM scenarios do and do not assert
