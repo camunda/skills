@@ -156,7 +156,6 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 <testResources>
   <testResource>
     <directory>src/test/resources</directory>
-    <excludes><exclude>scenarios/**</exclude></excludes>
   </testResource>
   <testResource>
     <directory>${env.NODE_RESOURCE_DIR}</directory>

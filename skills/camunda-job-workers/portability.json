@@ -28,7 +28,7 @@
     }
   },
   "limitations": [
-    "Standard worker implementations target a reachable Camunda 8.8+ cluster; the @camunda8/orchestration-cluster-api TypeScript path requires Camunda 8.9+, while @camunda8/sdk is the fallback for sub-8.8 targets."
+    "Standard worker implementations target a reachable Camunda 8.8+ cluster; the @camunda8/orchestration-cluster-api TypeScript path requires Camunda 8.9+, while @camunda8/sdk is the fallback within supported 8.8+ projects for needs such as gRPC streaming or migration. Sub-8.8 targets are outside this skill's supported scope."
   ],
   "differences": [
     "Worker handler semantics are harness-neutral; SDK installation, build, process control, and cluster credentials are host-managed."
