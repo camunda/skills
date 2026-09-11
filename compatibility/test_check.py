@@ -136,14 +136,15 @@ def test_rejects_file_url_escaping_skill_package(tmp_path: Path) -> None:
     package.mkdir()
     (package / "README.md").write_text(
         "[secret](file:///etc/passwd)\n"
-        "[outside](file:../README.md)\n",
+        "[outside](file:../README.md)\n"
+        "<file:///var/log/system.log>\n",
         encoding="utf-8",
     )
 
     errors: list[str] = []
     check.check_skill_self_containment(package, errors)
 
-    assert len(errors) == 2
+    assert len(errors) == 3
     assert all("content.self-contained" in error for error in errors)
 
 
@@ -232,7 +233,8 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
         "[guide][guide-reference]\n"
         '[guide-reference]: references/guide.md "Reference title"\n'
         "`[missing](missing.md)`\n"
-        "https://example.test/skills/foo/\n",
+        "https://example.test/skills/foo/\n"
+        "HTTPS://example.test/skills/foo/\n",
         encoding="utf-8",
     )
 
@@ -260,6 +262,64 @@ def test_ignores_repository_references_in_multiline_code_fences(
     check.check_skill_self_containment(package, errors)
 
     assert errors == []
+
+
+def test_ignores_repository_references_in_tilde_code_fences(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "~~~text\n"
+        "[missing](missing.md)\n"
+        "skills/example/\n"
+        ".github/workflows/example.yml\n"
+        "/home/example/file.md\n"
+        "~~~\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
+def test_rejects_unresolved_reference_definition(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[missing][not-defined]\n"
+        "[also missing][]\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 2
+    assert all("content.reference-exists" in error for error in errors)
+    assert any("[not-defined]" in error for error in errors)
+    assert any("[also missing]" in error for error in errors)
+
+
+def test_reports_symlink_loop_during_package_and_candidate_resolution(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    loop = package / "loop"
+    loop.symlink_to(loop, target_is_directory=True)
+    (package / "README.md").write_text(
+        "[loop](loop/target.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("cannot resolve package path" in error for error in errors)
+    assert any("cannot resolve local link destination" in error for error in errors)
 
 
 def test_classifies_empty_skill_body_as_content() -> None:

@@ -34,7 +34,11 @@ MARKDOWN_REFERENCE_LINK = re.compile(r"!?\[([^\]\n]+)\]\[([^\]\n]*)\]")
 MARKDOWN_SHORTCUT_LINK = re.compile(
     r"(?<![!\w\]])\[([^\]\n]+)\](?![\[(}:])"
 )
-EXTERNAL_URL = re.compile(r"https?://[^\s<>()\[\]]+")
+MARKDOWN_URI_AUTOLINK = re.compile(
+    r"<([A-Za-z][A-Za-z0-9+.-]*:[^<>\s]*)>"
+)
+MARKDOWN_FENCE_START = re.compile(r"[ \t]{0,3}(`{3,}|~{3,})[^\n]*(?:\n|$)")
+EXTERNAL_URL = re.compile(r"https?://[^\s<>()\[\]]+", re.IGNORECASE)
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
     r"(?<![\w])(?:skills/[a-z0-9-]+/|(?:README|CONTRIBUTING|evals|compatibility|\.github)/"
     r"|/(?:Users|home)/)"
@@ -310,6 +314,24 @@ def _strip_markdown_code_spans(content: str) -> str:
     masked: list[str] = []
     index = 0
     while index < len(content):
+        if index == 0 or content[index - 1] == "\n":
+            opening = MARKDOWN_FENCE_START.match(content, index)
+            if opening:
+                fence = opening.group(1)
+                closing_pattern = re.compile(
+                    rf"^[ \t]{{0,3}}{re.escape(fence[0])}"
+                    rf"{{{len(fence)},}}[ \t]*(?:\r?\n|$)",
+                    re.MULTILINE,
+                )
+                closing = closing_pattern.search(content, opening.end())
+                end = closing.end() if closing else len(content)
+                code_fence = content[index:end]
+                masked.append(
+                    "".join("\n" if character == "\n" else " " for character in code_fence)
+                )
+                index = end
+                continue
+
         if content[index] != "`":
             masked.append(content[index])
             index += 1
@@ -347,9 +369,10 @@ def _reference_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
-def _markdown_link_targets(content: str) -> list[str]:
+def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
     masked = _strip_markdown_code_spans(content)
     targets: list[str] = []
+    missing_references: list[str] = []
 
     def add_target(target: str) -> None:
         if target and target not in targets:
@@ -358,9 +381,8 @@ def _markdown_link_targets(content: str) -> list[str]:
     definitions: dict[str, str] = {}
     for match in MARKDOWN_LINK_DEFINITION.finditer(masked):
         target = _link_destination(match.group(2))
-        if target:
-            definitions[_reference_label(match.group(1))] = target
-            add_target(target)
+        definitions[_reference_label(match.group(1))] = target
+        add_target(target)
 
     for match in MARKDOWN_LINK_START.finditer(masked):
         start = match.end()
@@ -395,12 +417,20 @@ def _markdown_link_targets(content: str) -> list[str]:
 
     for match in MARKDOWN_REFERENCE_LINK.finditer(masked):
         label = match.group(2) or match.group(1)
-        add_target(definitions.get(_reference_label(label), ""))
+        target = definitions.get(_reference_label(label))
+        if target is None:
+            if label not in missing_references:
+                missing_references.append(label)
+        else:
+            add_target(target)
 
     for match in MARKDOWN_SHORTCUT_LINK.finditer(masked):
         add_target(definitions.get(_reference_label(match.group(1)), ""))
 
-    return targets
+    for match in MARKDOWN_URI_AUTOLINK.finditer(masked):
+        add_target(match.group(1))
+
+    return targets, missing_references
 
 
 def check_skill_self_containment(
@@ -410,14 +440,14 @@ def check_skill_self_containment(
 
     try:
         package_root = skill_directory.resolve()
-    except OSError as error:
+    except (OSError, RuntimeError) as error:
         errors.append(f"{skill_directory}: cannot resolve package directory ({error})")
         return
 
     for path in sorted(skill_directory.rglob("*")):
         try:
             resolved = path.resolve()
-        except OSError as error:
+        except (OSError, RuntimeError) as error:
             errors.append(f"{path}: cannot resolve package path ({error})")
             continue
         try:
@@ -435,7 +465,13 @@ def check_skill_self_containment(
             continue
 
         masked_content = _strip_markdown_code_spans(content)
-        for target in _markdown_link_targets(masked_content):
+        targets, missing_references = _markdown_link_targets(masked_content)
+        for label in missing_references:
+            errors.append(
+                f"{path}: rule=content.reference-exists local link does not "
+                f"resolve: [{label}]"
+            )
+        for target in targets:
             if target.startswith("#"):
                 continue
             try:
@@ -456,7 +492,14 @@ def check_skill_self_containment(
                 target_path = f"//{parsed.netloc}{target_path}"
             if not target_path:
                 continue
-            candidate = (path.parent / target_path).resolve()
+            try:
+                candidate = (path.parent / target_path).resolve()
+            except (OSError, RuntimeError) as error:
+                errors.append(
+                    f"{path}: rule=content.self-contained cannot resolve local "
+                    f"link destination {target!r} ({error})"
+                )
+                continue
             try:
                 candidate.relative_to(package_root)
             except ValueError:
