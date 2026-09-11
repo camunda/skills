@@ -48,14 +48,13 @@ produced by that template (the current example is
 `zeebe:modelerTemplate="io.camunda.connectors.agenticai.ai-agent-subprocess.v2"`).
 A built-in template must also retain its hidden
 `zeebe:property` named `io.camunda.agenticai.toolContainer` with value `true`.
-The legacy `io.camunda.connectors.agenticai.aiagent.jobworker.*` marker pairs
-with `io.camunda.agenticai:aiagent-job-worker:*`; the current
-`io.camunda.connectors.agenticai.ai-agent-subprocess.*` marker pairs with
-`io.camunda.agenticai:aiagent:subprocess:*`. Do not mix a marker from one
-template family with a task type from another.
+The current `io.camunda.connectors.agenticai.ai-agent-subprocess.*` marker
+pairs with `io.camunda.agenticai:aiagent:subprocess:*`. The legacy
+`io.camunda.connectors.agenticai.aiagent.jobworker.*` marker and
+`io.camunda.agenticai:aiagent-job-worker:*` task type belong to the older AI
+Agent Task variant and are not valid evidence for this Sub-process host.
 A custom template is also valid when its task type starts with
-an AI Agent Sub-process task-type family such as
-`io.camunda.agenticai:aiagent-job-worker:` or
+the AI Agent Sub-process task-type family
 `io.camunda.agenticai:aiagent:subprocess:`;
 validate that task type instead of relying on a marker copied onto an ordinary
 subprocess. Applying the template is what

@@ -77,7 +77,7 @@ def _host(
             "io.camunda.connectors.agenticai.aiagent.jobworker.v1",
             "io.camunda.agenticai:aiagent-job-worker:1",
             True,
-            True,
+            False,
         ),
         (
             "io.camunda.connectors.agenticai.ai-agent-subprocess.v2",
@@ -107,7 +107,7 @@ def _host(
             None,
             "io.camunda.agenticai:aiagent-job-worker:custom",
             False,
-            True,
+            False,
         ),
         (
             None,
@@ -125,12 +125,12 @@ def _host(
         ),
     ],
     ids=[
-        "legacy-built-in",
+        "legacy-built-in-rejected",
         "current-built-in",
         "legacy-marker-current-type",
         "current-marker-legacy-type",
         "missing-tool-container-property",
-        "custom-job-worker",
+        "legacy-task-family-rejected",
         "custom-subprocess",
         "legacy-agent-task-rejected",
         "unrelated-custom-type",
@@ -241,10 +241,10 @@ def _minimal_bpmn(
     if connector:
         host_attributes = (
             'zeebe:modelerTemplate="'
-            "io.camunda.connectors.agenticai.aiagent.jobworker.v1\""
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2\""
         )
         connector_extension = """
-      <zeebe:taskDefinition type="io.camunda.agenticai:aiagent-job-worker:1" />
+      <zeebe:taskDefinition type="io.camunda.agenticai:aiagent:subprocess:2" />
       <zeebe:properties>
         <zeebe:property name="io.camunda.agenticai.toolContainer" value="true" />
       </zeebe:properties>
@@ -340,11 +340,15 @@ def test_ai_agent_shape_scorer_requires_connector_metadata(
         ("notToolCallResults", "={content: toolCallResult}"),
         ("toolCallResults", "=if false then toolCallResult else null"),
         ("toolCallResults", "={content: notToolCallResult}"),
+        ("toolCallResults", "={content: toolCallResult"),
+        ("toolCallResults", "={content: toolCallResult} trailing"),
     ],
     ids=[
         "wrong-output-collection",
         "non-map-output-element",
         "wrong-content-source",
+        "truncated-map",
+        "trailing-expression",
     ],
 )
 def test_ai_agent_shape_scorer_rejects_malformed_template_binding(

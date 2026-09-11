@@ -43,15 +43,11 @@ ACTIVITY_TAGS = {
 }
 
 AI_AGENT_TEMPLATE_TASK_TYPES = {
-    "io.camunda.connectors.agenticai.aiagent.jobworker.": (
-        "io.camunda.agenticai:aiagent-job-worker:",
-    ),
     "io.camunda.connectors.agenticai.ai-agent-subprocess.": (
         "io.camunda.agenticai:aiagent:subprocess:",
     ),
 }
 AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
-    "io.camunda.agenticai:aiagent-job-worker:",
     "io.camunda.agenticai:aiagent:subprocess:",
 )
 
@@ -119,63 +115,73 @@ def _has_top_level_feel_map_entry(
         return False
 
     brace_depth = 0
+    found_entry = False
     while index < len(expression):
         character = expression[index]
         if character == "{":
             brace_depth += 1
         elif character == "}":
-            if brace_depth == 1:
+            if brace_depth == 0:
                 return False
             brace_depth -= 1
+            if brace_depth == 0:
+                index += 1
+                while index < len(expression) and expression[index].isspace():
+                    index += 1
+                return found_entry and index == len(expression)
         elif brace_depth == 1 and expression.startswith(key, index):
-            before = expression[index - 1] if index else ""
+            previous = index - 1
+            while previous >= 0 and expression[previous].isspace():
+                previous -= 1
+            if previous < 0 or expression[previous] not in "{,":
+                index += 1
+                continue
             after_index = index + len(key)
             after = expression[after_index] if after_index < len(expression) else ""
-            if (
-                (not before or not (before.isalnum() or before == "_"))
-                and (not after or not (after.isalnum() or after == "_"))
-            ):
+            if not after or not (after.isalnum() or after == "_"):
                 cursor = after_index
                 while cursor < len(expression) and expression[cursor].isspace():
                     cursor += 1
                 if cursor < len(expression) and expression[cursor] == ":":
                     if expected_value is None:
-                        return True
-                    value_start = cursor + 1
-                    value_end = value_start
-                    nested_braces = 0
-                    nested_brackets = 0
-                    nested_parentheses = 0
-                    while value_end < len(expression):
-                        value_character = expression[value_end]
-                        if value_character == "{":
-                            nested_braces += 1
-                        elif value_character == "}":
-                            if nested_braces:
-                                nested_braces -= 1
-                            elif not (
-                                nested_brackets or nested_parentheses
+                        found_entry = True
+                    else:
+                        value_start = cursor + 1
+                        value_end = value_start
+                        nested_braces = 0
+                        nested_brackets = 0
+                        nested_parentheses = 0
+                        while value_end < len(expression):
+                            value_character = expression[value_end]
+                            if value_character == "{":
+                                nested_braces += 1
+                            elif value_character == "}":
+                                if nested_braces:
+                                    nested_braces -= 1
+                                elif not (
+                                    nested_brackets or nested_parentheses
+                                ):
+                                    break
+                            elif value_character == "[":
+                                nested_brackets += 1
+                            elif value_character == "]":
+                                if nested_brackets:
+                                    nested_brackets -= 1
+                            elif value_character == "(":
+                                nested_parentheses += 1
+                            elif value_character == ")":
+                                if nested_parentheses:
+                                    nested_parentheses -= 1
+                            elif value_character == "," and not (
+                                nested_braces or nested_brackets or nested_parentheses
                             ):
                                 break
-                        elif value_character == "[":
-                            nested_brackets += 1
-                        elif value_character == "]":
-                            if nested_brackets:
-                                nested_brackets -= 1
-                        elif value_character == "(":
-                            nested_parentheses += 1
-                        elif value_character == ")":
-                            if nested_parentheses:
-                                nested_parentheses -= 1
-                        elif value_character == "," and not (
-                            nested_braces or nested_brackets or nested_parentheses
+                            value_end += 1
+                        if (
+                            expression[value_start:value_end].strip()
+                            == expected_value
                         ):
-                            break
-                        value_end += 1
-                    return (
-                        expression[value_start:value_end].strip()
-                        == expected_value
-                    )
+                            found_entry = True
         index += 1
     return False
 
@@ -229,6 +235,7 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
                         task_type.startswith(prefix) for prefix in task_prefixes
                     )
                 )
+        return False
 
     return any(
         task_type.startswith(prefix)
