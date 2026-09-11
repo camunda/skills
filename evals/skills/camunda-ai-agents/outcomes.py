@@ -46,7 +46,7 @@ REQUEST_VERB_PATTERN = re.compile(
     r"(?:provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)\b"
 )
 REQUEST_NEED_PATTERN = re.compile(
-    r"\b(?:i|we)\s+(?:need|require)\s+(?:"
+    r"\b(?:i|we)(?:['’](?:ll|d))?\s+(?:need|require)\s+(?:"
     r"(?:(?:your|the|an?|some|each|exact|existing|already|configured|available)\s+){0,5}"
     r"(?:provider|model|connector[- ]?secret|secret|api[- ]?key|tokens?|"
     r"credentials?|passwords?)\b|"
@@ -70,6 +70,15 @@ SECRET_CONFIGURATION_PATTERN = re.compile(
     r"existing|configured|preconfigured|available|"
     r"already\s+(?:configured|set\s+up|created|available|exist(?:s)?)|"
     r"in\s+(?:the\s+)?(?:cluster|environment|profile|console)"
+    r")\b"
+)
+SECRET_EXPLICIT_CONFIGURATION_PATTERN = re.compile(
+    r"\b(?:"
+    r"already\s+(?:configured|set\s+up|created|available|exists?)|"
+    r"(?:is|are|was|were)\s+(?:already\s+)?"
+    r"(?:configured|preconfigured|available|created|set\s+up|existing)|"
+    r"(?:configured|preconfigured|available)\s+"
+    r"(?:in|on)\s+(?:the\s+)?(?:cluster|environment|profile|console)"
     r")\b"
 )
 SECRET_MATERIAL_PATTERN = re.compile(
@@ -97,12 +106,14 @@ NEGATED_TERM_PREFIX_PATTERN = re.compile(
 FALLBACK_CONTEXT_PATTERN = re.compile(
     r"\b(?:"
     r"fallback|otherwise|"
+    r"defaults?|"
     r"default\s+(?:provider|model|(?:connector[- ]?)?secret(?:\s+name)?|"
     r"configuration|settings?)|"
     r"in\s+the\s+absence\s+of|"
     r"if\s+(?:you\s+)?(?:do\s+not|don't|fail\s+to|omit|leave\s+out|"
     r"cannot|can't|not)\b|"
     r"if\s+(?:no|nothing)\b|"
+    r"if\s+[^.?!\n]{0,60}\b(?:missing|unspecified|omitted)\b|"
     r"when\s+[^.?!\n]{0,40}\b(?:missing|unspecified|omitted)|"
     r"\bany\s+(?:provider|model|(?:connector[- ]?)?secrets?)\b"
     r")\b"
@@ -111,11 +122,20 @@ FALLBACK_ACTION_PATTERN = re.compile(
     r"\b(?:use|choose|select|pick|assume|invent|make\s+up|default(?:\s+to)?)\b"
 )
 CONFIGURATION_VALUE_PATTERN = re.compile(
-    r"\b(?:"
-    r"openai|anthropic|azure(?:[- ]openai)?|vertex|gemini|bedrock|"
+    r"(?<![\w-])(?:"
+    r"(?:openai|anthropic|azure(?:[-_ ]openai)?|vertex|gemini|bedrock)"
+    r"(?:[-_][a-z0-9]+)*|"
     r"gpt[-\w.]*|claude[-\w.]*|"
     r"[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*(?:api[-_]?key|access[-_]?key|"
     r"token|secret|password)"
+    r")(?![\w-])"
+)
+MODEL_IDENTIFIER_PATTERN = re.compile(
+    r"\b(?:"
+    r"(?:exact|specific|full|complete)\s+model"
+    r"(?:\s+(?:identifier|id|name))?|"
+    r"model\s+(?:identifier|id|name)|"
+    r"model['’]s\s+(?:exact\s+)?(?:identifier|id|name)"
     r")\b"
 )
 LIST_ITEM_PATTERN = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
@@ -204,7 +224,28 @@ def _is_request_sentence(sentence: str) -> bool:
             r"\b(?:should|could|would|can|do)\s+i\s+use\b",
             clause,
         )
-        for clause in CLAUSE_BREAK_PATTERN.split(normalized)
+        for clause in _split_clauses(normalized)
+    )
+
+
+def _split_clauses(text: str) -> list[str]:
+    clauses: list[str] = []
+    start = 0
+    for boundary in CLAUSE_BREAK_PATTERN.finditer(text):
+        clause = text[start : boundary.end()].strip()
+        if clause:
+            clauses.append(clause)
+        start = boundary.end()
+    trailing = text[start:].strip()
+    if trailing:
+        clauses.append(trailing)
+    return clauses
+
+
+def _contains_requested_term(text: str, pattern: re.Pattern[str]) -> bool:
+    return any(
+        pattern.search(clause) and _is_request_sentence(clause)
+        for clause in _split_clauses(text.casefold())
     )
 
 
@@ -221,11 +262,7 @@ def _is_negated_term(sentence: str, start: int) -> bool:
 
 def _has_secret_configuration_semantics(text: str) -> bool:
     normalized = text.casefold()
-    clauses = [
-        clause.strip()
-        for clause in CLAUSE_BREAK_PATTERN.split(normalized)
-        if clause.strip()
-    ]
+    clauses = _split_clauses(normalized)
     for index, clause in enumerate(clauses):
         if not SECRET_NAME_PATTERN.search(clause):
             continue
@@ -240,30 +277,29 @@ def _has_secret_configuration_semantics(text: str) -> bool:
             neighbor = clauses[neighbor_index]
             if not SECRET_REFERENT_PATTERN.search(neighbor):
                 continue
+            if not SECRET_EXPLICIT_CONFIGURATION_PATTERN.search(neighbor):
+                continue
+            if not (
+                re.search(r"\b(?:connector[- ]?secret|secret)\b", neighbor)
+                or re.match(r"\s*(?:it|that|this|one)\b", neighbor)
+            ):
+                continue
             if any(
                 not _is_negated_term(neighbor, configuration.start())
-                for configuration in SECRET_CONFIGURATION_PATTERN.finditer(neighbor)
+                for configuration in SECRET_EXPLICIT_CONFIGURATION_PATTERN.finditer(
+                    neighbor
+                )
             ):
                 return True
     return False
 
 
 def _has_secret_name_request_semantics(text: str) -> bool:
-    normalized = text.casefold()
-    if not SECRET_NAME_PATTERN.search(normalized):
-        return False
-    for clause in CLAUSE_BREAK_PATTERN.split(normalized):
-        if re.search(r"\b(?:which|what)\b", clause):
-            return True
-    return _is_request_sentence(normalized)
+    return _contains_requested_term(text, SECRET_NAME_PATTERN)
 
 
 def _requests_secret_material(sentence: str) -> bool:
-    for clause in (
-        clause.strip()
-        for clause in CLAUSE_BREAK_PATTERN.split(sentence.casefold())
-        if clause.strip()
-    ):
+    for clause in _split_clauses(sentence.casefold()):
         if not _is_request_sentence(clause):
             continue
         for match in SECRET_MATERIAL_PATTERN.finditer(clause):
@@ -303,7 +339,7 @@ def _is_negated_fallback_action(clause: str, start: int) -> bool:
 
 def _has_fallback_selection(sentence: str) -> bool:
     normalized = sentence.casefold()
-    for clause in CLAUSE_BREAK_PATTERN.split(normalized):
+    for clause in _split_clauses(normalized):
         actions = [
             match
             for match in FALLBACK_ACTION_PATTERN.finditer(clause)
@@ -337,7 +373,6 @@ def _clarification_contexts(text: str) -> list[str]:
     previous_context: str | None = None
     for raw_line in text.casefold().splitlines():
         if not raw_line.strip():
-            request_lead = None
             previous_context = None
             continue
         units = re.split(
@@ -599,12 +634,11 @@ def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
         missing_terms = []
         for term, pattern in (
             ("provider", re.compile(r"\bprovider\b")),
-            ("model", re.compile(r"\bmodel\b")),
+            ("model identifier", MODEL_IDENTIFIER_PATTERN),
             ("connector-secret name", SECRET_NAME_PATTERN),
         ):
             if not any(
-                _is_request_sentence(context)
-                and pattern.search(context)
+                _contains_requested_term(context, pattern)
                 and (
                     term != "connector-secret name"
                     or (
