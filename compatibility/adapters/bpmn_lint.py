@@ -100,8 +100,12 @@ def validate_bpmn(path: Path) -> None:
 
     if not flows:
         raise ValueError("process must contain a sequence flow")
+    flow_node_ids = {node.get("id") for node in flow_nodes}
     for flow in flows:
-        if flow.get("sourceRef") not in element_ids or flow.get("targetRef") not in element_ids:
+        if (
+            flow.get("sourceRef") not in flow_node_ids
+            or flow.get("targetRef") not in flow_node_ids
+        ):
             raise ValueError("sequence flow references an unknown element")
 
     diagrams = [element for element in root.iter() if element.tag == f"{{{BPMNDI_NAMESPACE}}}BPMNDiagram"]

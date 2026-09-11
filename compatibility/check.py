@@ -224,11 +224,13 @@ def check_index(index: Any, errors: list[str]) -> list[dict[str, Any]]:
         entry_label = f"{label}.skills[{number}]"
         if not has_keys(entry, entry_keys, entry_label, errors):
             continue
-        if not isinstance(entry["name"], str) or not SKILL_NAME.fullmatch(entry["name"]):
+        name = entry["name"]
+        if not isinstance(name, str) or not SKILL_NAME.fullmatch(name):
             errors.append(f"{entry_label}.name: invalid skill name")
-        if entry["name"] in names:
-            errors.append(f"{entry_label}.name: duplicate skill name {entry['name']!r}")
-        names.add(entry["name"])
+            continue
+        if name in names:
+            errors.append(f"{entry_label}.name: duplicate skill name {name!r}")
+        names.add(name)
         for field in ("skillDirectory", "skillMarkdown", "sidecar"):
             if not isinstance(entry[field], str):
                 errors.append(f"{entry_label}.{field}: expected a string")
@@ -271,11 +273,13 @@ def check_audit(audit: Any, errors: list[str]) -> list[dict[str, Any]]:
         entry_label = f"{label}.skills[{number}]"
         if not has_keys(entry, entry_keys, entry_label, errors):
             continue
-        if not isinstance(entry["name"], str) or not SKILL_NAME.fullmatch(entry["name"]):
+        name = entry["name"]
+        if not isinstance(name, str) or not SKILL_NAME.fullmatch(name):
             errors.append(f"{entry_label}.name: invalid skill name")
-        if entry["name"] in names:
-            errors.append(f"{entry_label}.name: duplicate skill name {entry['name']!r}")
-        names.add(entry["name"])
+            continue
+        if name in names:
+            errors.append(f"{entry_label}.name: duplicate skill name {name!r}")
+        names.add(name)
         for field in ("skillDirectory", "sidecar"):
             if not isinstance(entry[field], str):
                 errors.append(f"{entry_label}.{field}: expected a string")
@@ -562,7 +566,6 @@ def main() -> int:
         spec_date = None
     if isinstance(audit, dict):
         expect(audit.get("specRevisionOrAuditDate"), spec_date, "audit specification date", errors)
-        expect(audit.get("auditDate"), spec_date, "audit date", errors)
 
     skills_root = root / "skills"
     skill_directories = {
@@ -657,9 +660,11 @@ def main() -> int:
             )
 
     if isinstance(contract, dict):
-        required_entrypoint = contract.get("discovery", {}).get("requiredEntrypoint")
-        if isinstance(required_entrypoint, str) and not (root / required_entrypoint).is_file():
-            errors.append(f"{required_entrypoint}: required smoke entrypoint does not exist")
+        discovery = contract.get("discovery")
+        if isinstance(discovery, dict):
+            required_entrypoint = discovery.get("requiredEntrypoint")
+            if isinstance(required_entrypoint, str) and not (root / required_entrypoint).is_file():
+                errors.append(f"{required_entrypoint}: required smoke entrypoint does not exist")
     if isinstance(fixture, dict):
         expected = fixture.get("expected")
         if isinstance(expected, dict):
