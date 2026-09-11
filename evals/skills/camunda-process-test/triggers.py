@@ -27,5 +27,29 @@ def trigger_eval() -> Task:
                 "Just deploy my process to the cluster and run it once so I can watch it execute.",
                 should_load=["camunda-process-mgmt"],
             ),
+            Negative(
+                "author-bpmn",
+                "Design a new BPMN process for invoice approval with a review task and an approval gateway.",
+                should_load=["camunda-bpmn"],
+            ),
+            Negative(
+                "author-dmn",
+                "Create a DMN decision table that routes orders by amount and customer tier.",
+                should_load=["camunda-dmn"],
+            ),
+            Negative(
+                "write-feel",
+                "Write the FEEL condition for an approval gateway when `amount` is greater than 1000.",
+                should_load=["camunda-feel"],
+            ),
+            Negative(
+                "build-form",
+                "Create a Camunda form for the approval user task with a required comment field.",
+                should_load=["camunda-forms"],
+            ),
+            Negative(
+                "test-ui",
+                "Write an end-to-end test that clicks through the approval process in the Tasklist UI.",
+            ),
         ],
     )

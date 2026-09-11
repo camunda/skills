@@ -28,7 +28,7 @@
     }
   },
   "limitations": [
-    "Connector configuration requires c8ctl 3.0.0 or newer and access to the selected template catalog."
+    "Basic connector template operations require c8ctl 3.0.0 or newer; use c8ctl 3.2.0 or newer for --engine-version discovery and --set FEEL auto-prefixing, plus access to the selected template catalog."
   ],
   "differences": [
     "Element-template IDs and property mappings are harness-neutral; catalog access and BPMN file editing are host-managed."

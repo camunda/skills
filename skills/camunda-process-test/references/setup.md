@@ -145,7 +145,7 @@ Required so `@SpringBootTest` has an application context to load.
 
 ## Node.js project layout
 
-If the project root has `package.json` but no `pom.xml`, scaffold a sibling `test/` directory holding its own `pom.xml`. The test harness reads BPMN / DMN / form files from the parent project via a `<testResource>` mapping:
+If the project root has `package.json` but no `pom.xml`, scaffold a sibling `test/` directory holding its own `pom.xml`. First resolve the BPMN / DMN / form resource directory declared by the Node.js project's build configuration. Set that resolved absolute path, or a path relative to `test/`, as `NODE_RESOURCE_DIR`; do not assume a `resources/` directory:
 
 ```xml
 <testResources>
@@ -154,7 +154,7 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
     <excludes><exclude>scenarios/**</exclude></excludes>
   </testResource>
   <testResource>
-    <directory>../resources</directory>
+    <directory>${node.resource.dir}</directory>
     <targetPath>processes</targetPath>
     <includes>
       <include>**/*.bpmn</include>
@@ -165,7 +165,13 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 </testResources>
 ```
 
-Confirm the scaffold by running `mvn test-compile` from `test/`.
+Pass the resolved directory to every Maven invocation, for example:
+
+```bash
+mvn -Dnode.resource.dir="$NODE_RESOURCE_DIR" test-compile
+```
+
+Do not replace `node.resource.dir` with `../resources` unless that is the directory the project build declares.
 
 ## Filename hygiene
 

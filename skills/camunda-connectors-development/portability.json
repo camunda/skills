@@ -28,7 +28,7 @@
     }
   },
   "limitations": [
-    "Java connector builds require Java 17 or newer, Maven, and a connector runtime or hosting target."
+    "Java connector builds require Java 17 or newer, Maven 3.8+ or an equivalent Gradle toolchain, and a connector runtime or hosting target."
   ],
   "differences": [
     "Template and SDK semantics are harness-neutral; build, dependency-cache, and hosting commands depend on host capabilities."

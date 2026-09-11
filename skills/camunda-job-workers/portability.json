@@ -28,7 +28,7 @@
     }
   },
   "limitations": [
-    "Worker implementation requires the selected SDK, its supported runtime, and a reachable Camunda 8.8+ cluster."
+    "Worker implementation requires the selected SDK, its supported runtime, and a reachable Camunda 8.8+ cluster; the @camunda8/orchestration-cluster-api TypeScript path requires Camunda 8.9+, while @camunda8/sdk covers older targets."
   ],
   "differences": [
     "Worker handler semantics are harness-neutral; SDK installation, build, process control, and cluster credentials are host-managed."
