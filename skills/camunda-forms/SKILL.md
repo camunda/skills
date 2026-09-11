@@ -67,6 +67,32 @@ Every component requires `type`, `id`, and `layout`. Input components also need 
 
 **Layout components**: `group`, `spacer`
 
+Use the schema property names exactly:
+
+- Set an input's initial value with `defaultValue`. Do not use `value` on a component; `value` is only used inside option objects such as `{ "label": "High", "value": "high" }`.
+- A submit control is a `button` component with `action: "submit"`. Do not use `type: "submit"` or add a `key` to a button.
+
+```json
+{
+  "type": "textfield",
+  "id": "Field_Name",
+  "key": "customerName",
+  "label": "Customer Name",
+  "defaultValue": "Ada",
+  "layout": { "row": "row_0", "columns": null }
+}
+```
+
+```json
+{
+  "type": "button",
+  "id": "Button_submit",
+  "label": "Submit",
+  "action": "submit",
+  "layout": { "row": "row_1", "columns": null }
+}
+```
+
 See `references/component-reference.md` for complete properties of each component type.
 
 ### Layout
@@ -185,15 +211,16 @@ Organize related fields:
 Generate complete `.form` JSON files. Ensure:
 - All `id` values are unique within the form
 - `key` values match expected process variable names
+- Input defaults use `defaultValue`; submit controls use `type: "button"` and `action: "submit"` without a `key`
 - `layout.row` values increment sequentially (`row_0`, `row_1`, ...)
 - Metadata fields are present and correct
 
 ### Schema Validation Loop (Lint Before Deploy)
 
-After creating or editing `.form` files, validate them against the official Camunda form schema before deployment. Use `ajv` with the `ajv-errors` plugin directly. A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
+After creating or editing `.form` files, validate them against the official Camunda form schema before presenting or deploying them. Use `ajv` with the `ajv-errors` plugin directly. The official schema permits component extension properties, so the helper below also rejects the known invalid component shapes (`value`, `type: "submit"`, and a button `key`). A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
 
 ```bash
-npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema
+npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema@1.18.0
 
 # Create the validation helper and commit it as a project tool
 cat > validate-form.cjs << 'EOF'
@@ -210,6 +237,27 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 addErrors(ajv);
 const validate = ajv.compile(schema);
 if (!validate(form)) { console.error(JSON.stringify(validate.errors, null, 2)); process.exit(1); }
+function invalidComponentShapes(components, path = 'components') {
+  if (!Array.isArray(components)) return [];
+  const errors = [];
+  for (const [index, component] of components.entries()) {
+    if (!component || typeof component !== 'object' || Array.isArray(component)) continue;
+    const location = `${path}[${index}]`;
+    if (Object.prototype.hasOwnProperty.call(component, 'value')) {
+      errors.push(`${location}: use defaultValue instead of value on a component`);
+    }
+    if (component.type === 'submit') {
+      errors.push(`${location}: use type "button" with action "submit"`);
+    }
+    if (component.type === 'button' && Object.prototype.hasOwnProperty.call(component, 'key')) {
+      errors.push(`${location}: buttons must not define key`);
+    }
+    errors.push(...invalidComponentShapes(component.components, `${location}.components`));
+  }
+  return errors;
+}
+const shapeErrors = invalidComponentShapes(form.components);
+if (shapeErrors.length) { console.error(JSON.stringify(shapeErrors, null, 2)); process.exit(1); }
 console.log('Valid ✓');
 EOF
 
