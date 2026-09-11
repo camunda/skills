@@ -2,8 +2,9 @@
 
 Deterministic, machine-checkable verification:
 - ``ai_agent_shape_valid`` parses ``/workspace/process.bpmn`` and checks for
-  an ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
-  ``toolCallResult`` wiring, and prompt/limit inputs.
+  an ad-hoc subprocess host with the applied AI Agent connector marker, tool
+  documentation, ``fromAi()`` usage, ``toolCallResult`` wiring, and
+  prompt/limit inputs.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 """
@@ -38,6 +39,27 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}userTask",
     f"{{{NS['bpmn']}}}subProcess",
 }
+
+AI_AGENT_TEMPLATE = "io.camunda.connectors.agenticai.aiagent.jobworker.v1"
+AI_AGENT_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent-job-worker:"
+
+
+def has_ai_agent_connector(host: ET.Element) -> bool:
+    """Accept the documented template and custom-template recognition paths."""
+
+    template = host.get(f"{{{NS['zeebe']}}}modelerTemplate")
+    if template == AI_AGENT_TEMPLATE:
+        return True
+
+    task_definition = host.find(
+        "./bpmn:extensionElements/zeebe:taskDefinition", NS
+    )
+    if task_definition is not None and (
+        task_definition.get("type") or ""
+    ).startswith(AI_AGENT_TASK_TYPE_PREFIX):
+        return True
+
+    return False
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -77,6 +99,15 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             )
 
         host = hosts[0]
+        if not has_ai_agent_connector(host):
+            return Score(
+                value=0.0,
+                explanation=(
+                    "ad-hoc subprocess is missing the applied AI Agent "
+                    "connector marker or agent job-worker task type"
+                ),
+            )
+
         tools = [child for child in list(host) if child.tag in ACTIVITY_TAGS]
         if not tools:
             return Score(
@@ -188,7 +219,10 @@ SAMPLES = [
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host.\n"
+            "agent host. Apply the actual AI Agent Sub-process connector element "
+            "template to AgentTools with c8ctl; do not model a generic or "
+            "unconfigured ad-hoc subprocess stand-in. The saved host must retain "
+            "the template marker or AI Agent job-worker task type.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
