@@ -28,7 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *
  * The cpt_scorer selects which test runs via surefire {@code -Dtest=ClassName#methodName}:
  *   linear-invoice-review      → reviewInvoiceUserTaskIsReached
- *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 3 cases)
+ *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 4 cases)
  */
 @SpringBootTest
 @CamundaSpringProcessTest
@@ -76,7 +76,8 @@ class CamundaBpmnIT {
   @CsvSource({
     "1500, manual-approval, auto-approval, amount > 1000 routes to manual-approval",
     "100, auto-approval, manual-approval, amount <= 1000 routes to auto-approval",
-    "MISSING, manual-approval, auto-approval, missing amount uses the safe default branch"
+    "MISSING, manual-approval, auto-approval, missing amount uses the safe default branch",
+    "UNEXPECTED, manual-approval, auto-approval, unexpected amount uses the safe default branch"
   })
   void xorGatewayRoutesCorrectly(
       String amount, String expectedType, String unexpectedType, String label)
@@ -92,7 +93,11 @@ class CamundaBpmnIT {
             .newCreateInstanceCommand()
             .bpmnProcessId("order-fulfillment")
             .latestVersion();
-    if (!amount.equals("MISSING")) {
+    if (amount.equals("MISSING")) {
+      // Omit amount to exercise the gateway's default flow.
+    } else if (amount.equals("UNEXPECTED")) {
+      instanceCommand = instanceCommand.variables(Map.of("amount", "not-a-number"));
+    } else {
       instanceCommand = instanceCommand.variables(Map.of("amount", Integer.parseInt(amount)));
     }
     ProcessInstanceEvent instance = instanceCommand.send().join();
