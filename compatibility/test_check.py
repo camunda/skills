@@ -6,6 +6,7 @@ import check
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+CONFORMANCE_FIXTURES = REPOSITORY_ROOT / "evals" / "fixtures" / "conformance"
 
 
 def copy_contract_root(tmp_path: Path) -> Path:
@@ -59,6 +60,208 @@ def test_rejects_stale_inventory_paths(tmp_path: Path) -> None:
     write_json(path, index)
 
     assert check.main(["--root", str(root)]) == 1
+
+
+def test_rejects_missing_sidecar_declaration(tmp_path: Path) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    (root / "skills" / name / "portability.json").unlink()
+
+    assert check.main(["--root", str(root)]) == 1
+
+
+def test_rejects_malformed_inventory_status(tmp_path: Path) -> None:
+    root = copy_contract_root(tmp_path)
+    path = root / "compatibility" / "skills-index.json"
+    index = read_json(path)
+    assert isinstance(index, dict)
+    index["skills"][0]["status"] = "maybe"
+    write_json(path, index)
+
+    assert check.main(["--root", str(root)]) == 1
+
+
+def test_rejects_unpinned_specification_date(tmp_path: Path) -> None:
+    root = copy_contract_root(tmp_path)
+    path = root / "compatibility" / "skills-index.json"
+    index = read_json(path)
+    assert isinstance(index, dict)
+    index["specRevisionOrAuditDate"] = "latest"
+    write_json(path, index)
+
+    assert check.main(["--root", str(root)]) == 1
+
+
+def test_rejects_omitted_skill_from_inventory(tmp_path: Path) -> None:
+    root = copy_contract_root(tmp_path)
+    path = root / "compatibility" / "skills-index.json"
+    index = read_json(path)
+    assert isinstance(index, dict)
+    index["skills"].pop()
+    write_json(path, index)
+
+    assert check.main(["--root", str(root)]) == 1
+
+
+def test_rejects_invalid_frontmatter(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    path = root / "skills" / name / "SKILL.md"
+    content = path.read_text(encoding="utf-8").replace(
+        f"name: {name}",
+        "name: invalid name",
+        1,
+    )
+    path.write_text(content, encoding="utf-8")
+
+    assert check.main(["--root", str(root)]) == 1
+    assert f"skill={name} rule=metadata.frontmatter" in capsys.readouterr().err
+
+
+def test_rejects_external_skill_reference(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    path = root / "skills" / name / "SKILL.md"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "\n[outside](../README.md)\n",
+        encoding="utf-8",
+    )
+
+    assert check.main(["--root", str(root)]) == 1
+    assert f"skill={name} rule=content.self-contained" in capsys.readouterr().err
+
+
+def test_reports_each_checked_skill(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+
+    assert check.main(["--root", str(root)]) == 0
+    output = capsys.readouterr().out
+    names = {
+        line.removeprefix("Compatibility skill ").removesuffix(": passed")
+        for line in output.splitlines()
+        if line.startswith("Compatibility skill ")
+    }
+    assert names == {
+        path.name for path in (root / "skills").iterdir() if path.is_dir()
+    }
+
+
+def test_valid_conformance_fixture_has_valid_metadata() -> None:
+    errors: list[str] = []
+    path = CONFORMANCE_FIXTURES / "valid" / "SKILL.md"
+
+    check.check_skill_frontmatter(path, "fixture-skill", errors)
+
+    assert errors == []
+
+
+def test_invalid_conformance_fixture_has_invalid_metadata() -> None:
+    errors: list[str] = []
+    path = CONFORMANCE_FIXTURES / "invalid-frontmatter" / "SKILL.md"
+
+    check.check_skill_frontmatter(path, "fixture-skill", errors)
+
+    assert errors
+
+
+def test_rejects_invalid_utf8_skill_frontmatter(tmp_path: Path) -> None:
+    path = tmp_path / "SKILL.md"
+    path.write_bytes(b"\xff")
+    errors: list[str] = []
+
+    check.check_skill_frontmatter(path, "fixture-skill", errors)
+
+    assert len(errors) == 1
+    assert "cannot read" in errors[0]
+
+
+def test_invalid_conformance_fixture_has_external_reference() -> None:
+    errors: list[str] = []
+    package = CONFORMANCE_FIXTURES / "invalid-reference"
+
+    check.check_skill_self_containment(package, errors)
+
+    assert any("content.self-contained" in error for error in errors)
+
+
+def test_invalid_conformance_fixture_has_missing_reference() -> None:
+    errors: list[str] = []
+    package = CONFORMANCE_FIXTURES / "invalid-reference"
+
+    check.check_skill_self_containment(package, errors)
+
+    assert any("content.reference-exists" in error for error in errors)
+
+
+def test_invalid_conformance_fixture_has_missing_reference_definition() -> None:
+    errors: list[str] = []
+    package = CONFORMANCE_FIXTURES / "invalid-reference"
+
+    check.check_skill_self_containment(package, errors)
+
+    assert any("missing-reference.md" in error for error in errors)
+
+
+def test_allows_markdown_link_titles_balanced_destinations_and_urls(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    references = package / "references"
+    references.mkdir(parents=True)
+    (references / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    (references / "guide_(v1).md").write_text("# Guide\n", encoding="utf-8")
+    (package / "README.md").write_text(
+        '[guide](references/guide.md "Guide")\n'
+        "[guide](references/guide_(v1).md)\n"
+        "[guide][guide-reference]\n"
+        '[guide-reference]: references/guide.md "Reference title"\n'
+        "`[missing](missing.md)`\n"
+        "https://example.test/skills/foo/\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
+def test_ignores_repository_references_in_multiline_code_fences(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "```text\n"
+        "skills/example/\n"
+        ".github/workflows/example.yml\n"
+        "/home/example/file.md\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
+def test_classifies_empty_skill_body_as_content() -> None:
+    errors: list[str] = []
+    path = CONFORMANCE_FIXTURES / "valid" / "SKILL.md"
+    content = path.read_text(encoding="utf-8")
+    frontmatter = content.split("---", 2)
+    empty_body = f"---{frontmatter[1]}---\n"
+
+    temporary_path = path.parent / "empty-body-test.md"
+    try:
+        temporary_path.write_text(empty_body, encoding="utf-8")
+        check.check_skill_frontmatter(temporary_path, "fixture-skill", errors)
+    finally:
+        temporary_path.unlink()
+
+    assert errors == [f"{temporary_path}: skill body must not be empty"]
+    assert check.skill_error_rule(errors[0]) == "content.body"
 
 
 def test_rejects_schema_invalid_sidecar(tmp_path: Path) -> None:

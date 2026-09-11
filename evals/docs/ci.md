@@ -4,6 +4,25 @@ How evals run in CI, the PR comment, and how to debug from a CI artifact. For
 the local loop see [`runbook.md`](runbook.md); for the model see
 [`concepts.md`](concepts.md).
 
+## Local compatibility gate
+
+Run the repository's deterministic conformance and harness smoke checks with
+one command from the repository root:
+
+```bash
+make compatibility-check
+```
+
+The checker emits one `Compatibility skill <name>: passed|failed` line for
+every skill, followed by an aggregate result. Failures identify the skill and
+rule (for example, `skill=camunda-bpmn rule=content.reference-exists`) and
+explain the actionable path or metadata problem. The command then emits one
+JSON result for each deterministic `claude` and `copilot` adapter. Each result
+identifies its adapter and skill and records `discovered`, `activated`, the
+`process.bpmn` artifact validity, and the exact
+`c8ctl bpmn lint process.bpmn` tool call. These local adapters require no
+credentials, network access, or model output.
+
 ## A skill-change PR, end to end
 
 1. **Iterate locally** (see [`runbook.md`](runbook.md)).
@@ -32,6 +51,11 @@ Auto-runs come from `pull_request` path filters; labels are optional refinements
 for scope/arms. `workflow_dispatch` still requires write access. Because the
 workflow uses `pull_request` (not `pull_request_target`), fork PRs do not
 receive model secrets.
+
+The credentialed live Copilot job is limited to manual dispatches from the
+default branch and the protected `live-copilot` environment. Store
+`COPILOT_GITHUB_TOKEN` as an environment secret and require environment
+approval before enabling that job.
 
 ## Labels
 

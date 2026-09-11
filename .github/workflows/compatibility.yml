@@ -6,14 +6,26 @@ on:
     paths:
       - "compatibility/**"
       - "skills/**"
+      - "evals/**"
       - "README.md"
+      - "CONTRIBUTING.md"
       - "Makefile"
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
       - ".claude-plugin/**"
-      - ".github/workflows/compatibility.yml"
+      - ".github/plugin/**"
+      - ".github/workflows/**"
+      - "plugin.json"
+  schedule:
+    - cron: "17 4 * * 1"
   workflow_dispatch:
+    inputs:
+      live_copilot:
+        description: "Run the credentialed live GitHub Copilot smoke test"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -33,3 +45,64 @@ jobs:
         run: uv run pytest compatibility
       - name: Run compatibility contract gate
         run: make compatibility-check
+
+  live-copilot:
+    name: Opt-in live GitHub Copilot smoke
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      inputs.live_copilot == true &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    environment:
+      name: live-copilot
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.18.0
+      - name: Install live CLI tools
+        run: npm install --global @github/copilot@1.0.83 @camunda8/cli@4.1.0
+      - name: Install repository Python environment
+        run: uv sync --frozen
+      - name: Run live Copilot smoke
+        id: smoke
+        env:
+          CAMUNDA_LIVE_COPILOT: "1"
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set +e
+          compatibility/adapters/live-copilot > live-copilot-result.json
+          status=$?
+          cat live-copilot-result.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("live-copilot-result.json").read_text())
+          print("## Live GitHub Copilot smoke")
+          print()
+          print(f"- Status: `{result['status']}`")
+          print(f"- Harness: `{result['harness']}`")
+          print(f"- Skill: `{result['skillName']}`")
+          if result.get("reason"):
+              print(f"- Result: {result['reason']}")
+          PY
+          summary_status=$?
+          if [ "$status" -ne 0 ] || [ "$summary_status" -ne 0 ]; then
+            exit 1
+          fi
+      - name: Upload live smoke result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: live-copilot-smoke-${{ github.run_id }}
+          path: live-copilot-result.json
+          if-no-files-found: error
+          retention-days: 14

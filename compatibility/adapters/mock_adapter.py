@@ -162,9 +162,21 @@ def main() -> int:
         else:
             tool_error = "tool command was not run because its prerequisites failed"
 
+    if expected["artifactExists"] and not artifact_exists:
+        failures.append("fixture requires the artifact to exist")
+    if expected["artifactValid"] and not artifact_valid:
+        failures.append("fixture requires a valid BPMN artifact")
+    if expected["toolExecuted"] and not tool_executed:
+        failures.append(f"tool command was not executed: {tool_error or 'unknown error'}")
+    if expected["toolSucceeded"] and not tool_succeeded:
+        failures.append("tool command did not succeed")
+
     result = {
         "adapter": args.harness,
+        "harness": args.harness,
+        "status": "passed" if not failures else "failed",
         "fixtureId": fixture["fixtureId"],
+        "skillName": fixture["skillName"],
         "discovered": discovered,
         "activated": activated,
         "artifact": {
@@ -181,15 +193,6 @@ def main() -> int:
         },
     }
     print(json.dumps(result, indent=2, sort_keys=True))
-
-    if expected["artifactExists"] and not artifact_exists:
-        failures.append("fixture requires the artifact to exist")
-    if expected["artifactValid"] and not artifact_valid:
-        failures.append("fixture requires a valid BPMN artifact")
-    if expected["toolExecuted"] and not tool_executed:
-        failures.append(f"tool command was not executed: {tool_error or 'unknown error'}")
-    if expected["toolSucceeded"] and not tool_succeeded:
-        failures.append("tool command did not succeed")
 
     if failures:
         for failure in failures:

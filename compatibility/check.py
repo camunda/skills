@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import sys
+from urllib.parse import unquote, urlsplit
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from jsonschema.exceptions import SchemaError
 import yaml
 
 SPEC_URL = "https://agentskills.io/specification"
+SPEC_REVISION_OR_AUDIT_DATE = "2026-09-11"
 PORTABILITY_SCHEMA_URL = (
     "https://raw.githubusercontent.com/camunda/skills/main/"
     "compatibility/portability.schema.json"
@@ -24,6 +26,19 @@ RESERVED_SKILL_NAMES = frozenset({"anthropic", "claude"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
+MARKDOWN_LINK_START = re.compile(r"!?\[[^\]]*\]\(")
+MARKDOWN_LINK_DEFINITION = re.compile(
+    r"(?m)^[ \t]{0,3}\[([^\]\n]+)\]:[ \t]*(.*)$"
+)
+MARKDOWN_REFERENCE_LINK = re.compile(r"!?\[([^\]\n]+)\]\[([^\]\n]*)\]")
+MARKDOWN_SHORTCUT_LINK = re.compile(
+    r"(?<![!\w\]])\[([^\]\n]+)\](?![\[(}:])"
+)
+EXTERNAL_URL = re.compile(r"https?://[^\s<>()\[\]]+")
+FORBIDDEN_LOCAL_REFERENCE = re.compile(
+    r"(?<![\w])(?:skills/[a-z0-9-]+/|(?:README|CONTRIBUTING|evals|compatibility|\.github)/"
+    r"|/(?:Users|home)/)"
+)
 
 
 def load_json(path: Path, errors: list[str]) -> Any:
@@ -211,7 +226,7 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
 def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
     try:
         content = path.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         errors.append(f"{path}: cannot read ({error})")
         return
 
@@ -286,6 +301,195 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
     ):
         errors.append(f"{path}: frontmatter allowed-tools must be a non-empty string")
 
+    body = content[frontmatter.end() :].strip()
+    if not body:
+        errors.append(f"{path}: skill body must not be empty")
+
+
+def _strip_markdown_code_spans(content: str) -> str:
+    masked: list[str] = []
+    index = 0
+    while index < len(content):
+        if content[index] != "`":
+            masked.append(content[index])
+            index += 1
+            continue
+
+        fence_start = index
+        while index < len(content) and content[index] == "`":
+            index += 1
+        fence = content[fence_start:index]
+        closing = content.find(fence, index)
+        if closing == -1:
+            masked.append(content[fence_start:])
+            break
+
+        code_span = content[fence_start : closing + len(fence)]
+        masked.append("".join("\n" if character == "\n" else " " for character in code_span))
+        index = closing + len(fence)
+    return "".join(masked)
+
+
+def _link_destination(raw: str) -> str:
+    raw = raw.strip()
+    if not raw:
+        return ""
+    if raw.startswith("<"):
+        closing = raw.find(">", 1)
+        return raw[1:closing] if closing != -1 else raw
+    for index, character in enumerate(raw):
+        if character.isspace():
+            return raw[:index]
+    return raw
+
+
+def _reference_label(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def _markdown_link_targets(content: str) -> list[str]:
+    masked = _strip_markdown_code_spans(content)
+    targets: list[str] = []
+
+    def add_target(target: str) -> None:
+        if target and target not in targets:
+            targets.append(target)
+
+    definitions: dict[str, str] = {}
+    for match in MARKDOWN_LINK_DEFINITION.finditer(masked):
+        target = _link_destination(match.group(2))
+        if target:
+            definitions[_reference_label(match.group(1))] = target
+            add_target(target)
+
+    for match in MARKDOWN_LINK_START.finditer(masked):
+        start = match.end()
+        if start >= len(masked):
+            continue
+
+        if masked[start] == "<":
+            closing = masked.find(">", start + 1)
+            if closing == -1:
+                continue
+            raw = masked[start : closing + 1]
+        else:
+            depth = 0
+            cursor = start
+            while cursor < len(masked):
+                character = masked[cursor]
+                if character == "\\":
+                    cursor += 2
+                    continue
+                if character == "(":
+                    depth += 1
+                elif character == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                cursor += 1
+            if cursor >= len(masked):
+                continue
+            raw = masked[start:cursor]
+
+        add_target(_link_destination(raw))
+
+    for match in MARKDOWN_REFERENCE_LINK.finditer(masked):
+        label = match.group(2) or match.group(1)
+        add_target(definitions.get(_reference_label(label), ""))
+
+    for match in MARKDOWN_SHORTCUT_LINK.finditer(masked):
+        add_target(definitions.get(_reference_label(match.group(1)), ""))
+
+    return targets
+
+
+def check_skill_self_containment(
+    skill_directory: Path, errors: list[str]
+) -> None:
+    """Reject local references that escape a distributable skill package."""
+
+    try:
+        package_root = skill_directory.resolve()
+    except OSError as error:
+        errors.append(f"{skill_directory}: cannot resolve package directory ({error})")
+        return
+
+    for path in sorted(skill_directory.rglob("*")):
+        try:
+            resolved = path.resolve()
+        except OSError as error:
+            errors.append(f"{path}: cannot resolve package path ({error})")
+            continue
+        try:
+            resolved.relative_to(package_root)
+        except ValueError:
+            errors.append(f"{path}: symlink escapes the skill package")
+            continue
+
+        if not path.is_file() or path.suffix.lower() not in {".md", ".markdown"}:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
+            errors.append(f"{path}: cannot read referenced content ({error})")
+            continue
+
+        masked_content = _strip_markdown_code_spans(content)
+        for target in _markdown_link_targets(masked_content):
+            if target.startswith("#"):
+                continue
+            parsed = urlsplit(target)
+            if parsed.scheme or parsed.netloc:
+                continue
+            target_path = unquote(parsed.path)
+            if not target_path:
+                continue
+            candidate = (path.parent / target_path).resolve()
+            try:
+                candidate.relative_to(package_root)
+            except ValueError:
+                errors.append(
+                    f"{path}: rule=content.self-contained local link escapes "
+                    f"the skill package: {target!r}"
+                )
+                continue
+            if not candidate.exists():
+                errors.append(
+                    f"{path}: rule=content.reference-exists local link does not "
+                    f"resolve: {target!r}"
+                )
+
+        for line_number, line in enumerate(masked_content.splitlines(), start=1):
+            line_without_urls = EXTERNAL_URL.sub("", line)
+            if FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls):
+                errors.append(
+                    f"{path}:{line_number}: rule=content.self-contained "
+                    "references a repository-level or external local path"
+                )
+
+
+def skill_error_rule(error: str) -> str:
+    explicit_rule = re.search(r"\brule=([a-z0-9.-]+)", error)
+    if explicit_rule:
+        return explicit_rule.group(1)
+    if "skill body" in error:
+        return "content.body"
+    if "frontmatter" in error:
+        return "metadata.frontmatter"
+    if "skill entrypoint" in error or "SKILL.md" in error:
+        return "layout.entrypoint"
+    if "skills-index.json" in error:
+        return "inventory.index"
+    if "audit.json" in error:
+        return "inventory.audit"
+    if "portability.json" in error or "sidecar" in error:
+        return "portability.sidecar"
+    return "content.self-contained"
+
+
+def format_skill_error(name: str, error: str) -> str:
+    return f"skill={name} rule={skill_error_rule(error)}: {error}"
+
 
 def check_index(index: Any, errors: list[str]) -> list[dict[str, Any]]:
     label = "compatibility/skills-index.json"
@@ -295,10 +499,12 @@ def check_index(index: Any, errors: list[str]) -> list[dict[str, Any]]:
     expect(index["$schema"], "./skills-index.schema.json", f"{label}.$schema", errors)
     expect(index["schemaVersion"], 1, f"{label}.schemaVersion", errors)
     expect(index["specUrl"], SPEC_URL, f"{label}.specUrl", errors)
-    if not isinstance(index["specRevisionOrAuditDate"], str) or not index[
-        "specRevisionOrAuditDate"
-    ]:
-        errors.append(f"{label}.specRevisionOrAuditDate: expected a non-empty string")
+    expect(
+        index["specRevisionOrAuditDate"],
+        SPEC_REVISION_OR_AUDIT_DATE,
+        f"{label}.specRevisionOrAuditDate",
+        errors,
+    )
 
     entries = index["skills"]
     if not isinstance(entries, list) or not entries:
@@ -342,10 +548,18 @@ def check_audit(audit: Any, errors: list[str]) -> list[dict[str, Any]]:
     expect(audit["$schema"], "./audit.schema.json", f"{label}.$schema", errors)
     expect(audit["schemaVersion"], 1, f"{label}.schemaVersion", errors)
     expect(audit["specUrl"], SPEC_URL, f"{label}.specUrl", errors)
-    if not isinstance(audit["specRevisionOrAuditDate"], str) or not audit[
-        "specRevisionOrAuditDate"
-    ]:
-        errors.append(f"{label}.specRevisionOrAuditDate: expected a non-empty string")
+    expect(
+        audit["specRevisionOrAuditDate"],
+        SPEC_REVISION_OR_AUDIT_DATE,
+        f"{label}.specRevisionOrAuditDate",
+        errors,
+    )
+    expect(
+        audit["auditDate"],
+        SPEC_REVISION_OR_AUDIT_DATE,
+        f"{label}.auditDate",
+        errors,
+    )
     if not isinstance(audit["auditDate"], str) or not DATE.fullmatch(audit["auditDate"]):
         errors.append(f"{label}.auditDate: expected an ISO date")
 
@@ -649,9 +863,14 @@ def main(argv: list[str] | None = None) -> int:
         errors,
     )
 
-    spec_date = index.get("specRevisionOrAuditDate") if isinstance(index, dict) else None
-    if not isinstance(spec_date, str) or not spec_date:
-        spec_date = None
+    spec_date = SPEC_REVISION_OR_AUDIT_DATE
+    if isinstance(index, dict):
+        expect(
+            index.get("specRevisionOrAuditDate"),
+            spec_date,
+            "canonical Agent Skills specification revision or audit date",
+            errors,
+        )
     if isinstance(audit, dict):
         expect(audit.get("specRevisionOrAuditDate"), spec_date, "audit specification date", errors)
 
@@ -693,11 +912,16 @@ def main(argv: list[str] | None = None) -> int:
     skill_results: dict[str, bool] = {}
     for name, skill_directory in sorted(skill_directories.items()):
         skill_errors: list[str] = []
+        if not is_valid_skill_name(name):
+            skill_errors.append(f"{skill_directory}: directory name is invalid or reserved")
+        if skill_directory.is_symlink():
+            skill_errors.append(f"{skill_directory}: skill directory must not be a symlink")
         skill_markdown = skill_directory / "SKILL.md"
         if not skill_markdown.is_file():
             skill_errors.append(f"{skill_markdown}: required skill entrypoint does not exist")
         else:
             check_skill_frontmatter(skill_markdown, name, skill_errors)
+        check_skill_self_containment(skill_directory, skill_errors)
 
         expected_index = {
             "name": name,
@@ -754,7 +978,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"skills-index.json and audit.json status for {name!r}",
                 skill_errors,
             )
-        errors.extend(skill_errors)
+        errors.extend(format_skill_error(name, error) for error in skill_errors)
         skill_results[name] = not skill_errors
 
     errors_before_global_post_checks = len(errors)
