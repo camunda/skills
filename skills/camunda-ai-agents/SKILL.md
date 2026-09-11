@@ -45,7 +45,7 @@ service task for the AI Agent connector. The host must be a
 applied. The saved BPMN must retain the connector marker
 emitted by the current catalog entry and the corresponding AI Agent task definition
 produced by that template (the current example is
-`zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`).
+`zeebe:modelerTemplate="io.camunda.connectors.agenticai.ai-agent-subprocess.v2"`).
 A built-in template must also retain its hidden
 `zeebe:property` named `io.camunda.agenticai.toolContainer` with value `true`.
 The legacy `io.camunda.connectors.agenticai.aiagent.jobworker.*` marker pairs
@@ -261,7 +261,7 @@ Lint catches structural BPMN problems but does not validate connector-template i
 
 - Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
 - The host retains the current catalog marker (for example,
-  `zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`)
+  `zeebe:modelerTemplate="io.camunda.connectors.agenticai.ai-agent-subprocess.v2"`)
   together with the corresponding `zeebe:taskDefinition` produced by that
   template and the hidden `io.camunda.agenticai.toolContainer=true` property;
   a custom template path may instead be identified by a documented AI Agent
