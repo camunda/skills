@@ -49,10 +49,9 @@ AI_AGENT_TEMPLATE_TASK_TYPES = {
         "io.camunda.agenticai:aiagent:subprocess:",
     ),
 }
-AI_AGENT_TASK_TYPE_PREFIXES = (
+AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
     "io.camunda.agenticai:aiagent-job-worker:",
     "io.camunda.agenticai:aiagent:subprocess:",
-    "io.camunda.agenticai:aiagent:",
 )
 
 
@@ -86,7 +85,8 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
                 )
 
     return any(
-        task_type.startswith(prefix) for prefix in AI_AGENT_TASK_TYPE_PREFIXES
+        task_type.startswith(prefix)
+        for prefix in AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES
     )
 
 

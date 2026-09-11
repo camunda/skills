@@ -54,8 +54,9 @@ with `io.camunda.agenticai:aiagent-job-worker:*`; the current
 `io.camunda.agenticai:aiagent:subprocess:*`. Do not mix a marker from one
 template family with a task type from another.
 A custom template is also valid when its task type starts with
-an AI Agent task-type family such as
-`io.camunda.agenticai:aiagent-job-worker:` or `io.camunda.agenticai:aiagent:`;
+an AI Agent Sub-process task-type family such as
+`io.camunda.agenticai:aiagent-job-worker:` or
+`io.camunda.agenticai:aiagent:subprocess:`;
 validate that task type instead of relying on a marker copied onto an ordinary
 subprocess. Applying the template is what
 wires the LLM driver, tool activation, result collection, and implicit
