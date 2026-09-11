@@ -26,6 +26,7 @@ from solvers.collect_artifacts import with_artifact_collection
 METADATA = EvalMetadata(skills=["camunda-ai-agents"], max_sandboxes=1)
 
 BPMN_PATH = "/workspace/process.bpmn"
+MISSING_CONFIGURATION_SAMPLE_ID = "missing-provider-configuration"
 
 NS = {
     "bpmn": "http://www.omg.org/spec/BPMN/20100524/MODEL",
@@ -40,11 +41,46 @@ ACTIVITY_TAGS = {
 }
 
 
+def _normalize_literal(value: str | None) -> str:
+    normalized = (value or "").strip()
+    if normalized.startswith("="):
+        normalized = normalized[1:].strip()
+    if (
+        len(normalized) >= 2
+        and normalized[0] == normalized[-1]
+        and normalized[0] in {"'", '"'}
+    ):
+        normalized = normalized[1:-1]
+    return normalized
+
+
+def _assistant_text(state: TaskState) -> str:
+    chunks: list[str] = []
+    for message in state.messages:
+        if getattr(message, "role", None) != "assistant":
+            continue
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            chunks.append(content)
+        elif isinstance(content, list):
+            chunks.extend(
+                part if isinstance(part, str) else str(getattr(part, "text", part))
+                for part in content
+            )
+    return "\n".join(chunks)
+
+
 @scorer(metrics=[mean(), stderr()])
 def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     """Verify that the authored BPMN contains core AI-agent subprocess wiring."""
 
     async def score(state: TaskState, target: Target) -> Score:
+        if state.sample_id != "ticket-triage-subprocess":
+            return Score(
+                value=1.0,
+                explanation="AI-agent shape check not applicable to this sample",
+            )
+
         expected_process_id = (state.metadata or {}).get("process_id")
         required_tools = set((state.metadata or {}).get("required_tools", []))
         expected_provider = (state.metadata or {}).get("provider")
@@ -145,20 +181,36 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 explanation="missing toolCallResult mapping in tool implementation",
             )
 
-        host_xml = ET.tostring(host, encoding="unicode")
-        missing_configuration = [
-            label
-            for label, value in (
-                ("provider", expected_provider),
-                ("model", expected_model),
-                ("connector secret", f"secrets.{expected_secret}" if expected_secret else None),
+        host_inputs = {
+            inp.get("target"): inp.get("source") or ""
+            for inp in host.findall(
+                "./bpmn:extensionElements/zeebe:ioMapping/zeebe:input",
+                NS,
             )
-            if value and value not in host_xml
-        ]
+            if inp.get("target")
+        }
+        missing_configuration = []
+        if expected_provider:
+            provider_source = host_inputs.get("provider.type")
+            if _normalize_literal(provider_source) != expected_provider:
+                missing_configuration.append("provider")
+
+        if expected_provider and expected_model:
+            model_target = f"provider.{expected_provider}.model.model"
+            if _normalize_literal(host_inputs.get(model_target)) != expected_model:
+                missing_configuration.append("model")
+
+        if expected_provider and expected_secret:
+            secret_target = f"provider.{expected_provider}.authentication.apiKey"
+            secret_reference = f"secrets.{expected_secret}"
+            if secret_reference not in host_inputs.get(secret_target, ""):
+                missing_configuration.append("connector secret")
+
         if missing_configuration:
             return Score(
                 value=0.0,
                 explanation=f"missing configured AI-agent {', '.join(missing_configuration)}",
+                metadata={"checked_provider_targets": sorted(host_inputs)},
             )
 
         prompt_inputs = {
@@ -194,6 +246,61 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
     return score
 
+
+@scorer(metrics=[mean(), stderr()])
+def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
+    """Require clarification before creating an agent with missing configuration."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if state.sample_id != MISSING_CONFIGURATION_SAMPLE_ID:
+            return Score(
+                value=1.0,
+                explanation="missing-configuration check not applicable to this sample",
+            )
+
+        artifact = await sandbox().exec(["test", "-e", path], timeout=10)
+        if artifact.returncode == 0:
+            return Score(
+                value=0.0,
+                explanation=f"created BPMN artifact despite missing configuration at {path}",
+            )
+        if artifact.returncode != 1:
+            return Score(
+                value=0.0,
+                explanation=f"could not verify that {path} is absent",
+            )
+
+        assistant_text = _assistant_text(state).casefold()
+        missing_terms = [
+            term
+            for term in ("provider", "model", "secret")
+            if term not in assistant_text
+        ]
+        if missing_terms:
+            return Score(
+                value=0.0,
+                explanation=(
+                    "clarification did not identify missing "
+                    f"configuration: {missing_terms}"
+                ),
+            )
+        if not any(
+            marker in assistant_text
+            for marker in ("ask", "need", "missing", "provide")
+        ):
+            return Score(
+                value=0.0,
+                explanation="agent did not ask for the missing configuration",
+            )
+
+        return Score(
+            value=1.0,
+            explanation="agent requested the missing provider, model, and secret values without creating BPMN",
+        )
+
+    return score
+
+
 SAVE_AND_DEPLOY = (
     "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
 )
@@ -202,6 +309,8 @@ SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
+            "Use the local c8run test cluster with the default c8ctl profile; this "
+            "artifact-only eval does not require deployment.\n"
             "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
@@ -235,6 +344,17 @@ SAMPLES = [
             "secret": "OPENAI_API_KEY",
         },
     ),
+    Sample(
+        id=MISSING_CONFIGURATION_SAMPLE_ID,
+        input=(
+            "Use the local c8run test cluster with the default c8ctl profile. "
+            "I want an AI Agent Sub-process BPMN, but I have not provided the "
+            "model provider, exact model identifier, or existing connector-secret "
+            "name. Ask me for all missing values and stop. Do not choose defaults, "
+            "invent names, apply a connector template, or create or edit any BPMN "
+            "artifact, including /workspace/process.bpmn."
+        ),
+    ),
 ]
 
 
@@ -246,6 +366,7 @@ def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Ta
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             ai_agent_shape_valid(),
+            missing_configuration_guard(),
             assert_skill_loaded("camunda-ai-agents", gating=False),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
