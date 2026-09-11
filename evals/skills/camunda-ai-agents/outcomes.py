@@ -42,7 +42,7 @@ ACTIVITY_TAGS = {
 }
 
 REQUEST_VERB_PATTERN = re.compile(
-    r"^(?:please|kindly)?\s*"
+    r"^(?:(?:please|kindly|also|now|just|then)\s+)*"
     r"(?:provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)\b"
 )
 REQUEST_NEED_PATTERN = re.compile(
@@ -66,7 +66,7 @@ SECRET_NAME_PATTERN = re.compile(
 SECRET_CONFIGURATION_PATTERN = re.compile(
     r"\b(?:"
     r"existing|configured|preconfigured|available|"
-    r"already\s+(?:configured|set\s+up|created|available)|"
+    r"already\s+(?:configured|set\s+up|created|available|exist(?:s)?)|"
     r"in\s+(?:the\s+)?(?:cluster|environment|profile|console)"
     r")\b"
 )
@@ -94,7 +94,10 @@ NEGATED_TERM_PREFIX_PATTERN = re.compile(
 )
 FALLBACK_CONTEXT_PATTERN = re.compile(
     r"\b(?:"
-    r"defaults?|fallback|otherwise|in\s+the\s+absence\s+of|"
+    r"fallback|otherwise|"
+    r"default\s+(?:provider|model|(?:connector[- ]?)?secret(?:\s+name)?|"
+    r"configuration|settings?)|"
+    r"in\s+the\s+absence\s+of|"
     r"if\s+(?:you\s+)?(?:do\s+not|don't|fail\s+to|omit|leave\s+out|"
     r"cannot|can't|not)\b|"
     r"if\s+(?:no|nothing)\b|"
@@ -104,6 +107,18 @@ FALLBACK_CONTEXT_PATTERN = re.compile(
 )
 FALLBACK_ACTION_PATTERN = re.compile(
     r"\b(?:use|choose|select|pick|assume|invent|make\s+up|default(?:\s+to)?)\b"
+)
+CONFIGURATION_TARGET_PATTERN = re.compile(
+    r"\b(?:provider|model|connector[- ]?secret|secret(?:\s+name)?|"
+    r"api[- ]?key|token|credential)\b"
+)
+CONFIGURATION_VALUE_PATTERN = re.compile(
+    r"\b(?:"
+    r"openai|anthropic|azure(?:[- ]openai)?|vertex|gemini|bedrock|"
+    r"gpt[-\w.]*|claude[-\w.]*|"
+    r"[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*(?:api[-_]?key|access[-_]?key|"
+    r"token|secret|password)"
+    r")\b"
 )
 LIST_ITEM_PATTERN = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
 CLAUSE_BREAK_PATTERN = re.compile(
@@ -152,7 +167,10 @@ def _prohibited_configuration_action(state: TaskState) -> str | None:
             serialized = f"{function} {arguments}".casefold()
             command = str(arguments.get("command", "")).casefold()
             path = str(arguments.get("path", "")).casefold()
-            shell_input = str(arguments.get("input", "")).casefold()
+            shell_input = " ".join(
+                str(arguments.get(argument_name, ""))
+                for argument_name in ("input", "cmd", "command")
+            ).casefold()
 
             if re.search(r"\bc8ctl\b.*\belement-template\s+apply\b", serialized):
                 return "applied an element template before configuration was confirmed"
@@ -163,7 +181,8 @@ def _prohibited_configuration_action(state: TaskState) -> str | None:
             if ".bpmn" in shell_input and re.search(
                 r"(?:>|>>|\b(?:cp|mv|tee|touch|rm|unlink|install)\b|"
                 r"\b(?:sed|perl)\s+-i\b|\bfind\b[^;\n]*\s-delete\b|"
-                r"\bopen\s*\(|\.(?:write|write_text|unlink)\s*\()",
+                r"\bopen\s*\(|\.(?:write|write_text|write_bytes|unlink)\s*\(|"
+                r"\b(?:os\.)?(?:remove|unlink)\s*\()",
                 shell_input,
             ):
                 return "created, modified, or deleted a BPMN artifact"
@@ -179,6 +198,11 @@ def _is_request_sentence(sentence: str) -> bool:
         REQUEST_VERB_PATTERN.search(clause.strip())
         or REQUEST_NEED_PATTERN.search(clause)
         or re.search(r"\b(?:could|can|would)\s+you\b", clause)
+        or re.search(
+            r"\b(?:which|what)\b[^.?!\n]{0,120}"
+            r"\b(?:should|could|would|can|do)\s+i\s+use\b",
+            clause,
+        )
         for clause in CLAUSE_BREAK_PATTERN.split(normalized)
     )
 
@@ -203,30 +227,24 @@ def _has_secret_configuration_semantics(text: str) -> bool:
     secret_matches = list(SECRET_NAME_PATTERN.finditer(normalized))
     if not secret_matches:
         return False
-    return any(
-        not _is_negated_term(normalized, configuration.start())
-        and any(
-            _same_clause(normalized, configuration.start(), secret.start())
-            for secret in secret_matches
-        )
-        for configuration in SECRET_CONFIGURATION_PATTERN.finditer(normalized)
-    )
+    for configuration in SECRET_CONFIGURATION_PATTERN.finditer(normalized):
+        if _is_negated_term(normalized, configuration.start()):
+            continue
+        for secret in secret_matches:
+            start, end = sorted((configuration.start(), secret.start()))
+            if len(list(CLAUSE_BREAK_PATTERN.finditer(normalized[start:end]))) <= 1:
+                return True
+    return False
 
 
 def _has_secret_name_request_semantics(text: str) -> bool:
     normalized = text.casefold()
+    if not SECRET_NAME_PATTERN.search(normalized):
+        return False
     for clause in CLAUSE_BREAK_PATTERN.split(normalized):
-        if not SECRET_NAME_PATTERN.search(clause):
-            continue
         if re.search(r"\b(?:which|what)\b", clause):
             return True
-        if (
-            REQUEST_VERB_PATTERN.search(clause.strip())
-            or REQUEST_NEED_PATTERN.search(clause)
-            or re.search(r"\b(?:could|can|would)\s+you\b", clause)
-        ):
-            return True
-    return False
+    return _is_request_sentence(normalized)
 
 
 def _requests_secret_material(sentence: str) -> bool:
@@ -283,15 +301,28 @@ def _has_fallback_selection(sentence: str) -> bool:
             for match in FALLBACK_CONTEXT_PATTERN.finditer(clause)
         ):
             return True
+        if (
+            any(
+                not _is_negated_term(clause, match.start())
+                for match in actions
+            )
+            and (
+                CONFIGURATION_TARGET_PATTERN.search(clause)
+                or CONFIGURATION_VALUE_PATTERN.search(clause)
+            )
+        ):
+            return True
     return False
 
 
 def _clarification_contexts(text: str) -> list[str]:
     contexts: list[str] = []
     request_lead: str | None = None
+    previous_context: str | None = None
     for raw_line in text.casefold().splitlines():
         if not raw_line.strip():
             request_lead = None
+            previous_context = None
             continue
         units = re.split(
             r"(?<!\d[.!?])(?<=[.!?])\s+(?=[a-z])",
@@ -308,11 +339,14 @@ def _clarification_contexts(text: str) -> list[str]:
                 else normalized
             )
             contexts.append(context)
+            if previous_context and not is_list_item:
+                contexts.append(f"{previous_context} {context}")
             lead_candidate = LIST_ITEM_PATTERN.sub("", normalized, count=1).strip()
             if normalized.endswith(":") and _is_request_sentence(lead_candidate):
                 request_lead = lead_candidate
             elif not is_list_item:
                 request_lead = None
+            previous_context = context
     return contexts
 
 
