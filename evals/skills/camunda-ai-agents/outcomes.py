@@ -50,6 +50,7 @@ AI_AGENT_LEGACY_TEMPLATE_PREFIXES = (
 AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = ("io.camunda.agenticai:aiagent:subprocess:",)
 
 AI_AGENT_OUTPUT_COLLECTION = "toolCallResults"
+AI_AGENT_OUTPUT_ELEMENT = "toolCallResult"
 AI_AGENT_OUTPUT_ELEMENT_KEY = "content"
 AI_AGENT_OUTPUT_ELEMENT_VALUE = "toolCallResult"
 CLAIM_REVIEW_TOOL_IDS = (
@@ -339,10 +340,13 @@ def has_ai_agent_output_binding(host: ET.Element) -> bool:
     return bool(
         output_collection == AI_AGENT_OUTPUT_COLLECTION
         and output_element
-        and _has_top_level_feel_map_entry(
-            output_element,
-            AI_AGENT_OUTPUT_ELEMENT_KEY,
-            AI_AGENT_OUTPUT_ELEMENT_VALUE,
+        and (
+            output_element == AI_AGENT_OUTPUT_ELEMENT
+            or _has_top_level_feel_map_entry(
+                output_element,
+                AI_AGENT_OUTPUT_ELEMENT_KEY,
+                AI_AGENT_OUTPUT_ELEMENT_VALUE,
+            )
         )
     )
 
@@ -358,18 +362,12 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
 
     if template:
         if template.startswith(AI_AGENT_TEMPLATE_MARKER_PREFIX):
-            if not task_type.startswith(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX):
-                return False
-            template_version = template.removeprefix(AI_AGENT_TEMPLATE_MARKER_PREFIX)
-            task_type_version = task_type.removeprefix(
-                AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX
-            )
             return (
                 has_tool_container_property(host)
                 and has_ai_agent_output_binding(host)
-                and template_version.startswith("v")
-                and template_version[1:].isdigit()
-                and task_type_version == template_version[1:]
+                and bool(template.removeprefix(AI_AGENT_TEMPLATE_MARKER_PREFIX))
+                and task_type.startswith(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX)
+                and bool(task_type.removeprefix(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX))
             )
         if any(
             template.startswith(prefix) for prefix in AI_AGENT_LEGACY_TEMPLATE_PREFIXES

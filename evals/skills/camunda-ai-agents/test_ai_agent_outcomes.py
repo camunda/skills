@@ -81,7 +81,7 @@ def _host(
         ),
         (
             "io.camunda.connectors.agenticai.ai-agent-subprocess.v2",
-            "io.camunda.agenticai:aiagent:subprocess:2",
+            "io.camunda.agenticai:aiagent:subprocess:1",
             True,
             True,
         ),
@@ -434,6 +434,20 @@ def test_ai_agent_shape_scorer_requires_connector_metadata(
     assert valid_score.value == 1.0
     assert invalid_score.value == 0.0
     assert copied_metadata_score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_accepts_current_catalog_output_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            template_output_element="toolCallResult",
+        ),
+    )
+
+    assert score.value == 1.0
 
 
 def test_ai_agent_shape_scorer_selects_matching_host(
