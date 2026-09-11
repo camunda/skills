@@ -164,6 +164,17 @@ def test_invalid_conformance_fixture_has_invalid_metadata() -> None:
     assert errors
 
 
+def test_rejects_invalid_utf8_skill_frontmatter(tmp_path: Path) -> None:
+    path = tmp_path / "SKILL.md"
+    path.write_bytes(b"\xff")
+    errors: list[str] = []
+
+    check.check_skill_frontmatter(path, "fixture-skill", errors)
+
+    assert len(errors) == 1
+    assert "cannot read" in errors[0]
+
+
 def test_invalid_conformance_fixture_has_external_reference() -> None:
     errors: list[str] = []
     package = CONFORMANCE_FIXTURES / "invalid-reference"

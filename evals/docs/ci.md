@@ -52,6 +52,11 @@ for scope/arms. `workflow_dispatch` still requires write access. Because the
 workflow uses `pull_request` (not `pull_request_target`), fork PRs do not
 receive model secrets.
 
+The credentialed live Copilot job is limited to manual dispatches from the
+default branch and the protected `live-copilot` environment. Store
+`COPILOT_GITHUB_TOKEN` as an environment secret and require environment
+approval before enabling that job.
+
 ## Labels
 
 Labels are optional refinements and re-run on each push while present (remove

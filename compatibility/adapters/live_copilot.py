@@ -137,7 +137,17 @@ def main() -> int:
         )
         try:
             completed = subprocess.run(
-                [copilot, "--plugin-dir", str(root), "--prompt", prompt],
+                [
+                    copilot,
+                    "--plugin-dir",
+                    str(root),
+                    "--allow-tool=write",
+                    "--allow-tool=shell(c8ctl:*)",
+                    "--no-ask-user",
+                    "--secret-env-vars=COPILOT_GITHUB_TOKEN,GH_TOKEN,GITHUB_TOKEN",
+                    "--prompt",
+                    prompt,
+                ],
                 cwd=workspace,
                 env=environment,
                 check=False,

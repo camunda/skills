@@ -226,7 +226,7 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
 def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
     try:
         content = path.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         errors.append(f"{path}: cannot read ({error})")
         return
 
