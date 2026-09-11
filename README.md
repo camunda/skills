@@ -43,7 +43,7 @@ The repository follows the [Agent Skills specification](https://agentskills.io/s
 | Harness | Guarantee | Adapter boundary |
 |---------|-----------|------------------|
 | Claude Code | The standard skill package is discoverable through the Claude marketplace/plugin or a Claude skill path. Existing plugin and local-clone workflows remain supported. | c8ctl runs through the host terminal; `camunda-docs` may use its documented MCP path or bundled HTTP search script. |
-| GitHub Copilot CLI | The Camunda plugin installs the same skill packages, and `/plugin list` can show the installed skills. A prompt can activate `camunda-bpmn` and use the host terminal to create and lint a BPMN file. | Every current skill is `portable-with-adapter`: Copilot maps file editing, terminal commands, catalog access, SDKs, credentials, or MCP to its available tools. Tool names must not be assumed to be identical to another harness. |
+| GitHub Copilot CLI | The Camunda plugin installs the same skill packages. Use `/plugin list` to verify the plugin, then invoke `camunda-bpmn` in a prompt to use the host terminal to create and lint a BPMN file. | Every current skill is `portable-with-adapter`: Copilot maps file editing, terminal commands, catalog access, SDKs, credentials, or MCP to its available tools. Tool names must not be assumed to be identical to another harness. |
 | Generic Agent Skills-compatible runtime | The package format, metadata, discovery path, and skill-local files are portable. | The host must provide an installer or manual copy step and adapters for the commands, runtimes, credentials, and optional services used by a skill. |
 
 No harness guarantee implies a Camunda cluster, credentials, a model provider, or a particular tool name. Those are explicit prerequisites below and in each sidecar.
@@ -97,7 +97,7 @@ Not every operation needs a cluster. Reading or editing `SKILL.md`, BPMN/XML, DM
 
 ### GitHub Copilot CLI
 
-Prerequisites are a supported GitHub Copilot CLI installation, GitHub authentication, Node.js 22.18.0+ for c8ctl, and either a local Camunda cluster or an already configured remote profile. Install Copilot CLI using the [GitHub installation instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli), then register and install this plugin:
+Prerequisites are a supported GitHub Copilot CLI installation and GitHub authentication. Workflows that use c8ctl require Node.js 22.18.0+; workflows that touch a Camunda cluster additionally require either a local cluster or an already configured remote profile. Install Copilot CLI using the [GitHub installation instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli), then register and install this plugin:
 
 ```bash
 copilot plugin marketplace add camunda/skills
@@ -105,7 +105,7 @@ copilot plugin install camunda-skills@camunda
 copilot plugin list
 ```
 
-Start Copilot from the project directory with `copilot`. In the session, run `/skills list` and select `camunda-bpmn` in your prompt. For a small useful example:
+Start Copilot from the project directory with `copilot`. In the session, run `/plugin list` to verify the plugin, then invoke `camunda-bpmn` in your prompt. For a small useful example:
 
 ```text
 Use camunda-bpmn to create a minimal Camunda 8 process in process.bpmn with a start event, one user task named "Review request", and an end event. Then run c8ctl bpmn lint process.bpmn and report the result.
