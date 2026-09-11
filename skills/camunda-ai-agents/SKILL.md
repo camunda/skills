@@ -32,7 +32,7 @@ Before creating or editing the BPMN, resolve these values with the user:
 3. The exact model identifier.
 4. The exact existing connector-secret name or names required by that provider.
 
-If the user did not specify any of these, ask for the missing values and stop before applying the template or writing provider configuration. Do not default to a provider or model, and do not invent names such as `ANTHROPIC_API_KEY`. Ask for secret names, not secret values, and never put secret material in the BPMN or in the conversation.
+If any of these values are missing, ask for each missing value and stop before applying the template or writing provider configuration. Do not default to a provider or model, and do not invent names such as `ANTHROPIC_API_KEY`. Ask for secret names, not secret values, and never put secret material in the BPMN or in the conversation.
 
 If the target environment exposes configured secret names through c8ctl or an approved local configuration, prefer those names. Otherwise, use only names confirmed by the user; do not infer them from the provider name. Inspect the current element-template properties because authentication fields and the number of secrets differ by provider.
 

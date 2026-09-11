@@ -10,6 +10,7 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 
 from core.agents import AgentKind, build_agent
@@ -40,6 +41,19 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
+REQUEST_MARKERS = (
+    "which",
+    "what",
+    "provide",
+    "specify",
+    "confirm",
+    "tell me",
+    "identify",
+    "indicate",
+    "share",
+    "supply",
+)
+
 
 def _normalize_literal(value: str | None) -> str:
     normalized = (value or "").strip()
@@ -52,6 +66,10 @@ def _normalize_literal(value: str | None) -> str:
     ):
         normalized = normalized[1:-1]
     return normalized
+
+
+def _matches_secret_reference(source: str, expected_name: str) -> bool:
+    return _normalize_literal(source) == f"{{{{secrets.{expected_name}}}}}"
 
 
 def _assistant_text(state: TaskState) -> str:
@@ -70,6 +88,13 @@ def _assistant_text(state: TaskState) -> str:
     return "\n".join(chunks)
 
 
+def _is_request_sentence(sentence: str) -> bool:
+    return "?" in sentence or any(
+        re.search(rf"\b{re.escape(marker)}\b", sentence)
+        for marker in REQUEST_MARKERS
+    )
+
+
 @scorer(metrics=[mean(), stderr()])
 def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     """Verify that the authored BPMN contains core AI-agent subprocess wiring."""
@@ -85,7 +110,9 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
         required_tools = set((state.metadata or {}).get("required_tools", []))
         expected_provider = (state.metadata or {}).get("provider")
         expected_model = (state.metadata or {}).get("model")
-        expected_secret = (state.metadata or {}).get("secret")
+        expected_authentication_secrets = (
+            (state.metadata or {}).get("authentication_secrets") or {}
+        )
 
         sb = sandbox()
         cat = await sb.exec(["cat", path], timeout=10)
@@ -200,11 +227,11 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             if _normalize_literal(host_inputs.get(model_target)) != expected_model:
                 missing_configuration.append("model")
 
-        if expected_provider and expected_secret:
-            secret_target = f"provider.{expected_provider}.authentication.apiKey"
-            secret_reference = f"secrets.{expected_secret}"
-            if secret_reference not in host_inputs.get(secret_target, ""):
-                missing_configuration.append("connector secret")
+        for secret_target, expected_secret in expected_authentication_secrets.items():
+            if not _matches_secret_reference(
+                host_inputs.get(secret_target, ""), expected_secret
+            ):
+                missing_configuration.append(f"connector secret ({secret_target})")
 
         if missing_configuration:
             return Score(
@@ -258,44 +285,81 @@ def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
                 explanation="missing-configuration check not applicable to this sample",
             )
 
-        artifact = await sandbox().exec(["test", "-e", path], timeout=10)
-        if artifact.returncode == 0:
+        workspace = path.rsplit("/", 1)[0] or "/"
+        artifacts = await sandbox().exec(
+            [
+                "find",
+                workspace,
+                "-type",
+                "f",
+                "-name",
+                "*.bpmn",
+                "-not",
+                "-path",
+                f"{workspace}/skills/*",
+            ],
+            timeout=10,
+        )
+        if artifacts.returncode != 0:
             return Score(
                 value=0.0,
-                explanation=f"created BPMN artifact despite missing configuration at {path}",
+                explanation=f"could not inspect {workspace} for BPMN artifacts",
             )
-        if artifact.returncode != 1:
+        artifact_paths = [
+            artifact_path
+            for artifact_path in (artifacts.stdout or "").splitlines()
+            if artifact_path
+        ]
+        if artifact_paths:
             return Score(
                 value=0.0,
-                explanation=f"could not verify that {path} is absent",
+                explanation=(
+                    "created BPMN artifact(s) despite missing configuration: "
+                    f"{artifact_paths}"
+                ),
             )
 
         assistant_text = _assistant_text(state).casefold()
-        missing_terms = [
-            term
-            for term in ("provider", "model", "secret")
-            if term not in assistant_text
-        ]
+        request_sentences = re.split(r"(?<=[?.!])\s+|\n+", assistant_text)
+        missing_terms = []
+        for term, pattern in (
+            ("provider", r"\bprovider\b"),
+            ("model", r"\bmodel\b"),
+            ("connector-secret name", r"\b(?:connector[- ]secret|secret) names?\b"),
+        ):
+            if not any(
+                _is_request_sentence(sentence) and bool(re.search(pattern, sentence))
+                for sentence in request_sentences
+            ):
+                missing_terms.append(term)
         if missing_terms:
             return Score(
                 value=0.0,
                 explanation=(
-                    "clarification did not identify missing "
+                    "clarification did not ask for missing "
                     f"configuration: {missing_terms}"
                 ),
             )
-        if not any(
-            marker in assistant_text
-            for marker in ("ask", "need", "missing", "provide")
+        if any(
+            "secret value" in sentence
+            and not re.search(
+                r"\b(?:do not|don't|never|not)\b[^.?!\n]{0,40}\bsecret values?\b",
+                sentence,
+            )
+            and _is_request_sentence(sentence)
+            for sentence in request_sentences
         ):
             return Score(
                 value=0.0,
-                explanation="agent did not ask for the missing configuration",
+                explanation="clarification requested secret values instead of secret names",
             )
 
         return Score(
             value=1.0,
-            explanation="agent requested the missing provider, model, and secret values without creating BPMN",
+            explanation=(
+                "agent requested the missing provider, model, and connector-secret "
+                "name without creating BPMN"
+            ),
         )
 
     return score
@@ -341,7 +405,9 @@ SAMPLES = [
             ],
             "provider": "openai",
             "model": "gpt-4.1-mini",
-            "secret": "OPENAI_API_KEY",
+            "authentication_secrets": {
+                "provider.openai.authentication.apiKey": "OPENAI_API_KEY",
+            },
         },
     ),
     Sample(
@@ -350,9 +416,10 @@ SAMPLES = [
             "Use the local c8run test cluster with the default c8ctl profile. "
             "I want an AI Agent Sub-process BPMN, but I have not provided the "
             "model provider, exact model identifier, or existing connector-secret "
-            "name. Ask me for all missing values and stop. Do not choose defaults, "
+            "name. Ask me for each missing value, including the exact secret name "
+            "rather than its secret value, and stop. Do not choose defaults, "
             "invent names, apply a connector template, or create or edit any BPMN "
-            "artifact, including /workspace/process.bpmn."
+            "artifact anywhere under /workspace, including /workspace/process.bpmn."
         ),
     ),
 ]
