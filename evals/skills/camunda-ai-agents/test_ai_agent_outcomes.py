@@ -249,7 +249,9 @@ def _minimal_bpmn(
     tool_ids: tuple[str, ...] = ("LookupKnowledgeBase",),
     chain_tools: bool = False,
     prepend_unrelated_host: bool = False,
-    from_ai_source: str = "=fromAi(toolCall.query)",
+    prepend_connector_host: bool = False,
+    from_ai_source: str | None = "=fromAi(toolCall.query)",
+    host_from_ai_source: str | None = None,
 ) -> str:
     if connector:
         host_attributes = (
@@ -273,14 +275,23 @@ def _minimal_bpmn(
         )
     else:
         output_binding = ""
+    tool_input_mapping = (
+        f"""          <zeebe:ioMapping>
+            <zeebe:input source="{from_ai_source}" target="query" />
+          </zeebe:ioMapping>
+"""
+        if from_ai_source is not None
+        else ""
+    )
     tool_xml = "\n".join(
         f"""      <bpmn:serviceTask id="{tool_id}">
         <bpmn:documentation>Look up relevant knowledge.</bpmn:documentation>
         <bpmn:extensionElements>
+{tool_input_mapping if index == 0 else ""}\
           <zeebe:output target="toolCallResult" />
         </bpmn:extensionElements>
       </bpmn:serviceTask>"""
-        for tool_id in tool_ids
+        for index, tool_id in enumerate(tool_ids)
     )
     sequence_flows = ""
     if chain_tools:
@@ -298,6 +309,14 @@ def _minimal_bpmn(
       </bpmn:serviceTask>
     </bpmn:adHocSubProcess>
 """
+    connector_host = ""
+    if prepend_connector_host and connector:
+        connector_host = f"""\
+    <bpmn:adHocSubProcess id="FirstAgent" {host_attributes}>
+      <bpmn:extensionElements>
+{output_binding}{connector_extension}      </bpmn:extensionElements>
+    </bpmn:adHocSubProcess>
+"""
     unmapped_tool = (
         """
       <bpmn:serviceTask id="UnmappedTool">
@@ -307,18 +326,23 @@ def _minimal_bpmn(
         if include_unmapped_tool
         else ""
     )
+    host_from_ai_input = (
+        f'            <zeebe:input source="{host_from_ai_source}" target="hostQuery" />\n'
+        if host_from_ai_source is not None
+        else ""
+    )
 
     return f"""\
 <bpmn:definitions
     xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
     xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
   <bpmn:process id="ai-ticket-triage">
-  {unrelated_host}\
+  {unrelated_host}{connector_host}\
       <bpmn:adHocSubProcess id="AgentTools" {host_attributes}>
         <bpmn:extensionElements>
   {output_binding}{connector_extension}
           <zeebe:ioMapping>
-            <zeebe:input source="{from_ai_source}" target="query" />
+{host_from_ai_input}\
             <zeebe:input source="=&quot;system&quot;" target="data.systemPrompt.prompt" />
             <zeebe:input source="=&quot;user&quot;" target="data.userPrompt.prompt" />
             <zeebe:input source="=10" target="data.limits.maxModelCalls" />
@@ -384,6 +408,17 @@ def test_ai_agent_shape_scorer_selects_matching_host(
     assert score.value == 1.0
 
 
+def test_ai_agent_shape_scorer_checks_all_connector_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, prepend_connector_host=True),
+    )
+
+    assert score.value == 1.0
+
+
 @pytest.mark.parametrize(
     ("output_collection", "output_element"),
     [
@@ -426,6 +461,37 @@ def test_ai_agent_shape_scorer_ignores_quoted_from_ai_text(
         _minimal_bpmn(
             connector=True,
             from_ai_source="=&quot;The literal text fromAi(&quot;",
+        ),
+    )
+
+    assert score.value == 0.0
+
+
+@pytest.mark.parametrize(
+    "from_ai_source",
+    ["=fromAi", "=some.fromAi", "=fromAiValue(toolCall.query)"],
+)
+def test_ai_agent_shape_scorer_requires_from_ai_call(
+    monkeypatch: pytest.MonkeyPatch,
+    from_ai_source: str,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, from_ai_source=from_ai_source),
+    )
+
+    assert score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_requires_from_ai_on_tool_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            from_ai_source=None,
+            host_from_ai_source="=fromAi(toolCall.query)",
         ),
     )
 

@@ -90,7 +90,9 @@ def _without_feel_string_literals(expression: str) -> str:
     return "".join(characters)
 
 
-def _has_feel_identifier(expression: str, identifier: str) -> bool:
+def _has_feel_identifier(
+    expression: str, identifier: str, *, require_call: bool = False
+) -> bool:
     expression = _without_feel_string_literals(expression)
     for index in range(len(expression) - len(identifier) + 1):
         if not expression.startswith(identifier, index):
@@ -102,6 +104,12 @@ def _has_feel_identifier(expression: str, identifier: str) -> bool:
             (not before or not (before.isalnum() or before == "_"))
             and (not after or not (after.isalnum() or after == "_"))
         ):
+            if require_call:
+                cursor = after_index
+                while cursor < len(expression) and expression[cursor].isspace():
+                    cursor += 1
+                if cursor >= len(expression) or expression[cursor] != "(":
+                    continue
             return True
     return False
 
@@ -280,6 +288,116 @@ def has_tool_call_result(tool: ET.Element) -> bool:
     return False
 
 
+def _validate_ai_agent_host(
+    host: ET.Element,
+    required_tools: set[str],
+    path: str,
+    expected_process_id: str | None,
+) -> Score:
+    tools = [child for child in list(host) if child.tag in ACTIVITY_TAGS]
+    if not tools:
+        return Score(
+            value=0.0,
+            explanation="ad-hoc subprocess has no tool activities",
+        )
+
+    tool_ids = {tool.get("id") for tool in tools if tool.get("id")}
+    incoming_flow_targets = {
+        flow.get("targetRef") for flow in host.findall(".//bpmn:sequenceFlow", NS)
+    }
+    chained_tools = sorted(
+        tool_id for tool_id in tool_ids if tool_id in incoming_flow_targets
+    )
+    if chained_tools:
+        return Score(
+            value=0.0,
+            explanation=(
+                "root tool(s) are targeted by internal sequence flows: "
+                f"{chained_tools}"
+            ),
+        )
+
+    missing_tools = sorted(t for t in required_tools if t not in tool_ids)
+    if missing_tools:
+        return Score(
+            value=0.0,
+            explanation=f"missing required tool ids: {missing_tools}",
+            metadata={"tool_ids": sorted(tool_ids)},
+        )
+
+    undocumented = []
+    for tool in tools:
+        doc = tool.find("bpmn:documentation", NS)
+        if doc is None or not (doc.text or "").strip():
+            undocumented.append(tool.get("id") or "<unknown>")
+    if undocumented:
+        return Score(
+            value=0.0,
+            explanation=f"tool(s) missing bpmn:documentation: {undocumented}",
+        )
+
+    from_ai_inputs = [
+        inp
+        for tool in tools
+        for inp in tool.findall(
+            "./bpmn:extensionElements/zeebe:ioMapping/zeebe:input", NS
+        )
+        if _has_feel_identifier(
+            inp.get("source") or "", "fromAi", require_call=True
+        )
+    ]
+    if not from_ai_inputs:
+        return Score(
+            value=0.0,
+            explanation="no zeebe:input source uses fromAi(...)",
+        )
+
+    missing_tool_results = [
+        tool.get("id") or "<unknown>"
+        for tool in tools
+        if not has_tool_call_result(tool)
+    ]
+    if missing_tool_results:
+        return Score(
+            value=0.0,
+            explanation=(
+                "tool(s) missing toolCallResult mapping: "
+                f"{missing_tool_results}"
+            ),
+        )
+
+    prompt_inputs = {
+        inp.get("target"): (inp.get("source") or "")
+        for inp in host.findall(".//zeebe:input", NS)
+    }
+    system_prompt = prompt_inputs.get("data.systemPrompt.prompt", "")
+    user_prompt = prompt_inputs.get("data.userPrompt.prompt", "")
+    if not system_prompt.startswith("=") or not user_prompt.startswith("="):
+        return Score(
+            value=0.0,
+            explanation="both system/user prompts must be FEEL strings (start with '=')",
+        )
+    if "data.limits.maxModelCalls" not in prompt_inputs:
+        return Score(
+            value=0.0,
+            explanation="missing data.limits.maxModelCalls input",
+        )
+
+    return Score(
+        value=1.0,
+        explanation=(
+            f"valid AI-agent shape in {path} for {expected_process_id}; "
+            f"tools={sorted(tool_ids)}"
+        ),
+        metadata={
+            "path": path,
+            "process_id": expected_process_id,
+            "tool_ids": sorted(tool_ids),
+            "from_ai_inputs": len(from_ai_inputs),
+        },
+    )
+
+
 @scorer(metrics=[mean(), stderr()])
 def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     """Verify that the authored BPMN contains core AI-agent subprocess wiring."""
@@ -316,11 +434,10 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 explanation="missing bpmn:adHocSubProcess host for AI Agent connector",
             )
 
-        host = next(
-            (candidate for candidate in hosts if has_ai_agent_connector(candidate)),
-            None,
-        )
-        if host is None:
+        candidate_hosts = [
+            candidate for candidate in hosts if has_ai_agent_connector(candidate)
+        ]
+        if not candidate_hosts:
             return Score(
                 value=0.0,
                 explanation=(
@@ -329,105 +446,19 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 ),
             )
 
-        tools = [child for child in list(host) if child.tag in ACTIVITY_TAGS]
-        if not tools:
-            return Score(
-                value=0.0,
-                explanation="ad-hoc subprocess has no tool activities",
+        candidate_scores = [
+            _validate_ai_agent_host(
+                candidate, required_tools, path, expected_process_id
             )
-
-        tool_ids = {tool.get("id") for tool in tools if tool.get("id")}
-        incoming_flow_targets = {
-            flow.get("targetRef")
-            for flow in host.findall(".//bpmn:sequenceFlow", NS)
-        }
-        chained_tools = sorted(
-            tool_id
-            for tool_id in tool_ids
-            if tool_id in incoming_flow_targets
-        )
-        if chained_tools:
-            return Score(
-                value=0.0,
-                explanation=(
-                    "root tool(s) are targeted by internal sequence flows: "
-                    f"{chained_tools}"
-                ),
-            )
-
-        missing_tools = sorted(t for t in required_tools if t not in tool_ids)
-        if missing_tools:
-            return Score(
-                value=0.0,
-                explanation=f"missing required tool ids: {missing_tools}",
-                metadata={"tool_ids": sorted(tool_ids)},
-            )
-
-        undocumented = []
-        for tool in tools:
-            doc = tool.find("bpmn:documentation", NS)
-            if doc is None or not (doc.text or "").strip():
-                undocumented.append(tool.get("id") or "<unknown>")
-        if undocumented:
-            return Score(
-                value=0.0,
-                explanation=f"tool(s) missing bpmn:documentation: {undocumented}",
-            )
-
-        from_ai_inputs = [
-            inp
-            for inp in host.findall(".//zeebe:input", NS)
-            if _has_feel_identifier(inp.get("source") or "", "fromAi")
+            for candidate in candidate_hosts
         ]
-        if not from_ai_inputs:
-            return Score(
-                value=0.0,
-                explanation="no zeebe:input source uses fromAi(...)",
-            )
-
-        missing_tool_results = [
-            tool.get("id") or "<unknown>"
-            for tool in tools
-            if not has_tool_call_result(tool)
-        ]
-        if missing_tool_results:
-            return Score(
-                value=0.0,
-                explanation=(
-                    "tool(s) missing toolCallResult mapping: "
-                    f"{missing_tool_results}"
-                ),
-            )
-
-        prompt_inputs = {
-            inp.get("target"): (inp.get("source") or "")
-            for inp in host.findall(".//zeebe:input", NS)
-        }
-        system_prompt = prompt_inputs.get("data.systemPrompt.prompt", "")
-        user_prompt = prompt_inputs.get("data.userPrompt.prompt", "")
-        if not system_prompt.startswith("=") or not user_prompt.startswith("="):
-            return Score(
-                value=0.0,
-                explanation="both system/user prompts must be FEEL strings (start with '=')",
-            )
-        if "data.limits.maxModelCalls" not in prompt_inputs:
-            return Score(
-                value=0.0,
-                explanation="missing data.limits.maxModelCalls input",
-            )
-
-        return Score(
-            value=1.0,
-            explanation=(
-                f"valid AI-agent shape in {path} for {expected_process_id}; "
-                f"tools={sorted(tool_ids)}"
+        return next(
+            (
+                candidate_score
+                for candidate_score in candidate_scores
+                if candidate_score.value == 1.0
             ),
-            metadata={
-                "path": path,
-                "process_id": expected_process_id,
-                "tool_ids": sorted(tool_ids),
-                "from_ai_inputs": len(from_ai_inputs),
-            },
+            candidate_scores[0],
         )
 
     return score
