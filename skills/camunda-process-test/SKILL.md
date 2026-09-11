@@ -94,6 +94,10 @@ For CPT 8.9+, use the Java fallback only when the segment needs Spring bean mock
 
 ### 5. Run
 
+Run Maven from the directory containing the relevant `pom.xml`. For a Node.js layout, use the
+generated `test/` directory and keep `NODE_RESOURCE_DIR` set to the resolved resource directory
+for this command and every retry, as described in [references/setup.md](references/setup.md).
+
 ```bash
 mvn test
 ```
@@ -191,7 +195,7 @@ Duplicates flagged: 0
 
 When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
 
-1. **Run and diagnose failures** — execute `mvn test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
+1. **Run and diagnose failures** — execute `mvn test` from the directory containing the relevant `pom.xml`; for a Node.js layout, run it from `test/` with `NODE_RESOURCE_DIR` set to the resolved resource directory for the initial run and every retry. Classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
 2. **Evaluate coverage gaps before writing new tests** — explain current suite coverage in business terms, list uncovered branches/boundaries/rules, and recommend the smallest next set of scenarios. See [references/evaluation.md](references/evaluation.md).
 3. **Wire tests into CI** — configure CI to run CPT reliably and publish JUnit artifacts, with optional integration profile runs gated to trusted branches. See [references/ci.md](references/ci.md).
 
