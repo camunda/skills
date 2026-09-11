@@ -30,7 +30,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Run CPT tests
-        run: mvn test
+        run: mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test
       - name: Upload Surefire reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -41,7 +41,7 @@ jobs:
 
 ## Optional split: process vs integration profile
 
-- Keep `mvn test` on pull requests for fast feedback.
+- Keep the Maven test command on pull requests for fast feedback.
 - Run integration profile jobs (`mvn verify -P integration-test`) on protected branches or scheduled runs.
 - Store required cluster credentials in CI secrets, never in repo files.
 

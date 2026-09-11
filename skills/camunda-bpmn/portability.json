@@ -28,7 +28,7 @@
     }
   },
   "limitations": [
-    "Process modeling requires c8ctl 3.0.0 or newer and a BPMN-aware project workspace."
+    "Basic BPMN linting requires c8ctl 3.0.0 or newer; the documented bpmn format workflow requires c8ctl 3.2.0 or newer, plus a BPMN-aware project workspace."
   ],
   "differences": [
     "BPMN XML and c8ctl command syntax are harness-neutral; file editing and command execution depend on host capabilities."

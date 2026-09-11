@@ -8,14 +8,14 @@ Use this when tests already exist and the user asks to run/fix them.
 2. Run:
 
 ```bash
-mvn test
+mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test
 ```
 
 3. If tests fail, classify each failure:
    - **Infrastructure** (Docker down, deployment parse failure, missing resources)
    - **Test defect** (wrong IDs, missing instruction, stale variable names)
    - **Process defect** (gateway logic, DMN rule behavior, BPMN error code mismatch)
-4. Apply fixes in batches by class (not one-by-one churn), then re-run `mvn test`.
+4. Apply fixes in batches by class (not one-by-one churn), then re-run `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`.
 5. Stop after 3 no-progress cycles — defined as a re-run producing no reduction in failing tests and no new diagnostic signal — and surface blockers explicitly.
 
 ## Failure-class defaults

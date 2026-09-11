@@ -28,7 +28,7 @@
     }
   },
   "limitations": [
-    "Process tests require Camunda Process Test 8.9+, Java 21+, Maven, Docker, and a test project with the referenced resources."
+    "Process tests require Camunda Process Test 8.8+, Java 21+, Maven, Docker, and a test project with the referenced resources; the instruction-based .test.json workflow requires 8.9+."
   ],
   "differences": [
     "Scenario and coverage semantics are harness-neutral; Java/Maven execution, Docker lifecycle, and report collection are host-managed."

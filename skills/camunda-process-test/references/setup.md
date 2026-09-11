@@ -56,7 +56,8 @@ Required entry in the project (or test harness) `pom.xml`:
 </dependencies>
 ```
 
-Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
+Use 8.9+ for the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …).
+Java fallback-only suites can use a compatible 8.8.x release.
 
 ### Spring Boot 4.x pin (CPT 8.9.x only)
 
@@ -165,10 +166,12 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 </testResources>
 ```
 
-Pass the resolved directory to every Maven invocation, for example:
+Pass the resolved directory to every Maven invocation, including `test` and any retry. The workflow commands
+in `SKILL.md` use the same property:
 
 ```bash
 mvn -Dnode.resource.dir="$NODE_RESOURCE_DIR" test-compile
+mvn -Dnode.resource.dir="$NODE_RESOURCE_DIR" test
 ```
 
 Do not replace `node.resource.dir` with `../resources` unless that is the directory the project build declares.

@@ -1,12 +1,12 @@
 ---
 name: camunda-process-test
 description: |
-  Use this skill to author and run Camunda Process Test suites for 100% BPMN coverage. Use it for segment planning, `.test.json` scenarios, Java fallback tests, `mvn test`, coverage reports, and suite maintenance. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or build UI/E2E tests.
+  Use this skill to author and run Camunda Process Test suites for 100% BPMN coverage. Use it for segment planning, `.test.json` scenarios, Java fallback tests, Maven test commands, coverage reports, and suite maintenance. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or build UI/E2E tests.
 ---
 
 # Camunda Process Test
 
-**WORKFLOW SKILL**: plan segments, author scenarios, run `mvn test`, and close coverage gaps.
+**WORKFLOW SKILL**: plan segments, author scenarios, run the Maven test command, and close coverage gaps.
 
 ## DO NOT USE FOR:
 
@@ -17,8 +17,12 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 ## Prerequisites
 
 - Java 21+, Maven (or `./mvnw`), Docker runtime (OrbStack, Docker Desktop, or Rancher Desktop) — see [references/setup.md](references/setup.md)
-- `camunda-process-test-spring` 8.9+ on the test classpath (instruction-based JSON format requires 8.9)
+- `camunda-process-test-spring` 8.8+ on the test classpath; the instruction-based JSON format and 8.9-only APIs require 8.9+
 - A working BPMN file (lint clean — see camunda-bpmn). DMN and form files referenced by the BPMN must also be present.
+
+For a Node.js layout, set `NODE_RESOURCE_DIR` as described in [references/setup.md](references/setup.md). Use
+`-Dnode.resource.dir="${NODE_RESOURCE_DIR:-}"` on every Maven command below; the empty property is harmless
+for standard Java layouts.
 
 ## Cross-References
 
@@ -64,11 +68,12 @@ Then classify current suite gaps:
 - **Stale**: IDs still exist, but branch-driving variables or assumptions no longer match gateway/DMN behavior.
 - **Missing**: new branches, boundary events, or end events have no segment coverage.
 
-Fix in this order: broken → stale → missing, then run `mvn test` and continue with coverage verification.
+Fix in this order: broken → stale → missing, then run `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`
+and continue with coverage verification.
 
 ### 2. Setup (only if missing)
 
-Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
+Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test-compile`.
 
 ### 3. Plan segments (set-cover, not per-element)
 
@@ -91,7 +96,7 @@ Use the Java fallback only when the segment needs Spring bean mocking, parameter
 ### 5. Run
 
 ```bash
-mvn test
+mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test
 ```
 
 On failure, diagnose with [references/troubleshooting.md](references/troubleshooting.md). Distinguish **test problems** (variable typo, wrong element id, missing instruction) from **process problems** (wrong FEEL condition, wrong DMN rule, wrong error code). Fix the right side. Re-run. Stop after 3 repair cycles with no progress.
@@ -142,7 +147,7 @@ PY
 
 Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_]+"' <bpmn>`, exclude `_di`, `BPMNDiagram`, `BPMNPlane`, `Definitions_`, `ErrorDef_`, `TimerDef_`, `Signal_`, `Message_`).
 
-**Surface the HTML report path to the user as soon as `mvn test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
+**Surface the HTML report path to the user as soon as `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
 
 **Patch-loop on prediction misses — default behavior.** Set-cover planning in step 3 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
 
@@ -150,7 +155,7 @@ Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_
 2. Re-run greedy set-cover restricted to the remaining uncovered ids. Add the chosen candidates (often one) to the scenario file.
 3. For timer boundary events: use `INCREASE_TIME` with an ISO 8601 `duration` greater than the timer cycle (e.g. `"PT25H"` for `R/PT24H`). The boundary fires; the outgoing path's job is created; complete it with `COMPLETE_JOB`.
 4. For message boundary events: `PUBLISH_MESSAGE` instruction with matching name + correlationKey.
-5. Re-run step 5 (`mvn test`) → step 6. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
+5. Re-run step 5 (`mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`) → step 6. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
 
 Hard blockers that terminate the loop:
 
@@ -187,7 +192,7 @@ Duplicates flagged: 0
 
 When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
 
-1. **Run and diagnose failures** — execute `mvn test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
+1. **Run and diagnose failures** — execute `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
 2. **Evaluate coverage gaps before writing new tests** — explain current suite coverage in business terms, list uncovered branches/boundaries/rules, and recommend the smallest next set of scenarios. See [references/evaluation.md](references/evaluation.md).
 3. **Wire tests into CI** — configure CI to run CPT reliably and publish JUnit artifacts, with optional integration profile runs gated to trusted branches. See [references/ci.md](references/ci.md).
 
