@@ -1,0 +1,87 @@
+{
+  "$schema": "./audit.schema.json",
+  "schemaVersion": 1,
+  "specUrl": "https://agentskills.io/specification",
+  "specRevisionOrAuditDate": "2026-09-11",
+  "auditDate": "2026-09-11",
+  "skills": [
+    {
+      "name": "camunda-ai-agents",
+      "skillDirectory": "skills/camunda-ai-agents",
+      "sidecar": "skills/camunda-ai-agents/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-bpmn",
+      "skillDirectory": "skills/camunda-bpmn",
+      "sidecar": "skills/camunda-bpmn/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-c8ctl",
+      "skillDirectory": "skills/camunda-c8ctl",
+      "sidecar": "skills/camunda-c8ctl/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-connectors",
+      "skillDirectory": "skills/camunda-connectors",
+      "sidecar": "skills/camunda-connectors/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-connectors-development",
+      "skillDirectory": "skills/camunda-connectors-development",
+      "sidecar": "skills/camunda-connectors-development/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-development",
+      "skillDirectory": "skills/camunda-development",
+      "sidecar": "skills/camunda-development/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-dmn",
+      "skillDirectory": "skills/camunda-dmn",
+      "sidecar": "skills/camunda-dmn/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-docs",
+      "skillDirectory": "skills/camunda-docs",
+      "sidecar": "skills/camunda-docs/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-feel",
+      "skillDirectory": "skills/camunda-feel",
+      "sidecar": "skills/camunda-feel/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-forms",
+      "skillDirectory": "skills/camunda-forms",
+      "sidecar": "skills/camunda-forms/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-job-workers",
+      "skillDirectory": "skills/camunda-job-workers",
+      "sidecar": "skills/camunda-job-workers/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-process-mgmt",
+      "skillDirectory": "skills/camunda-process-mgmt",
+      "sidecar": "skills/camunda-process-mgmt/portability.json",
+      "status": "portable-with-adapter"
+    },
+    {
+      "name": "camunda-process-test",
+      "skillDirectory": "skills/camunda-process-test",
+      "sidecar": "skills/camunda-process-test/portability.json",
+      "status": "portable-with-adapter"
+    }
+  ]
+}

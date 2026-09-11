@@ -1,0 +1,52 @@
+{
+  "$schema": "./harness-smoke-contract.schema.json",
+  "schemaVersion": 1,
+  "contractId": "camunda-skills-harness-smoke-v1",
+  "discovery": {
+    "repositoryRoot": ".",
+    "skillEntrypointPattern": "skills/<name>/SKILL.md",
+    "requiredEntrypoint": "skills/camunda-bpmn/SKILL.md",
+    "sidecarPattern": "skills/<name>/portability.json",
+    "discoveryResultField": "discovered"
+  },
+  "activation": {
+    "fixturePath": "compatibility/fixtures/camunda-bpmn-smoke.json",
+    "skillNameField": "skillName",
+    "promptField": "prompt",
+    "activationResultField": "activated"
+  },
+  "resultAssertions": {
+    "required": {
+      "discovered": true,
+      "activated": true
+    },
+    "artifact": {
+      "path": "process.bpmn",
+      "required": true
+    },
+    "toolCall": {
+      "command": "c8ctl bpmn lint process.bpmn",
+      "match": "exact",
+      "required": true
+    }
+  },
+  "adapters": {
+    "deterministicMocks": {
+      "required": true,
+      "networkAccess": false,
+      "credentialsRequired": false,
+      "modelOutputRequired": false,
+      "entryPoints": {
+        "claude": "mock-claude",
+        "copilot": "mock-copilot"
+      },
+      "passCondition": "Both entry points satisfy every resultAssertions field."
+    },
+    "liveCopilot": {
+      "optional": true,
+      "optIn": "Explicit workflow dispatch or documented live-integration opt-in.",
+      "allowedResults": ["passed", "failed", "skipped", "unavailable"],
+      "unavailableBehavior": "Report skipped or unavailable explicitly; never count it as a deterministic mock pass."
+    }
+  }
+}
