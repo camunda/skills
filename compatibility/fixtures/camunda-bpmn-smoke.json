@@ -7,6 +7,11 @@
     "discovered": true,
     "activated": true,
     "artifact": "process.bpmn",
-    "toolCommand": "c8ctl bpmn lint process.bpmn"
+    "artifactSource": "compatibility/fixtures/process.bpmn",
+    "artifactExists": true,
+    "artifactValid": true,
+    "toolCommand": "c8ctl bpmn lint process.bpmn",
+    "toolExecuted": true,
+    "toolSucceeded": true
   }
 }

@@ -46,7 +46,8 @@ these ownership boundaries:
   assertions.
 - `compatibility/fixtures/camunda-bpmn-smoke.json` is the fixed checked-in
   smoke fixture consumed by both deterministic adapters.
-- The conformance checker is responsible for filesystem and cross-file checks:
+- `compatibility/check.py` is the conformance checker and is responsible for
+  filesystem and cross-file checks:
   missing skills, duplicate names, stale paths, and mismatched sidecar,
   inventory, and audit values are failures.
 
@@ -138,8 +139,9 @@ specification URL, `specRevisionOrAuditDate`, `auditDate`, and the complete
 skill list with the same name, paths, and status values. The index and audit
 must agree with every sidecar. A checker must reject omitted skills, duplicate
 names, paths that do not resolve to the expected files, and status or
-specification-date mismatches. The seed files in this wave enumerate all
-current skills; the content-audit wave supplies and verifies each sidecar.
+specification-date mismatches. The checked-in sidecars are part of this
+contract, so the checker also rejects a skill directory without a sidecar or a
+sidecar that is not represented in both inventories.
 
 ## Harness smoke boundary
 
@@ -150,17 +152,36 @@ interaction boundary:
 1. Discover `skills/camunda-bpmn/SKILL.md` from the repository root.
 2. Activate `camunda-bpmn` with the fixture's fixed prompt.
 3. Report `discovered: true` and `activated: true`.
-4. Emit an artifact named exactly `process.bpmn`.
-5. Record the exact tool command `c8ctl bpmn lint process.bpmn`.
+4. Emit an artifact named exactly `process.bpmn`, and require that it exists
+   and is valid BPMN.
+5. Execute the exact tool command `c8ctl bpmn lint process.bpmn` and require a
+   successful result.
 
 The Claude and GitHub Copilot deterministic mock adapters are separate entry
-points, but both must produce the same assertion shape without credentials,
-network calls, or model output. A deterministic mock pass is required PR
-evidence. Live GitHub Copilot execution is a separate, opt-in integration. Its
-result must be explicitly `passed`, `failed`, `skipped`, or `unavailable`;
-`skipped` and `unavailable` are reported outcomes and never count as a mock
-pass. An unavailable live integration must not be converted into success by a
-catch-all fallback.
+points at `compatibility/adapters/mock-claude` and
+`compatibility/adapters/mock-copilot`. Both produce the same assertion shape
+without credentials, network calls, or model output. They materialize the
+checked-in `compatibility/fixtures/process.bpmn`, validate the emitted copy,
+and execute the contract command through the local deterministic
+`compatibility/adapters/c8ctl` shim. A deterministic mock pass is required PR
+evidence and is enforced by `make compatibility-check` and
+`.github/workflows/compatibility.yml`. Live GitHub Copilot execution is a
+separate, opt-in integration. Its result must be explicitly `passed`, `failed`,
+`skipped`, or `unavailable`; `skipped` and `unavailable` are reported outcomes
+and never count as a mock pass. An unavailable live integration must not be
+converted into success by a catch-all fallback.
+
+## Conformance and smoke commands
+
+Run the complete local gate from the repository root:
+
+```bash
+make compatibility-check
+```
+
+The conformance checker validates the inventory, audit, sidecar, schema-shape,
+and filesystem relationships. The two deterministic adapters then validate
+the artifact and execute the required command independently.
 
 ## Examples
 

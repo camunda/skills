@@ -117,7 +117,7 @@
         "artifact": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["path", "required"],
+          "required": ["path", "required", "mustExist", "mustBeValid"],
           "properties": {
             "path": {
               "type": "string",
@@ -125,13 +125,19 @@
             },
             "required": {
               "const": true
+            },
+            "mustExist": {
+              "const": true
+            },
+            "mustBeValid": {
+              "const": true
             }
           }
         },
         "toolCall": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["command", "match", "required"],
+          "required": ["command", "match", "required", "mustExecute", "mustSucceed"],
           "properties": {
             "command": {
               "type": "string",
@@ -142,6 +148,12 @@
               "const": "exact"
             },
             "required": {
+              "const": true
+            },
+            "mustExecute": {
+              "const": true
+            },
+            "mustSucceed": {
               "const": true
             }
           }
@@ -184,11 +196,11 @@
               "properties": {
                 "claude": {
                   "type": "string",
-                  "const": "mock-claude"
+                  "const": "compatibility/adapters/mock-claude"
                 },
                 "copilot": {
                   "type": "string",
-                  "const": "mock-copilot"
+                  "const": "compatibility/adapters/mock-copilot"
                 }
               }
             },

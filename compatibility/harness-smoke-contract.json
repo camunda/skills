@@ -22,12 +22,16 @@
     },
     "artifact": {
       "path": "process.bpmn",
-      "required": true
+      "required": true,
+      "mustExist": true,
+      "mustBeValid": true
     },
     "toolCall": {
       "command": "c8ctl bpmn lint process.bpmn",
       "match": "exact",
-      "required": true
+      "required": true,
+      "mustExecute": true,
+      "mustSucceed": true
     }
   },
   "adapters": {
@@ -37,10 +41,10 @@
       "credentialsRequired": false,
       "modelOutputRequired": false,
       "entryPoints": {
-        "claude": "mock-claude",
-        "copilot": "mock-copilot"
+        "claude": "compatibility/adapters/mock-claude",
+        "copilot": "compatibility/adapters/mock-copilot"
       },
-      "passCondition": "Both entry points satisfy every resultAssertions field."
+      "passCondition": "Both entry points emit process.bpmn, validate it as BPMN, execute c8ctl bpmn lint process.bpmn, and report exit code 0."
     },
     "liveCopilot": {
       "optional": true,

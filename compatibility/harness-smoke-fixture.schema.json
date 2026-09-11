@@ -25,7 +25,17 @@
     "expected": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["discovered", "activated", "artifact", "toolCommand"],
+      "required": [
+        "discovered",
+        "activated",
+        "artifact",
+        "artifactSource",
+        "artifactExists",
+        "artifactValid",
+        "toolCommand",
+        "toolExecuted",
+        "toolSucceeded"
+      ],
       "properties": {
         "discovered": {
           "const": true
@@ -37,9 +47,25 @@
           "type": "string",
           "const": "process.bpmn"
         },
+        "artifactSource": {
+          "type": "string",
+          "const": "compatibility/fixtures/process.bpmn"
+        },
+        "artifactExists": {
+          "const": true
+        },
+        "artifactValid": {
+          "const": true
+        },
         "toolCommand": {
           "type": "string",
           "const": "c8ctl bpmn lint process.bpmn"
+        },
+        "toolExecuted": {
+          "const": true
+        },
+        "toolSucceeded": {
+          "const": true
         }
       }
     }

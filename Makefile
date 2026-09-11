@@ -41,6 +41,7 @@ help:
 	@echo "  help                 Show this help."
 	@echo "  try                  Launch an interactive Claude Code session with this repo's skills loaded (no install)."
 	@echo "  lint                 Run waza check across all skills (or one if SKILL=<name> is set)."
+	@echo "  compatibility-check  Validate portability metadata and run deterministic smoke adapters."
 	@echo ""
 	@echo "Run:"
 	@echo "  run-trigger-evals    Run trigger evals: every skill, or one with SKILL=<name>."
@@ -91,6 +92,12 @@ lint:
 	else \
 		waza check; \
 	fi
+
+.PHONY: compatibility-check
+compatibility-check:
+	@python3 compatibility/check.py
+	@compatibility/adapters/mock-claude >/dev/null
+	@compatibility/adapters/mock-copilot >/dev/null
 
 .PHONY: build-docker-images
 build-docker-images:
