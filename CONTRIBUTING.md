@@ -23,6 +23,39 @@ skills/camunda-<name>/
 
 Eval suites live at the repo root under `evals/`, not inside skill directories — skills must stay self-contained. See "Evals" below.
 
+## Portability and compatibility
+
+The repository targets the [Agent Skills specification](https://agentskills.io/specification).
+The canonical contract is [`compatibility/portability-contract.md`](compatibility/portability-contract.md);
+it records the supported package layout, discovery boundary, harness guarantees, and smoke-test
+semantics. Do not add repository compatibility fields to `SKILL.md` frontmatter.
+
+Every skill must have a matching `skills/<name>/portability.json` sidecar. The top-level
+`specUrl` and `specRevisionOrAuditDate` fields in both inventories, together with each sidecar's
+corresponding `agentSkillsSpec` fields, must agree on the specification URL and audit baseline.
+The sidecar, entry in [`compatibility/skills-index.json`](compatibility/skills-index.json), and
+entry in [`compatibility/audit.json`](compatibility/audit.json) must also agree on the skill name,
+paths, and status. The repository-level status is one of
+`portable`, `portable-with-adapter`, or `harness-specific`; harness entries identify whether
+Claude, Copilot, or a generic host is `native`, `adapter-required`, `unsupported`, or
+`not-tested`. Differences and limitations must describe the actual behavior of the skill, not a
+generic claim about tool names.
+
+When adding, removing, or renaming a skill, update the sidecar and both inventories in the same
+change. Update the README compatibility matrix so every inventory entry has one working sidecar
+link and a concise pointer to its local differences or limitations. Run the canonical check from
+the repository root:
+
+```bash
+make compatibility-check
+```
+
+This check reports each skill separately and rejects missing or stale sidecars, inventory
+omissions, mismatched statuses, invalid declarations, and inconsistent specification audit fields.
+The deterministic Claude and Copilot mock adapters must remain credential-free and must not be
+replaced by a live model call. Live Copilot checks are optional and must report unavailable or
+skipped explicitly rather than treating them as a pass.
+
 ## SKILL.md Format
 
 ```yaml
