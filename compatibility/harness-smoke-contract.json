@@ -44,7 +44,7 @@
         "claude": "compatibility/adapters/mock-claude",
         "copilot": "compatibility/adapters/mock-copilot"
       },
-      "passCondition": "Both entry points emit process.bpmn, validate it as BPMN, execute c8ctl bpmn lint process.bpmn, and report exit code 0."
+      "passCondition": "Both entry points run the shared contract fixture: each emits process.bpmn, validates it as BPMN, executes c8ctl bpmn lint process.bpmn, and reports exit code 0. This is shared contract-fixture coverage, not independent per-harness implementation coverage."
     },
     "liveCopilot": {
       "optional": true,

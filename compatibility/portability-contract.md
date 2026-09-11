@@ -165,14 +165,18 @@ interaction boundary:
 5. Execute the exact tool command `c8ctl bpmn lint process.bpmn` and require a
    successful result.
 
-The Claude and GitHub Copilot deterministic mock adapters are separate entry
+The Claude and GitHub Copilot deterministic mock commands are separate entry
 points at `compatibility/adapters/mock-claude` and
-`compatibility/adapters/mock-copilot`. Both produce the same assertion shape
+`compatibility/adapters/mock-copilot` into one shared contract fixture. They
+intentionally do not emulate independent harness implementations or
+per-harness discovery and tool mappings. Both produce the same assertion shape
 without credentials, network calls, or model output. They materialize the
 checked-in `compatibility/fixtures/process.bpmn`, validate the emitted copy,
 and execute the contract command through the local deterministic
-`compatibility/adapters/c8ctl` shim. A deterministic mock pass is required PR
-evidence and is enforced by `make compatibility-check` and
+`compatibility/adapters/c8ctl` shim. These are shared contract-fixture smoke
+checks, not independent per-harness implementation coverage; harness-specific
+behavior requires dedicated integration tests. A deterministic mock pass is
+required PR evidence and is enforced by `make compatibility-check` and
 `.github/workflows/compatibility.yml`. Live GitHub Copilot execution is a
 separate, opt-in integration. Its result must be explicitly `passed`, `failed`,
 `skipped`, or `unavailable`; `skipped` and `unavailable` are reported outcomes
