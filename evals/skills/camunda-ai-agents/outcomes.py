@@ -41,6 +41,7 @@ ACTIVITY_TAGS = {
 }
 
 AI_AGENT_TEMPLATE = "io.camunda.connectors.agenticai.aiagent.jobworker.v1"
+AI_AGENT_TEMPLATE_PREFIX = "io.camunda.connectors.agenticai.aiagent.jobworker."
 AI_AGENT_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent-job-worker:"
 
 
@@ -51,15 +52,13 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     task_definition = host.find(
         "./bpmn:extensionElements/zeebe:taskDefinition", NS
     )
-    if template == AI_AGENT_TEMPLATE:
-        return task_definition is not None
+    task_type = (
+        task_definition.get("type") if task_definition is not None else ""
+    ) or ""
+    if template and template.startswith(AI_AGENT_TEMPLATE_PREFIX):
+        return task_type.startswith(AI_AGENT_TASK_TYPE_PREFIX)
 
-    if task_definition is not None and (
-        task_definition.get("type") or ""
-    ).startswith(AI_AGENT_TASK_TYPE_PREFIX):
-        return True
-
-    return False
+    return task_type.startswith(AI_AGENT_TASK_TYPE_PREFIX)
 
 
 @scorer(metrics=[mean(), stderr()])
