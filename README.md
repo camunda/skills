@@ -31,19 +31,34 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 
 ## Installation
 
-### Any AI coding agent
+### GitHub Copilot CLI
 
-Several installers in the [Agent Skills](https://agentskills.io) ecosystem support a range of agents — Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI, Goose, and others. Two common ones:
+The Copilot plugin installs the complete Camunda skills collection. Register the marketplace once,
+then install the plugin:
 
 ```bash
-# npm-based
-npx skills add camunda/skills --skill '*'
-
-# GitHub CLI -- select "all skills"
-gh skill install camunda/skills
+copilot plugin marketplace add camunda/skills
+copilot plugin install camunda-skills@camunda
 ```
 
-See each tool's `--help` for supported agents and options (version pinning, scope).
+Verify the installation with `copilot plugin list`. In a Copilot CLI session, use `/skills list` to
+see the installed skills.
+
+### Other compatible agents
+
+Use [GitHub CLI](https://cli.github.com/) 2.90+ to install one skill for a compatible agent:
+
+```bash
+# Install a skill for the current project
+gh skill install camunda/skills camunda-bpmn --agent <your-agent>
+
+# Install the skill for your user account
+gh skill install camunda/skills camunda-bpmn --agent <your-agent> --scope user
+```
+
+Replace `<your-agent>` with the identifier supported by your host, such as `cursor`, `codex`,
+`gemini-cli`, or `cline`. Run `gh skill install --help` to see the current list of supported
+agents. Use `--all` instead of a skill name to install the complete collection.
 
 ### Claude Code Plugin
 

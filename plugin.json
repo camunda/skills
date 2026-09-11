@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "camunda-skills",
+  "description": "Official Camunda 8 development skills for AI coding agents.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Camunda",
+    "url": "https://camunda.com"
+  },
+  "homepage": "https://github.com/camunda/skills",
+  "repository": "https://github.com/camunda/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "camunda",
+    "camunda-8",
+    "bpmn",
+    "feel",
+    "dmn",
+    "connectors",
+    "agent-skills"
+  ]
+}
