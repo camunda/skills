@@ -227,14 +227,43 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
     references.mkdir(parents=True)
     (references / "guide.md").write_text("# Guide\n", encoding="utf-8")
     (references / "guide_(v1).md").write_text("# Guide\n", encoding="utf-8")
+    (references / "guide_(escaped).md").write_text("# Guide\n", encoding="utf-8")
     (package / "README.md").write_text(
         '[guide](references/guide.md "Guide")\n'
         "[guide](references/guide_(v1).md)\n"
+        r"[guide](references/guide_\(escaped\).md)" "\n"
         "[guide][guide-reference]\n"
         '[guide-reference]: references/guide.md "Reference title"\n'
         "`[missing](missing.md)`\n"
         "https://example.test/skills/foo/\n"
         "HTTPS://example.test/skills/foo/\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
+def test_ignores_repository_references_in_indented_and_nested_code_blocks(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "    [missing](missing.md)\n"
+        "    skills/example/\n"
+        "\n"
+        "> ```text\n"
+        "> [missing](missing.md)\n"
+        "> skills/example/\n"
+        "> ```\n"
+        "\n"
+        "- ```text\n"
+        "  [missing](missing.md)\n"
+        "  skills/example/\n"
+        "  ```\n",
         encoding="utf-8",
     )
 
@@ -262,6 +291,35 @@ def test_ignores_repository_references_in_multiline_code_fences(
     check.check_skill_self_containment(package, errors)
 
     assert errors == []
+
+
+def test_ignores_non_file_uri_references_in_plain_text(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "ftp://host/skills/example/\n"
+        "<custom+scheme://host/compatibility/example>\n"
+        "[file](file:../README.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 1
+    assert "file:../README.md" in errors[0]
+
+
+def test_reports_invalid_percent_encoded_nul_link(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text("[invalid](%00)\n", encoding="utf-8")
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 1
+    assert "cannot resolve local link destination" in errors[0]
 
 
 def test_ignores_repository_references_in_tilde_code_fences(

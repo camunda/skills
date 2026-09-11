@@ -37,8 +37,20 @@ MARKDOWN_SHORTCUT_LINK = re.compile(
 MARKDOWN_URI_AUTOLINK = re.compile(
     r"<([A-Za-z][A-Za-z0-9+.-]*:[^<>\s]*)>"
 )
-MARKDOWN_FENCE_START = re.compile(r"[ \t]{0,3}(`{3,}|~{3,})[^\n]*(?:\n|$)")
-EXTERNAL_URL = re.compile(r"https?://[^\s<>()\[\]]+", re.IGNORECASE)
+MARKDOWN_CONTAINER_PREFIX = re.compile(
+    r"(?P<container>(?:(?:[ \t]{0,3}>[ \t]?|"
+    r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]+)*))"
+)
+MARKDOWN_FENCE_LINE = re.compile(
+    rf"^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
+    rf"(?P<fence>`{{3,}}|~{{3,}})(?P<info>[^\r\n]*)$"
+)
+MARKDOWN_ESCAPED_PUNCTUATION = re.compile(r"\\([^\w\s])")
+EXTERNAL_URI = re.compile(
+    r"(?<![\w])(?!(?:file):)[A-Za-z][A-Za-z0-9+.-]*:"
+    r"[^\s<>()\[\]]+",
+    re.IGNORECASE,
+)
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
     r"(?<![\w])(?:skills/[a-z0-9-]+/|(?:README|CONTRIBUTING|evals|compatibility|\.github)/"
     r"|/(?:Users|home)/)"
@@ -310,46 +322,102 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         errors.append(f"{path}: skill body must not be empty")
 
 
-def _strip_markdown_code_spans(content: str) -> str:
-    masked: list[str] = []
-    index = 0
-    while index < len(content):
-        if index == 0 or content[index - 1] == "\n":
-            opening = MARKDOWN_FENCE_START.match(content, index)
-            if opening:
-                fence = opening.group(1)
-                closing_pattern = re.compile(
-                    rf"^[ \t]{{0,3}}{re.escape(fence[0])}"
-                    rf"{{{len(fence)},}}[ \t]*(?:\r?\n|$)",
-                    re.MULTILINE,
-                )
-                closing = closing_pattern.search(content, opening.end())
-                end = closing.end() if closing else len(content)
-                code_fence = content[index:end]
-                masked.append(
-                    "".join("\n" if character == "\n" else " " for character in code_fence)
-                )
-                index = end
-                continue
+def _mask_markdown_code_blocks(content: str) -> str:
+    masked = list(content)
+    active_fence: tuple[str, int, str] | None = None
+    offset = 0
 
-        if content[index] != "`":
-            masked.append(content[index])
+    def mask_line(start: int, end: int) -> None:
+        for index in range(start, end):
+            if masked[index] not in "\r\n":
+                masked[index] = " "
+
+    for line in content.splitlines(keepends=True):
+        line_text = line.rstrip("\r\n")
+        match = MARKDOWN_FENCE_LINE.fullmatch(line_text)
+        if active_fence is not None:
+            mask_line(offset, offset + len(line))
+            if match:
+                fence_char, fence_length, container = active_fence
+                closes = (
+                    match.group("fence")[0] == fence_char
+                    and len(match.group("fence")) >= fence_length
+                    and not match.group("info").strip()
+                )
+                if closes:
+                    opening_has_list = bool(
+                        re.search(
+                            r"(?:^|[ \t])(?:[-+*]|\d+[.)])[ \t]+",
+                            container,
+                        )
+                    )
+                    closing_container = match.group("container")
+                    closing_has_list = bool(
+                        re.search(
+                            r"(?:^|[ \t])(?:[-+*]|\d+[.)])[ \t]+",
+                            closing_container,
+                        )
+                    )
+                    opening_quote_depth = container.count(">")
+                    closing_quote_depth = closing_container.count(">")
+                    closes = (
+                        opening_quote_depth == closing_quote_depth
+                        and (
+                            container == closing_container
+                            or (
+                                opening_quote_depth == closing_quote_depth
+                                and not closing_has_list
+                                and (opening_has_list or ">" not in container)
+                            )
+                        )
+                    )
+                if closes:
+                    active_fence = None
+        elif match:
+            mask_line(offset, offset + len(line))
+            active_fence = (
+                match.group("fence")[0],
+                len(match.group("fence")),
+                match.group("container"),
+            )
+        else:
+            prefix = MARKDOWN_CONTAINER_PREFIX.match(line_text)
+            remainder = line_text[prefix.end() :] if prefix else line_text
+            if remainder.startswith("\t") or remainder.startswith("    "):
+                mask_line(offset, offset + len(line))
+        offset += len(line)
+
+    return "".join(masked)
+
+
+def _strip_markdown_code_spans(content: str) -> str:
+    masked = _mask_markdown_code_blocks(content)
+    result: list[str] = []
+    index = 0
+    while index < len(masked):
+        if masked[index] != "`":
+            result.append(masked[index])
             index += 1
             continue
 
         fence_start = index
-        while index < len(content) and content[index] == "`":
+        while index < len(masked) and masked[index] == "`":
             index += 1
-        fence = content[fence_start:index]
-        closing = content.find(fence, index)
+        fence = masked[fence_start:index]
+        closing = masked.find(fence, index)
         if closing == -1:
-            masked.append(content[fence_start:])
+            code_span = masked[fence_start:]
+            result.append(
+                "".join("\n" if character == "\n" else " " for character in code_span)
+            )
             break
 
-        code_span = content[fence_start : closing + len(fence)]
-        masked.append("".join("\n" if character == "\n" else " " for character in code_span))
+        code_span = masked[fence_start : closing + len(fence)]
+        result.append(
+            "".join("\n" if character == "\n" else " " for character in code_span)
+        )
         index = closing + len(fence)
-    return "".join(masked)
+    return "".join(result)
 
 
 def _link_destination(raw: str) -> str:
@@ -358,11 +426,13 @@ def _link_destination(raw: str) -> str:
         return ""
     if raw.startswith("<"):
         closing = raw.find(">", 1)
-        return raw[1:closing] if closing != -1 else raw
+        destination = raw[1:closing] if closing != -1 else raw
+        return MARKDOWN_ESCAPED_PUNCTUATION.sub(r"\1", destination)
     for index, character in enumerate(raw):
         if character.isspace():
-            return raw[:index]
-    return raw
+            raw = raw[:index]
+            break
+    return MARKDOWN_ESCAPED_PUNCTUATION.sub(r"\1", raw)
 
 
 def _reference_label(value: str) -> str:
@@ -494,7 +564,7 @@ def check_skill_self_containment(
                 continue
             try:
                 candidate = (path.parent / target_path).resolve()
-            except (OSError, RuntimeError) as error:
+            except (OSError, RuntimeError, ValueError) as error:
                 errors.append(
                     f"{path}: rule=content.self-contained cannot resolve local "
                     f"link destination {target!r} ({error})"
@@ -515,7 +585,7 @@ def check_skill_self_containment(
                 )
 
         for line_number, line in enumerate(masked_content.splitlines(), start=1):
-            line_without_urls = EXTERNAL_URL.sub("", line)
+            line_without_urls = EXTERNAL_URI.sub("", line)
             if FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls):
                 errors.append(
                     f"{path}:{line_number}: rule=content.self-contained "

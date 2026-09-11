@@ -167,7 +167,7 @@ def main() -> int:
 
         artifact_path = workspace / expected["artifact"]
         artifact_exists = artifact_path.is_file()
-        activated = completed.returncode == 0
+        copilot_succeeded = completed.returncode == 0
         artifact_valid = False
         if artifact_exists:
             try:
@@ -211,6 +211,7 @@ def main() -> int:
 
         passed = (
             activated
+            and copilot_succeeded
             and artifact_exists
             and artifact_valid
             and tool_executed
