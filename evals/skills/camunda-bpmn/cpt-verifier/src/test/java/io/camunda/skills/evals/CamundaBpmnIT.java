@@ -28,7 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *
  * The cpt_scorer selects which test runs via surefire {@code -Dtest=ClassName#methodName}:
  *   linear-invoice-review      → reviewInvoiceUserTaskIsReached
- *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 2 cases)
+ *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 3 cases)
  */
 @SpringBootTest
 @CamundaSpringProcessTest
@@ -75,9 +75,11 @@ class CamundaBpmnIT {
   @ParameterizedTest(name = "{3}")
   @CsvSource({
     "1500, manual-approval, auto-approval, amount > 1000 routes to manual-approval",
-    "100, auto-approval, manual-approval, amount <= 1000 routes to auto-approval"
+    "100, auto-approval, manual-approval, amount <= 1000 uses the default auto-approval branch",
+    "MISSING, auto-approval, manual-approval, missing amount uses the safe default branch"
   })
-  void xorGatewayRoutesCorrectly(int amount, String expectedType, String unexpectedType, String label)
+  void xorGatewayRoutesCorrectly(
+      String amount, String expectedType, String unexpectedType, String label)
       throws Exception {
     deploy();
 
@@ -85,13 +87,15 @@ class CamundaBpmnIT {
     context.mockJobWorker("validate-order").thenComplete();
     context.mockJobWorker("send-confirmation").thenComplete();
 
-    ProcessInstanceEvent instance =
-        client.newCreateInstanceCommand()
+    var instanceCommand =
+        client
+            .newCreateInstanceCommand()
             .bpmnProcessId("order-fulfillment")
-            .latestVersion()
-            .variables(Map.of("amount", amount))
-            .send()
-            .join();
+            .latestVersion();
+    if (!amount.equals("MISSING")) {
+      instanceCommand = instanceCommand.variables(Map.of("amount", Integer.parseInt(amount)));
+    }
+    ProcessInstanceEvent instance = instanceCommand.send().join();
 
     // After validate-order auto-completes, the XOR gateway fires.
     // Assert the expected branch produced a job (job type from the sample prompt).

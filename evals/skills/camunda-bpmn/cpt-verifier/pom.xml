@@ -7,8 +7,8 @@
   deploys the agent's BPMN from /agent-workspace and asserts:
 
   invoice-approval: process reaches ReviewInvoice user task (ACTIVE)
-  order-fulfillment: XOR gateway routes correctly for amount>1000
-                     (manual-approval) and amount<=1000 (auto-approval)
+  order-fulfillment: XOR gateway routes amount>1000 to manual-approval
+                     and uses auto-approval as the default for other inputs
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>

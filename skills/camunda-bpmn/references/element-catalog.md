@@ -154,6 +154,9 @@ DMN file must be deployed alongside the BPMN. `decisionId` matches `<decision id
 ## Gateways
 
 ### Exclusive Gateway (XOR)
+
+An exclusive gateway must have a safe fallback when its conditions are not exhaustive. This is especially important for binary or enum-style decisions: make the safer branch the `default` flow and add conditions only to the explicitly selected branch(es). A missing, unexpected, or mistyped value then follows the fallback instead of raising a `CONDITION_ERROR` incident. Do not add a redundant condition to the default flow; default flows are not evaluated.
+
 ```xml
 <bpmn:exclusiveGateway id="Gateway_Decision" name="Approved?" default="Flow_Reject">
   <bpmn:incoming>Flow_In</bpmn:incoming>
@@ -166,6 +169,8 @@ DMN file must be deployed alongside the BPMN. `decisionId` matches `<decision id
 </bpmn:sequenceFlow>
 <bpmn:sequenceFlow id="Flow_Reject" name="No" sourceRef="Gateway_Decision" targetRef="End_Rejected" />
 ```
+
+During review, inspect every exclusive gateway for a `default` flow. The `conditional-flows` lint rule catches missing conditions on non-default flows, but it does not make an all-conditional, no-default gateway safe for unmatched input.
 
 ### Parallel Gateway (AND)
 ```xml

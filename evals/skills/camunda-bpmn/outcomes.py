@@ -10,7 +10,8 @@ Scorers:
   cpt_scorer       — behavioral: CPT verifier deploys the BPMN and asserts
                      routing behavior (invoice-approval: reaches ReviewInvoice;
                      order-fulfillment: manual-approval for amount>1000,
-                     auto-approval for amount<=1000)
+                     auto-approval as the safe default for amount<=1000 and
+                     missing amount)
 
   The CPT scorer selects the matching test method via surefire ``-Dtest=``
   rather than filtering inside the Java test, keeping the verifier plain JUnit.
@@ -62,10 +63,11 @@ SAMPLES = [
             "(process id: order-fulfillment, name: 'Order Fulfillment'):\n"
             "1. Start when an order arrives ('Order received')\n"
             "2. Validate the order (service task 'Validate order', type: validate-order)\n"
-            "3. Route based on amount: orders over 1000 go to manual approval "
-            "(service task 'Approve manually', type: manual-approval); "
-            "smaller orders are auto-approved "
-            "(service task 'Auto-approve', type: auto-approval)\n"
+            "3. Route based on amount with an exclusive gateway: orders over 1000 "
+            "go to manual approval (service task 'Approve manually', "
+            "type: manual-approval); auto-approval (service task 'Auto-approve', "
+            "type: auto-approval) must be the gateway's default fallback, with "
+            "no redundant condition on that default flow\n"
             "4. After either path, send a confirmation "
             "(service task 'Send confirmation', type: send-confirmation)\n"
             "5. End the process ('Done')" + SAVE

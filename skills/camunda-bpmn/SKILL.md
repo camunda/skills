@@ -62,7 +62,7 @@ Always encode special characters in XML attribute values:
 - Name tasks with **verb + object** pattern: "Review invoice", "Send notification"
 
 **Gateways:**
-- **Exclusive (XOR)**: Exactly one path taken. Set `default` attribute for the fallback flow. Label condition flows.
+- **Exclusive (XOR)**: Exactly one path taken. Set the `default` attribute for a safe fallback flow and label condition flows. For binary or enum decisions (for example, approve/reject or yes/no), make one branch the default and put the condition only on the explicitly selected branch. Never generate an XOR where every outgoing flow has a condition but no default: an unexpected, missing, or mistyped value can make every condition false and raise a `CONDITION_ERROR` incident.
 - **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
 - **Inclusive (OR)**: One or more paths. Also requires a matching join.
 - Fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
@@ -130,6 +130,7 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
    - **label-required** — name every labeled element
    - **no-disconnected** — ensure every element is on a complete start-to-end path
    - **no-implicit-split** — exclusive gateway outgoing flows need conditions + a default
+   - **gateway safety** — inspect every exclusive gateway for a `default` flow. `conditional-flows` does not replace this review: a gateway can have a condition on every outgoing flow and still have no fallback for an unmatched value.
    - **superfluous-gateway** — drop pass-through gateways with one in, one out
 
 3. Loop until the linter is clean. Do not declare the task structurally done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.

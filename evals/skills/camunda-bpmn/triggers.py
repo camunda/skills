@@ -20,6 +20,10 @@ def trigger_eval() -> Task:
                 "boundary-timer",
                 "Add a 5-minute timer boundary event to the review task that cancels it and routes to an escalation path.",
             ),
+            Positive(
+                "xor-safe-default",
+                "Model an approve/reject exclusive gateway so an unexpected or missing decision safely follows a default reject branch instead of causing a runtime incident.",
+            ),
         ],
         negative=[
             Negative(
