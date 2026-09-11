@@ -139,6 +139,9 @@ each current skill exactly once and records:
 - `sidecar`: the repository-relative portability declaration;
 - `status`: the same repository status as the sidecar.
 
+The reserved skill names `claude` and `anthropic` cannot be used for an
+inventory entry, sidecar, or skill directory.
+
 `compatibility/audit.json` is the dated audit record. It repeats the canonical
 specification URL, `specRevisionOrAuditDate`, `auditDate`, and the complete
 skill list with the same name, paths, and status values. The index and audit
