@@ -43,7 +43,7 @@ ACTIVITY_TAGS = {
 
 REQUEST_VERB_PATTERN = re.compile(
     r"^(?:please|kindly)?\s*"
-    r"(?:provide|specify|confirm|tell me|identify|indicate|share|supply)\b"
+    r"(?:provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)\b"
 )
 REQUEST_NEED_PATTERN = re.compile(
     r"\b(?:i|we)\s+(?:need|require)\s+(?:"
@@ -80,18 +80,26 @@ SECRET_MATERIAL_PATTERN = re.compile(
     r"(?:connector[- ]?secret|secret)s?"
     r")\b"
 )
+SECRET_RELATIVE_MATERIAL_PATTERN = re.compile(
+    r"\b(?:its|their|the|that|this)?\s*"
+    r"(?:secret\s+)?(?:value|contents?)\b"
+)
+NEGATION_PATTERN = (
+    r"(?:do not|don't|never|not|without|rather than|instead of|"
+    r"will not|won't|should not|shouldn't|cannot|can't|can not)"
+)
+NEGATION_TERM_PATTERN = re.compile(rf"\b{NEGATION_PATTERN}\b")
 NEGATED_TERM_PREFIX_PATTERN = re.compile(
-    r"\b(?:do not|don't|never|not|without|rather than|instead of|"
-    r"will not|won't|should not|shouldn't|cannot|can't|can not)\b"
-    r"[^,;:?.!\n]*$"
+    rf"\b{NEGATION_PATTERN}\b[^,;:?.!\n]*$"
 )
 FALLBACK_CONTEXT_PATTERN = re.compile(
     r"\b(?:"
     r"defaults?|fallback|otherwise|in\s+the\s+absence\s+of|"
     r"if\s+(?:you\s+)?(?:do\s+not|don't|fail\s+to|omit|leave\s+out|"
-    r"cannot|can't)|"
+    r"cannot|can't|not)\b|"
     r"if\s+(?:no|nothing)\b|"
-    r"when\s+[^.?!\n]{0,40}\b(?:missing|unspecified|omitted)"
+    r"when\s+[^.?!\n]{0,40}\b(?:missing|unspecified|omitted)|"
+    r"\bany\s+(?:provider|model|(?:connector[- ]?)?secrets?)\b"
     r")\b"
 )
 FALLBACK_ACTION_PATTERN = re.compile(
@@ -178,6 +186,22 @@ def _has_secret_configuration_semantics(text: str) -> bool:
     )
 
 
+def _has_secret_name_request_semantics(text: str) -> bool:
+    normalized = text.casefold()
+    for clause in CLAUSE_BREAK_PATTERN.split(normalized):
+        if not SECRET_NAME_PATTERN.search(clause):
+            continue
+        if re.search(r"\b(?:which|what)\b", clause):
+            return True
+        if (
+            REQUEST_VERB_PATTERN.search(clause.strip())
+            or REQUEST_NEED_PATTERN.search(clause)
+            or re.search(r"\b(?:could|can|would)\s+you\b", clause)
+        ):
+            return True
+    return False
+
+
 def _requests_secret_material(sentence: str) -> bool:
     normalized = sentence.casefold()
     if not _is_request_sentence(normalized):
@@ -187,7 +211,32 @@ def _requests_secret_material(sentence: str) -> bool:
             continue
         if not _is_negated_term(normalized, match.start()):
             return True
+    secret_name_matches = list(SECRET_NAME_PATTERN.finditer(normalized))
+    for secret_name in secret_name_matches:
+        for material in SECRET_RELATIVE_MATERIAL_PATTERN.finditer(
+            normalized, secret_name.end()
+        ):
+            if (
+                _same_clause(normalized, secret_name.start(), material.start())
+                and not _is_negated_term(normalized, material.start())
+            ):
+                return True
     return False
+
+
+def _is_negated_fallback_action(clause: str, start: int) -> bool:
+    prefix = clause[:start]
+    negations = list(NEGATION_TERM_PATTERN.finditer(prefix))
+    if not negations:
+        return False
+    negation = negations[-1]
+    between = prefix[negation.end() :]
+    if re.search(r"[,;:]|\b(?:and|but|if|when|unless)\b", between):
+        return False
+    return not re.search(
+        r"\b(?:provide|specify|confirm|tell|identify|indicate|share|supply)\b",
+        between,
+    )
 
 
 def _has_fallback_selection(sentence: str) -> bool:
@@ -196,7 +245,7 @@ def _has_fallback_selection(sentence: str) -> bool:
         actions = [
             match
             for match in FALLBACK_ACTION_PATTERN.finditer(clause)
-            if not _is_negated_term(clause, match.start())
+            if not _is_negated_fallback_action(clause, match.start())
         ]
         if not actions:
             continue
@@ -477,7 +526,10 @@ def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
                 and pattern.search(context)
                 and (
                     term != "connector-secret name"
-                    or _has_secret_configuration_semantics(context)
+                    or (
+                        _has_secret_configuration_semantics(context)
+                        and _has_secret_name_request_semantics(context)
+                    )
                 )
                 for context in clarification_contexts
             ):
