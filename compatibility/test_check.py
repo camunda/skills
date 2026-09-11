@@ -73,6 +73,20 @@ def test_rejects_schema_invalid_sidecar(tmp_path: Path) -> None:
     assert check.main(["--root", str(root)]) == 1
 
 
+def test_rejects_reserved_skill_names(tmp_path: Path, capsys: object) -> None:
+    for reserved_name in ("claude", "anthropic"):
+        root = copy_contract_root(tmp_path / reserved_name)
+        name = first_skill_name(root)
+        sidecar_path = root / "skills" / name / "portability.json"
+        sidecar = read_json(sidecar_path)
+        assert isinstance(sidecar, dict)
+        sidecar["skillName"] = reserved_name
+        write_json(sidecar_path, sidecar)
+
+        assert check.main(["--root", str(root)]) == 1
+        assert "invalid or reserved skill name" in capsys.readouterr().err
+
+
 def test_rejects_sidecar_skill_name_mismatch(tmp_path: Path) -> None:
     root = copy_contract_root(tmp_path)
     name = first_skill_name(root)
@@ -116,6 +130,54 @@ def test_rejects_portable_status_with_adapter_required_harness(
 
     assert check.main(["--root", str(root)]) == 1
     assert "portable requires native harness declarations" in capsys.readouterr().err
+
+
+def test_rejects_portable_with_adapter_without_adapter(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    sidecar_path = root / "skills" / name / "portability.json"
+    sidecar = read_json(sidecar_path)
+    assert isinstance(sidecar, dict)
+    for declaration in sidecar["harnesses"].values():
+        declaration["status"] = "native"
+    write_json(sidecar_path, sidecar)
+
+    assert check.main(["--root", str(root)]) == 1
+    assert (
+        "portable-with-adapter requires an adapter-required harness declaration"
+        in capsys.readouterr().err
+    )
+
+
+def test_rejects_harness_specific_without_unsupported(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    sidecar_path = root / "skills" / name / "portability.json"
+    sidecar = read_json(sidecar_path)
+    assert isinstance(sidecar, dict)
+    sidecar["status"] = "harness-specific"
+    for declaration in sidecar["harnesses"].values():
+        declaration["status"] = "native"
+    write_json(sidecar_path, sidecar)
+
+    for inventory_name in ("skills-index.json", "audit.json"):
+        inventory_path = root / "compatibility" / inventory_name
+        inventory = read_json(inventory_path)
+        assert isinstance(inventory, dict)
+        for entry in inventory["skills"]:
+            if entry["name"] == name:
+                entry["status"] = "harness-specific"
+        write_json(inventory_path, inventory)
+
+    assert check.main(["--root", str(root)]) == 1
+    assert (
+        "harness-specific requires an unsupported harness declaration"
+        in capsys.readouterr().err
+    )
 
 
 def test_marks_skills_failed_for_global_pre_skill_errors(

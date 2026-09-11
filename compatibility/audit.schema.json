@@ -52,14 +52,26 @@
         "name": {
           "type": "string",
           "maxLength": 64,
+          "not": {
+            "enum": ["anthropic", "claude"]
+          },
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
         "skillDirectory": {
           "type": "string",
+          "not": {
+            "enum": ["skills/anthropic", "skills/claude"]
+          },
           "pattern": "^skills/[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
         "sidecar": {
           "type": "string",
+          "not": {
+            "enum": [
+              "skills/anthropic/portability.json",
+              "skills/claude/portability.json"
+            ]
+          },
           "pattern": "^skills/[a-z0-9]+(?:-[a-z0-9]+)*/portability\\.json$"
         },
         "status": {

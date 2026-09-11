@@ -21,11 +21,17 @@
     },
     "skillDirectory": {
       "type": "string",
+      "not": {
+        "enum": ["skills/anthropic", "skills/claude"]
+      },
       "pattern": "^skills/[a-z0-9]+(?:-[a-z0-9]+)*$"
     },
     "skillName": {
       "type": "string",
       "maxLength": 64,
+      "not": {
+        "enum": ["anthropic", "claude"]
+      },
       "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
     },
     "status": {

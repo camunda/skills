@@ -20,6 +20,7 @@ PORTABILITY_SCHEMA_URL = (
     "compatibility/portability.schema.json"
 )
 SKILL_NAME = re.compile(r"(?=.{1,64}\Z)[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+RESERVED_SKILL_NAMES = frozenset({"anthropic", "claude"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
@@ -87,6 +88,14 @@ def non_empty_strings(value: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: expected a non-empty list of strings")
 
 
+def is_valid_skill_name(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and SKILL_NAME.fullmatch(value) is not None
+        and value not in RESERVED_SKILL_NAMES
+    )
+
+
 def status(value: Any, label: str, errors: list[str]) -> None:
     if not isinstance(value, str) or value not in {
         "portable",
@@ -118,10 +127,8 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
     )
     if not isinstance(sidecar["skillDirectory"], str):
         errors.append(f"{label}.skillDirectory: expected a string")
-    if not isinstance(sidecar["skillName"], str) or not SKILL_NAME.fullmatch(
-        sidecar["skillName"]
-    ):
-        errors.append(f"{label}.skillName: invalid skill name")
+    if not is_valid_skill_name(sidecar["skillName"]):
+        errors.append(f"{label}.skillName: invalid or reserved skill name")
     status(sidecar["status"], f"{label}.status", errors)
 
     specification = sidecar["agentSkillsSpec"]
@@ -158,6 +165,11 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
                 }:
                     errors.append(f"{harness_label}.status: invalid harness status")
                 non_empty_strings(declaration["differences"], f"{harness_label}.differences", errors)
+        harness_statuses = {
+            declaration.get("status")
+            for declaration in harnesses.values()
+            if isinstance(declaration, dict)
+        }
         if sidecar["status"] == "portable":
             non_native = [
                 harness_name
@@ -170,6 +182,22 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
                     f"{label}.status: portable requires native harness declarations; "
                     f"non-native={sorted(non_native)}"
                 )
+        elif (
+            sidecar["status"] == "portable-with-adapter"
+            and "adapter-required" not in harness_statuses
+        ):
+            errors.append(
+                f"{label}.status: portable-with-adapter requires an "
+                "adapter-required harness declaration"
+            )
+        elif (
+            sidecar["status"] == "harness-specific"
+            and "unsupported" not in harness_statuses
+        ):
+            errors.append(
+                f"{label}.status: harness-specific requires an "
+                "unsupported harness declaration"
+            )
 
     non_empty_strings(sidecar["limitations"], f"{label}.limitations", errors)
     non_empty_strings(sidecar["differences"], f"{label}.differences", errors)
@@ -214,8 +242,8 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         )
 
     frontmatter_name = metadata.get("name")
-    if not isinstance(frontmatter_name, str) or not SKILL_NAME.fullmatch(frontmatter_name):
-        errors.append(f"{path}: frontmatter name is invalid")
+    if not is_valid_skill_name(frontmatter_name):
+        errors.append(f"{path}: frontmatter name is invalid or reserved")
     elif frontmatter_name != name:
         errors.append(f"{path}: frontmatter name must be {name!r}")
 
@@ -285,8 +313,8 @@ def check_index(index: Any, errors: list[str]) -> list[dict[str, Any]]:
         if not has_keys(entry, entry_keys, entry_label, errors):
             continue
         name = entry["name"]
-        if not isinstance(name, str) or not SKILL_NAME.fullmatch(name):
-            errors.append(f"{entry_label}.name: invalid skill name")
+        if not is_valid_skill_name(name):
+            errors.append(f"{entry_label}.name: invalid or reserved skill name")
             continue
         if name in names:
             errors.append(f"{entry_label}.name: duplicate skill name {name!r}")
@@ -334,8 +362,8 @@ def check_audit(audit: Any, errors: list[str]) -> list[dict[str, Any]]:
         if not has_keys(entry, entry_keys, entry_label, errors):
             continue
         name = entry["name"]
-        if not isinstance(name, str) or not SKILL_NAME.fullmatch(name):
-            errors.append(f"{entry_label}.name: invalid skill name")
+        if not is_valid_skill_name(name):
+            errors.append(f"{entry_label}.name: invalid or reserved skill name")
             continue
         if name in names:
             errors.append(f"{entry_label}.name: duplicate skill name {name!r}")

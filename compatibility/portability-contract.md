@@ -104,6 +104,11 @@ smoke run:
   the common contract. The sidecar must identify the exception and the usable
   portable path, if one exists.
 
+The checker requires every `portable` sidecar to declare only `native`
+harnesses, every `portable-with-adapter` sidecar to declare at least one
+`adapter-required` harness, and every `harness-specific` sidecar to declare at
+least one `unsupported` harness.
+
 ### Harness status enum
 
 Each of `harnesses.claude`, `harnesses.copilot`, and
