@@ -46,9 +46,18 @@ applied. The saved BPMN must retain the connector marker
 emitted by the current catalog entry and the corresponding AI Agent task definition
 produced by that template (the current example is
 `zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`).
+A built-in template must also retain its hidden
+`zeebe:property` named `io.camunda.agenticai.toolContainer` with value `true`.
+The legacy `io.camunda.connectors.agenticai.aiagent.jobworker.*` marker pairs
+with `io.camunda.agenticai:aiagent-job-worker:*`; the current
+`io.camunda.connectors.agenticai.ai-agent-subprocess.*` marker pairs with
+`io.camunda.agenticai:aiagent:subprocess:*`. Do not mix a marker from one
+template family with a task type from another.
 A custom template is also valid when its task type starts with
-`io.camunda.agenticai:aiagent-job-worker:`; validate that task type instead of
-relying on a marker copied onto an ordinary subprocess. Applying the template is what
+an AI Agent task-type family such as
+`io.camunda.agenticai:aiagent-job-worker:` or `io.camunda.agenticai:aiagent:`;
+validate that task type instead of relying on a marker copied onto an ordinary
+subprocess. Applying the template is what
 wires the LLM driver, tool activation, result collection, and implicit
 feedback loop; hand-writing only prompts or tool tasks does not create an
 agent.
@@ -97,9 +106,10 @@ A single generic tool is not an implementation of a multi-check agent.
 
 After applying the template and modeling the tools, run `c8ctl bpmn lint` and
 inspect the saved XML. Confirm that the host is marked with the AI Agent
-template plus its AI Agent task definition, or uses an
-`io.camunda.agenticai:aiagent-job-worker:` task type for a custom template, and
-that the tool set and mappings are still present. This self-check catches the
+template plus its matching AI Agent task definition and hidden
+`io.camunda.agenticai.toolContainer=true` property, or uses a documented
+AI Agent task type for a custom template, and that the tool set and mappings
+are still present. This self-check catches the
 failure mode where a diagram looks agentic but only contains an ordinary
 ad-hoc subprocess.
 
@@ -252,9 +262,9 @@ Lint catches structural BPMN problems but does not validate connector-template i
 - The host retains the current catalog marker (for example,
   `zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`)
   together with the corresponding `zeebe:taskDefinition` produced by that
-  template; a custom template path may instead be identified by a task type
-  beginning with `io.camunda.agenticai:aiagent-job-worker:` without relying on a
-  built-in marker.
+  template and the hidden `io.camunda.agenticai.toolContainer=true` property;
+  a custom template path may instead be identified by a documented AI Agent
+  task type without relying on a built-in marker.
 - Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it via a direct edit).
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.

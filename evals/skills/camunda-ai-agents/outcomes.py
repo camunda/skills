@@ -2,9 +2,10 @@
 
 Deterministic, machine-checkable verification:
 - ``ai_agent_shape_valid`` parses ``/workspace/process.bpmn`` and checks for
-  an ad-hoc subprocess host with the applied AI Agent connector marker, tool
-  documentation, ``fromAi()`` usage, ``toolCallResult`` wiring, and
-  prompt/limit inputs.
+  an ad-hoc subprocess host recognized by a matching built-in AI Agent
+  template marker and task type, or a documented custom AI Agent task type;
+  it also checks the tool-container property, tool documentation, ``fromAi()``
+  usage, per-tool ``toolCallResult`` wiring, and prompt/limit inputs.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 """
@@ -40,19 +41,34 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
-AI_AGENT_TEMPLATE_PREFIXES = (
-    "io.camunda.connectors.agenticai.aiagent.jobworker.",
-    "io.camunda.connectors.agenticai.ai-agent-subprocess.",
-)
+AI_AGENT_TEMPLATE_TASK_TYPES = {
+    "io.camunda.connectors.agenticai.aiagent.jobworker.": (
+        "io.camunda.agenticai:aiagent-job-worker:",
+    ),
+    "io.camunda.connectors.agenticai.ai-agent-subprocess.": (
+        "io.camunda.agenticai:aiagent:subprocess:",
+    ),
+}
 AI_AGENT_TASK_TYPE_PREFIXES = (
     "io.camunda.agenticai:aiagent-job-worker:",
     "io.camunda.agenticai:aiagent:subprocess:",
+    "io.camunda.agenticai:aiagent:",
 )
-CUSTOM_AI_AGENT_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent-job-worker:"
+
+
+def has_tool_container_property(host: ET.Element) -> bool:
+    properties = host.findall(
+        "./bpmn:extensionElements/zeebe:properties/zeebe:property", NS
+    )
+    return any(
+        prop.get("name") == "io.camunda.agenticai.toolContainer"
+        and prop.get("value") == "true"
+        for prop in properties
+    )
 
 
 def has_ai_agent_connector(host: ET.Element) -> bool:
-    """Accept versioned built-in templates and custom AI Agent task types."""
+    """Accept matching built-in templates and documented custom task types."""
 
     template = host.get(f"{{{NS['zeebe']}}}modelerTemplate")
     task_definition = host.find(
@@ -61,14 +77,39 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     task_type = (
         task_definition.get("type") if task_definition is not None else ""
     ) or ""
-    if template and any(
-        template.startswith(prefix) for prefix in AI_AGENT_TEMPLATE_PREFIXES
-    ):
-        return any(
-            task_type.startswith(prefix) for prefix in AI_AGENT_TASK_TYPE_PREFIXES
-        )
 
-    return task_type.startswith(CUSTOM_AI_AGENT_TASK_TYPE_PREFIX)
+    if template:
+        for marker_prefix, task_prefixes in AI_AGENT_TEMPLATE_TASK_TYPES.items():
+            if template.startswith(marker_prefix):
+                return has_tool_container_property(host) and any(
+                    task_type.startswith(prefix) for prefix in task_prefixes
+                )
+
+    return any(
+        task_type.startswith(prefix) for prefix in AI_AGENT_TASK_TYPE_PREFIXES
+    )
+
+
+def has_tool_call_result(tool: ET.Element) -> bool:
+    for node in tool.iter():
+        if node.tag == f"{{{NS['zeebe']}}}output":
+            target = node.get("target") or ""
+            if target == "toolCallResult" or target.startswith(
+                "toolCallResult."
+            ):
+                return True
+        if (
+            node.tag == f"{{{NS['zeebe']}}}script"
+            and node.get("resultVariable") == "toolCallResult"
+        ):
+            return True
+        if (
+            node.tag == f"{{{NS['zeebe']}}}header"
+            and node.get("key") in {"resultExpression", "resultVariable"}
+            and "toolCallResult" in (node.get("value") or "")
+        ):
+            return True
+    return False
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -112,8 +153,8 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             return Score(
                 value=0.0,
                 explanation=(
-                    "ad-hoc subprocess is missing the applied AI Agent "
-                    "connector marker or agent job-worker task type"
+                    "ad-hoc subprocess is missing matching AI Agent connector "
+                    "marker, task type, or tool-container property"
                 ),
             )
 
@@ -155,31 +196,18 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 explanation="no zeebe:input source uses fromAi(...)",
             )
 
-        has_tool_result = False
-        for node in host.iter():
-            if (
-                node.tag == f"{{{NS['zeebe']}}}output"
-                and node.get("target") == "toolCallResult"
-            ):
-                has_tool_result = True
-                break
-            if (
-                node.tag == f"{{{NS['zeebe']}}}script"
-                and node.get("resultVariable") == "toolCallResult"
-            ):
-                has_tool_result = True
-                break
-            if (
-                node.tag == f"{{{NS['zeebe']}}}header"
-                and node.get("key") in {"resultExpression", "resultVariable"}
-                and "toolCallResult" in (node.get("value") or "")
-            ):
-                has_tool_result = True
-                break
-        if not has_tool_result:
+        missing_tool_results = [
+            tool.get("id") or "<unknown>"
+            for tool in tools
+            if not has_tool_call_result(tool)
+        ]
+        if missing_tool_results:
             return Score(
                 value=0.0,
-                explanation="missing toolCallResult mapping in tool implementation",
+                explanation=(
+                    "tool(s) missing toolCallResult mapping: "
+                    f"{missing_tool_results}"
+                ),
             )
 
         prompt_inputs = {
