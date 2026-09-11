@@ -37,6 +37,8 @@ SAVE = (
 _FORM_SCHEMA = json.loads(
     Path(__file__).with_name("form-schema.json").read_text(encoding="utf-8")
 )
+# The bundled schema declares supported component properties but leaves extras open.
+_FORM_SCHEMA["properties"]["components"]["items"]["additionalProperties"] = False
 _FORM_SCHEMA_VALIDATOR = Draft7Validator(_FORM_SCHEMA)
 
 _INPUT_TYPES = {

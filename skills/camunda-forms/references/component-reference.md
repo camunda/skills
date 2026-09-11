@@ -447,7 +447,10 @@ Add vertical spacing between components. No data binding.
 Repeatable section that allows users to add/remove rows of fields. Output is a list of objects.
 
 **Required**: `type`, `id`, `key`, `label`, `components`, `layout`
-**Optional**: `defaultValue`, `disableCollapse`, `nonCollapsible`, `validate`, `conditional`, `properties`
+**Optional**: `disableCollapse`, `nonCollapsedItems`, `validate`, `conditional`, `properties`
+
+`defaultValue` is not supported for dynamic lists; set defaults on their
+nested input components instead.
 
 ```json
 {
@@ -499,10 +502,12 @@ Embed an external page or application. Does not bind to a variable.
 Display tabular data. Typically used for read-only data presentation.
 
 **Required**: `type`, `id`, `layout`
-**Optional**: `label`, `dataSource`, `columns`, `rowCount`, `conditional`, `properties`
+**Required data**: `dataSource` and exactly one of `columns` or `columnsExpression`
+**Optional**: `label`, `rowCount`, `conditional`, `properties`
 
 - `dataSource`: FEEL expression pointing to a list variable
 - `columns`: array of `{ "key": "...", "label": "..." }` definitions
+- `columnsExpression`: FEEL expression that returns the column definitions
 
 ```json
 {

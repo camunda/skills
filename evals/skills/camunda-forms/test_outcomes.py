@@ -88,27 +88,45 @@ def test_rejects_invalid_component_shapes(
 
 
 def test_accepts_schema_safe_default_and_submit_button() -> None:
-    error = _outcomes._validate_component_shapes(
-        [
-            {
-                "type": "textfield",
-                "id": "Field_Name",
-                "key": "name",
-                "label": "Name",
-                "defaultValue": "Ada",
-                "layout": {"row": "row_0", "columns": None},
-            },
-            {
-                "type": "button",
-                "id": "Button_Submit",
-                "label": "Submit",
-                "action": "submit",
-                "layout": {"row": "row_1", "columns": None},
-            },
-        ]
-    )
+    form = _valid_form()
+    form["components"] = [
+        {
+            "type": "textfield",
+            "id": "Field_Name",
+            "key": "name",
+            "label": "Name",
+            "defaultValue": "Ada",
+            "layout": {"row": "row_0", "columns": None},
+        },
+        {
+            "type": "button",
+            "id": "Button_Submit",
+            "label": "Submit",
+            "action": "submit",
+            "layout": {"row": "row_1", "columns": None},
+        },
+    ]
 
-    assert error is None
+    assert _outcomes._validate_form_schema(form) is None
+
+
+def test_rejects_unknown_component_property() -> None:
+    form = _valid_form()
+    form["components"] = [
+        {
+            "type": "textfield",
+            "id": "Field_Name",
+            "key": "name",
+            "label": "Name",
+            "layout": {"row": "row_0", "columns": None},
+            "unknownField": True,
+        }
+    ]
+
+    error = _outcomes._validate_form_schema(form)
+
+    assert error is not None
+    assert "Additional properties" in error
 
 
 @pytest.mark.parametrize(
