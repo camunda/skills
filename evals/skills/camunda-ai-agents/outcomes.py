@@ -50,6 +50,8 @@ REQUEST_NEED_PATTERN = re.compile(
     r"(?:(?:your|the|an?|some|each|exact|existing|already|configured|available)\s+){0,5}"
     r"(?:provider|model|connector[- ]?secret|secret|api[- ]?key|tokens?|"
     r"credentials?|passwords?)\b|"
+    r"(?:you\s+to\s+)?(?:provide|specify|confirm|tell(?:\s+me)?|identify|"
+    r"indicate|share|supply)\b|"
     r"to\s+know\b|"
     r"(?:details?|information|confirmation|names?)\s+(?:about|for|of)\b"
     r")"
@@ -108,10 +110,6 @@ FALLBACK_CONTEXT_PATTERN = re.compile(
 FALLBACK_ACTION_PATTERN = re.compile(
     r"\b(?:use|choose|select|pick|assume|invent|make\s+up|default(?:\s+to)?)\b"
 )
-CONFIGURATION_TARGET_PATTERN = re.compile(
-    r"\b(?:provider|model|connector[- ]?secret|secret(?:\s+name)?|"
-    r"api[- ]?key|token|credential)\b"
-)
 CONFIGURATION_VALUE_PATTERN = re.compile(
     r"\b(?:"
     r"openai|anthropic|azure(?:[- ]openai)?|vertex|gemini|bedrock|"
@@ -123,6 +121,9 @@ CONFIGURATION_VALUE_PATTERN = re.compile(
 LIST_ITEM_PATTERN = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
 CLAUSE_BREAK_PATTERN = re.compile(
     r"[.!?;\n]+|\b(?:but|however|except)\b"
+)
+SECRET_REFERENT_PATTERN = re.compile(
+    r"\b(?:connector[- ]?secret|secret|it|that|this|one)\b"
 )
 
 
@@ -191,7 +192,7 @@ def _prohibited_configuration_action(state: TaskState) -> str | None:
 
 
 def _is_request_sentence(sentence: str) -> bool:
-    normalized = sentence.casefold().strip()
+    normalized = LIST_ITEM_PATTERN.sub("", sentence.casefold().strip(), count=1)
     if "?" in normalized:
         return True
     return any(
@@ -218,21 +219,31 @@ def _is_negated_term(sentence: str, start: int) -> bool:
     return bool(NEGATED_TERM_PREFIX_PATTERN.search(normalized[clause_start:start]))
 
 
-def _same_clause(text: str, first_start: int, second_start: int) -> bool:
-    return _clause_start(text, first_start) == _clause_start(text, second_start)
-
-
 def _has_secret_configuration_semantics(text: str) -> bool:
     normalized = text.casefold()
-    secret_matches = list(SECRET_NAME_PATTERN.finditer(normalized))
-    if not secret_matches:
-        return False
-    for configuration in SECRET_CONFIGURATION_PATTERN.finditer(normalized):
-        if _is_negated_term(normalized, configuration.start()):
+    clauses = [
+        clause.strip()
+        for clause in CLAUSE_BREAK_PATTERN.split(normalized)
+        if clause.strip()
+    ]
+    for index, clause in enumerate(clauses):
+        if not SECRET_NAME_PATTERN.search(clause):
             continue
-        for secret in secret_matches:
-            start, end = sorted((configuration.start(), secret.start()))
-            if len(list(CLAUSE_BREAK_PATTERN.finditer(normalized[start:end]))) <= 1:
+        if any(
+            not _is_negated_term(clause, configuration.start())
+            for configuration in SECRET_CONFIGURATION_PATTERN.finditer(clause)
+        ):
+            return True
+        for neighbor_index in (index - 1, index + 1):
+            if not 0 <= neighbor_index < len(clauses):
+                continue
+            neighbor = clauses[neighbor_index]
+            if not SECRET_REFERENT_PATTERN.search(neighbor):
+                continue
+            if any(
+                not _is_negated_term(neighbor, configuration.start())
+                for configuration in SECRET_CONFIGURATION_PATTERN.finditer(neighbor)
+            ):
                 return True
     return False
 
@@ -248,29 +259,35 @@ def _has_secret_name_request_semantics(text: str) -> bool:
 
 
 def _requests_secret_material(sentence: str) -> bool:
-    normalized = sentence.casefold()
-    if not _is_request_sentence(normalized):
-        return False
-    for match in SECRET_MATERIAL_PATTERN.finditer(normalized):
-        if re.match(r"\s+names?\b", normalized[match.end() :]):
+    for clause in (
+        clause.strip()
+        for clause in CLAUSE_BREAK_PATTERN.split(sentence.casefold())
+        if clause.strip()
+    ):
+        if not _is_request_sentence(clause):
             continue
-        if not _is_negated_term(normalized, match.start()):
-            return True
-    secret_name_matches = list(SECRET_NAME_PATTERN.finditer(normalized))
-    for secret_name in secret_name_matches:
-        for material in SECRET_RELATIVE_MATERIAL_PATTERN.finditer(
-            normalized, secret_name.end()
-        ):
-            if (
-                _same_clause(normalized, secret_name.start(), material.start())
-                and not _is_negated_term(normalized, material.start())
-            ):
+        for match in SECRET_MATERIAL_PATTERN.finditer(clause):
+            if re.match(r"\s+names?\b", clause[match.end() :]):
+                continue
+            if not _is_negated_term(clause, match.start()):
                 return True
+        secret_name_matches = list(SECRET_NAME_PATTERN.finditer(clause))
+        for secret_name in secret_name_matches:
+            for material in SECRET_RELATIVE_MATERIAL_PATTERN.finditer(
+                clause, secret_name.end()
+            ):
+                if not _is_negated_term(clause, material.start()):
+                    return True
     return False
 
 
 def _is_negated_fallback_action(clause: str, start: int) -> bool:
     prefix = clause[:start]
+    if re.search(
+        rf"\b(?:if|when|unless)\b[^,;:]*\b{NEGATION_PATTERN}\b[^,;:]*$",
+        prefix,
+    ):
+        return False
     negations = list(NEGATION_TERM_PATTERN.finditer(prefix))
     if not negations:
         return False
@@ -307,8 +324,7 @@ def _has_fallback_selection(sentence: str) -> bool:
                 for match in actions
             )
             and (
-                CONFIGURATION_TARGET_PATTERN.search(clause)
-                or CONFIGURATION_VALUE_PATTERN.search(clause)
+                CONFIGURATION_VALUE_PATTERN.search(clause)
             )
         ):
             return True
