@@ -42,16 +42,12 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
-AI_AGENT_TEMPLATE_MARKER_PREFIX = (
-    "io.camunda.connectors.agenticai.ai-agent-subprocess."
-)
+AI_AGENT_TEMPLATE_MARKER_PREFIX = "io.camunda.connectors.agenticai.ai-agent-subprocess."
 AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent:subprocess:"
 AI_AGENT_LEGACY_TEMPLATE_PREFIXES = (
     "io.camunda.connectors.agenticai.aiagent.jobworker.",
 )
-AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
-    "io.camunda.agenticai:aiagent:subprocess:",
-)
+AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = ("io.camunda.agenticai:aiagent:subprocess:",)
 
 AI_AGENT_OUTPUT_COLLECTION = "toolCallResults"
 AI_AGENT_OUTPUT_ELEMENT_KEY = "content"
@@ -245,12 +241,7 @@ def _has_top_level_feel_map_entry(
                 if colon_index is not None:
                     return None
                 colon_index = offset
-        if (
-            brace_depth
-            or bracket_depth
-            or parenthesis_depth
-            or colon_index is None
-        ):
+        if brace_depth or bracket_depth or parenthesis_depth or colon_index is None:
             return None
         raw_key = raw_entry[:colon_index].strip()
         raw_value = raw_entry[colon_index + 1 :].strip()
@@ -296,8 +287,7 @@ def _has_top_level_feel_map_entry(
                 return any(
                     entry_key.strip() == key
                     and (
-                        expected_value is None
-                        or entry_value.strip() == expected_value
+                        expected_value is None or entry_value.strip() == expected_value
                     )
                     for entry_key, entry_value in entries
                 )
@@ -361,9 +351,7 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     """Accept matching built-in templates and documented custom task types."""
 
     template = host.get(f"{{{NS['zeebe']}}}modelerTemplate")
-    task_definition = host.find(
-        "./bpmn:extensionElements/zeebe:taskDefinition", NS
-    )
+    task_definition = host.find("./bpmn:extensionElements/zeebe:taskDefinition", NS)
     task_type = (
         task_definition.get("type") if task_definition is not None else ""
     ) or ""
@@ -372,9 +360,7 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
         if template.startswith(AI_AGENT_TEMPLATE_MARKER_PREFIX):
             if not task_type.startswith(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX):
                 return False
-            template_version = template.removeprefix(
-                AI_AGENT_TEMPLATE_MARKER_PREFIX
-            )
+            template_version = template.removeprefix(AI_AGENT_TEMPLATE_MARKER_PREFIX)
             task_type_version = task_type.removeprefix(
                 AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX
             )
@@ -386,8 +372,7 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
                 and task_type_version == template_version[1:]
             )
         if any(
-            template.startswith(prefix)
-            for prefix in AI_AGENT_LEGACY_TEMPLATE_PREFIXES
+            template.startswith(prefix) for prefix in AI_AGENT_LEGACY_TEMPLATE_PREFIXES
         ):
             return False
 
@@ -445,8 +430,7 @@ def _validate_ai_agent_host(
         return Score(
             value=0.0,
             explanation=(
-                "root tool(s) are targeted by internal sequence flows: "
-                f"{chained_tools}"
+                f"root tool(s) are targeted by internal sequence flows: {chained_tools}"
             ),
         )
 
@@ -492,14 +476,11 @@ def _validate_ai_agent_host(
         return Score(
             value=0.0,
             explanation=(
-                "tool(s) missing toolCallResult mapping: "
-                f"{missing_tool_results}"
+                f"tool(s) missing toolCallResult mapping: {missing_tool_results}"
             ),
         )
 
-    host_io_mapping = host.find(
-        "./bpmn:extensionElements/zeebe:ioMapping", NS
-    )
+    host_io_mapping = host.find("./bpmn:extensionElements/zeebe:ioMapping", NS)
     prompt_inputs = (
         {
             inp.get("target"): (inp.get("source") or "")
@@ -579,8 +560,10 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             return Score(
                 value=0.0,
                 explanation=(
-                    "no ad-hoc subprocess has a matching AI Agent connector "
-                    "marker, task type, output binding, or tool-container property"
+                    "no ad-hoc subprocess has either a valid built-in AI Agent "
+                    "connector (matching marker/task type, tool-container "
+                    "property, and output binding) or a documented custom "
+                    "AI Agent task type"
                 ),
             )
 
@@ -601,9 +584,8 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
     return score
 
-SAVE_AND_DEPLOY = (
-    "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
-)
+
+SAVE_AND_DEPLOY = "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
 
 SAMPLES = [
     Sample(
@@ -652,7 +634,9 @@ SAMPLES = [
             "element template to ClaimReviewAgent with c8ctl; do not model a "
             "generic or unconfigured ad-hoc subprocess stand-in. The saved host "
             "must retain the current template marker together with its AI Agent "
-            "task definition, or use the documented custom AI Agent task-type prefix.\n"
+            "task definition, or use the documented custom AI Agent task-type prefix. "
+            "Use the explicit apply form: c8ctl element-template apply -i <template-id> "
+            "ClaimReviewAgent /workspace/process.bpmn.\n"
             "3. Inside ClaimReviewAgent add these independent root tools (do not "
             "replace them with one generic tool):\n"
             "   - service task id DetectDuplicateClaims, name 'Detect duplicate claims'\n"
