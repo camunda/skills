@@ -594,11 +594,12 @@ SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
-            "Write the complete /workspace/process.bpmn artifact first; do not "
-            "create a placeholder shell. Do not invoke another skill, open "
-            "reference files, or run c8ctl sync, search, info, or get-properties "
-            "for this task: use only the exact template ID and apply command "
-            "given below, then continue through the final validation.\n"
+            "Your first tool call must write the complete "
+            "/workspace/process.bpmn artifact; do not create a placeholder shell "
+            "or invoke another skill, shell command, c8ctl command, or reference "
+            "read before that write. After the complete artifact exists, use only "
+            "the exact template ID and apply command given below; do not run "
+            "c8ctl sync, search, info, or get-properties.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
@@ -640,11 +641,12 @@ SAMPLES = [
     Sample(
         id="claim-review-subprocess",
         input=(
-            "Write the complete /workspace/process.bpmn artifact first; do not "
-            "create a placeholder shell. Do not invoke another skill, open "
-            "reference files, or run c8ctl sync, search, info, or get-properties "
-            "for this task: use only the exact template ID and apply command "
-            "given below, then continue through the final validation.\n"
+            "Your first tool call must write the complete "
+            "/workspace/process.bpmn artifact; do not create a placeholder shell "
+            "or invoke another skill, shell command, c8ctl command, or reference "
+            "read before that write. After the complete artifact exists, use only "
+            "the exact template ID and apply command given below; do not run "
+            "c8ctl sync, search, info, or get-properties.\n"
             "Create a Camunda 8.8+ BPMN process (id: claim-review, name: "
             "'Claim Review') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Claim received'.\n"
