@@ -86,6 +86,12 @@ def _host(
             True,
         ),
         (
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2",
+            "2",
+            True,
+            False,
+        ),
+        (
             "io.camunda.connectors.agenticai.aiagent.jobworker.v1",
             "io.camunda.agenticai:aiagent:subprocess:2",
             True,
@@ -139,6 +145,7 @@ def _host(
     ids=[
         "legacy-built-in-rejected",
         "current-built-in",
+        "built-in-marker-with-unrelated-task-type",
         "legacy-marker-current-type",
         "current-marker-legacy-type",
         "missing-tool-container-property",

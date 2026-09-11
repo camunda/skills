@@ -370,6 +370,8 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
 
     if template:
         if template.startswith(AI_AGENT_TEMPLATE_MARKER_PREFIX):
+            if not task_type.startswith(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX):
+                return False
             template_version = template.removeprefix(
                 AI_AGENT_TEMPLATE_MARKER_PREFIX
             )
