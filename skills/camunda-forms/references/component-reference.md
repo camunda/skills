@@ -492,7 +492,7 @@ Embed an external page or application. Does not bind to a variable.
   "type": "iframe",
   "id": "Iframe_preview",
   "url": "https://example.com/preview",
-  "height": "400px",
+  "height": 400,
   "title": "Document Preview",
   "layout": { "row": "row_0", "columns": null }
 }
