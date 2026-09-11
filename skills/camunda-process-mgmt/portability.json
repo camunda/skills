@@ -25,6 +25,6 @@
     "Live process operations require a reachable and authorized Camunda cluster."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Deployment and process-operation commands require the harness to map credentials and cluster endpoints into c8ctl."
   ]
 }

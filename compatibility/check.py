@@ -10,9 +10,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import SchemaError
+
 SPEC_URL = "https://agentskills.io/specification"
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 
 
 def load_json(path: Path, errors: list[str]) -> Any:
@@ -24,6 +28,27 @@ def load_json(path: Path, errors: list[str]) -> Any:
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"{path}: invalid JSON ({error})")
         return None
+
+
+def validate_schema(document: Any, schema: Any, label: str, errors: list[str]) -> None:
+    if document is None or schema is None:
+        return
+    try:
+        validator = Draft202012Validator(schema, format_checker=FormatChecker())
+        validation_errors = sorted(
+            validator.iter_errors(document),
+            key=lambda error: tuple(str(part) for part in error.absolute_path),
+        )
+    except SchemaError as error:
+        errors.append(f"{label}: invalid schema ({error.message})")
+        return
+
+    for validation_error in validation_errors:
+        location = ".".join(str(part) for part in validation_error.absolute_path) or "<root>"
+        errors.append(
+            f"{label}: schema validation failed at {location}: "
+            f"{validation_error.message}"
+        )
 
 
 def has_keys(value: Any, expected: set[str], label: str, errors: list[str]) -> bool:
@@ -122,6 +147,56 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
 
     non_empty_strings(sidecar["limitations"], f"{label}.limitations", errors)
     non_empty_strings(sidecar["differences"], f"{label}.differences", errors)
+    if (
+        isinstance(sidecar["differences"], list)
+        and GENERIC_DIFFERENCE in sidecar["differences"]
+    ):
+        errors.append(f"{label}.differences: replace the generic portability claim with a skill-specific difference")
+
+
+def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as error:
+        errors.append(f"{path}: cannot read ({error})")
+        return
+
+    frontmatter = re.match(r"^---\s*\n(.*?)\n---(?:\s|$)", content, re.DOTALL)
+    if not frontmatter:
+        errors.append(f"{path}: missing YAML frontmatter")
+        return
+
+    frontmatter_body = frontmatter.group(1)
+    name_match = re.search(
+        r"^name:[ \t]*([^\s#]+)[ \t]*$",
+        frontmatter_body,
+        re.MULTILINE,
+    )
+    if not name_match or name_match.group(1) != name:
+        errors.append(f"{path}: frontmatter name must be {name!r}")
+
+    description_match = re.search(
+        r"^description:[ \t]*(.*)$",
+        frontmatter_body,
+        re.MULTILINE,
+    )
+    if not description_match:
+        errors.append(f"{path}: frontmatter description is required")
+        return
+
+    description = description_match.group(1).strip()
+    if description.startswith(("|", ">")):
+        description = " ".join(
+            line.strip()
+            for line in frontmatter_body[description_match.end() :].splitlines()
+            if line.strip()
+        )
+    else:
+        description = description.strip("\"'")
+    if not description:
+        errors.append(f"{path}: frontmatter description must not be empty")
+    elif len(description) > 1024:
+        errors.append(f"{path}: frontmatter description must be at most 1024 characters")
 
 
 def check_index(index: Any, errors: list[str]) -> list[dict[str, Any]]:
@@ -456,15 +531,31 @@ def main() -> int:
     check_contract(contract, errors)
     check_fixture(fixture, errors)
 
-    schema_files = [
-        "audit.schema.json",
-        "harness-smoke-contract.schema.json",
-        "harness-smoke-fixture.schema.json",
-        "portability.schema.json",
-        "skills-index.schema.json",
-    ]
-    for schema_file in schema_files:
-        load_json(compatibility / schema_file, errors)
+    schema_files = {
+        "audit": "audit.schema.json",
+        "contract": "harness-smoke-contract.schema.json",
+        "fixture": "harness-smoke-fixture.schema.json",
+        "portability": "portability.schema.json",
+        "index": "skills-index.schema.json",
+    }
+    schemas = {
+        name: load_json(compatibility / filename, errors)
+        for name, filename in schema_files.items()
+    }
+    validate_schema(index, schemas["index"], "compatibility/skills-index.json", errors)
+    validate_schema(audit, schemas["audit"], "compatibility/audit.json", errors)
+    validate_schema(
+        contract,
+        schemas["contract"],
+        "compatibility/harness-smoke-contract.json",
+        errors,
+    )
+    validate_schema(
+        fixture,
+        schemas["fixture"],
+        "compatibility/fixtures/camunda-bpmn-smoke.json",
+        errors,
+    )
 
     spec_date = index.get("specRevisionOrAuditDate") if isinstance(index, dict) else None
     if not isinstance(spec_date, str) or not spec_date:
@@ -477,10 +568,10 @@ def main() -> int:
     skill_directories = {
         path.name: path
         for path in skills_root.iterdir()
-        if path.is_dir() and (path / "SKILL.md").is_file()
+        if path.is_dir()
     } if skills_root.is_dir() else {}
     if not skill_directories:
-        errors.append("skills: no skill directories with SKILL.md were found")
+        errors.append("skills: no skill directories were found")
 
     index_by_name = {entry.get("name"): entry for entry in index_entries}
     audit_by_name = {entry.get("name"): entry for entry in audit_entries}
@@ -509,44 +600,61 @@ def main() -> int:
 
     for name, skill_directory in sorted(skill_directories.items()):
         skill_markdown = skill_directory / "SKILL.md"
-        try:
-            frontmatter = re.match(
-                r"^---\s*\n(.*?)\n---(?:\s|$)",
-                skill_markdown.read_text(encoding="utf-8"),
-                re.DOTALL,
-            )
-        except OSError as error:
-            errors.append(f"{skill_markdown}: cannot read ({error})")
-            frontmatter = None
-        match = re.search(r"^name:\s*([^\s#]+)\s*$", frontmatter.group(1), re.MULTILINE) if frontmatter else None
-        if not match or match.group(1) != name:
-            errors.append(f"{skill_markdown}: frontmatter name must be {name!r}")
+        if not skill_markdown.is_file():
+            errors.append(f"{skill_markdown}: required skill entrypoint does not exist")
+        else:
+            check_skill_frontmatter(skill_markdown, name, errors)
 
         expected_index = {
             "name": name,
             "skillDirectory": f"skills/{name}",
             "skillMarkdown": f"skills/{name}/SKILL.md",
             "sidecar": f"skills/{name}/portability.json",
-            "status": "portable-with-adapter",
         }
         expected_audit = {
             "name": name,
             "skillDirectory": f"skills/{name}",
             "sidecar": f"skills/{name}/portability.json",
-            "status": "portable-with-adapter",
         }
-        if index_by_name.get(name) != expected_index:
+        index_entry = index_by_name.get(name)
+        audit_entry = audit_by_name.get(name)
+        if not isinstance(index_entry, dict) or any(
+            index_entry.get(field) != value for field, value in expected_index.items()
+        ):
             errors.append(f"skills-index.json: entry for {name!r} has stale or mismatched paths")
-        if audit_by_name.get(name) != expected_audit:
+        if not isinstance(audit_entry, dict) or any(
+            audit_entry.get(field) != value for field, value in expected_audit.items()
+        ):
             errors.append(f"audit.json: entry for {name!r} has stale or mismatched paths")
 
         sidecar_path = skill_directory / "portability.json"
         sidecar = load_json(sidecar_path, errors)
+        validate_schema(sidecar, schemas["portability"], str(sidecar_path), errors)
         check_sidecar(sidecar, str(sidecar_path.relative_to(root)), spec_date, errors)
         if isinstance(sidecar, dict):
             expect(sidecar.get("skillDirectory"), f"skills/{name}", f"{sidecar_path}.skillDirectory", errors)
             expect(sidecar.get("skillName"), name, f"{sidecar_path}.skillName", errors)
-            expect(sidecar.get("status"), "portable-with-adapter", f"{sidecar_path}.status", errors)
+            if isinstance(index_entry, dict):
+                expect(
+                    index_entry.get("status"),
+                    sidecar.get("status"),
+                    f"{sidecar_path} and skills-index.json status",
+                    errors,
+                )
+            if isinstance(audit_entry, dict):
+                expect(
+                    audit_entry.get("status"),
+                    sidecar.get("status"),
+                    f"{sidecar_path} and audit.json status",
+                    errors,
+                )
+        if isinstance(index_entry, dict) and isinstance(audit_entry, dict):
+            expect(
+                audit_entry.get("status"),
+                index_entry.get("status"),
+                f"skills-index.json and audit.json status for {name!r}",
+                errors,
+            )
 
     if isinstance(contract, dict):
         required_entrypoint = contract.get("discovery", {}).get("requiredEntrypoint")

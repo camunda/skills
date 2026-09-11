@@ -25,6 +25,6 @@
     "Cluster and profile operations require an installed c8ctl CLI."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Profile and cluster lifecycle commands depend on each harness's credential and process environment."
   ]
 }

@@ -25,6 +25,6 @@
     "Integration design depends on the host's available Camunda and system tools."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Integration decisions route to different adapter surfaces when a host lacks the selected connector, worker, or cluster tool."
   ]
 }

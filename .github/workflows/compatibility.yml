@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Install compatibility checker dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-input "jsonschema>=4.20"
       - name: Check portability inventory and contract
         run: python3 compatibility/check.py
       - name: Run Claude deterministic mock

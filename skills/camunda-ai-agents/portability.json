@@ -25,6 +25,6 @@
     "Live agent operations require an installed and configured Camunda toolchain."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "AI Agent Sub-process configuration is mapped to each harness's available model and tool-call surface."
   ]
 }

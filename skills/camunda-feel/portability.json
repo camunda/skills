@@ -25,6 +25,6 @@
     "Expression evaluation requires a compatible Camunda FEEL engine."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "FEEL expressions are evaluated through a harness-provided c8ctl or local FEEL engine with potentially different runtime capabilities."
   ]
 }

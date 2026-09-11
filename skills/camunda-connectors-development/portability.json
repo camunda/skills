@@ -25,6 +25,6 @@
     "Connector builds require the host's supported Java and Maven toolchain."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Java connector builds require the harness to provide a compatible Java/Maven process and dependency cache."
   ]
 }

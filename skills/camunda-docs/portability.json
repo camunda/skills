@@ -25,6 +25,6 @@
     "Current Camunda behavior depends on access to the official documentation source."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Documentation lookups use the harness's network, browser, or cached documentation retrieval capability."
   ]
 }

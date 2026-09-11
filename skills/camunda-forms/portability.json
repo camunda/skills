@@ -25,6 +25,6 @@
     "Form validation depends on the host's supported Camunda form tooling."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Form JSON authoring and FEEL validation depend on the harness exposing Camunda form tooling."
   ]
 }

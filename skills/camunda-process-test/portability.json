@@ -25,6 +25,6 @@
     "Process tests require the supported Camunda Process Test runtime and build tools."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Process-test execution depends on the harness's Java/Maven runner and embedded engine support."
   ]
 }

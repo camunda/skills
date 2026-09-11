@@ -25,6 +25,6 @@
     "Decision validation requires the host's DMN linting and evaluation tools."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "DMN lint and evaluation commands must be mapped to the harness's available c8ctl or local validation tools."
   ]
 }

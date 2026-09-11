@@ -25,6 +25,6 @@
     "Live process modeling requires an installed and configured c8ctl CLI."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "BPMN lint and formatting commands are exposed through c8ctl, with adapters mapping equivalent tool calls."
   ]
 }

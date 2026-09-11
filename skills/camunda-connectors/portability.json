@@ -25,6 +25,6 @@
     "Connector configuration may require access to the OOTB template catalog."
   ],
   "differences": [
-    "Tool names, model configuration, and credential setup can vary by harness."
+    "Element-template discovery and application depend on the harness exposing c8ctl's connector catalog commands."
   ]
 }
