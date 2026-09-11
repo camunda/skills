@@ -131,10 +131,21 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="camunda-skills-live-copilot-") as directory:
         workspace = Path(directory)
-        shutil.copytree(
-            entrypoint.parent,
-            workspace / "skills" / fixture["skillName"],
-        )
+        try:
+            shutil.copytree(
+                entrypoint.parent,
+                workspace / "skills" / fixture["skillName"],
+            )
+        except (OSError, shutil.Error) as error:
+            return emit(
+                result(
+                    "unavailable",
+                    fixture,
+                    discovered=discovered,
+                    activated=activated,
+                    reason=f"live workspace could not be staged: {error}",
+                )
+            )
         try:
             completed = subprocess.run(
                 [
@@ -161,6 +172,7 @@ def main() -> int:
                     "unavailable",
                     fixture,
                     discovered=discovered,
+                    activated=activated,
                     reason=f"Copilot CLI could not be invoked: {error}",
                 )
             )

@@ -35,6 +35,55 @@ def test_reports_missing_token_as_unavailable(
 
 
 @pytest.mark.parametrize(
+    "error",
+    (
+        OSError("copilot unavailable"),
+        subprocess.TimeoutExpired("copilot", 180),
+    ),
+)
+def test_reports_copilot_invocation_failure_after_activation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: BaseException,
+) -> None:
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "token")
+    monkeypatch.setattr(live_copilot.shutil, "which", lambda _: "copilot")
+    monkeypatch.setattr(live_copilot, "activate_skill", lambda *args: (True, []))
+
+    def run(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(live_copilot.subprocess, "run", run)
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "unavailable"
+    assert result["activated"] is True
+
+
+def test_reports_workspace_staging_failure_after_activation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "token")
+    monkeypatch.setattr(live_copilot.shutil, "which", lambda _: "copilot")
+    monkeypatch.setattr(live_copilot, "activate_skill", lambda *args: (True, []))
+
+    def copytree(*_args: object, **_kwargs: object) -> None:
+        raise OSError("temporary directory is unavailable")
+
+    monkeypatch.setattr(live_copilot.shutil, "copytree", copytree)
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "unavailable"
+    assert result["activated"] is True
+
+
+@pytest.mark.parametrize(
     ("copilot_exit_code", "write_artifact", "tool_exit_code", "expected_status"),
     (
         (0, True, 0, "passed"),

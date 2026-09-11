@@ -27,8 +27,13 @@ DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 MARKDOWN_LINK_START = re.compile(r"!?\[[^\]]*\]\(")
+MARKDOWN_CONTAINER_PREFIX = re.compile(
+    r"(?P<container>(?:(?:[ \t]{0,3}>[ \t]?|"
+    r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]+)*))"
+)
 MARKDOWN_LINK_DEFINITION = re.compile(
-    r"(?m)^[ \t]{0,3}\[([^\]\n]+)\]:[ \t]*(.*)$"
+    rf"(?m)^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
+    r"\[(?P<label>[^\]\n]+)\]:[ \t]*(?P<destination>.*)$"
 )
 MARKDOWN_REFERENCE_LINK = re.compile(r"!?\[([^\]\n]+)\]\[([^\]\n]*)\]")
 MARKDOWN_SHORTCUT_LINK = re.compile(
@@ -36,10 +41,6 @@ MARKDOWN_SHORTCUT_LINK = re.compile(
 )
 MARKDOWN_URI_AUTOLINK = re.compile(
     r"<([A-Za-z][A-Za-z0-9+.-]*:[^<>\s]*)>"
-)
-MARKDOWN_CONTAINER_PREFIX = re.compile(
-    r"(?P<container>(?:(?:[ \t]{0,3}>[ \t]?|"
-    r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]+)*))"
 )
 MARKDOWN_FENCE_LINE = re.compile(
     rf"^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
@@ -243,7 +244,7 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
-        errors.append(f"{path}: cannot read ({error})")
+        errors.append(f"{path}: frontmatter cannot read ({error})")
         return
 
     frontmatter = re.match(r"^---\s*\n(.*?)\n---(?:\s|$)", content, re.DOTALL)
@@ -450,8 +451,8 @@ def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
 
     definitions: dict[str, str] = {}
     for match in MARKDOWN_LINK_DEFINITION.finditer(masked):
-        target = _link_destination(match.group(2))
-        definitions[_reference_label(match.group(1))] = target
+        target = _link_destination(match.group("destination"))
+        definitions[_reference_label(match.group("label"))] = target
         add_target(target)
 
     for match in MARKDOWN_LINK_START.finditer(masked):
@@ -1038,9 +1039,15 @@ def main(argv: list[str] | None = None) -> int:
     for name, skill_directory in sorted(skill_directories.items()):
         skill_errors: list[str] = []
         if not is_valid_skill_name(name):
-            skill_errors.append(f"{skill_directory}: directory name is invalid or reserved")
+            skill_errors.append(
+                f"{skill_directory}: rule=layout.skill-directory "
+                "directory name is invalid or reserved"
+            )
         if skill_directory.is_symlink():
-            skill_errors.append(f"{skill_directory}: skill directory must not be a symlink")
+            skill_errors.append(
+                f"{skill_directory}: rule=layout.skill-directory "
+                "skill directory must not be a symlink"
+            )
         skill_markdown = skill_directory / "SKILL.md"
         if not skill_markdown.is_file():
             skill_errors.append(f"{skill_markdown}: required skill entrypoint does not exist")

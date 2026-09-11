@@ -190,6 +190,27 @@ def test_rejects_invalid_utf8_skill_frontmatter(tmp_path: Path) -> None:
 
     assert len(errors) == 1
     assert "cannot read" in errors[0]
+    assert check.skill_error_rule(errors[0]) == "metadata.frontmatter"
+
+
+def test_formats_unreadable_skill_frontmatter_as_metadata(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    (root / "skills" / name / "SKILL.md").write_bytes(b"\xff")
+
+    assert check.main(["--root", str(root)]) == 1
+    assert f"skill={name} rule=metadata.frontmatter" in capsys.readouterr().err
+
+
+def test_valid_conformance_fixture_allows_container_reference_definitions() -> None:
+    errors: list[str] = []
+    package = CONFORMANCE_FIXTURES / "valid"
+
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
 
 
 def test_invalid_conformance_fixture_has_external_reference() -> None:
@@ -549,3 +570,28 @@ def test_marks_skills_failed_for_global_post_skill_errors(
     ]
     assert skill_lines
     assert all(line.endswith(": failed") for line in skill_lines)
+
+
+def test_classifies_invalid_skill_directory_name(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    (root / "skills" / name).rename(root / "skills" / "invalid_name")
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "skill=invalid_name rule=layout.skill-directory" in capsys.readouterr().err
+
+
+def test_classifies_symlinked_skill_directory(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    (root / "skills" / "linked").symlink_to(
+        root / "skills" / name,
+        target_is_directory=True,
+    )
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "skill=linked rule=layout.skill-directory" in capsys.readouterr().err
