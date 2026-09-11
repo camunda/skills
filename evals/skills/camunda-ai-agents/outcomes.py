@@ -42,7 +42,7 @@ ACTIVITY_TAGS = {
 }
 
 REQUEST_ACTION_PATTERN = (
-    r"(?:provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)"
+    r"(?:ask|provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)"
 )
 REQUEST_VERB_PATTERN = re.compile(
     rf"^(?:(?:please|kindly|also|now|just|then)\s+)*"
@@ -57,7 +57,7 @@ REQUEST_NEED_PATTERN = re.compile(
     r"(?:(?:your|the|an?|some|each|exact|specific|full|complete|existing|already|configured|available)\s+){0,5}"
     r"(?:provider|model|connector[- ]?secret|secret|api[- ]?key|tokens?|"
     r"credentials?|passwords?)\b|"
-    r"(?:you\s+to\s+)?(?:provide|specify|confirm|tell(?:\s+me)?|identify|"
+    r"(?:(?:you\s+to\s+|to\s+))?(?:ask(?:\s+(?:you|me))?(?:\s+for)?|provide|specify|confirm|tell(?:\s+me)?|identify|"
     r"indicate|share|supply)\b|"
     r"to\s+know\b|"
     r"(?:details?|information|confirmation|names?)\s+(?:about|for|of)\b"
@@ -96,7 +96,8 @@ SECRET_EXPLICIT_CONFIGURATION_PATTERN = re.compile(
 )
 SECRET_MATERIAL_PATTERN = re.compile(
     r"\b(?:"
-    r"secret\s+values?|secret\s+material|secret[- ]+keys?|"
+    r"(?:(?:connector[- ]?)?secret)s?(?:['’]s)?\s+(?:values?|contents?)|"
+    r"secret\s+material|secret[- ]+keys?|"
     r"api\s+keys?|access\s+keys?|tokens?|credentials?|passwords?|"
     r"private\s+keys?|"
     r"(?:value|contents?)\s+of\s+(?:(?:the|an?|your)\s+)?"
@@ -110,7 +111,7 @@ SECRET_RELATIVE_MATERIAL_PATTERN = re.compile(
 )
 NEGATION_PATTERN = (
     r"(?:no|do not|don't|never|not|without|rather than|instead of|"
-    r"will not|won't|should not|shouldn't|cannot|can't|can not)"
+    r"will not|won't|should not|shouldn't|cannot|can't|can not|avoid)"
 )
 NEGATION_TERM_PATTERN = re.compile(rf"\b{NEGATION_PATTERN}\b")
 NEGATED_TERM_PREFIX_PATTERN = re.compile(
@@ -157,7 +158,9 @@ MODEL_IDENTIFIER_PATTERN = re.compile(
     r"model['’]s\s+(?:exact\s+)?(?:identifier|id|name)"
     r")\b"
 )
-LIST_ITEM_PATTERN = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
+LIST_ITEM_PATTERN = re.compile(
+    r"^\s*(?:\*{0,2}\d+[.)]\s*|\*{0,2}[-+]\s+|\*\s+)"
+)
 CLAUSE_BREAK_PATTERN = re.compile(
     r"[.!?;\n]+|\b(?:but|however|except)\b"
 )
@@ -265,10 +268,52 @@ def _split_clauses(text: str) -> list[str]:
 
 
 def _contains_requested_term(text: str, pattern: re.Pattern[str]) -> bool:
+    normalized = text.casefold()
+    if pattern.search(normalized) and _is_request_sentence(normalized):
+        return True
     return any(
         pattern.search(clause) and _is_request_sentence(clause)
-        for clause in _split_clauses(text.casefold())
+        for clause in _split_clauses(normalized)
     )
+
+
+def _contains_requested_provider(text: str) -> bool:
+    for clause in _split_clauses(text.casefold()):
+        if not _is_request_sentence(clause):
+            continue
+        for provider in re.finditer(r"\bprovider\b", clause):
+            prefix = clause[: provider.start()]
+            qualifier = re.search(
+                r"\b(?:for|of|about|with|using|from)\s+"
+                r"(?:the|an?|your|their|this|that)?\s*$",
+                prefix,
+            )
+            if qualifier and not re.search(
+                r"\bask(?:\s+(?:you|me))?\s+for\s+"
+                r"(?:the|an?|your|their|this|that)?\s*$",
+                prefix,
+            ):
+                continue
+            if (
+                re.search(
+                    rf"\b(?:{REQUEST_ACTION_PATTERN}|"
+                    r"ask(?:\s+(?:you|me))?\s+for)\b[^.?!\n]*$",
+                    prefix,
+                )
+                or re.search(
+                    r"\b(?:i|we)(?:['’](?:ll|d))?\s+"
+                    r"(?:need|require)\b[^.?!\n]*$",
+                    prefix,
+                )
+                or re.search(r"\b(?:which|what)\s+(?:the\s+)?$", prefix)
+            ):
+                return True
+            if re.match(
+                r"\s+(?:should|would|could|can|do)\s+i\s+use\b",
+                clause[provider.end() :],
+            ):
+                return True
+    return False
 
 
 def _clause_start(text: str, start: int) -> int:
@@ -501,13 +546,17 @@ def _is_confirmation_dependent_selection(
     return bool(
         re.search(
             r"\b(?:your|user['’]?s?|the)?\s*"
-            r"(?:selected|confirmed|provided|specified|chosen)\s+"
+            r"(?:selected|select|selects|confirmed|confirm|confirms|"
+            r"provided|provide|provides|specified|specify|specifies|"
+            r"chosen|choose|chooses)\s+"
             r"(?:provider|model|(?:connector[- ]?)?secret)\b",
             scope,
         )
         or re.search(
             r"\b(?:provider|model|(?:connector[- ]?)?secret)\b"
-            r"[^.;:]{0,30}\b(?:selected|confirmed|provided|specified|chosen)\b",
+            r"[^.;:]{0,30}\b(?:selected|select|selects|confirmed|confirm|"
+            r"confirms|provided|provide|provides|specified|specify|"
+            r"specifies|chosen|choose|chooses)\b",
             scope,
         )
     )
@@ -539,6 +588,8 @@ def _has_concrete_configuration_selection(
 
     if CONFIGURATION_VALUE_PATTERN.search(action_tail):
         return True
+    if not target_matches:
+        return _has_concrete_token(_configuration_fragment(action_tail))
 
     for target in target_matches:
         if _has_concrete_token(_configuration_fragment(action_tail[target.end() :])):
@@ -595,6 +646,7 @@ _GENERIC_CONFIGURATION_TOKENS = frozenset(
         "only",
         "or",
         "our",
+        "one",
         "please",
         "kindly",
         "provided",
@@ -619,10 +671,16 @@ _GENERIC_CONFIGURATION_TOKENS = frozenset(
         "value",
         "values",
         "we",
+        "what",
+        "whatever",
+        "whichever",
         "when",
         "with",
+        "will",
         "you",
         "your",
+        "once",
+        "later",
     }
 )
 _CONFIGURATION_TOKEN_PATTERN = re.compile(r"(?<![\w-])[a-z][a-z0-9_.-]*(?![\w-])")
@@ -665,10 +723,10 @@ def _clarification_contexts(text: str) -> list[str]:
             if previous_context and not is_list_item:
                 contexts.append(f"{previous_context} {context}")
             lead_candidate = LIST_ITEM_PATTERN.sub("", normalized, count=1).strip()
-            if normalized.endswith(":") and _is_request_sentence(lead_candidate):
-                request_lead = lead_candidate
-            elif not is_list_item:
-                request_lead = None
+            if not is_list_item:
+                request_lead = (
+                    lead_candidate if _is_request_sentence(lead_candidate) else None
+                )
             previous_context = context
     return contexts
 
@@ -915,7 +973,11 @@ def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
             ("connector-secret name", SECRET_NAME_PATTERN),
         ):
             if not any(
-                _contains_requested_term(context, pattern)
+                (
+                    _contains_requested_provider(context)
+                    if term == "provider"
+                    else _contains_requested_term(context, pattern)
+                )
                 and (
                     term != "connector-secret name"
                     or (

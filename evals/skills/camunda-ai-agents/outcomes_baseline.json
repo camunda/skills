@@ -12,6 +12,17 @@
         "turns": 5,
         "tool_calls": 5,
         "duration_s": 95
+      },
+      "missing-provider-configuration": {
+        "tokens": {
+          "input": 4,
+          "cache_write": 9023,
+          "cache_read": 16503,
+          "output": 458
+        },
+        "turns": 2,
+        "tool_calls": 2,
+        "duration_s": 26
       }
     }
   }
