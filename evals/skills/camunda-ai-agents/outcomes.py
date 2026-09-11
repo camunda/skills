@@ -48,12 +48,12 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     """Accept the documented template and custom-template recognition paths."""
 
     template = host.get(f"{{{NS['zeebe']}}}modelerTemplate")
-    if template == AI_AGENT_TEMPLATE:
-        return True
-
     task_definition = host.find(
         "./bpmn:extensionElements/zeebe:taskDefinition", NS
     )
+    if template == AI_AGENT_TEMPLATE:
+        return task_definition is not None
+
     if task_definition is not None and (
         task_definition.get("type") or ""
     ).startswith(AI_AGENT_TASK_TYPE_PREFIX):
