@@ -30,10 +30,12 @@ If it isn't connected, suggest configuring the server once so the user has it se
 
 ## Algolia DocSearch
 
-A bash wrapper around the public Algolia DocSearch endpoint lives at `scripts/docs-search.sh`. Run it as:
+A bash wrapper around the public Algolia DocSearch endpoint lives at
+`$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh`. Set `CAMUNDA_DOCS_SKILL_DIR` to the
+installed `camunda-docs` directory before running it:
 
 ```bash
-scripts/docs-search.sh "<query>" [--version stable|next|<major>.<minor>|all] [--limit N]
+"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh" "<query>" [--version stable|next|<major>.<minor>|all] [--limit N]
 ```
 
 Default `--version stable` resolves to the highest numeric version in the index (so it keeps working when 9.0 ships). Default `--limit 10`. Returns JSON:
@@ -84,18 +86,22 @@ In `--version all` mode the script over-fetches (4× `--limit`, capped at 100) s
 
 ### Examples
 
+The shell starts in the user's project directory, not the installed skill directory. Set
+`CAMUNDA_DOCS_SKILL_DIR` to the installed `camunda-docs` directory (the directory containing
+this `SKILL.md`) before running the wrapper, or have the host adapter provide it.
+
 ```bash
 # Default — latest stable
-scripts/docs-search.sh "zeebe gateway long polling timeout"
+"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh" "zeebe gateway long polling timeout"
 
 # Specific version (customer on 8.7)
-scripts/docs-search.sh "task assignment" --version 8.7
+"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh" "task assignment" --version 8.7
 
 # Upcoming behavior
-scripts/docs-search.sh "agentic connectors" --version next
+"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh" "agentic connectors" --version next
 
 # Compare across versions (deduped by URL stem)
-scripts/docs-search.sh "decision evaluation API" --version all --limit 15
+"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh" "decision evaluation API" --version all --limit 15
 ```
 
 ### Refinement strategy
@@ -111,11 +117,11 @@ Don't loop more than 2-3 refinements. If still nothing, switch to the MCP path (
 
 ### No credentials needed
 
-The Algolia search-only API key is public — Algolia ships it in the browser JS bundle of docs.camunda.io, so every visitor already has it. It's hardcoded at the top of `scripts/docs-search.sh` with a comment explaining why it's safe to commit. No env vars, no auth, safe in CI.
+The Algolia search-only API key is public — Algolia ships it in the browser JS bundle of docs.camunda.io, so every visitor already has it. It's hardcoded at the top of `"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh"` with a comment explaining why it's safe to commit. No credentials or API environment variables are required, and the wrapper is safe in CI.
 
 ### Without the wrapper script
 
-If you can't or don't want to run `scripts/docs-search.sh` (e.g. `jq` missing, restricted sandbox, or you just need the raw API), call the Algolia endpoint directly:
+If you can't or don't want to run `"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh"` (e.g. `jq` missing, restricted sandbox, or you just need the raw API), call the Algolia endpoint directly:
 
 ```bash
 curl -sS -f -X POST \
@@ -138,6 +144,6 @@ Only if `llms.txt` doesn't surface what you need, fall back to [`https://docs.ca
 
 ## Troubleshooting
 
-- If MCP is unavailable, use `scripts/docs-search.sh` when `curl` and `jq` are installed.
+- If MCP is unavailable, use `"$CAMUNDA_DOCS_SKILL_DIR/scripts/docs-search.sh"` when `curl` and `jq` are installed.
 - If Algolia search fails, use the `llms.txt` index to locate a page, then fetch that page directly.
 - If no source is reachable, state that the lookup is unverified instead of presenting remembered behavior as current.
