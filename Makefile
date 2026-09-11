@@ -95,9 +95,11 @@ lint:
 
 .PHONY: compatibility-check
 compatibility-check:
-	@python3 compatibility/check.py
-	@compatibility/adapters/mock-claude >/dev/null
-	@compatibility/adapters/mock-copilot >/dev/null
+	@status=0; \
+	uv run --project . --no-dev python compatibility/check.py || status=$$?; \
+	compatibility/adapters/mock-claude || status=$$?; \
+	compatibility/adapters/mock-copilot || status=$$?; \
+	exit $$status
 
 .PHONY: build-docker-images
 build-docker-images:

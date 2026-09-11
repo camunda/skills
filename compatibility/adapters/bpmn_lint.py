@@ -72,7 +72,7 @@ def validate_bpmn(path: Path) -> None:
     if process.get("isExecutable") != "true":
         raise ValueError("process must be executable")
 
-    element_ids = {process_id}
+    element_ids = {root.get("id"), process_id}
     flow_nodes = []
     flows = []
     for element in process:
@@ -107,6 +107,19 @@ def validate_bpmn(path: Path) -> None:
             or flow.get("targetRef") not in flow_node_ids
         ):
             raise ValueError("sequence flow references an unknown element")
+
+    di_ids: set[str] = set()
+    for element in root.iter():
+        if not isinstance(element.tag, str) or not element.tag.startswith(
+            f"{{{BPMNDI_NAMESPACE}}}"
+        ):
+            continue
+        element_id = element.get("id")
+        if not element_id:
+            raise ValueError(f"{local_name(element.tag)} must have an id")
+        if element_id in element_ids or element_id in di_ids:
+            raise ValueError(f"duplicate BPMN DI id: {element_id}")
+        di_ids.add(element_id)
 
     diagrams = [element for element in root.iter() if element.tag == f"{{{BPMNDI_NAMESPACE}}}BPMNDiagram"]
     if len(diagrams) != 1:

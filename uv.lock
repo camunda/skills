@@ -285,6 +285,7 @@ dependencies = [
     { name = "inspect-swe" },
     { name = "jsonschema" },
     { name = "pydantic" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -300,6 +301,7 @@ requires-dist = [
     { name = "inspect-swe", specifier = "==0.2.62" },
     { name = "jsonschema", specifier = ">=4.20" },
     { name = "pydantic", specifier = ">=2.10" },
+    { name = "pyyaml", specifier = ">=6.0" },
 ]
 
 [package.metadata.requires-dev]

@@ -12,9 +12,10 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
+import yaml
 
 SPEC_URL = "https://agentskills.io/specification"
-SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SKILL_NAME = re.compile(r"(?=.{1,64}\Z)[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 
@@ -166,35 +167,26 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         errors.append(f"{path}: missing YAML frontmatter")
         return
 
-    frontmatter_body = frontmatter.group(1)
-    name_match = re.search(
-        r"^name:[ \t]*([^\s#]+)[ \t]*$",
-        frontmatter_body,
-        re.MULTILINE,
-    )
-    if not name_match or name_match.group(1) != name:
-        errors.append(f"{path}: frontmatter name must be {name!r}")
-
-    description_match = re.search(
-        r"^description:[ \t]*(.*)$",
-        frontmatter_body,
-        re.MULTILINE,
-    )
-    if not description_match:
-        errors.append(f"{path}: frontmatter description is required")
+    try:
+        metadata = yaml.safe_load(frontmatter.group(1))
+    except yaml.YAMLError as error:
+        errors.append(f"{path}: invalid YAML frontmatter ({error})")
+        return
+    if not isinstance(metadata, dict):
+        errors.append(f"{path}: frontmatter must be a YAML object")
         return
 
-    description = description_match.group(1).strip()
-    if description.startswith(("|", ">")):
-        description = " ".join(
-            line.strip()
-            for line in frontmatter_body[description_match.end() :].splitlines()
-            if line.strip()
-        )
-    else:
-        description = description.strip("\"'")
-    if not description:
-        errors.append(f"{path}: frontmatter description must not be empty")
+    has_keys(metadata, {"name", "description"}, f"{path}: frontmatter", errors)
+
+    frontmatter_name = metadata.get("name")
+    if not isinstance(frontmatter_name, str) or not SKILL_NAME.fullmatch(frontmatter_name):
+        errors.append(f"{path}: frontmatter name is invalid")
+    elif frontmatter_name != name:
+        errors.append(f"{path}: frontmatter name must be {name!r}")
+
+    description = metadata.get("description")
+    if not isinstance(description, str) or not description.strip():
+        errors.append(f"{path}: frontmatter description must be a non-empty string")
     elif len(description) > 1024:
         errors.append(f"{path}: frontmatter description must be at most 1024 characters")
 
