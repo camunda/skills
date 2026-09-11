@@ -24,7 +24,6 @@ REQUIRED_NAMESPACES = {
 }
 SUPPORTED_FLOW_NODE_TYPES = frozenset(
     {
-        "adHocSubProcess",
         "boundaryEvent",
         "businessRuleTask",
         "callActivity",
@@ -42,9 +41,7 @@ SUPPORTED_FLOW_NODE_TYPES = frozenset(
         "sendTask",
         "serviceTask",
         "startEvent",
-        "subProcess",
         "task",
-        "transaction",
         "userTask",
     }
 )
@@ -152,8 +149,6 @@ def validate_bpmn(path: Path) -> None:
         if element_name == "sequenceFlow":
             flows.append(element)
         else:
-            if not element.get("name"):
-                raise ValueError(f"{element_name} must have a name")
             flow_nodes.append(element)
 
     if not any(local_name(element.tag) == "startEvent" for element in flow_nodes):

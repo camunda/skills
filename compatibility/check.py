@@ -31,7 +31,7 @@ def load_json(path: Path, errors: list[str]) -> Any:
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
         errors.append(f"{path}: invalid JSON ({error})")
         return None
 

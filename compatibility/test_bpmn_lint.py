@@ -41,6 +41,36 @@ def test_rejects_unsupported_process_elements(tmp_path: Path) -> None:
         validate_bpmn(artifact)
 
 
+def test_rejects_nested_flow_containers_until_they_are_supported(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '    <bpmn:startEvent id="StartEvent_1"',
+        '    <bpmn:subProcess id="Nested_1" />\n'
+        '    <bpmn:startEvent id="StartEvent_1"',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported process element"):
+        validate_bpmn(artifact)
+
+
+def test_allows_flow_nodes_without_names(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        ' name="Start process"',
+        "",
+        1,
+    ).replace(
+        ' name="End process"',
+        "",
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    validate_bpmn(artifact)
+
+
 def test_rejects_elements_reusing_definitions_id(tmp_path: Path) -> None:
     artifact = copy_fixture(tmp_path)
     content = artifact.read_text(encoding="utf-8").replace(

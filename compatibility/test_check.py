@@ -83,3 +83,11 @@ def test_rejects_sidecar_skill_name_mismatch(tmp_path: Path) -> None:
     write_json(path, sidecar)
 
     assert check.main(["--root", str(root)]) == 1
+
+
+def test_rejects_invalid_utf8_json(tmp_path: Path) -> None:
+    root = copy_contract_root(tmp_path)
+    path = root / "compatibility" / "skills-index.json"
+    path.write_bytes(b"\xff")
+
+    assert check.main(["--root", str(root)]) == 1
