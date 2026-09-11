@@ -181,6 +181,16 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
         ("resultExpression", "={toolCallResult: response.body}", True),
         ("resultExpression", "={not_toolCallResult: response.body}", False),
         ("resultExpression", '="toolCallResult"', False),
+        (
+            "resultExpression",
+            '="not a map, toolCallResult: text"',
+            False,
+        ),
+        (
+            "resultExpression",
+            '={message: "toolCallResult: text", toolCallResult: response.body}',
+            True,
+        ),
     ],
     ids=[
         "exact-result-variable",
@@ -188,6 +198,8 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
         "result-expression-map-entry",
         "result-expression-key-is-not-a-substring",
         "result-expression-is-not-a-map",
+        "quoted-map-like-text-is-not-a-map",
+        "quoted-text-does-not-hide-real-map-entry",
     ],
 )
 def test_tool_call_result_headers_require_an_exact_mapping(

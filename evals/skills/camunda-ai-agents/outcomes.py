@@ -60,6 +60,32 @@ TOOL_CALL_RESULT_MAP_ENTRY = re.compile(
 )
 
 
+def _without_feel_string_literals(expression: str) -> str:
+    characters = []
+    in_string = False
+    index = 0
+    while index < len(expression):
+        character = expression[index]
+        if character == '"':
+            if in_string and index + 1 < len(expression):
+                if expression[index + 1] == '"':
+                    characters.extend((" ", " "))
+                    index += 2
+                    continue
+                if expression[index + 1] == "\\":
+                    characters.extend((" ", " "))
+                    index += 2
+                    continue
+            in_string = not in_string
+            characters.append(" ")
+        elif in_string:
+            characters.append(" ")
+        else:
+            characters.append(character)
+        index += 1
+    return "".join(characters)
+
+
 def has_tool_container_property(host: ET.Element) -> bool:
     properties = host.findall(
         "./bpmn:extensionElements/zeebe:properties/zeebe:property", NS
@@ -114,7 +140,7 @@ def has_tool_call_result(tool: ET.Element) -> bool:
             if key == "resultVariable" and value == "toolCallResult":
                 return True
             if key == "resultExpression" and TOOL_CALL_RESULT_MAP_ENTRY.search(
-                value
+                _without_feel_string_literals(value)
             ):
                 return True
     return False
