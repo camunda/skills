@@ -41,9 +41,16 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
+REQUEST_ACTION_PATTERN = (
+    r"(?:provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)"
+)
 REQUEST_VERB_PATTERN = re.compile(
-    r"^(?:(?:please|kindly|also|now|just|then)\s+)*"
-    r"(?:provide|specify|confirm|tell me|let me know|identify|indicate|share|supply)\b"
+    rf"^(?:(?:please|kindly|also|now|just|then)\s+)*"
+    rf"{REQUEST_ACTION_PATTERN}\b"
+)
+REQUEST_PREAMBLE_PATTERN = re.compile(
+    rf"(?:\b(?:please|kindly|also|now|just|then)\s+|[,;:]\s*)"
+    rf"{REQUEST_ACTION_PATTERN}\b"
 )
 REQUEST_NEED_PATTERN = re.compile(
     r"\b(?:i|we)(?:['’](?:ll|d))?\s+(?:need|require)\s+(?:"
@@ -79,6 +86,8 @@ SECRET_EXPLICIT_CONFIGURATION_PATTERN = re.compile(
     r"already\s+(?:configured|set\s+up|created|available|exists?)|"
     r"(?:is|are|was|were)\s+(?:already\s+)?"
     r"(?:configured|preconfigured|available|created|set\s+up|existing)|"
+    r"(?:(?:should|would)\s+(?:already\s+)?"
+    r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing)))|"
     r"(?:must|needs?\s+to|has\s+to|have\s+to)\s+(?:already\s+)?"
     r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing))|"
     r"(?:configured|preconfigured|available)\s+"
@@ -124,7 +133,8 @@ FALLBACK_CONTEXT_PATTERN = re.compile(
 )
 FALLBACK_ACTION_PATTERN = re.compile(
     r"\b(?:use|choose|select|pick|assume|invent|make\s+up|"
-    r"default(?:\s+to)?|configure|set(?:\s+up)?|assign|apply|wire)\b"
+    r"default(?:\s+to)?|configure|set(?:\s+up)?|assign|apply|wire|"
+    r"suggest|recommend|propose|go\s+with)\b"
 )
 CONFIGURATION_TARGET_PATTERN = re.compile(
     r"\b(?:provider|model(?:\s+(?:identifier|id|name))?|"
@@ -152,7 +162,7 @@ CLAUSE_BREAK_PATTERN = re.compile(
     r"[.!?;\n]+|\b(?:but|however|except)\b"
 )
 SECRET_REFERENT_PATTERN = re.compile(
-    r"\b(?:connector[- ]?secret|secret|it|that|this|one)\b"
+    r"\b(?:connector[- ]?secret|secret|it|that|this|one|they|these|those|names?)\b"
 )
 
 
@@ -226,6 +236,7 @@ def _is_request_sentence(sentence: str) -> bool:
         return True
     return any(
         REQUEST_VERB_PATTERN.search(clause.strip())
+        or REQUEST_PREAMBLE_PATTERN.search(clause)
         or REQUEST_NEED_PATTERN.search(clause)
         or re.search(r"\b(?:could|can|would)\s+you\b", clause)
         or re.search(
@@ -289,7 +300,10 @@ def _has_secret_configuration_semantics(text: str) -> bool:
                 continue
             if not (
                 re.search(r"\b(?:connector[- ]?secret|secret)\b", neighbor)
-                or re.match(r"\s*(?:it|that|this|one)\b", neighbor)
+                or re.match(
+                    r"\s*(?:it|that|this|one|they|these|those|the\s+names?)\b",
+                    neighbor,
+                )
             ):
                 continue
             if any(
@@ -439,42 +453,85 @@ def _has_fallback_selection(sentence: str) -> bool:
 def _is_confirmation_dependent_selection(
     clause: str, action: re.Match[str]
 ) -> bool:
-    del action
+    actions = list(FALLBACK_ACTION_PATTERN.finditer(clause))
+    action_index = next(
+        index
+        for index, candidate in enumerate(actions)
+        if candidate.start() == action.start()
+    )
+    previous_end = actions[action_index - 1].end() if action_index else 0
+    next_start = (
+        actions[action_index + 1].start()
+        if action_index + 1 < len(actions)
+        else len(clause)
+    )
+    before_action = clause[previous_end : action.start()]
+    after_action = clause[action.end() : next_start]
+    before_scope = re.split(
+        r"[,;:]|\b(?:otherwise|however|except)\b", before_action
+    )[-1]
+    after_scope = re.split(
+        r"[,;:]|\b(?:otherwise|however|except)\b", after_action, maxsplit=1
+    )[0]
+    scope = f"{before_scope} {after_scope}"
+
+    conditional_confirmation = re.search(
+        r"\b(?:only\s+if|if|when|after|once)\b"
+        r"[^.;:]{0,100}\b(?:you|user|we|i)\b"
+        r"[^.;:]{0,50}\b(?:choose|chooses|select|selects|confirm|confirms|"
+        r"provide|provides|specify|specifies|identify|identifies|tell|tells|"
+        r"approve|approves|pick|picks)\b",
+        before_action,
+    )
+    if conditional_confirmation and not re.search(
+        r"\b(?:do not|don't|does not|doesn't|not|cannot|can't|"
+        r"will not|won't|should not|shouldn't)\s+"
+        r"(?:choose|chooses|select|selects|confirm|confirms|provide|provides|"
+        r"specify|specifies|identify|identifies|tell|tells|approve|approves|"
+        r"pick|picks)\b",
+        before_action,
+    ):
+        return True
     return bool(
         re.search(
-            r"\b(?:only\s+if|if|when|after|once)\b"
-            r"[^.;:]{0,100}\b(?:you|user|we|i)\b"
-            r"[^.;:]{0,50}\b(?:choose|select|confirm|provide|specify|"
-            r"identify|tell|approve|pick)\b",
-            clause,
-        )
-        or re.search(
             r"\b(?:your|user['’]?s?|the)?\s*"
             r"(?:selected|confirmed|provided|specified|chosen)\s+"
             r"(?:provider|model|(?:connector[- ]?)?secret)\b",
-            clause,
+            scope,
+        )
+        or re.search(
+            r"\b(?:provider|model|(?:connector[- ]?)?secret)\b"
+            r"[^.;:]{0,30}\b(?:selected|confirmed|provided|specified|chosen)\b",
+            scope,
         )
     )
+
+
+_CONFIGURATION_FRAGMENT_BREAK_PATTERN = re.compile(
+    r"[,;:!?]|\b(?:and|or|otherwise|but|however|except)\b"
+)
+
+
+def _configuration_fragment(text: str, reverse: bool = False) -> str:
+    fragments = _CONFIGURATION_FRAGMENT_BREAK_PATTERN.split(text)
+    return fragments[-1] if reverse else fragments[0]
 
 
 def _has_concrete_configuration_selection(
     clause: str, action: re.Match[str]
 ) -> bool:
-    action_word = action.group().split()[0]
     action_tail = clause[action.end() :]
     target_matches = list(CONFIGURATION_TARGET_PATTERN.finditer(action_tail))
-
-    if action_word in {"use", "choose", "select", "pick", "assume", "default"}:
-        if _has_concrete_token(action_tail):
-            return True
 
     if CONFIGURATION_VALUE_PATTERN.search(action_tail):
         return True
 
     for target in target_matches:
-        if _has_concrete_token(action_tail[target.end() :]):
+        if _has_concrete_token(_configuration_fragment(action_tail[target.end() :])):
             return True
-        before_target = action_tail[: target.start()]
+        before_target = _configuration_fragment(
+            action_tail[: target.start()], reverse=True
+        )
         if _has_concrete_token(before_target, reverse=True):
             return True
     return False
@@ -492,6 +549,7 @@ _GENERIC_CONFIGURATION_TOKENS = frozenset(
         "as",
         "available",
         "before",
+        "by",
         "but",
         "chosen",
         "complete",
@@ -518,12 +576,17 @@ _GENERIC_CONFIGURATION_TOKENS = frozenset(
         "model",
         "name",
         "names",
+        "named",
         "of",
         "only",
         "or",
         "our",
+        "please",
+        "kindly",
         "provided",
+        "provide",
         "provider",
+        "select",
         "selected",
         "secret",
         "settings",
@@ -537,6 +600,8 @@ _GENERIC_CONFIGURATION_TOKENS = frozenset(
         "type",
         "until",
         "use",
+        "user",
+        "using",
         "value",
         "values",
         "we",
@@ -609,6 +674,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
         required_tools = set((state.metadata or {}).get("required_tools", []))
         expected_provider = (state.metadata or {}).get("provider")
         expected_model = (state.metadata or {}).get("model")
+        expected_model_target = (state.metadata or {}).get("model_target")
         expected_authentication_secrets = (
             (state.metadata or {}).get("authentication_secrets") or {}
         )
@@ -721,9 +787,13 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             if _normalize_literal(provider_source) != expected_provider:
                 missing_configuration.append("provider")
 
-        if expected_provider and expected_model:
-            model_target = f"provider.{expected_provider}.model.model"
-            if _normalize_literal(host_inputs.get(model_target)) != expected_model:
+        if expected_model:
+            if not expected_model_target:
+                missing_configuration.append("model target metadata")
+            elif (
+                _normalize_literal(host_inputs.get(expected_model_target))
+                != expected_model
+            ):
                 missing_configuration.append("model")
 
         for secret_target, expected_secret in expected_authentication_secrets.items():
@@ -917,6 +987,7 @@ SAMPLES = [
             ],
             "provider": "openai",
             "model": "gpt-4.1-mini",
+            "model_target": "provider.openai.model.model",
             "authentication_secrets": {
                 "provider.openai.authentication.apiKey": "OPENAI_API_KEY",
             },
