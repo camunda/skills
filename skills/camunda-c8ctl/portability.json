@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and invokes c8ctl through the host terminal."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+      "differences": [
+        "Maps c8ctl process execution, profile selection, and secret setup to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and tool invocation adapters."]
+      "differences": [
+        "The host supplies terminal, environment-variable, and credential adapters for c8ctl."
+      ]
     }
   },
   "limitations": [
-    "Cluster and profile operations require an installed c8ctl CLI."
+    "Cluster and profile operations require c8ctl 3.0.0 or newer, Node.js 22.18.0 or newer, and credentials for remote clusters."
   ],
   "differences": [
-    "Profile and cluster lifecycle commands depend on each harness's credential and process environment."
+    "The c8ctl command surface is stable across harnesses; profile storage, environment variables, and process lifecycle are host-managed."
   ]
 }

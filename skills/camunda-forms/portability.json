@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and edits the portable .form JSON artifact."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps form modeling operations to the Copilot tool surface."]
+      "differences": [
+        "Maps JSON editing, schema validation, and optional c8ctl checks to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies form discovery and validation adapters."]
+      "differences": [
+        "The host supplies JSON editing and validation tools; BPMN linking remains an explicit cross-skill step."
+      ]
     }
   },
   "limitations": [
-    "Form validation depends on the host's supported Camunda form tooling."
+    "Form validation requires a JSON-aware editor or validator and a Camunda 8.8+ BPMN project for live linking."
   ],
   "differences": [
-    "Form JSON authoring and FEEL validation depend on the harness exposing Camunda form tooling."
+    "Form JSON is portable; editor previews, schema checks, and FEEL evaluation depend on host-provided tooling."
   ]
 }

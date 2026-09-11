@@ -1,16 +1,16 @@
 ---
 name: camunda-process-test
 description: |
-  Use this skill to author and run Camunda Process Test (CPT) suites that cover every BPMN gateway branch, DMN rule, and error boundary to 100%.
-
-  Use for: scaffolding the `camunda-process-test-spring` harness, planning the minimum set of test segments for full element coverage, authoring `.test.json` instruction-based scenarios, running `mvn test`, parsing the CPT coverage report, deduplicating redundant segments.
-
-  Do not use for: authoring the BPMN (use camunda-bpmn), writing FEEL or DMN expressions (use camunda-feel), deploying to a live cluster (use camunda-process-mgmt), UI or E2E tests against Operate or Tasklist.
-
-  **Workflow skill** — segment-based authoring loop covering `mvn test`, coverage report parsing, and scenario deduplication.
+  Use this skill to author and run Camunda Process Test suites for 100% BPMN coverage. Use it for segment planning, `.test.json` scenarios, Java fallback tests, `mvn test`, coverage reports, and suite maintenance. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or build UI/E2E tests.
 ---
 
 # Camunda Process Test
+
+**WORKFLOW SKILL**: plan segments, author scenarios, run `mvn test`, and close coverage gaps.
+
+## DO NOT USE FOR:
+
+Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
 Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BPMN element coverage** with the minimum number of test segments. Test assertions are limited to reachability and routing — CPT exercises that the engine traverses the right elements, not the data values produced by service tasks or external systems.
 
@@ -43,7 +43,8 @@ Find the BPMN under test in priority order:
 
 1. `src/main/resources/processes/`
 2. `src/main/resources/bpmn/`
-3. `../resources/` (Node.js layouts where the test harness lives in `test/`)
+3. The resource directory declared by the project build (for example, a Node.js
+   project may keep it at `resources/` while the test harness lives in `test/`).
 
 Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, list them and ask which to target.
 
@@ -78,6 +79,8 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 3. **Greedy set-cover.** Repeatedly pick the candidate whose predicted set covers the largest number of still-uncovered ids. Tie-break by shortest path (cheapest to author). Stop when the union covers every id.
 4. **Diagnostic-isolation override (optional).** If two chosen segments share a root but exercise different failure modes (e.g. one fires a boundary event, the other completes the user task normally), keep both so a failure points at one cause cleanly. Apply only when the user is debugging a specific area; default is pure set-cover.
 5. Print the segment plan as a table: `segment name | root | predicted ids covered | end condition`. Authoring then implements exactly this list — no speculative scenarios that may be deduped later.
+
+**Example:** for a gateway with `approved` and `rejected` flows, plan one segment per flow, predict the visited IDs through the next join, and keep the smallest set of segments that covers both branches and the shared end path.
 
 ### 4. Author
 

@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and applies the documented BPMN and c8ctl workflow."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+      "differences": [
+        "Maps connector-template application, file editing, and model/tool configuration to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and tool invocation adapters."]
+      "differences": [
+        "The host supplies LLM-provider credential and tool-call execution adapters for live processes."
+      ]
     }
   },
   "limitations": [
-    "Live agent operations require an installed and configured Camunda toolchain."
+    "Live agent operations require c8ctl, a Camunda 8.8+ cluster, and a model-provider secret."
   ],
   "differences": [
-    "AI Agent Sub-process configuration is mapped to each harness's available model and tool-call surface."
+    "BPMN and connector configuration are harness-neutral; model-provider credentials and tool execution are host-managed."
   ]
 }

@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and can use the MCP path or the bundled Algolia script."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps documentation lookup to the Copilot tool surface."]
+      "differences": [
+        "MCP server registration is harness-specific; the bundled curl and jq search script is the portable fallback."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies documentation discovery and retrieval adapters."]
+      "differences": [
+        "The host must provide HTTP retrieval and optionally an MCP client; script-based search remains available."
+      ]
     }
   },
   "limitations": [
-    "Current Camunda behavior depends on access to the official documentation source."
+    "Current Camunda behavior depends on network access to the official documentation source or a current local cache."
   ],
   "differences": [
-    "Documentation lookups use the harness's network, browser, or cached documentation retrieval capability."
+    "The MCP and Algolia paths return different result shapes, so the skill normalizes both to source-backed documentation lookup."
   ]
 }

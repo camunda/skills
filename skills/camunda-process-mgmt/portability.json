@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and invokes c8ctl with an explicit profile for mutations."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps cluster operations to the Copilot tool surface."]
+      "differences": [
+        "Maps c8ctl deployment, inspection, and mutation commands to Copilot terminal and credential capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies cluster discovery and operation adapters."]
+      "differences": [
+        "The host supplies profile selection, authentication, and result adapters for live cluster operations."
+      ]
     }
   },
   "limitations": [
-    "Live process operations require a reachable and authorized Camunda cluster."
+    "Live process operations require a reachable and authorized Camunda 8.8+ cluster plus an installed c8ctl CLI."
   ],
   "differences": [
-    "Deployment and process-operation commands require the harness to map credentials and cluster endpoints into c8ctl."
+    "Deployment and process-operation semantics are stable; profile credentials, endpoints, and confirmation prompts are host-managed."
   ]
 }

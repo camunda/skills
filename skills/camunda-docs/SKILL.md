@@ -1,10 +1,16 @@
 ---
 name: camunda-docs
 description: |
-  Use this skill to look up Camunda 8 documentation. The official docs at docs.camunda.io are the source of truth for current behavior — FEEL function signatures, BPMN extension attribute shapes, REST API endpoints, version requirements, feature availability. Trigger any time you need to verify a Camunda specific against the current docs, including when you think you already know the answer — Camunda 8 evolves fast and training data drifts. If you start with a conceptual explanation and find yourself about to state specifics (defaults, names, syntax, version requirements), stop and invoke before writing those specifics.
+  Use this skill to retrieve current Camunda 8 documentation from docs.camunda.io. Use it for version-specific FEEL functions, BPMN extension attributes, REST endpoints, release requirements, and feature availability. It chooses MCP, Algolia, or llms.txt retrieval and cites source URLs. Do not use it to author BPMN, DMN, forms, connectors, or process operations.
 ---
 
 # Camunda Docs Lookup
+
+**UTILITY SKILL**: retrieve source-backed Camunda documentation, then route implementation work to the focused skill.
+
+## DO NOT USE FOR:
+
+Do not use this skill to author BPMN, DMN, forms, or connectors, or to deploy and operate process instances. Route those tasks to the corresponding Camunda skill after verifying any version-sensitive fact here.
 
 Two retrieval paths into `docs.camunda.io`, each with a different strength. Pick by question shape; fall back to `llms.txt` only if both are unavailable.
 
@@ -20,13 +26,7 @@ Use both primary paths in parallel when in doubt — they're cheap and frequentl
 
 If the `camunda-docs` MCP server (`https://camunda-docs.mcp.kapa.ai`, HTTP transport) is connected, call its knowledge search tool with a single, well-formed natural-language sentence (the tool requires a complete sentence, not keywords).
 
-If it isn't connected, suggest installing it once so the user has it set up for future questions. Skip the suggestion if you've already made it earlier in this conversation. For Claude Code:
-
-```bash
-claude mcp add --transport http camunda-docs https://camunda-docs.mcp.kapa.ai
-```
-
-For VS Code Copilot, Cursor, or generic MCP clients, see [the reference](https://docs.camunda.io/docs/reference/mcp-docs/). Google sign-in on first use; 40 requests/hour and 200/day per user; not for CI.
+If it isn't connected, suggest configuring the server once so the user has it set up for future questions. Skip the suggestion if you've already made it earlier in this conversation. Add the HTTP server at `https://camunda-docs.mcp.kapa.ai` using the harness's documented MCP configuration flow. For VS Code Copilot, Cursor, or other generic MCP clients, see [the reference](https://docs.camunda.io/docs/reference/mcp-docs/). Google sign-in on first use; 40 requests/hour and 200/day per user; not for CI.
 
 ## Algolia DocSearch
 
@@ -135,3 +135,9 @@ If neither MCP nor Algolia is usable, fetch [`https://docs.camunda.io/llms.txt`]
 ## Last resort: llms-full.txt (full docs corpus)
 
 Only if `llms.txt` doesn't surface what you need, fall back to [`https://docs.camunda.io/llms-full.txt`](https://docs.camunda.io/llms-full.txt) (~11 MB) — every docs page concatenated. **Even larger; never read whole into context.** Cache locally, search with surrounding context for the term. Use when the right page name isn't obvious from the index.
+
+## Troubleshooting
+
+- If MCP is unavailable, use `scripts/docs-search.sh` when `curl` and `jq` are installed.
+- If Algolia search fails, use the `llms.txt` index to locate a page, then fetch that page directly.
+- If no source is reachable, state that the lookup is unverified instead of presenting remembered behavior as current.

@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and routes the decision to the named Camunda skill."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+      "differences": [
+        "Maps repository inspection and the selected c8ctl or SDK workflow to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and tool invocation adapters."]
+      "differences": [
+        "The host supplies discovery of the focused skill and the tools required by the selected integration path."
+      ]
     }
   },
   "limitations": [
-    "Integration design depends on the host's available Camunda and system tools."
+    "The decision matrix requires access to the Camunda tools and the language or runtime named by the selected path."
   ],
   "differences": [
-    "Integration decisions route to different adapter surfaces when a host lacks the selected connector, worker, or cluster tool."
+    "The routing rules are harness-neutral; the selected connector, worker, or cluster workflow still depends on host tool availability."
   ]
 }

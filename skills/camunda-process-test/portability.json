@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and follows the segment-planning and coverage-report workflow."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps process test operations to the Copilot tool surface."]
+      "differences": [
+        "Maps Maven, Docker, source editing, and coverage-report commands to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies test execution and reporting adapters."]
+      "differences": [
+        "The host supplies Java, Maven, Docker, and test-report adapters for the embedded engine."
+      ]
     }
   },
   "limitations": [
-    "Process tests require the supported Camunda Process Test runtime and build tools."
+    "Process tests require Camunda Process Test 8.9+, Java 21+, Maven, Docker, and a test project with the referenced resources."
   ],
   "differences": [
-    "Process-test execution depends on the harness's Java/Maven runner and embedded engine support."
+    "Scenario and coverage semantics are harness-neutral; Java/Maven execution, Docker lifecycle, and report collection are host-managed."
   ]
 }
