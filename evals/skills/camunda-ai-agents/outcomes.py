@@ -377,7 +377,7 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
             return False
 
     return any(
-        task_type.startswith(prefix)
+        task_type.startswith(prefix) and bool(task_type.removeprefix(prefix))
         for prefix in AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES
     )
 

@@ -127,6 +127,12 @@ def _host(
             False,
             True,
         ),
+        (
+            None,
+            "io.camunda.agenticai:aiagent:subprocess:",
+            False,
+            False,
+        ),
         (None, "io.camunda.agenticai:aiagent:1", False, False),
         (None, "io.camunda.other:worker:1", False, False),
         (
@@ -152,6 +158,7 @@ def _host(
         "custom-marker-with-subprocess-type",
         "legacy-task-family-rejected",
         "custom-subprocess",
+        "bare-custom-subprocess-prefix",
         "legacy-agent-task-rejected",
         "unrelated-custom-type",
         "marker-without-task-type",
