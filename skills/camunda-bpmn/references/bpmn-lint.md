@@ -63,4 +63,6 @@ or manual review, and do not put a condition on the default flow.
 An XOR whose outgoing flows all have conditions but which has no default can
 pass `conditional-flows` while still raising a `CONDITION_ERROR` when an input
 is missing, unexpected, or mistyped. Treat that shape as a lint review failure
-and add the default before considering the BPMN complete.
+and add the default before considering the BPMN complete. A default flow does
+not suppress an error raised while evaluating another condition, so guard or
+normalize comparisons whose inputs can be missing or have an unexpected type.

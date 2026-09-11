@@ -62,7 +62,7 @@ Always encode special characters in XML attribute values:
 - Name tasks with **verb + object** pattern: "Review invoice", "Send notification"
 
 **Gateways:**
-- **Exclusive (XOR)**: Exactly one path taken. Set the `default` attribute for a safe fallback flow and label condition flows. For binary or enum decisions (for example, approve/reject or yes/no), make one branch the default and put the condition only on the explicitly selected branch. Never generate an XOR where every outgoing flow has a condition but no default: an unexpected, missing, or mistyped value can make every condition false and raise a `CONDITION_ERROR` incident.
+- **Exclusive (XOR)**: Exactly one path taken. Set the `default` attribute for a safe fallback flow and label condition flows. For binary or enum decisions (for example, approve/reject or yes/no), make one branch the default and put the condition only on the explicitly selected branch. The default is used only when the other conditions evaluate to `false`; it does not recover from a FEEL evaluation error. If an input can be missing or have the wrong type, guard or normalize the comparison so it returns `false` instead of failing (for example, `=if number(string(amount)) != null then number(string(amount)) <= 1000 else false`). Never generate an XOR where every outgoing flow has a condition but no default: an unexpected, missing, or mistyped value can make every condition false and raise a `CONDITION_ERROR` incident.
 - **Parallel (AND)**: All paths taken concurrently. Always use a matching join gateway to synchronize.
 - **Inclusive (OR)**: One or more paths. Also requires a matching join.
 - Fix fake-join warnings from `c8ctl bpmn lint` — join gateways must match their fork type.
