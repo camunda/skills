@@ -158,6 +158,18 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
                 }:
                     errors.append(f"{harness_label}.status: invalid harness status")
                 non_empty_strings(declaration["differences"], f"{harness_label}.differences", errors)
+        if sidecar["status"] == "portable":
+            non_native = [
+                harness_name
+                for harness_name, declaration in harnesses.items()
+                if not isinstance(declaration, dict)
+                or declaration.get("status") != "native"
+            ]
+            if non_native:
+                errors.append(
+                    f"{label}.status: portable requires native harness declarations; "
+                    f"non-native={sorted(non_native)}"
+                )
 
     non_empty_strings(sidecar["limitations"], f"{label}.limitations", errors)
     non_empty_strings(sidecar["differences"], f"{label}.differences", errors)
@@ -649,14 +661,15 @@ def main(argv: list[str] | None = None) -> int:
             f"found={sorted(actual_sidecars)} expected={sorted(expected_sidecars)}"
         )
 
+    global_errors_before_skills = bool(errors)
     skill_results: dict[str, bool] = {}
     for name, skill_directory in sorted(skill_directories.items()):
-        skill_error_count = len(errors)
+        skill_errors: list[str] = []
         skill_markdown = skill_directory / "SKILL.md"
         if not skill_markdown.is_file():
-            errors.append(f"{skill_markdown}: required skill entrypoint does not exist")
+            skill_errors.append(f"{skill_markdown}: required skill entrypoint does not exist")
         else:
-            check_skill_frontmatter(skill_markdown, name, errors)
+            check_skill_frontmatter(skill_markdown, name, skill_errors)
 
         expected_index = {
             "name": name,
@@ -674,41 +687,49 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(index_entry, dict) or any(
             index_entry.get(field) != value for field, value in expected_index.items()
         ):
-            errors.append(f"skills-index.json: entry for {name!r} has stale or mismatched paths")
+            skill_errors.append(f"skills-index.json: entry for {name!r} has stale or mismatched paths")
         if not isinstance(audit_entry, dict) or any(
             audit_entry.get(field) != value for field, value in expected_audit.items()
         ):
-            errors.append(f"audit.json: entry for {name!r} has stale or mismatched paths")
+            skill_errors.append(f"audit.json: entry for {name!r} has stale or mismatched paths")
 
         sidecar_path = skill_directory / "portability.json"
-        sidecar = load_json(sidecar_path, errors)
-        validate_schema(sidecar, schemas["portability"], str(sidecar_path), errors)
-        check_sidecar(sidecar, str(sidecar_path.relative_to(root)), spec_date, errors)
+        sidecar = load_json(sidecar_path, skill_errors)
+        validate_schema(sidecar, schemas["portability"], str(sidecar_path), skill_errors)
+        check_sidecar(sidecar, str(sidecar_path.relative_to(root)), spec_date, skill_errors)
         if isinstance(sidecar, dict):
-            expect(sidecar.get("skillDirectory"), f"skills/{name}", f"{sidecar_path}.skillDirectory", errors)
-            expect(sidecar.get("skillName"), name, f"{sidecar_path}.skillName", errors)
+            expect(
+                sidecar.get("skillDirectory"),
+                f"skills/{name}",
+                f"{sidecar_path}.skillDirectory",
+                skill_errors,
+            )
+            expect(sidecar.get("skillName"), name, f"{sidecar_path}.skillName", skill_errors)
             if isinstance(index_entry, dict):
                 expect(
                     index_entry.get("status"),
                     sidecar.get("status"),
                     f"{sidecar_path} and skills-index.json status",
-                    errors,
+                    skill_errors,
                 )
             if isinstance(audit_entry, dict):
                 expect(
                     audit_entry.get("status"),
                     sidecar.get("status"),
                     f"{sidecar_path} and audit.json status",
-                    errors,
+                    skill_errors,
                 )
         if isinstance(index_entry, dict) and isinstance(audit_entry, dict):
             expect(
                 audit_entry.get("status"),
                 index_entry.get("status"),
                 f"skills-index.json and audit.json status for {name!r}",
-                errors,
+                skill_errors,
             )
-        skill_results[name] = len(errors) == skill_error_count
+        errors.extend(skill_errors)
+        skill_results[name] = not skill_errors
+
+    errors_before_global_post_checks = len(errors)
 
     if isinstance(contract, dict):
         discovery = contract.get("discovery")
@@ -733,6 +754,12 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"{adapter}: required executable does not exist")
         elif not adapter.stat().st_mode & 0o111:
             errors.append(f"{adapter}: required executable bit is not set")
+
+    global_checks_failed = global_errors_before_skills or (
+        len(errors) > errors_before_global_post_checks
+    )
+    if global_checks_failed:
+        skill_results = {name: False for name in skill_results}
 
     for name in sorted(skill_results):
         result = "passed" if skill_results[name] else "failed"

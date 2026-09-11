@@ -27,6 +27,52 @@ def test_rejects_flow_nodes_with_dangling_references(tmp_path: Path) -> None:
         validate_bpmn(artifact)
 
 
+def test_rejects_start_events_with_incoming_flows(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '    <bpmn:startEvent id="StartEvent_1" name="Start process">\n',
+        '    <bpmn:startEvent id="StartEvent_1" name="Start process">\n'
+        "      <bpmn:incoming>Flow_2</bpmn:incoming>\n",
+        1,
+    ).replace(
+        "      <bpmn:incoming>Flow_1</bpmn:incoming>\n"
+        "    </bpmn:endEvent>",
+        "      <bpmn:incoming>Flow_1</bpmn:incoming>\n"
+        "      <bpmn:outgoing>Flow_2</bpmn:outgoing>\n"
+        "    </bpmn:endEvent>",
+        1,
+    ).replace(
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n',
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n'
+        '    <bpmn:sequenceFlow id="Flow_2" sourceRef="EndEvent_1" targetRef="StartEvent_1" />\n',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="start event .*incoming"):
+        validate_bpmn(artifact)
+
+
+def test_rejects_end_events_with_outgoing_flows(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '      <bpmn:incoming>Flow_1</bpmn:incoming>\n',
+        '      <bpmn:incoming>Flow_1</bpmn:incoming>\n'
+        "      <bpmn:incoming>Flow_2</bpmn:incoming>\n"
+        "      <bpmn:outgoing>Flow_2</bpmn:outgoing>\n",
+        1,
+    ).replace(
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n',
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n'
+        '    <bpmn:sequenceFlow id="Flow_2" sourceRef="EndEvent_1" targetRef="EndEvent_1" />\n',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="end event .*outgoing"):
+        validate_bpmn(artifact)
+
+
 def test_rejects_unsupported_process_elements(tmp_path: Path) -> None:
     artifact = copy_fixture(tmp_path)
     content = artifact.read_text(encoding="utf-8").replace(

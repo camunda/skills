@@ -183,6 +183,11 @@ def validate_bpmn(path: Path) -> None:
             raise ValueError(f"incoming references on {node_id} do not match sequence flows")
         if declared_flow_refs(node, "outgoing") != outgoing_flow_ids[node_id]:
             raise ValueError(f"outgoing references on {node_id} do not match sequence flows")
+        node_name = local_name(node.tag)
+        if node_name == "startEvent" and incoming[node_id]:
+            raise ValueError(f"start event {node_id} must not have incoming sequence flows")
+        if node_name == "endEvent" and outgoing[node_id]:
+            raise ValueError(f"end event {node_id} must not have outgoing sequence flows")
 
     def reachable(
         starts: set[str | None], graph: dict[str | None, set[str | None]]
