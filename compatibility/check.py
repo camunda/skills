@@ -26,7 +26,8 @@ RESERVED_SKILL_NAMES = frozenset({"anthropic", "claude"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
-MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\((?:<([^>]+)>|([^)]+))\)")
+MARKDOWN_LINK_START = re.compile(r"!?\[[^\]]*\]\(")
+EXTERNAL_URL = re.compile(r"https?://[^\s<>()\[\]]+")
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
     r"(?<![\w])(?:skills/[a-z0-9-]+/|(?:README|CONTRIBUTING|evals|compatibility|\.github)/"
     r"|/(?:Users|home)/)"
@@ -298,6 +299,81 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         errors.append(f"{path}: skill body must not be empty")
 
 
+def _strip_markdown_code_spans(content: str) -> str:
+    masked: list[str] = []
+    index = 0
+    while index < len(content):
+        if content[index] != "`":
+            masked.append(content[index])
+            index += 1
+            continue
+
+        fence_start = index
+        while index < len(content) and content[index] == "`":
+            index += 1
+        fence = content[fence_start:index]
+        closing = content.find(fence, index)
+        if closing == -1:
+            masked.append(content[fence_start:])
+            break
+
+        code_span = content[fence_start : closing + len(fence)]
+        masked.append("".join("\n" if character == "\n" else " " for character in code_span))
+        index = closing + len(fence)
+    return "".join(masked)
+
+
+def _link_destination(raw: str) -> str:
+    raw = raw.strip()
+    if not raw:
+        return ""
+    if raw.startswith("<"):
+        closing = raw.find(">", 1)
+        return raw[1:closing] if closing != -1 else raw
+    for index, character in enumerate(raw):
+        if character.isspace():
+            return raw[:index]
+    return raw
+
+
+def _markdown_link_targets(content: str) -> list[str]:
+    masked = _strip_markdown_code_spans(content)
+    targets: list[str] = []
+    for match in MARKDOWN_LINK_START.finditer(masked):
+        start = match.end()
+        if start >= len(masked):
+            continue
+
+        if masked[start] == "<":
+            closing = masked.find(">", start + 1)
+            if closing == -1:
+                continue
+            raw = masked[start : closing + 1]
+        else:
+            depth = 0
+            cursor = start
+            while cursor < len(masked):
+                character = masked[cursor]
+                if character == "\\":
+                    cursor += 2
+                    continue
+                if character == "(":
+                    depth += 1
+                elif character == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                cursor += 1
+            if cursor >= len(masked):
+                continue
+            raw = masked[start:cursor]
+
+        target = _link_destination(raw)
+        if target:
+            targets.append(target)
+    return targets
+
+
 def check_skill_self_containment(
     skill_directory: Path, errors: list[str]
 ) -> None:
@@ -329,9 +405,8 @@ def check_skill_self_containment(
             errors.append(f"{path}: cannot read referenced content ({error})")
             continue
 
-        for match in MARKDOWN_LINK.finditer(content):
-            target = (match.group(1) or match.group(2) or "").strip()
-            if not target or target.startswith("#") or target == "url":
+        for target in _markdown_link_targets(content):
+            if target.startswith("#"):
                 continue
             parsed = urlsplit(target)
             if parsed.scheme or parsed.netloc:
@@ -355,7 +430,8 @@ def check_skill_self_containment(
                 )
 
         for line_number, line in enumerate(content.splitlines(), start=1):
-            if FORBIDDEN_LOCAL_REFERENCE.search(line):
+            line_without_urls = EXTERNAL_URL.sub("", _strip_markdown_code_spans(line))
+            if FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls):
                 errors.append(
                     f"{path}:{line_number}: rule=content.self-contained "
                     "references a repository-level or external local path"
@@ -366,6 +442,8 @@ def skill_error_rule(error: str) -> str:
     explicit_rule = re.search(r"\brule=([a-z0-9.-]+)", error)
     if explicit_rule:
         return explicit_rule.group(1)
+    if "skill body" in error:
+        return "content.body"
     if "frontmatter" in error:
         return "metadata.frontmatter"
     if "skill entrypoint" in error or "SKILL.md" in error:

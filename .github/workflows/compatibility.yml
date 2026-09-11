@@ -75,7 +75,7 @@ jobs:
           print("## Live GitHub Copilot smoke")
           print()
           print(f"- Status: `{result['status']}`")
-          print(f"- Harness: `{result['adapter']}`")
+          print(f"- Harness: `{result['harness']}`")
           print(f"- Skill: `{result['skillName']}`")
           if result.get("reason"):
               print(f"- Result: {result['reason']}")

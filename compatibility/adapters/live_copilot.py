@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from bpmn_lint import validate_bpmn
+from mock_adapter import activate_skill
 
 
 def load_json(path: Path) -> Any:
@@ -60,7 +61,7 @@ def result(
 
 def emit(value: dict[str, Any]) -> int:
     print(json.dumps(value, indent=2, sort_keys=True))
-    return 0 if value["status"] in {"passed", "skipped", "unavailable"} else 1
+    return 0 if value["status"] in {"passed", "skipped"} else 1
 
 
 def main() -> int:
@@ -107,46 +108,26 @@ def main() -> int:
             )
         )
 
+    activated, activation_failures = activate_skill(
+        entrypoint,
+        fixture["skillName"],
+        fixture["prompt"],
+        expected["toolCommand"],
+    )
+    if not activated:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                discovered=discovered,
+                reason="; ".join(activation_failures),
+            )
+        )
+
     prompt = fixture["prompt"]
     environment = os.environ.copy()
     environment["GH_TOKEN"] = token
     environment["GITHUB_TOKEN"] = token
-    adapter_directory = str(Path(__file__).resolve().parent)
-    environment["PATH"] = adapter_directory + os.pathsep + environment.get("PATH", "")
-
-    for setup_command in (
-        [copilot, "plugin", "marketplace", "add", "camunda/skills"],
-        [copilot, "plugin", "install", "camunda-skills@camunda"],
-    ):
-        try:
-            setup = subprocess.run(
-                setup_command,
-                cwd=root,
-                env=environment,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-        except (OSError, subprocess.TimeoutExpired) as error:
-            return emit(
-                result(
-                    "unavailable",
-                    fixture,
-                    discovered=discovered,
-                    reason=f"Copilot plugin setup could not be invoked: {error}",
-                )
-            )
-        if setup.returncode != 0:
-            detail = (setup.stderr or setup.stdout).strip()
-            return emit(
-                result(
-                    "unavailable",
-                    fixture,
-                    discovered=discovered,
-                    reason=f"Copilot plugin setup is unavailable: {detail}",
-                )
-            )
 
     with tempfile.TemporaryDirectory(prefix="camunda-skills-live-copilot-") as directory:
         workspace = Path(directory)
@@ -156,7 +137,7 @@ def main() -> int:
         )
         try:
             completed = subprocess.run(
-                [copilot, "--prompt", prompt],
+                [copilot, "--plugin-dir", str(root), "--prompt", prompt],
                 cwd=workspace,
                 env=environment,
                 check=False,
@@ -176,6 +157,7 @@ def main() -> int:
 
         artifact_path = workspace / expected["artifact"]
         artifact_exists = artifact_path.is_file()
+        activated = completed.returncode == 0
         artifact_valid = False
         if artifact_exists:
             try:
@@ -190,15 +172,28 @@ def main() -> int:
         tool_exit_code: int | None = None
         tool_output: str | None = None
         if artifact_valid:
-            tool = subprocess.run(
-                ["c8ctl", "bpmn", "lint", expected["artifact"]],
-                cwd=workspace,
-                env=environment,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            try:
+                tool = subprocess.run(
+                    ["c8ctl", "bpmn", "lint", expected["artifact"]],
+                    cwd=workspace,
+                    env=environment,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+            except (OSError, subprocess.TimeoutExpired) as error:
+                return emit(
+                    result(
+                        "unavailable",
+                        fixture,
+                        discovered=discovered,
+                        activated=activated,
+                        artifact_exists=artifact_exists,
+                        artifact_valid=artifact_valid,
+                        reason=f"c8ctl could not be invoked: {error}",
+                    )
+                )
             tool_executed = True
             tool_exit_code = tool.returncode
             tool_output = tool.stdout.strip()
@@ -208,7 +203,7 @@ def main() -> int:
             )
 
         passed = (
-            completed.returncode == 0
+            activated
             and artifact_exists
             and artifact_valid
             and tool_executed
@@ -220,7 +215,7 @@ def main() -> int:
                 "passed" if passed else "failed",
                 fixture,
                 discovered=discovered,
-                activated=completed.returncode == 0 and artifact_exists,
+                activated=activated,
                 artifact_exists=artifact_exists,
                 artifact_valid=artifact_valid,
                 tool_executed=tool_executed,
