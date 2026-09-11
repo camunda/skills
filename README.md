@@ -167,7 +167,7 @@ repository-defined adapter boundary, not harness-specific Claude or Copilot disc
 prompts, or tool mapping; live integration is separate. A deterministic mock pass is required
 evidence for the shared contract and is not independent product coverage.
 
-Live Copilot smoke testing is a separate opt-in integration. It requires the live CLI and authentication and may require a Camunda cluster. Run it only through the documented workflow dispatch or live-integration opt-in when available. Its result must be reported as `passed`, `failed`, `skipped`, or `unavailable`; `skipped` and `unavailable` are explicit outcomes and never count as a deterministic mock pass.
+Live Copilot smoke testing is not implemented in this repository yet. The compatibility workflow's `workflow_dispatch` runs deterministic mocks only and is not a live Copilot test. If live integration is added later, document its opt-in entry point and report `passed`, `failed`, `skipped`, or `unavailable`; `skipped` and `unavailable` never count as a deterministic mock pass.
 
 ## Quick start
 
