@@ -3,11 +3,11 @@ name: camunda-dmn
 description: |
   Use this skill to author and validate DMN (Decision Model and Notation) decisions for Camunda 8 — decision tables and literal expressions inside a Decision Requirements Diagram (DRD).
 
-  Use for: creating or editing `.dmn` files, picking the right hit policy, wiring a business rule task in BPMN to a DMN decision, validating decisions structurally (`npx dmnlint`) and behaviourally (CPT preferred, deploy fallback).
+  Use for: creating or editing `.dmn` files, picking the right hit policy, wiring a business rule task in BPMN to a DMN decision, generating DMN DI (`npx dmn-auto-layout`), validating decisions structurally (`npx dmnlint`) and behaviourally (CPT preferred, deploy fallback).
 
   Do not use for: writing FEEL syntax in detail (use camunda-feel), modelling the BPMN around a business rule task (use camunda-bpmn), authoring CPT test scenarios (use camunda-process-test).
 
-  **Workflow skill** — author the decision, lint it, run it.
+  **Workflow skill** — author the decision, lay it out, lint it, run it.
 ---
 
 # Camunda DMN
@@ -42,6 +42,25 @@ The default namespace and the `namespace="http://camunda.org/schema/1.0/dmn"` at
 A decision contains either a `<decisionTable>` (inputs / outputs / rules + hit policy) or a `<literalExpression>` (single FEEL expression — useful for combining upstream decisions). Multi-decision files link decisions with `<informationRequirement><requiredDecision href="#upstream"/></informationRequirement>`; Camunda evaluates only the root decision referenced from BPMN and pulls in required decisions transparently.
 
 See [references/decision-tables.md](references/decision-tables.md) for the full XML of input/output clauses, unary-test grammar, worked examples per hit policy, COLLECT aggregators, type table, and DRG linking.
+
+## Layout
+
+DMN Diagram Interchange (`<dmndi:DMNDI>`) is presentation-only. Never create, retain,
+edit, or repair its coordinates by hand. `dmn-auto-layout` replaces existing DMN DI with
+one canonical Decision Requirements Diagram, so make semantic edits first and generate
+the layout only when the decision is final:
+
+```bash
+# replace the file in place
+npx dmn-auto-layout path/to/decision.dmn
+
+# write the layouted decision elsewhere
+npx dmn-auto-layout path/to/decision.dmn --output path/to/decision.layouted.dmn
+```
+
+Every created or edited `.dmn` file must be laid out before delivery. If the tool is
+unavailable, install it with `npm install -g dmn-auto-layout` or say so explicitly;
+never hand-write DMN DI.
 
 ### ID and naming rules
 
@@ -89,20 +108,27 @@ See [references/feel-in-dmn.md](references/feel-in-dmn.md) for the unary-test gr
 
 ## Validation
 
-Two layers — run both before declaring a file done.
+Three layers — run all before declaring a file done.
 
-**1. Structural lint.** A DMN edit is not structurally done until `npx dmnlint` reports zero issues.
+**1. Layout.** Generate DMN DI with `dmn-auto-layout` after semantic changes and before linting.
+
+**2. Structural lint.** A DMN edit is not structurally done until `npx dmnlint` reports zero issues.
+
+Run layout and lint as separate commands, in this order:
 
 ```bash
+npx dmn-auto-layout path/to/decision.dmn
 [ -f .dmnlintrc ] || echo '{ "extends": "dmnlint:recommended" }' > .dmnlintrc
 npx --yes dmnlint path/to/decision.dmn
 ```
 
 For directory-wide work, discover `.dmn` files recursively first (skip `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`), then lint each discovered file. Keep a fix loop open: lint → targeted XML edits → re-lint until the set is clean.
 
+If the layout step fails, stop and fix it — never lint or deliver a file whose layout did not complete. Do not merge these steps into a single `&&`/`||` chain: a failed layout must not fall through to lint.
+
 Common rules: `label-required` (add a `name`), `no-duplicate-requirements` (drop the duplicate `informationRequirement` edge). See [references/dmnlint.md](references/dmnlint.md) for the full rule → fix mapping.
 
-**2. Behaviour validation by execution.** `dmnlint` does not understand FEEL, hit-policy correctness, or type matches. Run the decision:
+**3. Behaviour validation by execution.** `dmnlint` does not understand FEEL, hit-policy correctness, or type matches. Run the decision:
 
 - Preferred — write or extend a CPT scenario that exercises each `UNIQUE` partition / `FIRST` cascade / `COLLECT` path. See **camunda-process-test**.
 - Fallback — deploy `c8ctl deploy decision.dmn process.bpmn --profile=local` and start an instance with `c8ctl await pi --id MyProcess --variables '{...}' --profile=local`. Incidents surface as `EXTRACT_VALUE_ERROR` (FEEL problem) or `DECISION_EVALUATION_FAILED` (hit-policy violation). See **camunda-process-mgmt**.
