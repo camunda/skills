@@ -47,6 +47,9 @@ AI_AGENT_TEMPLATE_TASK_TYPES = {
         "io.camunda.agenticai:aiagent:subprocess:",
     ),
 }
+AI_AGENT_LEGACY_TEMPLATE_PREFIXES = (
+    "io.camunda.connectors.agenticai.aiagent.jobworker.",
+)
 AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
     "io.camunda.agenticai:aiagent:subprocess:",
 )
@@ -54,6 +57,11 @@ AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
 AI_AGENT_OUTPUT_COLLECTION = "toolCallResults"
 AI_AGENT_OUTPUT_ELEMENT_KEY = "content"
 AI_AGENT_OUTPUT_ELEMENT_VALUE = "toolCallResult"
+CLAIM_REVIEW_TOOL_IDS = (
+    "DetectDuplicateClaims",
+    "CheckAmountCategoryMismatch",
+    "DetectPersonalBusinessLanguage",
+)
 
 
 def _without_feel_string_literals(expression: str) -> str:
@@ -235,7 +243,11 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
                         task_type.startswith(prefix) for prefix in task_prefixes
                     )
                 )
-        return False
+        if any(
+            template.startswith(prefix)
+            for prefix in AI_AGENT_LEGACY_TEMPLATE_PREFIXES
+        ):
+            return False
 
     return any(
         task_type.startswith(prefix)
@@ -436,6 +448,38 @@ SAMPLES = [
                 "LookupCustomerData",
                 "EscalateToHuman",
             ],
+        },
+    ),
+    Sample(
+        id="claim-review-subprocess",
+        input=(
+            "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
+            "Create a Camunda 8.8+ BPMN process (id: claim-review, name: "
+            "'Claim Review') with an AI Agent Sub-process pattern:\n"
+            "1. Start event 'Claim received'.\n"
+            "2. Ad-hoc subprocess id ClaimReviewAgent (name 'Claim review agent') "
+            "as the AI agent host. Apply the actual AI Agent Sub-process connector "
+            "element template to ClaimReviewAgent with c8ctl; do not model a "
+            "generic or unconfigured ad-hoc subprocess stand-in. The saved host "
+            "must retain the current template marker together with its AI Agent "
+            "task definition, or use the documented custom AI Agent task-type prefix.\n"
+            "3. Inside ClaimReviewAgent add these independent root tools (do not "
+            "replace them with one generic tool):\n"
+            "   - service task id DetectDuplicateClaims, name 'Detect duplicate claims'\n"
+            "   - service task id CheckAmountCategoryMismatch, name 'Check amount and category mismatch'\n"
+            "   - service task id DetectPersonalBusinessLanguage, name "
+            "'Detect personal versus business language'\n"
+            "4. Add bpmn:documentation text to each tool explaining when to use it.\n"
+            "5. Use fromAi(...) for at least one tool input parameter.\n"
+            "6. Ensure every tool output is mapped to toolCallResult.\n"
+            "7. Configure agent prompts as FEEL strings and set "
+            "data.limits.maxModelCalls.\n"
+            "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
+            + SAVE_AND_DEPLOY
+        ),
+        metadata={
+            "process_id": "claim-review",
+            "required_tools": list(CLAIM_REVIEW_TOOL_IDS),
         },
     ),
 ]

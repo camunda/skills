@@ -98,10 +98,16 @@ def _host(
             False,
         ),
         (
-            "io.camunda.connectors.agenticai.aiagent.jobworker.v1",
-            "io.camunda.agenticai:aiagent-job-worker:1",
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2",
+            "io.camunda.agenticai:aiagent:subprocess:2",
             False,
             False,
+        ),
+        (
+            "com.example.custom.ai-agent.v1",
+            "io.camunda.agenticai:aiagent:subprocess:custom",
+            False,
+            True,
         ),
         (
             None,
@@ -130,6 +136,7 @@ def _host(
         "legacy-marker-current-type",
         "current-marker-legacy-type",
         "missing-tool-container-property",
+        "custom-marker-with-subprocess-type",
         "legacy-task-family-rejected",
         "custom-subprocess",
         "legacy-agent-task-rejected",
@@ -297,7 +304,11 @@ def _minimal_bpmn(
 """
 
 
-def _score_artifact(monkeypatch: pytest.MonkeyPatch, artifact: str):
+def _score_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    artifact: str,
+    required_tools: list[str] | None = None,
+):
     class ExecResult:
         returncode = 0
         stdout = artifact
@@ -313,7 +324,7 @@ def _score_artifact(monkeypatch: pytest.MonkeyPatch, artifact: str):
     state = SimpleNamespace(
         metadata={
             "process_id": "ai-ticket-triage",
-            "required_tools": ["LookupKnowledgeBase"],
+            "required_tools": required_tools or ["LookupKnowledgeBase"],
         }
     )
     return asyncio.run(scorer(state, None))
@@ -374,6 +385,21 @@ def test_ai_agent_shape_scorer_requires_each_tool_result(
     score = _score_artifact(
         monkeypatch,
         _minimal_bpmn(connector=True, include_unmapped_tool=True),
+    )
+
+    assert score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_rejects_single_claim_review_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = _minimal_bpmn(connector=True).replace(
+        "LookupKnowledgeBase", "DetectDuplicateClaims"
+    )
+    score = _score_artifact(
+        monkeypatch,
+        artifact,
+        required_tools=list(_outcomes.CLAIM_REVIEW_TOOL_IDS),
     )
 
     assert score.value == 0.0
