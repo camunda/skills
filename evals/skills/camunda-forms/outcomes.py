@@ -189,6 +189,32 @@ def form_outcome() -> Scorer:
             return Score(value=0.0, explanation="component ids are not unique")
 
         _KEYLESS_TYPES = {"text", "html", "image", "separator", "button", "group", "spacer"}
+        for component in flattened:
+            component_type = component.get("type")
+            if "value" in component:
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"component {component.get('id')!r} uses invalid value property; "
+                        "use defaultValue for an input default"
+                    ),
+                )
+            if component_type == "submit":
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"component {component.get('id')!r} uses invalid type 'submit'; "
+                        "use type 'button' with action 'submit'"
+                    ),
+                )
+            if component_type == "button" and "key" in component:
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"button {component.get('id')!r} must not define key"
+                    ),
+                )
+
         missing_key = [
             c["id"]
             for c in flattened

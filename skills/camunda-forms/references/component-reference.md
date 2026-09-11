@@ -26,6 +26,9 @@ Input components additionally require:
 | `disabled` | no | Disable the field (`true`/`false`) |
 | `validate` | no | Validation rules object |
 
+Use `defaultValue` for an input's initial value. `value` is not a component
+property; it is used in `{ "label": "...", "value": "..." }` option objects.
+
 ## Validation Options
 
 All input components accept a `validate` object:
@@ -76,6 +79,7 @@ Single-line text input.
   "id": "Field_email",
   "key": "email",
   "label": "Email Address",
+  "defaultValue": "user@example.com",
   "layout": { "row": "row_0", "columns": null },
   "validate": {
     "required": true,
@@ -370,6 +374,10 @@ Action button, typically used for form submission.
 **Optional**: `action`, `conditional`, `properties`
 
 - `action`: `"submit"` (default) or `"reset"`
+
+Use `type: "button"` for submit controls. `submit` is an action, not a
+component type, and buttons do not have a `key` because they do not bind to a
+process variable.
 
 ```json
 {
