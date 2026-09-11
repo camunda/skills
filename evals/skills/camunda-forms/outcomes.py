@@ -112,6 +112,37 @@ SAMPLES = [
             ],
         },
     ),
+    Sample(
+        id="schema-safe-default-and-submit",
+        input=(
+            "Create a Camunda form with id `review-form`. Include exactly these components:\n"
+            "1. textfield id `Field_ReviewerName`, key `reviewerName`, label `Reviewer name`, "
+            "defaultValue `Ada`, layout.row `row_0`\n"
+            "2. button id `Button_Submit`, label `Submit`, action `submit`, layout.row `row_1`; "
+            "do not include a key on the button." + SAVE
+        ),
+        metadata={
+            "form_id": "review-form",
+            "required_components": [
+                {
+                    "id": "Field_ReviewerName",
+                    "type": "textfield",
+                    "key": "reviewerName",
+                    "label": "Reviewer name",
+                    "layout_row": "row_0",
+                    "properties": {"defaultValue": "Ada"},
+                },
+                {
+                    "id": "Button_Submit",
+                    "type": "button",
+                    "label": "Submit",
+                    "layout_row": "row_1",
+                    "properties": {"action": "submit"},
+                    "absent_properties": ["key"],
+                },
+            ],
+        },
+    ),
 ]
 
 
@@ -123,6 +154,24 @@ def _flatten_components(components: list[dict[str, Any]]) -> list[dict[str, Any]
         if isinstance(nested, list):
             flattened.extend(_flatten_components(nested))
     return flattened
+
+
+def _validate_component_shapes(components: list[dict[str, Any]]) -> str | None:
+    for component in components:
+        component_type = component.get("type")
+        if "value" in component:
+            return (
+                f"component {component.get('id')!r} uses invalid value property; "
+                "use defaultValue for an input default"
+            )
+        if component_type == "submit":
+            return (
+                f"component {component.get('id')!r} uses invalid type 'submit'; "
+                "use type 'button' with action 'submit'"
+            )
+        if component_type == "button" and "key" in component:
+            return f"button {component.get('id')!r} must not define key"
+    return None
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -188,32 +237,18 @@ def form_outcome() -> Scorer:
         if len(ids) != len(set(ids)):
             return Score(value=0.0, explanation="component ids are not unique")
 
-        _KEYLESS_TYPES = {"text", "html", "image", "separator", "button", "group", "spacer"}
-        for component in flattened:
-            component_type = component.get("type")
-            if "value" in component:
-                return Score(
-                    value=0.0,
-                    explanation=(
-                        f"component {component.get('id')!r} uses invalid value property; "
-                        "use defaultValue for an input default"
-                    ),
-                )
-            if component_type == "submit":
-                return Score(
-                    value=0.0,
-                    explanation=(
-                        f"component {component.get('id')!r} uses invalid type 'submit'; "
-                        "use type 'button' with action 'submit'"
-                    ),
-                )
-            if component_type == "button" and "key" in component:
-                return Score(
-                    value=0.0,
-                    explanation=(
-                        f"button {component.get('id')!r} must not define key"
-                    ),
-                )
+        _KEYLESS_TYPES = {
+            "text",
+            "html",
+            "image",
+            "separator",
+            "button",
+            "group",
+            "spacer",
+        }
+        shape_error = _validate_component_shapes(flattened)
+        if shape_error:
+            return Score(value=0.0, explanation=shape_error)
 
         missing_key = [
             c["id"]
@@ -287,6 +322,25 @@ def form_outcome() -> Scorer:
                         f"{expected_values!r}, got {component.get('values')!r}"
                     ),
                 )
+
+            for field, expected_value in expected.get("properties", {}).items():
+                if component.get(field) != expected_value:
+                    return Score(
+                        value=0.0,
+                        explanation=(
+                            f"component {expected['id']} {field} mismatch: expected "
+                            f"{expected_value!r}, got {component.get(field)!r}"
+                        ),
+                    )
+
+            for field in expected.get("absent_properties", []):
+                if field in component:
+                    return Score(
+                        value=0.0,
+                        explanation=(
+                            f"component {expected['id']} must not define {field}"
+                        ),
+                    )
 
         return Score(
             value=1.0,
