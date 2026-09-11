@@ -30,6 +30,8 @@ def _host(
     task_type: str | None = None,
     tool_container: bool = False,
     output_binding: bool | None = None,
+    output_collection: str = "toolCallResults",
+    output_element: str = "={content: toolCallResult}",
 ) -> ET.Element:
     attrs = {}
     if template is not None:
@@ -46,8 +48,8 @@ def _host(
             extension_elements,
             f"{{{_outcomes.NS['zeebe']}}}adHoc",
             {
-                "outputCollection": "toolCallResults",
-                "outputElement": "={content: toolCallResult}",
+                "outputCollection": output_collection,
+                "outputElement": output_element,
             },
         )
     if task_type is not None:
@@ -233,6 +235,8 @@ def _minimal_bpmn(
     connector: bool,
     template_output_binding: bool = True,
     include_unmapped_tool: bool = False,
+    template_output_collection: str = "toolCallResults",
+    template_output_element: str = "={content: toolCallResult}",
 ) -> str:
     if connector:
         host_attributes = (
@@ -251,8 +255,8 @@ def _minimal_bpmn(
 
     if connector and template_output_binding:
         output_binding = (
-            '      <zeebe:adHoc outputCollection="toolCallResults" '
-            'outputElement="={content: toolCallResult}" />\n'
+            f'      <zeebe:adHoc outputCollection="{template_output_collection}" '
+            f'outputElement="{template_output_element}" />\n'
         )
     else:
         output_binding = ""
@@ -328,6 +332,36 @@ def test_ai_agent_shape_scorer_requires_connector_metadata(
     assert valid_score.value == 1.0
     assert invalid_score.value == 0.0
     assert copied_metadata_score.value == 0.0
+
+
+@pytest.mark.parametrize(
+    ("output_collection", "output_element"),
+    [
+        ("notToolCallResults", "={content: toolCallResult}"),
+        ("toolCallResults", "=if false then toolCallResult else null"),
+        ("toolCallResults", "={content: notToolCallResult}"),
+    ],
+    ids=[
+        "wrong-output-collection",
+        "non-map-output-element",
+        "wrong-content-source",
+    ],
+)
+def test_ai_agent_shape_scorer_rejects_malformed_template_binding(
+    monkeypatch: pytest.MonkeyPatch,
+    output_collection: str,
+    output_element: str,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            template_output_collection=output_collection,
+            template_output_element=output_element,
+        ),
+    )
+
+    assert score.value == 0.0
 
 
 def test_ai_agent_shape_scorer_requires_each_tool_result(

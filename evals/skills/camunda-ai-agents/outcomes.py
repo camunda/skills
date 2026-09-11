@@ -54,6 +54,12 @@ AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
     "io.camunda.agenticai:aiagent-job-worker:",
     "io.camunda.agenticai:aiagent:subprocess:",
 )
+
+AI_AGENT_OUTPUT_COLLECTION = "toolCallResults"
+AI_AGENT_OUTPUT_ELEMENT_KEY = "content"
+AI_AGENT_OUTPUT_ELEMENT_VALUE = "toolCallResult"
+
+
 def _without_feel_string_literals(expression: str) -> str:
     characters = []
     in_string = False
@@ -96,7 +102,9 @@ def _has_feel_identifier(expression: str, identifier: str) -> bool:
     return False
 
 
-def _has_top_level_feel_map_entry(expression: str, key: str) -> bool:
+def _has_top_level_feel_map_entry(
+    expression: str, key: str, expected_value: str | None = None
+) -> bool:
     expression = _without_feel_string_literals(expression)
     index = 0
     while index < len(expression) and expression[index].isspace():
@@ -131,7 +139,43 @@ def _has_top_level_feel_map_entry(expression: str, key: str) -> bool:
                 while cursor < len(expression) and expression[cursor].isspace():
                     cursor += 1
                 if cursor < len(expression) and expression[cursor] == ":":
-                    return True
+                    if expected_value is None:
+                        return True
+                    value_start = cursor + 1
+                    value_end = value_start
+                    nested_braces = 0
+                    nested_brackets = 0
+                    nested_parentheses = 0
+                    while value_end < len(expression):
+                        value_character = expression[value_end]
+                        if value_character == "{":
+                            nested_braces += 1
+                        elif value_character == "}":
+                            if nested_braces:
+                                nested_braces -= 1
+                            elif not (
+                                nested_brackets or nested_parentheses
+                            ):
+                                break
+                        elif value_character == "[":
+                            nested_brackets += 1
+                        elif value_character == "]":
+                            if nested_brackets:
+                                nested_brackets -= 1
+                        elif value_character == "(":
+                            nested_parentheses += 1
+                        elif value_character == ")":
+                            if nested_parentheses:
+                                nested_parentheses -= 1
+                        elif value_character == "," and not (
+                            nested_braces or nested_brackets or nested_parentheses
+                        ):
+                            break
+                        value_end += 1
+                    return (
+                        expression[value_start:value_end].strip()
+                        == expected_value
+                    )
         index += 1
     return False
 
@@ -154,9 +198,13 @@ def has_ai_agent_output_binding(host: ET.Element) -> bool:
     output_collection = (ad_hoc.get("outputCollection") or "").strip()
     output_element = (ad_hoc.get("outputElement") or "").strip()
     return bool(
-        output_collection
+        output_collection == AI_AGENT_OUTPUT_COLLECTION
         and output_element
-        and _has_feel_identifier(output_element, "toolCallResult")
+        and _has_top_level_feel_map_entry(
+            output_element,
+            AI_AGENT_OUTPUT_ELEMENT_KEY,
+            AI_AGENT_OUTPUT_ELEMENT_VALUE,
+        )
     )
 
 
