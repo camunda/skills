@@ -7,11 +7,13 @@ on:
       - "compatibility/**"
       - "skills/**"
       - "README.md"
+      - "CONTRIBUTING.md"
       - "Makefile"
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
       - ".claude-plugin/**"
+      - ".github/plugin/**"
       - ".github/workflows/compatibility.yml"
   workflow_dispatch:
 

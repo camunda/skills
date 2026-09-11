@@ -30,10 +30,12 @@ The canonical contract is [`compatibility/portability-contract.md`](compatibilit
 it records the supported package layout, discovery boundary, harness guarantees, and smoke-test
 semantics. Do not add repository compatibility fields to `SKILL.md` frontmatter.
 
-Every skill must have a matching `skills/<name>/portability.json` sidecar. The sidecar, entry in
-[`compatibility/skills-index.json`](compatibility/skills-index.json), and entry in
-[`compatibility/audit.json`](compatibility/audit.json) must agree on the skill name, paths, status,
-specification URL, and `specRevisionOrAuditDate`. The repository-level status is one of
+Every skill must have a matching `skills/<name>/portability.json` sidecar. The top-level
+`specUrl` and `specRevisionOrAuditDate` fields in both inventories, together with each sidecar's
+corresponding `agentSkillsSpec` fields, must agree on the specification URL and audit baseline.
+The sidecar, entry in [`compatibility/skills-index.json`](compatibility/skills-index.json), and
+entry in [`compatibility/audit.json`](compatibility/audit.json) must also agree on the skill name,
+paths, and status. The repository-level status is one of
 `portable`, `portable-with-adapter`, or `harness-specific`; harness entries identify whether
 Claude, Copilot, or a generic host is `native`, `adapter-required`, `unsupported`, or
 `not-tested`. Differences and limitations must describe the actual behavior of the skill, not a
@@ -49,7 +51,7 @@ make compatibility-check
 ```
 
 This check reports each skill separately and rejects missing or stale sidecars, inventory
-omissions, mismatched statuses, invalid declarations, and a changed specification audit field.
+omissions, mismatched statuses, invalid declarations, and inconsistent specification audit fields.
 The deterministic Claude and Copilot mock adapters must remain credential-free and must not be
 replaced by a live model call. Live Copilot checks are optional and must report unavailable or
 skipped explicitly rather than treating them as a pass.

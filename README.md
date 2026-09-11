@@ -43,7 +43,7 @@ The repository follows the [Agent Skills specification](https://agentskills.io/s
 | Harness | Guarantee | Adapter boundary |
 |---------|-----------|------------------|
 | Claude Code | The standard skill package is discoverable through the Claude marketplace/plugin or a Claude skill path. Existing plugin and local-clone workflows remain supported. | c8ctl runs through the host terminal; `camunda-docs` may use its documented MCP path or bundled HTTP search script. |
-| GitHub Copilot CLI | The Camunda plugin installs the same skill packages, and `/skills list` can show the installed skills. A prompt can activate `camunda-bpmn` and use the host terminal to create and lint a BPMN file. | Every current skill is `portable-with-adapter`: Copilot maps file editing, terminal commands, catalog access, SDKs, credentials, or MCP to its available tools. Tool names must not be assumed to be identical to another harness. |
+| GitHub Copilot CLI | The Camunda plugin installs the same skill packages, and `/plugin list` can show the installed skills. A prompt can activate `camunda-bpmn` and use the host terminal to create and lint a BPMN file. | Every current skill is `portable-with-adapter`: Copilot maps file editing, terminal commands, catalog access, SDKs, credentials, or MCP to its available tools. Tool names must not be assumed to be identical to another harness. |
 | Generic Agent Skills-compatible runtime | The package format, metadata, discovery path, and skill-local files are portable. | The host must provide an installer or manual copy step and adapters for the commands, runtimes, credentials, and optional services used by a skill. |
 
 No harness guarantee implies a Camunda cluster, credentials, a model provider, or a particular tool name. Those are explicit prerequisites below and in each sidecar.
@@ -56,7 +56,7 @@ This matrix is intentionally keyed to [`compatibility/skills-index.json`](compat
 |-------|--------|-------------------------|--------------------------------|
 | `camunda-ai-agents` | `portable-with-adapter` | [`portability.json`](skills/camunda-ai-agents/portability.json) | Copilot/generic hosts map connector-template application, file editing, model configuration, and tool execution. Live agent operations require c8ctl, a Camunda 8.8+ cluster, and a model-provider secret. |
 | `camunda-bpmn` | `portable-with-adapter` | [`portability.json`](skills/camunda-bpmn/portability.json) | Copilot/generic hosts map BPMN editing and c8ctl commands. Linting requires c8ctl 3.0.0+; the documented format flow requires 3.2.0+ and a BPMN-aware workspace. |
-| `camunda-c8ctl` | `portable-with-adapter` | [`portability.json`](skills/camunda-c8ctl/portability.json) | Hosts map terminal, profile, environment, and credential handling. Cluster/profile operations require c8ctl 3.0.0+, Node.js 22.18.0+, and remote-cluster credentials. |
+| `camunda-c8ctl` | `portable-with-adapter` | [`portability.json`](skills/camunda-c8ctl/portability.json) | Hosts map terminal, profile, environment, and credential handling. Cluster/profile operations require c8ctl 3.0.0+ and Node.js 22.18.0+; remote-cluster operations require credentials, while local c8run uses its built-in no-auth `local` profile. |
 | `camunda-connectors` | `portable-with-adapter` | [`portability.json`](skills/camunda-connectors/portability.json) | Hosts map element-template catalog access and BPMN editing. Basic operations require c8ctl 3.0.0+; engine-version discovery and FEEL `--set` behavior require 3.2.0+. |
 | `camunda-connectors-development` | `portable-with-adapter` | [`portability.json`](skills/camunda-connectors-development/portability.json) | Hosts map c8ctl, Java/Maven, file edits, and connector runtime access. Java connector builds require Java 17+ and Maven 3.8+ or an equivalent toolchain. |
 | `camunda-development` | `portable-with-adapter` | [`portability.json`](skills/camunda-development/portability.json) | The routing rules are portable, but the selected connector, worker, or cluster path needs the host's tools and runtime. |
@@ -86,7 +86,7 @@ The c8ctl-based workflows require version 3.0.0 or newer. A local c8run cluster 
 
 ```bash
 c8ctl cluster start
-c8ctl get topology
+c8ctl get topology --profile=local
 ```
 
 The local profile uses `http://localhost:8080/v2`; pass `--profile=local` on cluster-touching commands. Local c8run also needs a JRE 21+ and enough disk space for the downloaded cluster. For SaaS or Self-Managed clusters, configure a profile once with [`c8ctl add profile`](https://docs.camunda.io/docs/apis-tools/c8ctl/getting-started/), then use an explicit `--profile=<name>`. Remote operations require an authorized Camunda 8.8+ cluster and credentials.
@@ -150,13 +150,22 @@ Replace `<your-agent>` with an identifier supported by the host and run `gh skil
 
 ## Compatibility smoke checks
 
-The repository's deterministic compatibility gate does not require a model, network access, credentials, or a live cluster:
+The checks themselves do not call a model, use credentials, or contact a live cluster. A clean
+checkout still needs the `uv` executable, and the first `uv run` may create the environment and
+download dependencies, so environment bootstrap can require network access:
 
 ```bash
 make compatibility-check
 ```
 
-It validates every skill's metadata, sidecar, inventory, audit date, and filesystem paths, then runs the separate mock entry points `compatibility/adapters/mock-claude` and `compatibility/adapters/mock-copilot`. Each mock discovers `skills/camunda-bpmn/SKILL.md`, activates the fixed fixture prompt, emits and validates `process.bpmn`, and executes the exact command `c8ctl bpmn lint process.bpmn`. A deterministic mock pass is required evidence; it is not a claim that the two products expose identical tools.
+It validates every skill's metadata, sidecar, inventory, audit date, and filesystem paths, then runs
+the separate mock entry points `compatibility/adapters/mock-claude` and
+`compatibility/adapters/mock-copilot`. Both entry points use the shared contract fixture: each
+discovers `skills/camunda-bpmn/SKILL.md`, activates the fixed prompt, emits and validates
+`process.bpmn`, and executes the exact command `c8ctl bpmn lint process.bpmn`. This verifies the
+repository-defined adapter boundary, not harness-specific Claude or Copilot discovery, permission
+prompts, or tool mapping; live integration is separate. A deterministic mock pass is required
+evidence for the shared contract and is not independent product coverage.
 
 Live Copilot smoke testing is a separate opt-in integration. It requires the live CLI and authentication and may require a Camunda cluster. Run it only through the documented workflow dispatch or live-integration opt-in when available. Its result must be reported as `passed`, `failed`, `skipped`, or `unavailable`; `skipped` and `unavailable` are explicit outcomes and never count as a deterministic mock pass.
 
