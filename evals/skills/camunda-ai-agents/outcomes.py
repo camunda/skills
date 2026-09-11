@@ -597,8 +597,9 @@ SAMPLES = [
         id="ticket-triage-subprocess",
         input=(
             "Write the complete /workspace/process.bpmn artifact first; do not "
-            "create a placeholder shell. Do not open reference files or search "
-            "other templates for this task: use the exact template ID and command "
+            "create a placeholder shell. Do not invoke another skill, open "
+            "reference files, or run c8ctl sync, search, info, or get-properties "
+            "for this task: use only the exact template ID and apply command "
             "given below, then continue through the final validation.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
@@ -642,8 +643,9 @@ SAMPLES = [
         id="claim-review-subprocess",
         input=(
             "Write the complete /workspace/process.bpmn artifact first; do not "
-            "create a placeholder shell. Do not open reference files or search "
-            "other templates for this task: use the exact template ID and command "
+            "create a placeholder shell. Do not invoke another skill, open "
+            "reference files, or run c8ctl sync, search, info, or get-properties "
+            "for this task: use only the exact template ID and apply command "
             "given below, then continue through the final validation.\n"
             "Create a Camunda 8.8+ BPMN process (id: claim-review, name: "
             "'Claim Review') with an AI Agent Sub-process pattern:\n"
