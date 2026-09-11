@@ -26,6 +26,9 @@ Input components additionally require:
 | `disabled` | no | Disable the field (`true`/`false`) |
 | `validate` | no | Validation rules object |
 
+Use `defaultValue` for an input's initial value. `value` is not a component
+property; it is used in `{ "label": "...", "value": "..." }` option objects.
+
 ## Validation Options
 
 All input components accept a `validate` object:
@@ -76,6 +79,7 @@ Single-line text input.
   "id": "Field_email",
   "key": "email",
   "label": "Email Address",
+  "defaultValue": "user@example.com",
   "layout": { "row": "row_0", "columns": null },
   "validate": {
     "required": true,
@@ -371,6 +375,10 @@ Action button, typically used for form submission.
 
 - `action`: `"submit"` (default) or `"reset"`
 
+Use `type: "button"` for submit controls. `submit` is an action, not a
+component type, and buttons do not have a `key` because they do not bind to a
+process variable.
+
 ```json
 {
   "type": "button",
@@ -439,7 +447,11 @@ Add vertical spacing between components. No data binding.
 Repeatable section that allows users to add/remove rows of fields. Output is a list of objects.
 
 **Required**: `type`, `id`, `key`, `label`, `components`, `layout`
-**Optional**: `defaultValue`, `disableCollapse`, `nonCollapsible`, `validate`, `conditional`, `properties`
+**Optional**: `disableCollapse`, `nonCollapsedItems`, `conditional`, `properties`
+
+`defaultValue` is not supported for dynamic lists; set defaults on their
+nested input components instead. Apply validation rules to the nested input
+components; `validate` is not supported on the dynamic list itself.
 
 ```json
 {
@@ -480,7 +492,7 @@ Embed an external page or application. Does not bind to a variable.
   "type": "iframe",
   "id": "Iframe_preview",
   "url": "https://example.com/preview",
-  "height": "400px",
+  "height": 400,
   "title": "Document Preview",
   "layout": { "row": "row_0", "columns": null }
 }
@@ -491,10 +503,12 @@ Embed an external page or application. Does not bind to a variable.
 Display tabular data. Typically used for read-only data presentation.
 
 **Required**: `type`, `id`, `layout`
-**Optional**: `label`, `dataSource`, `columns`, `rowCount`, `conditional`, `properties`
+**Required data**: `dataSource` and exactly one of `columns` or `columnsExpression`
+**Optional**: `label`, `rowCount`, `conditional`, `properties`
 
 - `dataSource`: FEEL expression pointing to a list variable
 - `columns`: array of `{ "key": "...", "label": "..." }` definitions
+- `columnsExpression`: FEEL expression that returns the column definitions
 
 ```json
 {
