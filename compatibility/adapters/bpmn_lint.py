@@ -34,11 +34,11 @@ def validate_bpmn(path: Path) -> None:
 
     try:
         root = None
-        namespaces: dict[str, str] = {}
+        namespace_uris: set[str] = set()
         for event, value in ElementTree.iterparse(path, events=("start", "start-ns")):
             if event == "start-ns":
-                prefix, uri = value
-                namespaces[prefix or ""] = uri
+                _, uri = value
+                namespace_uris.add(uri)
             elif root is None:
                 root = value
     except (OSError, ElementTree.ParseError) as error:
@@ -47,9 +47,9 @@ def validate_bpmn(path: Path) -> None:
     if root is None or root.tag != f"{{{BPMN_NAMESPACE}}}definitions":
         raise ValueError("root element must be BPMN definitions")
 
-    for prefix, uri in REQUIRED_NAMESPACES.items():
-        if namespaces.get(prefix) != uri:
-            raise ValueError(f"namespace {prefix!r} must be declared as {uri!r}")
+    for uri in REQUIRED_NAMESPACES.values():
+        if uri not in namespace_uris:
+            raise ValueError(f"required namespace URI {uri!r} is not declared")
 
     definitions_id = root.get("id")
     if not definitions_id:
@@ -75,7 +75,18 @@ def validate_bpmn(path: Path) -> None:
     if process.get("isExecutable") != "true":
         raise ValueError("process must be executable")
 
-    element_ids = {definitions_id, process_id}
+    element_ids: set[str] = set()
+    for element in root.iter():
+        if not isinstance(element.tag, str) or not element.tag.startswith(
+            f"{{{BPMN_NAMESPACE}}}"
+        ):
+            continue
+        element_id = element.get("id")
+        if element_id:
+            if element_id in element_ids:
+                raise ValueError(f"duplicate BPMN id: {element_id}")
+            element_ids.add(element_id)
+
     flow_nodes = []
     flows = []
     for element in process:
@@ -86,9 +97,6 @@ def validate_bpmn(path: Path) -> None:
             if local_name(element.tag) in {"extensionElements", "laneSet"}:
                 continue
             raise ValueError(f"{local_name(element.tag)} must have an id")
-        if element_id in element_ids:
-            raise ValueError(f"duplicate BPMN id: {element_id}")
-        element_ids.add(element_id)
         if local_name(element.tag) == "sequenceFlow":
             flows.append(element)
         else:

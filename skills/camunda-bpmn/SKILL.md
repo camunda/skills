@@ -119,7 +119,7 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 1. Run the linter against the file you touched:
 
    ```bash
-   c8ctl bpmn lint process.bpmn
+   c8ctl bpmn lint <path-to-touched-file.bpmn>
    ```
 
    `c8ctl bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
@@ -136,6 +136,12 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 3. Loop until the linter is clean. Do not declare the task structurally done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
+
+For the repository's deterministic smoke contract, the fixed fixture command is:
+
+```bash
+c8ctl bpmn lint process.bpmn
+```
 
 ### Batch linting and fix guidance
 
