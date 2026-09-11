@@ -217,7 +217,7 @@ Generate complete `.form` JSON files. Ensure:
 
 ### Schema Validation Loop (Lint Before Deploy)
 
-After creating or editing `.form` files, validate them against the official Camunda form schema before presenting or deploying them. Use `ajv` with the `ajv-errors` plugin directly. A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
+After creating or editing `.form` files, validate them against the official Camunda form schema before presenting or deploying them. Use `ajv` with the `ajv-errors` plugin directly. The official schema permits component extension properties, so the helper below also rejects the known invalid component shapes (`value`, `type: "submit"`, and a button `key`). A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
 
 ```bash
 npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema@1.18.0
@@ -237,6 +237,27 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 addErrors(ajv);
 const validate = ajv.compile(schema);
 if (!validate(form)) { console.error(JSON.stringify(validate.errors, null, 2)); process.exit(1); }
+function invalidComponentShapes(components, path = 'components') {
+  if (!Array.isArray(components)) return [];
+  const errors = [];
+  for (const [index, component] of components.entries()) {
+    if (!component || typeof component !== 'object' || Array.isArray(component)) continue;
+    const location = `${path}[${index}]`;
+    if (Object.prototype.hasOwnProperty.call(component, 'value')) {
+      errors.push(`${location}: use defaultValue instead of value on a component`);
+    }
+    if (component.type === 'submit') {
+      errors.push(`${location}: use type "button" with action "submit"`);
+    }
+    if (component.type === 'button' && Object.prototype.hasOwnProperty.call(component, 'key')) {
+      errors.push(`${location}: buttons must not define key`);
+    }
+    errors.push(...invalidComponentShapes(component.components, `${location}.components`));
+  }
+  return errors;
+}
+const shapeErrors = invalidComponentShapes(form.components);
+if (shapeErrors.length) { console.error(JSON.stringify(shapeErrors, null, 2)); process.exit(1); }
 console.log('Valid ✓');
 EOF
 

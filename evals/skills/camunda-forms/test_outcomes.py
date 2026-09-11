@@ -110,23 +110,34 @@ def test_accepts_schema_safe_default_and_submit_button() -> None:
     assert _outcomes._validate_form_schema(form) is None
 
 
-def test_rejects_unknown_component_property() -> None:
-    form = _valid_form()
-    form["components"] = [
+@pytest.mark.parametrize(
+    "component",
+    [
         {
-            "type": "textfield",
-            "id": "Field_Name",
-            "key": "name",
-            "label": "Name",
+            "type": "textarea",
+            "id": "Field_Comments",
+            "key": "comments",
+            "label": "Comments",
+            "rows": 5,
             "layout": {"row": "row_0", "columns": None},
-            "unknownField": True,
-        }
-    ]
+        },
+        {
+            "type": "iframe",
+            "id": "Iframe_Preview",
+            "url": "https://example.com/preview",
+            "title": "Preview",
+            "layout": {"row": "row_0", "columns": None},
+        },
+    ],
+    ids=["textarea-rows", "iframe-title"],
+)
+def test_accepts_documented_component_extensions(
+    component: dict[str, object],
+) -> None:
+    form = _valid_form()
+    form["components"] = [component]
 
-    error = _outcomes._validate_form_schema(form)
-
-    assert error is not None
-    assert "Additional properties" in error
+    assert _outcomes._validate_form_schema(form) is None
 
 
 @pytest.mark.parametrize(

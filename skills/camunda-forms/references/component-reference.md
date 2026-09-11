@@ -447,10 +447,11 @@ Add vertical spacing between components. No data binding.
 Repeatable section that allows users to add/remove rows of fields. Output is a list of objects.
 
 **Required**: `type`, `id`, `key`, `label`, `components`, `layout`
-**Optional**: `disableCollapse`, `nonCollapsedItems`, `validate`, `conditional`, `properties`
+**Optional**: `disableCollapse`, `nonCollapsedItems`, `conditional`, `properties`
 
 `defaultValue` is not supported for dynamic lists; set defaults on their
-nested input components instead.
+nested input components instead. Apply validation rules to the nested input
+components; `validate` is not supported on the dynamic list itself.
 
 ```json
 {
