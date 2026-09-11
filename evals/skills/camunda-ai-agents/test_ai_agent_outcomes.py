@@ -129,6 +129,12 @@ def _host(
             True,
             False,
         ),
+        (
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v3",
+            "io.camunda.agenticai:aiagent:subprocess:3",
+            True,
+            False,
+        ),
     ],
     ids=[
         "legacy-built-in-rejected",
@@ -142,6 +148,7 @@ def _host(
         "legacy-agent-task-rejected",
         "unrelated-custom-type",
         "marker-without-task-type",
+        "unknown-built-in-template-contract",
     ],
 )
 def test_ai_agent_connector_matching(
@@ -427,6 +434,7 @@ def test_ai_agent_shape_scorer_checks_all_connector_hosts(
         ("toolCallResults", "={content: notToolCallResult}"),
         ("toolCallResults", "={content: toolCallResult"),
         ("toolCallResults", "={content: toolCallResult} trailing"),
+        ("toolCallResults", "={content: toolCallResult, broken:}"),
     ],
     ids=[
         "wrong-output-collection",
@@ -434,6 +442,7 @@ def test_ai_agent_shape_scorer_checks_all_connector_hosts(
         "wrong-content-source",
         "truncated-map",
         "trailing-expression",
+        "invalid-sibling-map-entry",
     ],
 )
 def test_ai_agent_shape_scorer_rejects_malformed_template_binding(
@@ -469,7 +478,16 @@ def test_ai_agent_shape_scorer_ignores_quoted_from_ai_text(
 
 @pytest.mark.parametrize(
     "from_ai_source",
-    ["=fromAi", "=some.fromAi", "=fromAiValue(toolCall.query)"],
+    [
+        "=fromAi",
+        "=some.fromAi",
+        "=fromAiValue(toolCall.query)",
+        "=fromAi(&quot;literal&quot;)",
+        "=some.fromAi(toolCall.query)",
+        "=fromAi(process.query)",
+        "=fromAi(toolCall.query.extra)",
+        "=fromAi(toolCall.query",
+    ],
 )
 def test_ai_agent_shape_scorer_requires_from_ai_call(
     monkeypatch: pytest.MonkeyPatch,

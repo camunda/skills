@@ -42,11 +42,13 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
-AI_AGENT_TEMPLATE_TASK_TYPES = {
-    "io.camunda.connectors.agenticai.ai-agent-subprocess.": (
-        "io.camunda.agenticai:aiagent:subprocess:",
-    ),
-}
+AI_AGENT_TEMPLATE_MARKER_PREFIX = (
+    "io.camunda.connectors.agenticai.ai-agent-subprocess."
+)
+AI_AGENT_TEMPLATE_MARKER = (
+    "io.camunda.connectors.agenticai.ai-agent-subprocess.v2"
+)
+AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent:subprocess:"
 AI_AGENT_LEGACY_TEMPLATE_PREFIXES = (
     "io.camunda.connectors.agenticai.aiagent.jobworker.",
 )
@@ -90,26 +92,60 @@ def _without_feel_string_literals(expression: str) -> str:
     return "".join(characters)
 
 
-def _has_feel_identifier(
-    expression: str, identifier: str, *, require_call: bool = False
-) -> bool:
-    expression = _without_feel_string_literals(expression)
-    for index in range(len(expression) - len(identifier) + 1):
-        if not expression.startswith(identifier, index):
+def _has_from_ai_call(expression: str) -> bool:
+    sanitized = _without_feel_string_literals(expression)
+    identifier = "fromAi"
+    for index in range(len(sanitized) - len(identifier) + 1):
+        if not sanitized.startswith(identifier, index):
             continue
-        before = expression[index - 1] if index else ""
-        after_index = index + len(identifier)
-        after = expression[after_index] if after_index < len(expression) else ""
-        if (
-            (not before or not (before.isalnum() or before == "_"))
-            and (not after or not (after.isalnum() or after == "_"))
+        before = index - 1
+        while before >= 0 and sanitized[before].isspace():
+            before -= 1
+        if before >= 0 and (
+            sanitized[before].isalnum()
+            or sanitized[before] == "_"
+            or sanitized[before] == "."
         ):
-            if require_call:
-                cursor = after_index
-                while cursor < len(expression) and expression[cursor].isspace():
-                    cursor += 1
-                if cursor >= len(expression) or expression[cursor] != "(":
-                    continue
+            continue
+        after_index = index + len(identifier)
+        after = sanitized[after_index] if after_index < len(sanitized) else ""
+        if after and (after.isalnum() or after == "_"):
+            continue
+        cursor = after_index
+        while cursor < len(sanitized) and sanitized[cursor].isspace():
+            cursor += 1
+        if cursor >= len(sanitized) or sanitized[cursor] != "(":
+            continue
+        cursor += 1
+        while cursor < len(sanitized) and sanitized[cursor].isspace():
+            cursor += 1
+        argument = "toolCall"
+        if not sanitized.startswith(argument, cursor):
+            continue
+        cursor += len(argument)
+        if cursor < len(sanitized) and (
+            sanitized[cursor].isalnum() or sanitized[cursor] == "_"
+        ):
+            continue
+        while cursor < len(sanitized) and sanitized[cursor].isspace():
+            cursor += 1
+        if cursor >= len(sanitized) or sanitized[cursor] != ".":
+            continue
+        cursor += 1
+        while cursor < len(sanitized) and sanitized[cursor].isspace():
+            cursor += 1
+        if cursor >= len(sanitized) or not (
+            sanitized[cursor].isalpha() or sanitized[cursor] == "_"
+        ):
+            continue
+        cursor += 1
+        while cursor < len(sanitized) and (
+            sanitized[cursor].isalnum() or sanitized[cursor] == "_"
+        ):
+            cursor += 1
+        while cursor < len(sanitized) and sanitized[cursor].isspace():
+            cursor += 1
+        if cursor < len(sanitized) and sanitized[cursor] in ",)":
             return True
     return False
 
@@ -117,87 +153,120 @@ def _has_feel_identifier(
 def _has_top_level_feel_map_entry(
     expression: str, key: str, expected_value: str | None = None
 ) -> bool:
-    expression = _without_feel_string_literals(expression)
+    sanitized = _without_feel_string_literals(expression)
 
-    def value_end_for_map_entry(start: int) -> int:
-        value_end = start
-        nested_braces = 0
-        nested_brackets = 0
-        nested_parentheses = 0
-        while value_end < len(expression):
-            value_character = expression[value_end]
-            if value_character == "{":
-                nested_braces += 1
-            elif value_character == "}":
-                if nested_braces:
-                    nested_braces -= 1
-                elif not (nested_brackets or nested_parentheses):
-                    break
-            elif value_character == "[":
-                nested_brackets += 1
-            elif value_character == "]":
-                if nested_brackets:
-                    nested_brackets -= 1
-            elif value_character == "(":
-                nested_parentheses += 1
-            elif value_character == ")":
-                if nested_parentheses:
-                    nested_parentheses -= 1
-            elif value_character == "," and not (
-                nested_braces or nested_brackets or nested_parentheses
+    def valid_entry(start: int, end: int) -> tuple[str, str] | None:
+        entry = sanitized[start:end]
+        raw_entry = expression[start:end]
+        brace_depth = 0
+        bracket_depth = 0
+        parenthesis_depth = 0
+        colon_index: int | None = None
+        for offset, character in enumerate(entry):
+            if character == "{":
+                brace_depth += 1
+            elif character == "}":
+                if brace_depth == 0:
+                    return None
+                brace_depth -= 1
+            elif character == "[":
+                bracket_depth += 1
+            elif character == "]":
+                if bracket_depth == 0:
+                    return None
+                bracket_depth -= 1
+            elif character == "(":
+                parenthesis_depth += 1
+            elif character == ")":
+                if parenthesis_depth == 0:
+                    return None
+                parenthesis_depth -= 1
+            elif character == ":" and not (
+                brace_depth or bracket_depth or parenthesis_depth
             ):
-                break
-            value_end += 1
-        return value_end
+                if colon_index is not None:
+                    return None
+                colon_index = offset
+        if (
+            brace_depth
+            or bracket_depth
+            or parenthesis_depth
+            or colon_index is None
+        ):
+            return None
+        raw_key = raw_entry[:colon_index].strip()
+        raw_value = raw_entry[colon_index + 1 :].strip()
+        if not raw_key or not raw_value:
+            return None
+        return raw_key, raw_value
 
     index = 0
-    while index < len(expression) and expression[index].isspace():
+    while index < len(sanitized) and sanitized[index].isspace():
         index += 1
-    if index >= len(expression) or expression[index] != "=":
+    if index >= len(sanitized) or sanitized[index] != "=":
         return False
 
     index += 1
-    while index < len(expression) and expression[index].isspace():
+    while index < len(sanitized) and sanitized[index].isspace():
         index += 1
-    if index >= len(expression) or expression[index] != "{":
+    if index >= len(sanitized) or sanitized[index] != "{":
         return False
 
-    brace_depth = 0
-    found_entry = False
-    while index < len(expression):
-        character = expression[index]
+    entry_start = index + 1
+    brace_depth = 1
+    bracket_depth = 0
+    parenthesis_depth = 0
+    entries: list[tuple[str, str]] = []
+    index += 1
+    while index < len(sanitized):
+        character = sanitized[index]
         if character == "{":
             brace_depth += 1
         elif character == "}":
-            if brace_depth == 0:
-                return False
-            brace_depth -= 1
-            if brace_depth == 0:
+            if brace_depth == 1:
+                if bracket_depth or parenthesis_depth:
+                    return False
+                entry = valid_entry(entry_start, index)
+                if entry is None:
+                    return False
+                entries.append(entry)
                 index += 1
-                while index < len(expression) and expression[index].isspace():
+                while index < len(sanitized) and sanitized[index].isspace():
                     index += 1
-                return found_entry and index == len(expression)
-        elif brace_depth == 1 and expression.startswith(key, index):
-            previous = index - 1
-            while previous >= 0 and expression[previous].isspace():
-                previous -= 1
-            if previous < 0 or expression[previous] not in "{,":
-                index += 1
-                continue
-            after_index = index + len(key)
-            after = expression[after_index] if after_index < len(expression) else ""
-            if not after or not (after.isalnum() or after == "_"):
-                cursor = after_index
-                while cursor < len(expression) and expression[cursor].isspace():
-                    cursor += 1
-                if cursor < len(expression) and expression[cursor] == ":":
-                    value_start = cursor + 1
-                    value_end = value_end_for_map_entry(value_start)
-                    value = expression[value_start:value_end].strip()
-                    if expected_value is None:
-                        found_entry = bool(value)
-                    elif value == expected_value:
-                        found_entry = True
+                if index != len(sanitized):
+                    return False
+                return any(
+                    entry_key.strip() == key
+                    and (
+                        expected_value is None
+                        or entry_value.strip() == expected_value
+                    )
+                    for entry_key, entry_value in entries
+                )
+            brace_depth -= 1
+        elif character == "[":
+            bracket_depth += 1
+        elif character == "]":
+            if bracket_depth == 0:
+                return False
+            bracket_depth -= 1
+        elif character == "(":
+            parenthesis_depth += 1
+        elif character == ")":
+            if parenthesis_depth == 0:
+                return False
+            parenthesis_depth -= 1
+        elif (
+            character == ","
+            and brace_depth == 1
+            and bracket_depth == 0
+            and parenthesis_depth == 0
+        ):
+            entry = valid_entry(entry_start, index)
+            if entry is None:
+                return False
+            entries.append(entry)
+            entry_start = index + 1
         index += 1
     return False
 
@@ -242,15 +311,14 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     ) or ""
 
     if template:
-        for marker_prefix, task_prefixes in AI_AGENT_TEMPLATE_TASK_TYPES.items():
-            if template.startswith(marker_prefix):
-                return (
-                    has_tool_container_property(host)
-                    and has_ai_agent_output_binding(host)
-                    and any(
-                        task_type.startswith(prefix) for prefix in task_prefixes
-                    )
-                )
+        if template.startswith(AI_AGENT_TEMPLATE_MARKER_PREFIX):
+            if template != AI_AGENT_TEMPLATE_MARKER:
+                return False
+            return (
+                has_tool_container_property(host)
+                and has_ai_agent_output_binding(host)
+                and task_type.startswith(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX)
+            )
         if any(
             template.startswith(prefix)
             for prefix in AI_AGENT_LEGACY_TEMPLATE_PREFIXES
@@ -342,9 +410,7 @@ def _validate_ai_agent_host(
         for inp in tool.findall(
             "./bpmn:extensionElements/zeebe:ioMapping/zeebe:input", NS
         )
-        if _has_feel_identifier(
-            inp.get("source") or "", "fromAi", require_call=True
-        )
+        if _has_from_ai_call(inp.get("source") or "")
     ]
     if not from_ai_inputs:
         return Score(
