@@ -144,6 +144,33 @@ def _assistant_text(state: TaskState) -> str:
     return "\n".join(chunks)
 
 
+def _prohibited_configuration_action(state: TaskState) -> str | None:
+    for message in state.messages:
+        for tool_call in getattr(message, "tool_calls", None) or []:
+            function = (getattr(tool_call, "function", "") or "").casefold()
+            arguments = getattr(tool_call, "arguments", None) or {}
+            serialized = f"{function} {arguments}".casefold()
+            command = str(arguments.get("command", "")).casefold()
+            path = str(arguments.get("path", "")).casefold()
+            shell_input = str(arguments.get("input", "")).casefold()
+
+            if re.search(r"\bc8ctl\b.*\belement-template\s+apply\b", serialized):
+                return "applied an element template before configuration was confirmed"
+
+            if command in {"create", "str_replace", "insert"} and path.endswith(".bpmn"):
+                return f"modified BPMN artifact {path}"
+
+            if ".bpmn" in shell_input and re.search(
+                r"(?:>|>>|\b(?:cp|mv|tee|touch|rm|unlink|install)\b|"
+                r"\b(?:sed|perl)\s+-i\b|\bfind\b[^;\n]*\s-delete\b|"
+                r"\bopen\s*\(|\.(?:write|write_text|unlink)\s*\()",
+                shell_input,
+            ):
+                return "created, modified, or deleted a BPMN artifact"
+
+    return None
+
+
 def _is_request_sentence(sentence: str) -> bool:
     normalized = sentence.casefold().strip()
     if "?" in normalized:
@@ -478,6 +505,10 @@ def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
                 value=1.0,
                 explanation="missing-configuration check not applicable to this sample",
             )
+
+        prohibited_action = _prohibited_configuration_action(state)
+        if prohibited_action:
+            return Score(value=0.0, explanation=prohibited_action)
 
         workspace = path.rsplit("/", 1)[0] or "/"
         artifacts = await sandbox().exec(
