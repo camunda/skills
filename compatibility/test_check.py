@@ -182,6 +182,15 @@ def test_invalid_conformance_fixture_has_missing_reference() -> None:
     assert any("content.reference-exists" in error for error in errors)
 
 
+def test_invalid_conformance_fixture_has_missing_reference_definition() -> None:
+    errors: list[str] = []
+    package = CONFORMANCE_FIXTURES / "invalid-reference"
+
+    check.check_skill_self_containment(package, errors)
+
+    assert any("missing-reference.md" in error for error in errors)
+
+
 def test_allows_markdown_link_titles_balanced_destinations_and_urls(
     tmp_path: Path,
 ) -> None:
@@ -193,8 +202,30 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
     (package / "README.md").write_text(
         '[guide](references/guide.md "Guide")\n'
         "[guide](references/guide_(v1).md)\n"
+        "[guide][guide-reference]\n"
+        '[guide-reference]: references/guide.md "Reference title"\n'
         "`[missing](missing.md)`\n"
         "https://example.test/skills/foo/\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
+def test_ignores_repository_references_in_multiline_code_fences(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "```text\n"
+        "skills/example/\n"
+        ".github/workflows/example.yml\n"
+        "/home/example/file.md\n"
+        "```\n",
         encoding="utf-8",
     )
 

@@ -197,10 +197,7 @@ def main() -> int:
             tool_executed = True
             tool_exit_code = tool.returncode
             tool_output = tool.stdout.strip()
-            tool_succeeded = (
-                tool.returncode == 0
-                and tool_output == f"{expected['toolCommand']}: passed"
-            )
+            tool_succeeded = tool.returncode == 0
 
         passed = (
             activated

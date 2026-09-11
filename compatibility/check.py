@@ -27,6 +27,13 @@ DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 MARKDOWN_LINK_START = re.compile(r"!?\[[^\]]*\]\(")
+MARKDOWN_LINK_DEFINITION = re.compile(
+    r"(?m)^[ \t]{0,3}\[([^\]\n]+)\]:[ \t]*(.*)$"
+)
+MARKDOWN_REFERENCE_LINK = re.compile(r"!?\[([^\]\n]+)\]\[([^\]\n]*)\]")
+MARKDOWN_SHORTCUT_LINK = re.compile(
+    r"(?<![!\w\]])\[([^\]\n]+)\](?![\[(}:])"
+)
 EXTERNAL_URL = re.compile(r"https?://[^\s<>()\[\]]+")
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
     r"(?<![\w])(?:skills/[a-z0-9-]+/|(?:README|CONTRIBUTING|evals|compatibility|\.github)/"
@@ -336,9 +343,25 @@ def _link_destination(raw: str) -> str:
     return raw
 
 
+def _reference_label(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
 def _markdown_link_targets(content: str) -> list[str]:
     masked = _strip_markdown_code_spans(content)
     targets: list[str] = []
+
+    def add_target(target: str) -> None:
+        if target and target not in targets:
+            targets.append(target)
+
+    definitions: dict[str, str] = {}
+    for match in MARKDOWN_LINK_DEFINITION.finditer(masked):
+        target = _link_destination(match.group(2))
+        if target:
+            definitions[_reference_label(match.group(1))] = target
+            add_target(target)
+
     for match in MARKDOWN_LINK_START.finditer(masked):
         start = match.end()
         if start >= len(masked):
@@ -368,9 +391,15 @@ def _markdown_link_targets(content: str) -> list[str]:
                 continue
             raw = masked[start:cursor]
 
-        target = _link_destination(raw)
-        if target:
-            targets.append(target)
+        add_target(_link_destination(raw))
+
+    for match in MARKDOWN_REFERENCE_LINK.finditer(masked):
+        label = match.group(2) or match.group(1)
+        add_target(definitions.get(_reference_label(label), ""))
+
+    for match in MARKDOWN_SHORTCUT_LINK.finditer(masked):
+        add_target(definitions.get(_reference_label(match.group(1)), ""))
+
     return targets
 
 
@@ -405,7 +434,8 @@ def check_skill_self_containment(
             errors.append(f"{path}: cannot read referenced content ({error})")
             continue
 
-        for target in _markdown_link_targets(content):
+        masked_content = _strip_markdown_code_spans(content)
+        for target in _markdown_link_targets(masked_content):
             if target.startswith("#"):
                 continue
             parsed = urlsplit(target)
@@ -429,8 +459,8 @@ def check_skill_self_containment(
                     f"resolve: {target!r}"
                 )
 
-        for line_number, line in enumerate(content.splitlines(), start=1):
-            line_without_urls = EXTERNAL_URL.sub("", _strip_markdown_code_spans(line))
+        for line_number, line in enumerate(masked_content.splitlines(), start=1):
+            line_without_urls = EXTERNAL_URL.sub("", line)
             if FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls):
                 errors.append(
                     f"{path}:{line_number}: rule=content.self-contained "
