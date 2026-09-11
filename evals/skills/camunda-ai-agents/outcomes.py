@@ -585,22 +585,35 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     return score
 
 
-SAVE_AND_DEPLOY = "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
+SAVE_AND_DEPLOY = (
+    "\n\nThe initial /workspace/process.bpmn shell is only an intermediate step. "
+    "Do not stop when that file first exists. Continue until the AI Agent "
+    "Sub-process template has been applied, all tools and mappings are present, "
+    "and the completed BPMN is saved to /workspace/process.bpmn."
+)
 
 SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
-            "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
+            "Create the initial /workspace/process.bpmn shell first (do not do "
+            "exploratory reads), but do not stop when that shell exists.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host. Apply the actual AI Agent Sub-process connector element "
-            "template to AgentTools with c8ctl; do not model a generic or "
-            "unconfigured ad-hoc subprocess stand-in. The saved host must retain "
-            "the current template marker together with its AI Agent task definition, "
-            "or use the documented custom AI Agent task-type prefix.\n"
+            "agent host. Apply exactly the AI Agent Sub-process connector template "
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2 with "
+            "c8ctl element-template apply -i "
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2 "
+            "AgentTools /workspace/process.bpmn. Do not use the "
+            "io.camunda.connectors.agenticai.aiagent.jobworker.v1, "
+            "io.camunda.connectors.agenticai.aiagent.v1, or any AI Agent Task "
+            "template. Do not model a generic or unconfigured ad-hoc subprocess "
+            "stand-in. The final host must retain the v2 template marker, its "
+            "matching AI Agent Sub-process task definition, the tool-container "
+            "property, and the template-owned toolCallResults output binding; "
+            "the initial shell is not completion.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -610,7 +623,8 @@ SAMPLES = [
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
             "7. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
-            "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
+            "After applying the template, edit the completed BPMN to add the "
+            "tools and mappings, then validate the final artifact."
             + SAVE_AND_DEPLOY
         ),
         metadata={
@@ -625,18 +639,24 @@ SAMPLES = [
     Sample(
         id="claim-review-subprocess",
         input=(
-            "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
+            "Create the initial /workspace/process.bpmn shell first (do not do "
+            "exploratory reads), but do not stop when that shell exists.\n"
             "Create a Camunda 8.8+ BPMN process (id: claim-review, name: "
             "'Claim Review') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Claim received'.\n"
             "2. Ad-hoc subprocess id ClaimReviewAgent (name 'Claim review agent') "
-            "as the AI agent host. Apply the actual AI Agent Sub-process connector "
-            "element template to ClaimReviewAgent with c8ctl; do not model a "
-            "generic or unconfigured ad-hoc subprocess stand-in. The saved host "
-            "must retain the current template marker together with its AI Agent "
-            "task definition, or use the documented custom AI Agent task-type prefix. "
-            "Use the explicit apply form: c8ctl element-template apply -i <template-id> "
-            "ClaimReviewAgent /workspace/process.bpmn.\n"
+            "as the AI agent host. Apply exactly the AI Agent Sub-process connector "
+            "template io.camunda.connectors.agenticai.ai-agent-subprocess.v2 with "
+            "c8ctl element-template apply -i "
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2 "
+            "ClaimReviewAgent /workspace/process.bpmn. Do not use the "
+            "io.camunda.connectors.agenticai.aiagent.jobworker.v1, "
+            "io.camunda.connectors.agenticai.aiagent.v1, or any AI Agent Task "
+            "template. Do not model a generic or unconfigured ad-hoc subprocess "
+            "stand-in. The final host must retain the v2 template marker, its "
+            "matching AI Agent Sub-process task definition, the tool-container "
+            "property, and the template-owned toolCallResults output binding; "
+            "the initial shell is not completion.\n"
             "3. Inside ClaimReviewAgent add these independent root tools (do not "
             "replace them with one generic tool):\n"
             "   - service task id DetectDuplicateClaims, name 'Detect duplicate claims'\n"
@@ -648,7 +668,8 @@ SAMPLES = [
             "6. Ensure every tool output is mapped to toolCallResult.\n"
             "7. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
-            "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
+            "After applying the template, edit the completed BPMN to add the "
+            "tools and mappings, then validate the final artifact."
             + SAVE_AND_DEPLOY
         ),
         metadata={

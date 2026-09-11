@@ -16,6 +16,23 @@ Build agentic AI processes in Camunda 8.8+: an LLM driver (the AI Agent connecto
 
 The older **Task variant** (AI Agent connector on a service task paired with an external multi-instance ad-hoc subprocess and explicit feedback loop) is documented in [references/ai-agent-task.md](references/ai-agent-task.md) for the niche cases where you need to audit or intercept every tool call. The Sub-process variant is the recommended choice for everything else, and is what the rest of this skill teaches.
 
+## Choose the Sub-process template
+
+This skill's workflow uses the AI Agent **Sub-process** connector, not the
+older AI Agent **Task** connector. When the catalog lists several AI Agent
+templates, select the entry whose ID contains `ai-agent-subprocess` and whose
+applies-to is `bpmn:AdHocSubProcess`. For the current catalog entry, the ID is
+`io.camunda.connectors.agenticai.ai-agent-subprocess.v2`.
+
+Do not use or substitute
+`io.camunda.connectors.agenticai.aiagent.jobworker.v1`,
+`io.camunda.connectors.agenticai.aiagent.v1`, or any other AI Agent Task
+template. Those templates produce the legacy Task variant and do not configure
+the ad-hoc subprocess host taught by this skill. If you create the initial BPMN
+shell before applying the template, keep working: the shell is not a completed
+artifact until the Sub-process template and its generated connector metadata
+are present.
+
 ## Prerequisites
 
 - Camunda 8.8+ cluster (the AI Agent connector ships in 8.8+)
