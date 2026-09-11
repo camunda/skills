@@ -20,6 +20,33 @@ def _load_outcomes() -> ModuleType:
 _outcomes = _load_outcomes()
 
 
+def _valid_form() -> dict[str, object]:
+    return {
+        "components": [
+            {
+                "type": "textfield",
+                "id": "Field_Name",
+                "key": "name",
+                "label": "Name",
+                "layout": {"row": "row_0", "columns": None},
+            },
+            {
+                "type": "button",
+                "id": "Button_Submit",
+                "label": "Submit",
+                "action": "submit",
+                "layout": {"row": "row_1", "columns": None},
+            },
+        ],
+        "executionPlatform": "Camunda Cloud",
+        "executionPlatformVersion": "8.8.0",
+        "exporter": {"name": "Camunda Modeler", "version": "5.34.0"},
+        "schemaVersion": 18,
+        "id": "review-form",
+        "type": "default",
+    }
+
+
 @pytest.mark.parametrize(
     ("component", "expected_message"),
     [
@@ -28,6 +55,8 @@ _outcomes = _load_outcomes()
                 "type": "textfield",
                 "id": "Field_Name",
                 "key": "name",
+                "label": "Name",
+                "layout": {"row": "row_0", "columns": None},
                 "value": "Ada",
             },
             "uses invalid value property",
@@ -42,6 +71,7 @@ _outcomes = _load_outcomes()
                 "id": "Button_Submit",
                 "label": "Submit",
                 "key": "submit",
+                "layout": {"row": "row_0", "columns": None},
             },
             "must not define key",
         ),
@@ -64,15 +94,58 @@ def test_accepts_schema_safe_default_and_submit_button() -> None:
                 "type": "textfield",
                 "id": "Field_Name",
                 "key": "name",
+                "label": "Name",
                 "defaultValue": "Ada",
+                "layout": {"row": "row_0", "columns": None},
             },
             {
                 "type": "button",
                 "id": "Button_Submit",
                 "label": "Submit",
                 "action": "submit",
+                "layout": {"row": "row_1", "columns": None},
             },
         ]
     )
 
     assert error is None
+
+
+@pytest.mark.parametrize(
+    ("component", "expected_message"),
+    [
+        (
+            {
+                "type": "textfield",
+                "id": "Field_Name",
+                "key": "name",
+                "label": "Name",
+            },
+            "missing required properties: layout",
+        ),
+        (
+            {
+                "type": "button",
+                "id": "Button_Submit",
+                "action": "submit",
+                "layout": {"row": "row_0", "columns": None},
+            },
+            "missing required properties: label",
+        ),
+    ],
+    ids=["missing-layout", "missing-button-label"],
+)
+def test_rejects_incomplete_component_schema(
+    component: dict[str, object], expected_message: str
+) -> None:
+    form = _valid_form()
+    form["components"] = [component]
+
+    error = _outcomes._validate_form_schema(form)
+
+    assert error is not None
+    assert expected_message in error
+
+
+def test_accepts_complete_form_schema() -> None:
+    assert _outcomes._validate_form_schema(_valid_form()) is None

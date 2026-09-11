@@ -42,6 +42,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  unit-tests:
+    name: Eval unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Run pytest
+        run: uv run pytest evals/skills
+
   detect:
     name: Detect affected targets
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'

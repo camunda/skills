@@ -8,6 +8,7 @@ dependencies = [
     "inspect-ai==0.3.237",
     "inspect-swe==0.2.62",
     "anthropic==0.107.1",
+    "jsonschema>=4.20",
     "pydantic>=2.10",
 ]
 

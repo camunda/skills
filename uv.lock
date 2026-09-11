@@ -283,6 +283,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "inspect-ai" },
     { name = "inspect-swe" },
+    { name = "jsonschema" },
     { name = "pydantic" },
 ]
 
@@ -297,6 +298,7 @@ requires-dist = [
     { name = "anthropic", specifier = "==0.107.1" },
     { name = "inspect-ai", specifier = "==0.3.237" },
     { name = "inspect-swe", specifier = "==0.2.62" },
+    { name = "jsonschema", specifier = ">=4.20" },
     { name = "pydantic", specifier = ">=2.10" },
 ]
 
