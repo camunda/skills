@@ -22,6 +22,7 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 | **camunda-job-workers** | Implement job workers in Java, Camunda Spring Boot, or TypeScript |
 | **camunda-connectors-development** | Build custom Camunda 8 connectors — JSON-only template on a protocol connector, or custom Java connector via the Connectors SDK (outbound + inbound) |
 | **camunda-process-mgmt** | Deploy resources, start/inspect instances, resolve incidents, complete tasks — via c8ctl |
+| **camunda-process-test** | Author and run Camunda Process Test suites with full BPMN coverage |
 | **camunda-ai-agents** | Build AI agents in BPMN — AI Agent connector on an ad-hoc subprocess, tools, `fromAi()`, prompts |
 
 ## Prerequisites
@@ -31,19 +32,41 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard and
 
 ## Installation
 
-### Any AI coding agent
+### GitHub Copilot CLI
 
-Several installers in the [Agent Skills](https://agentskills.io) ecosystem support a range of agents — Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI, Goose, and others. Two common ones:
+The Copilot plugin installs the complete Camunda skills collection. Register the marketplace once,
+then install the plugin:
 
 ```bash
-# npm-based
-npx skills add camunda/skills --skill '*'
-
-# GitHub CLI -- select "all skills"
-gh skill install camunda/skills
+copilot plugin marketplace add camunda/skills
+copilot plugin install camunda-skills@camunda
 ```
 
-See each tool's `--help` for supported agents and options (version pinning, scope).
+Verify the installation with `copilot plugin list`. In a Copilot CLI session, use `/skills list` to
+see the installed skills.
+
+### Other compatible agents
+
+With the npm-based [Agent Skills installer](https://github.com/vercel-labs/skills), install the
+complete collection:
+
+```bash
+npx skills add camunda/skills --skill '*'
+```
+
+Use [GitHub CLI](https://cli.github.com/) 2.90+ to install one skill for a compatible agent:
+
+```bash
+# Install a skill for the current project
+gh skill install camunda/skills camunda-bpmn --agent <your-agent>
+
+# Install the skill for your user account
+gh skill install camunda/skills camunda-bpmn --agent <your-agent> --scope user
+```
+
+Replace `<your-agent>` with the identifier supported by your host, such as `cursor`, `codex`,
+`gemini-cli`, or `cline`. Run `gh skill install --help` to see the current list of supported
+agents. Use `--all` instead of a skill name to install the complete collection.
 
 ### Claude Code Plugin
 

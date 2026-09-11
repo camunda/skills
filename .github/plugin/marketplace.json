@@ -1,0 +1,19 @@
+{
+  "name": "camunda",
+  "owner": {
+    "name": "Camunda",
+    "url": "https://github.com/camunda"
+  },
+  "metadata": {
+    "description": "Official Camunda 8 skills for GitHub Copilot CLI and other compatible agents.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "camunda-skills",
+      "description": "Official Camunda 8 development skills for AI coding agents.",
+      "version": "1.0.0",
+      "source": "./"
+    }
+  ]
+}

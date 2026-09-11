@@ -6,6 +6,9 @@ on:
     paths:
       - 'skills/**'
       - 'evals/**'
+      - '.github/plugin/**'
+      - 'README.md'
+      - 'plugin.json'
       - '.waza.yaml'
       - '.github/workflows/eval.yml'
       - '.github/workflows/eval-nightly.yml'
