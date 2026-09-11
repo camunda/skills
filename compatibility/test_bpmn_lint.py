@@ -39,3 +39,16 @@ def test_rejects_unsupported_process_elements(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="unsupported process element"):
         validate_bpmn(artifact)
+
+
+def test_rejects_elements_reusing_definitions_id(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        'id="StartEvent_1"',
+        'id="Definitions_1"',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate BPMN id"):
+        validate_bpmn(artifact)

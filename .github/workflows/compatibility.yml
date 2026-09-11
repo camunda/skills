@@ -28,6 +28,8 @@ jobs:
         with:
           enable-cache: true
       - name: Install repository Python environment
-        run: uv sync --frozen --no-dev
+        run: uv sync --frozen
+      - name: Run compatibility regression tests
+        run: uv run pytest compatibility
       - name: Run compatibility contract gate
         run: make compatibility-check

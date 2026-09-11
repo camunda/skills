@@ -117,8 +117,10 @@ def validate_bpmn(path: Path) -> None:
     if process.get("isExecutable") != "true":
         raise ValueError("process must be executable")
 
-    element_ids: set[str] = set()
+    element_ids: set[str] = {definitions_id}
     for element in root.iter():
+        if element is root:
+            continue
         if not isinstance(element.tag, str) or not element.tag.startswith(
             f"{{{BPMN_NAMESPACE}}}"
         ):
