@@ -3,16 +3,16 @@
 Deterministic, machine-checkable verification:
 - ``ai_agent_shape_valid`` parses ``/workspace/process.bpmn`` and checks for
   an ad-hoc subprocess host recognized by a matching built-in AI Agent
-  template marker and task type, or a documented custom AI Agent task type;
-  it also checks the tool-container property, tool documentation, ``fromAi()``
-  usage, per-tool ``toolCallResult`` wiring, and prompt/limit inputs.
+  template marker, task type, and output collection binding, or a documented
+  custom AI Agent task type; it also checks the tool-container property, tool
+  documentation, ``fromAi()`` usage, per-tool ``toolCallResult`` wiring, and
+  prompt/limit inputs.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 """
 
 from __future__ import annotations
 
-import re
 import xml.etree.ElementTree as ET
 
 from core.agents import AgentKind, build_agent
@@ -54,12 +54,6 @@ AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
     "io.camunda.agenticai:aiagent-job-worker:",
     "io.camunda.agenticai:aiagent:subprocess:",
 )
-TOOL_CALL_RESULT_MAP_ENTRY = re.compile(
-    r"(?:^=\s*\{\s*|,\s*)toolCallResult\s*:",
-    re.DOTALL,
-)
-
-
 def _without_feel_string_literals(expression: str) -> str:
     characters = []
     in_string = False
@@ -86,6 +80,62 @@ def _without_feel_string_literals(expression: str) -> str:
     return "".join(characters)
 
 
+def _has_feel_identifier(expression: str, identifier: str) -> bool:
+    expression = _without_feel_string_literals(expression)
+    for index in range(len(expression) - len(identifier) + 1):
+        if not expression.startswith(identifier, index):
+            continue
+        before = expression[index - 1] if index else ""
+        after_index = index + len(identifier)
+        after = expression[after_index] if after_index < len(expression) else ""
+        if (
+            (not before or not (before.isalnum() or before == "_"))
+            and (not after or not (after.isalnum() or after == "_"))
+        ):
+            return True
+    return False
+
+
+def _has_top_level_feel_map_entry(expression: str, key: str) -> bool:
+    expression = _without_feel_string_literals(expression)
+    index = 0
+    while index < len(expression) and expression[index].isspace():
+        index += 1
+    if index >= len(expression) or expression[index] != "=":
+        return False
+
+    index += 1
+    while index < len(expression) and expression[index].isspace():
+        index += 1
+    if index >= len(expression) or expression[index] != "{":
+        return False
+
+    brace_depth = 0
+    while index < len(expression):
+        character = expression[index]
+        if character == "{":
+            brace_depth += 1
+        elif character == "}":
+            if brace_depth == 1:
+                return False
+            brace_depth -= 1
+        elif brace_depth == 1 and expression.startswith(key, index):
+            before = expression[index - 1] if index else ""
+            after_index = index + len(key)
+            after = expression[after_index] if after_index < len(expression) else ""
+            if (
+                (not before or not (before.isalnum() or before == "_"))
+                and (not after or not (after.isalnum() or after == "_"))
+            ):
+                cursor = after_index
+                while cursor < len(expression) and expression[cursor].isspace():
+                    cursor += 1
+                if cursor < len(expression) and expression[cursor] == ":":
+                    return True
+        index += 1
+    return False
+
+
 def has_tool_container_property(host: ET.Element) -> bool:
     properties = host.findall(
         "./bpmn:extensionElements/zeebe:properties/zeebe:property", NS
@@ -94,6 +144,19 @@ def has_tool_container_property(host: ET.Element) -> bool:
         prop.get("name") == "io.camunda.agenticai.toolContainer"
         and prop.get("value") == "true"
         for prop in properties
+    )
+
+
+def has_ai_agent_output_binding(host: ET.Element) -> bool:
+    ad_hoc = host.find("./bpmn:extensionElements/zeebe:adHoc", NS)
+    if ad_hoc is None:
+        return False
+    output_collection = (ad_hoc.get("outputCollection") or "").strip()
+    output_element = (ad_hoc.get("outputElement") or "").strip()
+    return bool(
+        output_collection
+        and output_element
+        and _has_feel_identifier(output_element, "toolCallResult")
     )
 
 
@@ -111,8 +174,12 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     if template:
         for marker_prefix, task_prefixes in AI_AGENT_TEMPLATE_TASK_TYPES.items():
             if template.startswith(marker_prefix):
-                return has_tool_container_property(host) and any(
-                    task_type.startswith(prefix) for prefix in task_prefixes
+                return (
+                    has_tool_container_property(host)
+                    and has_ai_agent_output_binding(host)
+                    and any(
+                        task_type.startswith(prefix) for prefix in task_prefixes
+                    )
                 )
 
     return any(
@@ -139,8 +206,8 @@ def has_tool_call_result(tool: ET.Element) -> bool:
             value = (node.get("value") or "").strip()
             if key == "resultVariable" and value == "toolCallResult":
                 return True
-            if key == "resultExpression" and TOOL_CALL_RESULT_MAP_ENTRY.search(
-                _without_feel_string_literals(value)
+            if key == "resultExpression" and _has_top_level_feel_map_entry(
+                value, "toolCallResult"
             ):
                 return True
     return False
@@ -188,7 +255,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 value=0.0,
                 explanation=(
                     "ad-hoc subprocess is missing matching AI Agent connector "
-                    "marker, task type, or tool-container property"
+                    "marker, task type, output binding, or tool-container property"
                 ),
             )
 

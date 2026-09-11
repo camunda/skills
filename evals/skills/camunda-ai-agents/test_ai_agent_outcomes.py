@@ -29,6 +29,7 @@ def _host(
     template: str | None = None,
     task_type: str | None = None,
     tool_container: bool = False,
+    output_binding: bool | None = None,
 ) -> ET.Element:
     attrs = {}
     if template is not None:
@@ -38,6 +39,17 @@ def _host(
     extension_elements = ET.SubElement(
         host, f"{{{_outcomes.NS['bpmn']}}}extensionElements"
     )
+    if output_binding is None:
+        output_binding = template is not None
+    if output_binding:
+        ET.SubElement(
+            extension_elements,
+            f"{{{_outcomes.NS['zeebe']}}}adHoc",
+            {
+                "outputCollection": "toolCallResults",
+                "outputElement": "={content: toolCallResult}",
+            },
+        )
     if task_type is not None:
         ET.SubElement(
             extension_elements,
@@ -191,6 +203,11 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
             '={message: "toolCallResult: text", toolCallResult: response.body}',
             True,
         ),
+        (
+            "resultExpression",
+            "={details: {status: 1, toolCallResult: response.body}}",
+            False,
+        ),
     ],
     ids=[
         "exact-result-variable",
@@ -200,6 +217,7 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
         "result-expression-is-not-a-map",
         "quoted-map-like-text-is-not-a-map",
         "quoted-text-does-not-hide-real-map-entry",
+        "nested-map-entry-is-not-root-mapping",
     ],
 )
 def test_tool_call_result_headers_require_an_exact_mapping(
@@ -210,7 +228,12 @@ def test_tool_call_result_headers_require_an_exact_mapping(
     assert _outcomes.has_tool_call_result(tool) is expected
 
 
-def _minimal_bpmn(*, connector: bool) -> str:
+def _minimal_bpmn(
+    *,
+    connector: bool,
+    template_output_binding: bool = True,
+    include_unmapped_tool: bool = False,
+) -> str:
     if connector:
         host_attributes = (
             'zeebe:modelerTemplate="'
@@ -226,6 +249,23 @@ def _minimal_bpmn(*, connector: bool) -> str:
         host_attributes = ""
         connector_extension = ""
 
+    if connector and template_output_binding:
+        output_binding = (
+            '      <zeebe:adHoc outputCollection="toolCallResults" '
+            'outputElement="={content: toolCallResult}" />\n'
+        )
+    else:
+        output_binding = ""
+    unmapped_tool = (
+        """
+      <bpmn:serviceTask id="UnmappedTool">
+        <bpmn:documentation>This tool intentionally has no result mapping.</bpmn:documentation>
+      </bpmn:serviceTask>
+"""
+        if include_unmapped_tool
+        else ""
+    )
+
     return f"""\
 <bpmn:definitions
     xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -233,9 +273,9 @@ def _minimal_bpmn(*, connector: bool) -> str:
   <bpmn:process id="ai-ticket-triage">
     <bpmn:adHocSubProcess id="AgentTools" {host_attributes}>
       <bpmn:extensionElements>
-{connector_extension}
+{output_binding}{connector_extension}
         <zeebe:ioMapping>
-          <zeebe:input source="=fromAi(&quot;query&quot;)" target="query" />
+          <zeebe:input source="=fromAi(toolCall.query)" target="query" />
           <zeebe:input source="=&quot;system&quot;" target="data.systemPrompt.prompt" />
           <zeebe:input source="=&quot;user&quot;" target="data.userPrompt.prompt" />
           <zeebe:input source="=10" target="data.limits.maxModelCalls" />
@@ -247,7 +287,7 @@ def _minimal_bpmn(*, connector: bool) -> str:
           <zeebe:output target="toolCallResult" />
         </bpmn:extensionElements>
       </bpmn:serviceTask>
-    </bpmn:adHocSubProcess>
+{unmapped_tool}    </bpmn:adHocSubProcess>
   </bpmn:process>
 </bpmn:definitions>
 """
@@ -280,6 +320,22 @@ def test_ai_agent_shape_scorer_requires_connector_metadata(
 ) -> None:
     valid_score = _score_artifact(monkeypatch, _minimal_bpmn(connector=True))
     invalid_score = _score_artifact(monkeypatch, _minimal_bpmn(connector=False))
+    copied_metadata_score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, template_output_binding=False),
+    )
 
     assert valid_score.value == 1.0
     assert invalid_score.value == 0.0
+    assert copied_metadata_score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_requires_each_tool_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, include_unmapped_tool=True),
+    )
+
+    assert score.value == 0.0

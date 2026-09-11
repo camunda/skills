@@ -110,9 +110,13 @@ inspect the saved XML. Confirm that the host is marked with the AI Agent
 template plus its matching AI Agent task definition and hidden
 `io.camunda.agenticai.toolContainer=true` property, or uses a documented
 AI Agent task type for a custom template, and that the tool set and mappings
-are still present. This self-check catches the
-failure mode where a diagram looks agentic but only contains an ordinary
-ad-hoc subprocess.
+are still present. For a built-in template, also confirm that the hidden
+`zeebe:adHoc` binding defines both `outputCollection` and `outputElement`, with
+the latter referencing `toolCallResult`; this template-owned result collection
+binding is additional evidence that the connector was applied. Do not treat
+copied marker, task-type, and property metadata alone as proof. This self-check
+catches the failure mode where a diagram looks agentic but only contains an
+ordinary ad-hoc subprocess.
 
 ## The BPMN Shape
 
