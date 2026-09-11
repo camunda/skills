@@ -110,6 +110,38 @@ def _has_top_level_feel_map_entry(
     expression: str, key: str, expected_value: str | None = None
 ) -> bool:
     expression = _without_feel_string_literals(expression)
+
+    def value_end_for_map_entry(start: int) -> int:
+        value_end = start
+        nested_braces = 0
+        nested_brackets = 0
+        nested_parentheses = 0
+        while value_end < len(expression):
+            value_character = expression[value_end]
+            if value_character == "{":
+                nested_braces += 1
+            elif value_character == "}":
+                if nested_braces:
+                    nested_braces -= 1
+                elif not (nested_brackets or nested_parentheses):
+                    break
+            elif value_character == "[":
+                nested_brackets += 1
+            elif value_character == "]":
+                if nested_brackets:
+                    nested_brackets -= 1
+            elif value_character == "(":
+                nested_parentheses += 1
+            elif value_character == ")":
+                if nested_parentheses:
+                    nested_parentheses -= 1
+            elif value_character == "," and not (
+                nested_braces or nested_brackets or nested_parentheses
+            ):
+                break
+            value_end += 1
+        return value_end
+
     index = 0
     while index < len(expression) and expression[index].isspace():
         index += 1
@@ -151,45 +183,13 @@ def _has_top_level_feel_map_entry(
                 while cursor < len(expression) and expression[cursor].isspace():
                     cursor += 1
                 if cursor < len(expression) and expression[cursor] == ":":
+                    value_start = cursor + 1
+                    value_end = value_end_for_map_entry(value_start)
+                    value = expression[value_start:value_end].strip()
                     if expected_value is None:
+                        found_entry = bool(value)
+                    elif value == expected_value:
                         found_entry = True
-                    else:
-                        value_start = cursor + 1
-                        value_end = value_start
-                        nested_braces = 0
-                        nested_brackets = 0
-                        nested_parentheses = 0
-                        while value_end < len(expression):
-                            value_character = expression[value_end]
-                            if value_character == "{":
-                                nested_braces += 1
-                            elif value_character == "}":
-                                if nested_braces:
-                                    nested_braces -= 1
-                                elif not (
-                                    nested_brackets or nested_parentheses
-                                ):
-                                    break
-                            elif value_character == "[":
-                                nested_brackets += 1
-                            elif value_character == "]":
-                                if nested_brackets:
-                                    nested_brackets -= 1
-                            elif value_character == "(":
-                                nested_parentheses += 1
-                            elif value_character == ")":
-                                if nested_parentheses:
-                                    nested_parentheses -= 1
-                            elif value_character == "," and not (
-                                nested_braces or nested_brackets or nested_parentheses
-                            ):
-                                break
-                            value_end += 1
-                        if (
-                            expression[value_start:value_end].strip()
-                            == expected_value
-                        ):
-                            found_entry = True
         index += 1
     return False
 
@@ -316,12 +316,15 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 explanation="missing bpmn:adHocSubProcess host for AI Agent connector",
             )
 
-        host = hosts[0]
-        if not has_ai_agent_connector(host):
+        host = next(
+            (candidate for candidate in hosts if has_ai_agent_connector(candidate)),
+            None,
+        )
+        if host is None:
             return Score(
                 value=0.0,
                 explanation=(
-                    "ad-hoc subprocess is missing matching AI Agent connector "
+                    "no ad-hoc subprocess has a matching AI Agent connector "
                     "marker, task type, output binding, or tool-container property"
                 ),
             )
@@ -334,6 +337,24 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             )
 
         tool_ids = {tool.get("id") for tool in tools if tool.get("id")}
+        incoming_flow_targets = {
+            flow.get("targetRef")
+            for flow in host.findall(".//bpmn:sequenceFlow", NS)
+        }
+        chained_tools = sorted(
+            tool_id
+            for tool_id in tool_ids
+            if tool_id in incoming_flow_targets
+        )
+        if chained_tools:
+            return Score(
+                value=0.0,
+                explanation=(
+                    "root tool(s) are targeted by internal sequence flows: "
+                    f"{chained_tools}"
+                ),
+            )
+
         missing_tools = sorted(t for t in required_tools if t not in tool_ids)
         if missing_tools:
             return Score(
@@ -356,7 +377,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
         from_ai_inputs = [
             inp
             for inp in host.findall(".//zeebe:input", NS)
-            if "fromAi(" in (inp.get("source") or "")
+            if _has_feel_identifier(inp.get("source") or "", "fromAi(")
         ]
         if not from_ai_inputs:
             return Score(

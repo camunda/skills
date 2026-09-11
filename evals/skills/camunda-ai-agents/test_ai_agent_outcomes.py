@@ -217,6 +217,7 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
             "={details: {status: 1, toolCallResult: response.body}}",
             False,
         ),
+        ("resultExpression", "={toolCallResult:}", False),
     ],
     ids=[
         "exact-result-variable",
@@ -227,6 +228,7 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
         "quoted-map-like-text-is-not-a-map",
         "quoted-text-does-not-hide-real-map-entry",
         "nested-map-entry-is-not-root-mapping",
+        "empty-map-entry-value",
     ],
 )
 def test_tool_call_result_headers_require_an_exact_mapping(
@@ -244,6 +246,10 @@ def _minimal_bpmn(
     include_unmapped_tool: bool = False,
     template_output_collection: str = "toolCallResults",
     template_output_element: str = "={content: toolCallResult}",
+    tool_ids: tuple[str, ...] = ("LookupKnowledgeBase",),
+    chain_tools: bool = False,
+    prepend_unrelated_host: bool = False,
+    from_ai_source: str = "=fromAi(toolCall.query)",
 ) -> str:
     if connector:
         host_attributes = (
@@ -267,6 +273,31 @@ def _minimal_bpmn(
         )
     else:
         output_binding = ""
+    tool_xml = "\n".join(
+        f"""      <bpmn:serviceTask id="{tool_id}">
+        <bpmn:documentation>Look up relevant knowledge.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:output target="toolCallResult" />
+        </bpmn:extensionElements>
+      </bpmn:serviceTask>"""
+        for tool_id in tool_ids
+    )
+    sequence_flows = ""
+    if chain_tools:
+        sequence_flows = "\n".join(
+            f'      <bpmn:sequenceFlow id="flow-{source}-{target}" '
+            f'sourceRef="{source}" targetRef="{target}" />'
+            for source, target in zip(tool_ids, tool_ids[1:])
+        )
+    unrelated_host = ""
+    if prepend_unrelated_host:
+        unrelated_host = """\
+    <bpmn:adHocSubProcess id="UnrelatedTools">
+      <bpmn:serviceTask id="UnrelatedTool">
+        <bpmn:documentation>This is not the AI Agent host.</bpmn:documentation>
+      </bpmn:serviceTask>
+    </bpmn:adHocSubProcess>
+"""
     unmapped_tool = (
         """
       <bpmn:serviceTask id="UnmappedTool">
@@ -282,26 +313,23 @@ def _minimal_bpmn(
     xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
     xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">
   <bpmn:process id="ai-ticket-triage">
-    <bpmn:adHocSubProcess id="AgentTools" {host_attributes}>
-      <bpmn:extensionElements>
-{output_binding}{connector_extension}
-        <zeebe:ioMapping>
-          <zeebe:input source="=fromAi(toolCall.query)" target="query" />
-          <zeebe:input source="=&quot;system&quot;" target="data.systemPrompt.prompt" />
-          <zeebe:input source="=&quot;user&quot;" target="data.userPrompt.prompt" />
-          <zeebe:input source="=10" target="data.limits.maxModelCalls" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:serviceTask id="LookupKnowledgeBase">
-        <bpmn:documentation>Look up relevant knowledge.</bpmn:documentation>
+  {unrelated_host}\
+      <bpmn:adHocSubProcess id="AgentTools" {host_attributes}>
         <bpmn:extensionElements>
-          <zeebe:output target="toolCallResult" />
+  {output_binding}{connector_extension}
+          <zeebe:ioMapping>
+            <zeebe:input source="{from_ai_source}" target="query" />
+            <zeebe:input source="=&quot;system&quot;" target="data.systemPrompt.prompt" />
+            <zeebe:input source="=&quot;user&quot;" target="data.userPrompt.prompt" />
+            <zeebe:input source="=10" target="data.limits.maxModelCalls" />
+          </zeebe:ioMapping>
         </bpmn:extensionElements>
-      </bpmn:serviceTask>
-{unmapped_tool}    </bpmn:adHocSubProcess>
-  </bpmn:process>
-</bpmn:definitions>
-"""
+  {tool_xml}
+  {unmapped_tool}{sequence_flows}
+      </bpmn:adHocSubProcess>
+    </bpmn:process>
+  </bpmn:definitions>
+  """
 
 
 def _score_artifact(
@@ -345,6 +373,17 @@ def test_ai_agent_shape_scorer_requires_connector_metadata(
     assert copied_metadata_score.value == 0.0
 
 
+def test_ai_agent_shape_scorer_selects_matching_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, prepend_unrelated_host=True),
+    )
+
+    assert score.value == 1.0
+
+
 @pytest.mark.parametrize(
     ("output_collection", "output_element"),
     [
@@ -379,12 +418,42 @@ def test_ai_agent_shape_scorer_rejects_malformed_template_binding(
     assert score.value == 0.0
 
 
+def test_ai_agent_shape_scorer_ignores_quoted_from_ai_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            from_ai_source="=&quot;The literal text fromAi(&quot;",
+        ),
+    )
+
+    assert score.value == 0.0
+
+
 def test_ai_agent_shape_scorer_requires_each_tool_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = _score_artifact(
         monkeypatch,
         _minimal_bpmn(connector=True, include_unmapped_tool=True),
+    )
+
+    assert score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_rejects_chained_claim_review_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            tool_ids=_outcomes.CLAIM_REVIEW_TOOL_IDS,
+            chain_tools=True,
+        ),
+        required_tools=list(_outcomes.CLAIM_REVIEW_TOOL_IDS),
     )
 
     assert score.value == 0.0
