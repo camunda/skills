@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and runs the documented DMN lint and evaluation workflow."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+      "differences": [
+        "Maps dmnlint, c8ctl, and DMN file-editing commands to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and tool invocation adapters."]
+      "differences": [
+        "The host supplies DMN lint, FEEL evaluation, and optional cluster execution adapters."
+      ]
     }
   },
   "limitations": [
-    "Decision validation requires the host's DMN linting and evaluation tools."
+    "Decision validation requires dmnlint plus a compatible FEEL or Camunda evaluation path."
   ],
   "differences": [
-    "DMN lint and evaluation commands must be mapped to the harness's available c8ctl or local validation tools."
+    "DMN XML and hit-policy guidance are harness-neutral; linting, evaluation, and deployment commands depend on host tools."
   ]
 }

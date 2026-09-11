@@ -1,6 +1,6 @@
 # CPT troubleshooting
 
-Diagnose `mvn test` failures. Each row classifies the failure as a **test problem** (fix the scenario) or a **process problem** (fix the BPMN, DMN, form, or worker). Confusing the two costs hours.
+Diagnose `mvn test` failures. For a Node.js layout, run it from `test/` with `NODE_RESOURCE_DIR` set as described in [setup.md](setup.md). Each row classifies the failure as a **test problem** (fix the scenario) or a **process problem** (fix the BPMN, DMN, form, or worker). Confusing the two costs hours.
 
 ## Quick triage
 

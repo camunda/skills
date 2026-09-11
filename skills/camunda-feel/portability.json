@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and uses the documented cluster-first FEEL evaluation path."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps FEEL evaluation to the Copilot tool surface."]
+      "differences": [
+        "Maps c8ctl feel evaluate, variable input, and expression-file editing to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and FEEL evaluation adapters."]
+      "differences": [
+        "The host supplies a Camunda FEEL engine and adapters for variables, files, and result reporting."
+      ]
     }
   },
   "limitations": [
-    "Expression evaluation requires a compatible Camunda FEEL engine."
+    "Expression evaluation requires a Camunda 8.9 or newer cluster for the default c8ctl path, or an explicitly selected compatible local engine."
   ],
   "differences": [
-    "FEEL expressions are evaluated through a harness-provided c8ctl or local FEEL engine with potentially different runtime capabilities."
+    "Expression syntax is harness-neutral; cluster and local engines can differ in available functions and coercion behavior."
   ]
 }

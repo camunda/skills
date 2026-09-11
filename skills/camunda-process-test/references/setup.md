@@ -56,7 +56,12 @@ Required entry in the project (or test harness) `pom.xml`:
 </dependencies>
 ```
 
-Use 8.9+ — the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …) requires it.
+The dependency and `@TestCaseSource` scaffold above are for the 8.9+ instruction-based workflow. For
+an 8.8 project, pin a compatible 8.8.x release and use the Java fallback tests described in
+[authoring.md](authoring.md#java-fallback).
+
+Use 8.9+ for the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …).
+Java fallback-only suites can use a compatible 8.8.x release.
 
 ### Spring Boot 4.x pin (CPT 8.9.x only)
 
@@ -145,16 +150,15 @@ Required so `@SpringBootTest` has an application context to load.
 
 ## Node.js project layout
 
-If the project root has `package.json` but no `pom.xml`, scaffold a sibling `test/` directory holding its own `pom.xml`. The test harness reads BPMN / DMN / form files from the parent project via a `<testResource>` mapping:
+If the project root has `package.json` but no `pom.xml`, scaffold a sibling `test/` directory holding its own `pom.xml`. First resolve the BPMN / DMN / form resource directory declared by the Node.js project's build configuration. Set that resolved absolute path, or a path relative to `test/`, as `NODE_RESOURCE_DIR`; do not assume a `resources/` directory:
 
 ```xml
 <testResources>
   <testResource>
     <directory>src/test/resources</directory>
-    <excludes><exclude>scenarios/**</exclude></excludes>
   </testResource>
   <testResource>
-    <directory>../resources</directory>
+    <directory>${env.NODE_RESOURCE_DIR}</directory>
     <targetPath>processes</targetPath>
     <includes>
       <include>**/*.bpmn</include>
@@ -165,7 +169,26 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 </testResources>
 ```
 
-Confirm the scaffold by running `mvn test-compile` from `test/`.
+Run the commands below from the generated `test/` directory, which contains the `pom.xml`. Set
+`NODE_RESOURCE_DIR` to the resolved directory before running Maven. Maven reads the environment
+property independently of the shell:
+
+```sh
+export NODE_RESOURCE_DIR=/absolute/path/from-the-project-build
+```
+
+```powershell
+$env:NODE_RESOURCE_DIR = "C:\path\from-the-project-build"
+```
+
+Then run every Maven invocation, including `test` and any retry, from `test/`:
+
+```text
+mvn test-compile
+mvn test
+```
+
+Do not replace `NODE_RESOURCE_DIR` with `../resources` unless that is the directory the project build declares.
 
 ## Filename hygiene
 

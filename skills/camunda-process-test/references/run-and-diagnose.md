@@ -5,7 +5,9 @@ Use this when tests already exist and the user asks to run/fix them.
 ## Execution loop
 
 1. Ensure Docker runtime is available (see [setup.md](setup.md)).
-2. Run:
+2. Run Maven from the directory containing the relevant `pom.xml`. For a Node.js layout, run it
+   from the generated `test/` directory with `NODE_RESOURCE_DIR` set to the resource directory
+   declared by the project build (see [setup.md](setup.md)):
 
 ```bash
 mvn test
@@ -15,7 +17,8 @@ mvn test
    - **Infrastructure** (Docker down, deployment parse failure, missing resources)
    - **Test defect** (wrong IDs, missing instruction, stale variable names)
    - **Process defect** (gateway logic, DMN rule behavior, BPMN error code mismatch)
-4. Apply fixes in batches by class (not one-by-one churn), then re-run `mvn test`.
+4. Apply fixes in batches by class (not one-by-one churn), then re-run `mvn test` from the same
+   Maven directory with the same `NODE_RESOURCE_DIR` setting.
 5. Stop after 3 no-progress cycles — defined as a re-run producing no reduction in failing tests and no new diagnostic signal — and surface blockers explicitly.
 
 ## Failure-class defaults

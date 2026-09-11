@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and follows the JSON-template or Java SDK path."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+      "differences": [
+        "Maps c8ctl template retrieval, Java/Maven commands, and project file edits to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and tool invocation adapters."]
+      "differences": [
+        "The host supplies Java, Maven, filesystem, and connector-runtime adapters for Path B."
+      ]
     }
   },
   "limitations": [
-    "Connector builds require the host's supported Java and Maven toolchain."
+    "Java connector builds require Java 17 or newer, Maven 3.8+ or an equivalent Gradle toolchain, and a connector runtime or hosting target."
   ],
   "differences": [
-    "Java connector builds require the harness to provide a compatible Java/Maven process and dependency cache."
+    "Template and SDK semantics are harness-neutral; build, dependency-cache, and hosting commands depend on host capabilities."
   ]
 }

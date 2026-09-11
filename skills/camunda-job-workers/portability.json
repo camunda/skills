@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and selects the documented Java, Spring, or TypeScript worker path."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps worker implementation operations to the Copilot tool surface."]
+      "differences": [
+        "Maps source editing, SDK dependency commands, and worker process execution to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies code generation and build adapters."]
+      "differences": [
+        "The host supplies the selected language runtime, build tool, and Camunda cluster credential adapters."
+      ]
     }
   },
   "limitations": [
-    "Worker implementation requires the selected SDK and its supported runtime."
+    "Java and Spring worker implementations target a reachable Camunda 8.8+ cluster. The @camunda8/orchestration-cluster-api TypeScript path requires Camunda 8.9+, while the Node-only @camunda8/sdk remains the documented fallback for gRPC streaming, Camunda 8.7-or-earlier targets, Operate v1 queries, or migration friction; browser-hosted workers cannot use that fallback."
   ],
   "differences": [
-    "Worker implementation commands depend on the harness's language SDK, build runner, and runtime process controls."
+    "Worker handler semantics are harness-neutral; SDK installation, build, process control, and cluster credentials are host-managed."
   ]
 }

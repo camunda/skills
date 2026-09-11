@@ -10,21 +10,27 @@
   "harnesses": {
     "claude": {
       "status": "native",
-      "differences": ["Uses the repository's Claude Code skill discovery path."]
+      "differences": [
+        "Loads the standard SKILL.md package and runs the documented c8ctl BPMN workflow."
+      ]
     },
     "copilot": {
       "status": "adapter-required",
-      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+      "differences": [
+        "Maps BPMN file editing plus c8ctl bpmn lint and format commands to Copilot terminal capabilities."
+      ]
     },
     "generic": {
       "status": "adapter-required",
-      "differences": ["The host supplies discovery and tool invocation adapters."]
+      "differences": [
+        "The host supplies filesystem and c8ctl process adapters for authoring and validation."
+      ]
     }
   },
   "limitations": [
-    "Live process modeling requires an installed and configured c8ctl CLI."
+    "Basic BPMN linting requires c8ctl 3.0.0 or newer; the documented bpmn format workflow requires c8ctl 3.2.0 or newer, plus a BPMN-aware project workspace."
   ],
   "differences": [
-    "BPMN lint and formatting commands are exposed through c8ctl, with adapters mapping equivalent tool calls."
+    "BPMN XML and c8ctl command syntax are harness-neutral; file editing and command execution depend on host capabilities."
   ]
 }

@@ -1,24 +1,28 @@
 ---
 name: camunda-process-test
 description: |
-  Use this skill to author and run Camunda Process Test (CPT) suites that cover every BPMN gateway branch, DMN rule, and error boundary to 100%.
-
-  Use for: scaffolding the `camunda-process-test-spring` harness, planning the minimum set of test segments for full element coverage, authoring `.test.json` instruction-based scenarios, running `mvn test`, parsing the CPT coverage report, deduplicating redundant segments.
-
-  Do not use for: authoring the BPMN (use camunda-bpmn), writing FEEL or DMN expressions (use camunda-feel), deploying to a live cluster (use camunda-process-mgmt), UI or E2E tests against Operate or Tasklist.
-
-  **Workflow skill** — segment-based authoring loop covering `mvn test`, coverage report parsing, and scenario deduplication.
+  Use this skill to author and run Camunda Process Test suites for 100% BPMN coverage. Use it for segment planning, `.test.json` scenarios, Java fallback tests, Maven test commands, coverage reports, and suite maintenance. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or build UI/E2E tests.
 ---
 
 # Camunda Process Test
+
+**WORKFLOW SKILL**: plan segments, author scenarios, run the Maven test command, and close coverage gaps.
+
+## DO NOT USE FOR:
+
+Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
 Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BPMN element coverage** with the minimum number of test segments. Test assertions are limited to reachability and routing — CPT exercises that the engine traverses the right elements, not the data values produced by service tasks or external systems.
 
 ## Prerequisites
 
 - Java 21+, Maven (or `./mvnw`), Docker runtime (OrbStack, Docker Desktop, or Rancher Desktop) — see [references/setup.md](references/setup.md)
-- `camunda-process-test-spring` 8.9+ on the test classpath (instruction-based JSON format requires 8.9)
+- `camunda-process-test-spring` 8.8+ on the test classpath for Java fallback suites; the instruction-based `.test.json` format and 8.9-only APIs require 8.9+
 - A working BPMN file (lint clean — see camunda-bpmn). DMN and form files referenced by the BPMN must also be present.
+
+For a Node.js layout, set `NODE_RESOURCE_DIR` and run Maven from the generated `test/` directory as
+described in [references/setup.md](references/setup.md). The Maven commands below are shell-neutral; the
+Node.js POM reads the environment variable and standard Java layouts do not need it.
 
 ## Cross-References
 
@@ -43,7 +47,8 @@ Find the BPMN under test in priority order:
 
 1. `src/main/resources/processes/`
 2. `src/main/resources/bpmn/`
-3. `../resources/` (Node.js layouts where the test harness lives in `test/`)
+3. The resource directory declared by the project build (for example, a Node.js
+   project may keep it at `resources/` while the test harness lives in `test/`).
 
 Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, list them and ask which to target.
 
@@ -67,7 +72,7 @@ Fix in this order: broken → stale → missing, then run `mvn test` and continu
 
 ### 2. Setup (only if missing)
 
-Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn test-compile`.
+Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/` for CPT 8.9+, or use the Java fallback for CPT 8.8. Confirm with `mvn test-compile`.
 
 ### 3. Plan segments (set-cover, not per-element)
 
@@ -79,13 +84,19 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 4. **Diagnostic-isolation override (optional).** If two chosen segments share a root but exercise different failure modes (e.g. one fires a boundary event, the other completes the user task normally), keep both so a failure points at one cause cleanly. Apply only when the user is debugging a specific area; default is pure set-cover.
 5. Print the segment plan as a table: `segment name | root | predicted ids covered | end condition`. Authoring then implements exactly this list — no speculative scenarios that may be deduped later.
 
+**Example:** for a gateway with `approved` and `rejected` flows, plan one segment per flow, predict the visited IDs through the next join, and keep the smallest set of segments that covers both branches and the shared end path.
+
 ### 4. Author
 
-For each segment, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
+For CPT 8.9+, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). For CPT 8.8, use the Java fallback described in that reference instead of `.test.json`. Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). Accept that Java tests are invisible to Web Modeler.
+For CPT 8.9+, use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers. For CPT 8.8, Java tests are required because the instruction-based format is not available. See [references/test-context.md](references/test-context.md); Java tests are invisible to Web Modeler.
 
 ### 5. Run
+
+Run Maven from the directory containing the relevant `pom.xml`. For a Node.js layout, use the
+generated `test/` directory and keep `NODE_RESOURCE_DIR` set to the resolved resource directory
+for this command and every retry, as described in [references/setup.md](references/setup.md).
 
 ```bash
 mvn test
@@ -184,7 +195,7 @@ Duplicates flagged: 0
 
 When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
 
-1. **Run and diagnose failures** — execute `mvn test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
+1. **Run and diagnose failures** — execute `mvn test` from the directory containing the relevant `pom.xml`; for a Node.js layout, run it from `test/` with `NODE_RESOURCE_DIR` set to the resolved resource directory for the initial run and every retry. Classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
 2. **Evaluate coverage gaps before writing new tests** — explain current suite coverage in business terms, list uncovered branches/boundaries/rules, and recommend the smallest next set of scenarios. See [references/evaluation.md](references/evaluation.md).
 3. **Wire tests into CI** — configure CI to run CPT reliably and publish JUnit artifacts, with optional integration profile runs gated to trusted branches. See [references/ci.md](references/ci.md).
 
