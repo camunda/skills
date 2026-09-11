@@ -23,6 +23,17 @@
         "turns": 2,
         "tool_calls": 2,
         "duration_s": 26
+      },
+      "saas-secret-boundary": {
+        "tokens": {
+          "input": 4,
+          "cache_write": 4970,
+          "cache_read": 16506,
+          "output": 566
+        },
+        "turns": 2,
+        "tool_calls": 1,
+        "duration_s": 27
       }
     }
   }
