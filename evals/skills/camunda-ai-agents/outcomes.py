@@ -47,7 +47,7 @@ REQUEST_VERB_PATTERN = re.compile(
 )
 REQUEST_NEED_PATTERN = re.compile(
     r"\b(?:i|we)(?:['’](?:ll|d))?\s+(?:need|require)\s+(?:"
-    r"(?:(?:your|the|an?|some|each|exact|existing|already|configured|available)\s+){0,5}"
+    r"(?:(?:your|the|an?|some|each|exact|specific|full|complete|existing|already|configured|available)\s+){0,5}"
     r"(?:provider|model|connector[- ]?secret|secret|api[- ]?key|tokens?|"
     r"credentials?|passwords?)\b|"
     r"(?:you\s+to\s+)?(?:provide|specify|confirm|tell(?:\s+me)?|identify|"
@@ -69,6 +69,8 @@ SECRET_CONFIGURATION_PATTERN = re.compile(
     r"\b(?:"
     r"existing|configured|preconfigured|available|"
     r"already\s+(?:configured|set\s+up|created|available|exist(?:s)?)|"
+    r"(?:must|needs?\s+to|has\s+to|have\s+to)\s+(?:already\s+)?"
+    r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing))|"
     r"in\s+(?:the\s+)?(?:cluster|environment|profile|console)"
     r")\b"
 )
@@ -77,6 +79,8 @@ SECRET_EXPLICIT_CONFIGURATION_PATTERN = re.compile(
     r"already\s+(?:configured|set\s+up|created|available|exists?)|"
     r"(?:is|are|was|were)\s+(?:already\s+)?"
     r"(?:configured|preconfigured|available|created|set\s+up|existing)|"
+    r"(?:must|needs?\s+to|has\s+to|have\s+to)\s+(?:already\s+)?"
+    r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing))|"
     r"(?:configured|preconfigured|available)\s+"
     r"(?:in|on)\s+(?:the\s+)?(?:cluster|environment|profile|console)"
     r")\b"
@@ -119,7 +123,12 @@ FALLBACK_CONTEXT_PATTERN = re.compile(
     r")\b"
 )
 FALLBACK_ACTION_PATTERN = re.compile(
-    r"\b(?:use|choose|select|pick|assume|invent|make\s+up|default(?:\s+to)?)\b"
+    r"\b(?:use|choose|select|pick|assume|invent|make\s+up|"
+    r"default(?:\s+to)?|configure|set(?:\s+up)?|assign|apply|wire)\b"
+)
+CONFIGURATION_TARGET_PATTERN = re.compile(
+    r"\b(?:provider|model(?:\s+(?:identifier|id|name))?|"
+    r"(?:connector[- ]?)?secret(?:\s+(?:name|identifier))?)\b"
 )
 CONFIGURATION_VALUE_PATTERN = re.compile(
     r"(?<![\w-])(?:"
@@ -263,14 +272,13 @@ def _is_negated_term(sentence: str, start: int) -> bool:
 def _has_secret_configuration_semantics(text: str) -> bool:
     normalized = text.casefold()
     clauses = _split_clauses(normalized)
+    if _has_negated_secret_configuration(clauses):
+        return False
+
     for index, clause in enumerate(clauses):
-        if not SECRET_NAME_PATTERN.search(clause):
-            continue
-        if any(
-            not _is_negated_term(clause, configuration.start())
-            for configuration in SECRET_CONFIGURATION_PATTERN.finditer(clause)
-        ):
-            return True
+        for secret_name in SECRET_NAME_PATTERN.finditer(clause):
+            if _secret_configuration_applies_to_name(clause, secret_name):
+                return True
         for neighbor_index in (index - 1, index + 1):
             if not 0 <= neighbor_index < len(clauses):
                 continue
@@ -291,6 +299,72 @@ def _has_secret_configuration_semantics(text: str) -> bool:
                 )
             ):
                 return True
+    return False
+
+
+def _has_negated_secret_configuration(clauses: list[str]) -> bool:
+    for clause in clauses:
+        secret_names = list(SECRET_NAME_PATTERN.finditer(clause))
+        for configuration_pattern in (
+            SECRET_CONFIGURATION_PATTERN,
+            SECRET_EXPLICIT_CONFIGURATION_PATTERN,
+        ):
+            for configuration in configuration_pattern.finditer(clause):
+                if not _is_negated_term(clause, configuration.start()):
+                    continue
+                if any(
+                    _secret_configuration_applies_to_name(
+                        clause,
+                        secret_name,
+                        include_negated=True,
+                        configuration=configuration,
+                    )
+                    for secret_name in secret_names
+                ):
+                    return True
+                if (
+                    not secret_names
+                    and (
+                        re.search(
+                            r"\b(?:connector[- ]?secret|secret)\b", clause
+                        )
+                        or re.match(r"\s*(?:it|that|this|one)\b", clause)
+                    )
+                ):
+                    return True
+    return False
+
+
+def _secret_configuration_applies_to_name(
+    clause: str,
+    secret_name: re.Match[str],
+    include_negated: bool = False,
+    configuration: re.Match[str] | None = None,
+) -> bool:
+    configurations = (
+        [configuration]
+        if configuration is not None
+        else SECRET_CONFIGURATION_PATTERN.finditer(clause)
+    )
+    for configuration_match in configurations:
+        if not include_negated and _is_negated_term(
+            clause, configuration_match.start()
+        ):
+            continue
+        if configuration_match.end() <= secret_name.start():
+            between = clause[configuration_match.end() : secret_name.start()]
+        elif secret_name.end() <= configuration_match.start():
+            between = clause[secret_name.end() : configuration_match.start()]
+            following = re.split(
+                r"[,;:]", clause[configuration_match.end() :], 1
+            )[0]
+            if re.search(r"\b(?:provider|model)\b", following):
+                continue
+        else:
+            between = ""
+        if re.search(r"\b(?:provider|model)\b", between):
+            continue
+        return True
     return False
 
 
@@ -347,22 +421,141 @@ def _has_fallback_selection(sentence: str) -> bool:
         ]
         if not actions:
             continue
-        if any(match.group() in {"invent", "make up"} for match in actions):
-            return True
-        if any(
-            not _is_negated_term(clause, match.start())
-            for match in FALLBACK_CONTEXT_PATTERN.finditer(clause)
-        ):
-            return True
-        if (
-            any(
+        for action in actions:
+            if _is_confirmation_dependent_selection(clause, action):
+                continue
+            if action.group() in {"invent", "make up"}:
+                return True
+            if any(
                 not _is_negated_term(clause, match.start())
-                for match in actions
-            )
-            and (
-                CONFIGURATION_VALUE_PATTERN.search(clause)
-            )
-        ):
+                for match in FALLBACK_CONTEXT_PATTERN.finditer(clause)
+            ):
+                return True
+            if _has_concrete_configuration_selection(clause, action):
+                return True
+    return False
+
+
+def _is_confirmation_dependent_selection(
+    clause: str, action: re.Match[str]
+) -> bool:
+    del action
+    return bool(
+        re.search(
+            r"\b(?:only\s+if|if|when|after|once)\b"
+            r"[^.;:]{0,100}\b(?:you|user|we|i)\b"
+            r"[^.;:]{0,50}\b(?:choose|select|confirm|provide|specify|"
+            r"identify|tell|approve|pick)\b",
+            clause,
+        )
+        or re.search(
+            r"\b(?:your|user['’]?s?|the)?\s*"
+            r"(?:selected|confirmed|provided|specified|chosen)\s+"
+            r"(?:provider|model|(?:connector[- ]?)?secret)\b",
+            clause,
+        )
+    )
+
+
+def _has_concrete_configuration_selection(
+    clause: str, action: re.Match[str]
+) -> bool:
+    action_word = action.group().split()[0]
+    action_tail = clause[action.end() :]
+    target_matches = list(CONFIGURATION_TARGET_PATTERN.finditer(action_tail))
+
+    if action_word in {"use", "choose", "select", "pick", "assume", "default"}:
+        if _has_concrete_token(action_tail):
+            return True
+
+    if CONFIGURATION_VALUE_PATTERN.search(action_tail):
+        return True
+
+    for target in target_matches:
+        if _has_concrete_token(action_tail[target.end() :]):
+            return True
+        before_target = action_tail[: target.start()]
+        if _has_concrete_token(before_target, reverse=True):
+            return True
+    return False
+
+
+_GENERIC_CONFIGURATION_TOKENS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "any",
+        "after",
+        "agent",
+        "already",
+        "as",
+        "available",
+        "before",
+        "but",
+        "chosen",
+        "complete",
+        "confirm",
+        "confirmed",
+        "configuration",
+        "configured",
+        "connector",
+        "default",
+        "defaults",
+        "exact",
+        "fallback",
+        "for",
+        "from",
+        "full",
+        "i",
+        "id",
+        "identifier",
+        "if",
+        "in",
+        "is",
+        "it",
+        "just",
+        "model",
+        "name",
+        "names",
+        "of",
+        "only",
+        "or",
+        "our",
+        "provided",
+        "provider",
+        "selected",
+        "secret",
+        "settings",
+        "some",
+        "specified",
+        "specific",
+        "the",
+        "then",
+        "this",
+        "to",
+        "type",
+        "until",
+        "use",
+        "value",
+        "values",
+        "we",
+        "when",
+        "with",
+        "you",
+        "your",
+    }
+)
+_CONFIGURATION_TOKEN_PATTERN = re.compile(r"(?<![\w-])[a-z][a-z0-9_.-]*(?![\w-])")
+
+
+def _has_concrete_token(text: str, reverse: bool = False) -> bool:
+    tokens = list(_CONFIGURATION_TOKEN_PATTERN.finditer(text))
+    if reverse:
+        tokens.reverse()
+    for token in tokens[:6]:
+        normalized = token.group().rstrip(".,;:!?")
+        if normalized not in _GENERIC_CONFIGURATION_TOKENS:
             return True
     return False
 
