@@ -50,3 +50,19 @@ find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o
 | `sub-process-blank-start-event` | Remove event definition from a sub-process start event; it must be blank. |
 | `superfluous-gateway` | Remove pass-through gateways with one incoming and one outgoing flow. |
 | `superfluous-termination` | Replace unnecessary Terminate End Events with normal End Events. |
+
+## Exclusive-gateway safety review
+
+The recommended lint rules do not identify every latent runtime failure. After
+linting, inspect each `bpmn:exclusiveGateway` and verify that its `default`
+attribute points to one of its outgoing sequence flows. This is required for
+binary and enum-style decisions unless the model deliberately proves that all
+possible values are exhaustive. Prefer a safe fallback branch, such as reject
+or manual review, and do not put a condition on the default flow.
+
+An XOR whose outgoing flows all have conditions but which has no default can
+pass `conditional-flows` while still raising a `CONDITION_ERROR` when an input
+is missing, unexpected, or mistyped. Treat that shape as a lint review failure
+and add the default before considering the BPMN complete. A default flow does
+not suppress an error raised while evaluating another condition, so guard or
+normalize comparisons whose inputs can be missing or have an unexpected type.
