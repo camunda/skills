@@ -43,10 +43,12 @@ Do not substitute a regular sub-process, an unconfigured ad-hoc sub-process, or 
 service task for the AI Agent connector. The host must be a
 `bpmn:adHocSubProcess` with the current AI Agent Sub-process element template
 applied. The saved BPMN must retain the connector marker
-`zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`
-and the AI Agent job-worker task definition produced by that template (a
-custom template is valid when its task type starts with
-`io.camunda.agenticai:aiagent-job-worker:`). Applying the template is what
+emitted by the current catalog entry and the corresponding AI Agent task definition
+produced by that template (the current example is
+`zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`).
+A custom template is also valid when its task type starts with
+`io.camunda.agenticai:aiagent-job-worker:`; validate that task type instead of
+relying on a marker copied onto an ordinary subprocess. Applying the template is what
 wires the LLM driver, tool activation, result collection, and implicit
 feedback loop; hand-writing only prompts or tool tasks does not create an
 agent.
@@ -87,14 +89,17 @@ dimensions, model one focused root tool for each independent check rather than
 one generic service-task stand-in. For example, a claim-review agent might have
 separate tools for duplicate detection, amount/category mismatch, and
 personal-versus-business language. Each root tool must have its own
-documentation, `fromAi()` inputs, and meaningful `toolCallResult`; the agent's
-system prompt should tell it to select the relevant checks and synthesize their
-results. A single generic tool is not an implementation of a multi-check agent.
+documentation and meaningful `toolCallResult`. Add `fromAi()` inputs for values
+the check expects the LLM to supply; tools that use existing process variables or
+pause for a human may legitimately have an empty input schema. The agent's system
+prompt should tell it to select the relevant checks and synthesize their results.
+A single generic tool is not an implementation of a multi-check agent.
 
 After applying the template and modeling the tools, run `c8ctl bpmn lint` and
 inspect the saved XML. Confirm that the host is marked with the AI Agent
-template or an `io.camunda.agenticai:aiagent-job-worker:` task type, and that
-the tool set and mappings are still present. This self-check catches the
+template plus its AI Agent task definition, or uses an
+`io.camunda.agenticai:aiagent-job-worker:` task type for a custom template, and
+that the tool set and mappings are still present. This self-check catches the
 failure mode where a diagram looks agentic but only contains an ordinary
 ad-hoc subprocess.
 
@@ -244,7 +249,12 @@ Lint now catches `fromAi()` misplacement on sub-flow tools — the `agent-fromai
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by reading the BPMN:
 
 - Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
-- The host retains `zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"` or a `zeebe:taskDefinition` type beginning with `io.camunda.agenticai:aiagent-job-worker:`.
+- The host retains the current catalog marker (for example,
+  `zeebe:modelerTemplate="io.camunda.connectors.agenticai.aiagent.jobworker.v1"`)
+  together with the corresponding `zeebe:taskDefinition` produced by that
+  template; a custom template path may instead be identified by a task type
+  beginning with `io.camunda.agenticai:aiagent-job-worker:` without relying on a
+  built-in marker.
 - Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it via a direct edit).
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.

@@ -40,13 +40,19 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
-AI_AGENT_TEMPLATE = "io.camunda.connectors.agenticai.aiagent.jobworker.v1"
-AI_AGENT_TEMPLATE_PREFIX = "io.camunda.connectors.agenticai.aiagent.jobworker."
-AI_AGENT_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent-job-worker:"
+AI_AGENT_TEMPLATE_PREFIXES = (
+    "io.camunda.connectors.agenticai.aiagent.jobworker.",
+    "io.camunda.connectors.agenticai.ai-agent-subprocess.",
+)
+AI_AGENT_TASK_TYPE_PREFIXES = (
+    "io.camunda.agenticai:aiagent-job-worker:",
+    "io.camunda.agenticai:aiagent:subprocess:",
+)
+CUSTOM_AI_AGENT_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent-job-worker:"
 
 
 def has_ai_agent_connector(host: ET.Element) -> bool:
-    """Accept the documented template and custom-template recognition paths."""
+    """Accept versioned built-in templates and custom AI Agent task types."""
 
     template = host.get(f"{{{NS['zeebe']}}}modelerTemplate")
     task_definition = host.find(
@@ -55,10 +61,14 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     task_type = (
         task_definition.get("type") if task_definition is not None else ""
     ) or ""
-    if template and template.startswith(AI_AGENT_TEMPLATE_PREFIX):
-        return task_type.startswith(AI_AGENT_TASK_TYPE_PREFIX)
+    if template and any(
+        template.startswith(prefix) for prefix in AI_AGENT_TEMPLATE_PREFIXES
+    ):
+        return any(
+            task_type.startswith(prefix) for prefix in AI_AGENT_TASK_TYPE_PREFIXES
+        )
 
-    return task_type.startswith(AI_AGENT_TASK_TYPE_PREFIX)
+    return task_type.startswith(CUSTOM_AI_AGENT_TASK_TYPE_PREFIX)
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -221,7 +231,8 @@ SAMPLES = [
             "agent host. Apply the actual AI Agent Sub-process connector element "
             "template to AgentTools with c8ctl; do not model a generic or "
             "unconfigured ad-hoc subprocess stand-in. The saved host must retain "
-            "the template marker or AI Agent job-worker task type.\n"
+            "the current template marker together with its AI Agent task definition, "
+            "or use the documented custom AI Agent task-type prefix.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
