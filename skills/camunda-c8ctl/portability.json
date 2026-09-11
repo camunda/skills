@@ -1,5 +1,5 @@
 {
-  "$schema": "../../compatibility/portability.schema.json",
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
   "skillDirectory": "skills/camunda-c8ctl",
   "skillName": "camunda-c8ctl",
   "status": "portable-with-adapter",

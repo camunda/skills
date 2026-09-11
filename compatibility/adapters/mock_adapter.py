@@ -61,7 +61,7 @@ def activate_skill(
 
     if not isinstance(prompt, str) or not prompt.strip():
         failures.append("activation prompt must be non-empty")
-    if not isinstance(tool_command, str) or "c8ctl bpmn lint" not in content:
+    if not isinstance(tool_command, str) or tool_command not in content:
         failures.append("skill entrypoint does not declare the required BPMN lint command")
     return not failures, failures
 
@@ -104,6 +104,7 @@ def main() -> int:
     tool_succeeded = False
     exit_code: int | None = None
     tool_error: str | None = None
+    tool_output: str | None = None
 
     with tempfile.TemporaryDirectory(prefix="camunda-skills-smoke-") as directory:
         artifact_path = Path(directory) / artifact_name
@@ -143,11 +144,20 @@ def main() -> int:
             else:
                 tool_executed = True
                 exit_code = completed.returncode
-                tool_succeeded = completed.returncode == 0
-                if not tool_succeeded:
+                tool_output = completed.stdout.strip()
+                tool_succeeded = (
+                    completed.returncode == 0
+                    and tool_output == f"{command}: passed"
+                )
+                if completed.returncode != 0:
                     failures.append(
                         f"{command} failed with exit code {completed.returncode}: "
                         f"{completed.stderr.strip()}"
+                    )
+                elif not tool_succeeded:
+                    failures.append(
+                        f"{command} did not report the expected success output: "
+                        f"{tool_output!r}"
                     )
         else:
             tool_error = "tool command was not run because its prerequisites failed"
@@ -167,6 +177,7 @@ def main() -> int:
             "executed": tool_executed,
             "succeeded": tool_succeeded,
             "exitCode": exit_code,
+            "output": tool_output,
         },
     }
     print(json.dumps(result, indent=2, sort_keys=True))

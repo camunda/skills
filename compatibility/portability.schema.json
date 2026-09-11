@@ -17,7 +17,7 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "../../compatibility/portability.schema.json"
+      "const": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json"
     },
     "skillDirectory": {
       "type": "string",

@@ -15,9 +15,14 @@ from jsonschema.exceptions import SchemaError
 import yaml
 
 SPEC_URL = "https://agentskills.io/specification"
+PORTABILITY_SCHEMA_URL = (
+    "https://raw.githubusercontent.com/camunda/skills/main/"
+    "compatibility/portability.schema.json"
+)
 SKILL_NAME = re.compile(r"(?=.{1,64}\Z)[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
+OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 
 
 def load_json(path: Path, errors: list[str]) -> Any:
@@ -107,7 +112,7 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
 
     expect(
         sidecar["$schema"],
-        "../../compatibility/portability.schema.json",
+        PORTABILITY_SCHEMA_URL,
         f"{label}.$schema",
         errors,
     )
@@ -184,9 +189,17 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         errors.append(f"{path}: frontmatter must be a YAML object")
         return
 
-    missing = {"name", "description"} - set(metadata)
+    required_keys = {"name", "description"}
+    allowed_keys = required_keys | OPTIONAL_FRONTMATTER_KEYS
+    missing = required_keys - set(metadata)
     if missing:
         errors.append(f"{path}: frontmatter missing keys {sorted(missing)}")
+    extra = [key for key in metadata if key not in allowed_keys]
+    if extra:
+        errors.append(
+            f"{path}: frontmatter has unsupported keys "
+            f"{sorted(str(key) for key in extra)}"
+        )
 
     frontmatter_name = metadata.get("name")
     if not isinstance(frontmatter_name, str) or not SKILL_NAME.fullmatch(frontmatter_name):
@@ -199,6 +212,39 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         errors.append(f"{path}: frontmatter description must be a non-empty string")
     elif len(description) > 1024:
         errors.append(f"{path}: frontmatter description must be at most 1024 characters")
+
+    license_value = metadata.get("license")
+    if "license" in metadata and (
+        not isinstance(license_value, str) or not license_value.strip()
+    ):
+        errors.append(f"{path}: frontmatter license must be a non-empty string")
+
+    compatibility = metadata.get("compatibility")
+    if "compatibility" in metadata:
+        if not isinstance(compatibility, str) or not compatibility.strip():
+            errors.append(f"{path}: frontmatter compatibility must be a non-empty string")
+        elif len(compatibility) > 500:
+            errors.append(
+                f"{path}: frontmatter compatibility must be at most 500 characters"
+            )
+
+    metadata_value = metadata.get("metadata")
+    if "metadata" in metadata and (
+        not isinstance(metadata_value, dict)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in metadata_value.items()
+        )
+    ):
+        errors.append(
+            f"{path}: frontmatter metadata must map strings to strings"
+        )
+
+    allowed_tools = metadata.get("allowed-tools")
+    if "allowed-tools" in metadata and (
+        not isinstance(allowed_tools, str) or not allowed_tools.strip()
+    ):
+        errors.append(f"{path}: frontmatter allowed-tools must be a non-empty string")
 
 
 def check_index(index: Any, errors: list[str]) -> list[dict[str, Any]]:

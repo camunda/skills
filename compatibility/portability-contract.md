@@ -64,7 +64,7 @@ fields:
 
 ```json
 {
-  "$schema": "../../compatibility/portability.schema.json",
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
   "skillDirectory": "skills/camunda-bpmn",
   "skillName": "camunda-bpmn",
   "status": "portable-with-adapter",
@@ -205,7 +205,7 @@ deterministic generic equivalent:
 
 ```json
 {
-  "$schema": "../../compatibility/portability.schema.json",
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
   "skillDirectory": "skills/example",
   "skillName": "example",
   "status": "harness-specific",

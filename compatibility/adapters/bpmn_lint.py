@@ -104,12 +104,43 @@ def validate_bpmn(path: Path) -> None:
     if not flows:
         raise ValueError("process must contain a sequence flow")
     flow_node_ids = {node.get("id") for node in flow_nodes}
+    outgoing = {node_id: set() for node_id in flow_node_ids}
+    incoming = {node_id: set() for node_id in flow_node_ids}
     for flow in flows:
+        source = flow.get("sourceRef")
+        target = flow.get("targetRef")
         if (
-            flow.get("sourceRef") not in flow_node_ids
-            or flow.get("targetRef") not in flow_node_ids
+            source not in flow_node_ids
+            or target not in flow_node_ids
         ):
             raise ValueError("sequence flow references an unknown element")
+        outgoing[source].add(target)
+        incoming[target].add(source)
+
+    def reachable(
+        starts: set[str | None], graph: dict[str | None, set[str | None]]
+    ) -> set[str | None]:
+        reached = set(starts)
+        pending = list(starts)
+        while pending:
+            current = pending.pop()
+            for neighbor in graph[current]:
+                if neighbor not in reached:
+                    reached.add(neighbor)
+                    pending.append(neighbor)
+        return reached
+
+    start_ids = {
+        node.get("id") for node in flow_nodes if local_name(node.tag) == "startEvent"
+    }
+    end_ids = {
+        node.get("id") for node in flow_nodes if local_name(node.tag) == "endEvent"
+    }
+    reachable_from_start = reachable(start_ids, outgoing)
+    can_reach_end = reachable(end_ids, incoming)
+    disconnected = (flow_node_ids - reachable_from_start) | (flow_node_ids - can_reach_end)
+    if disconnected:
+        raise ValueError("all flow nodes must be on a complete start-to-end path")
 
     di_ids: set[str] = set()
     for element in root.iter():

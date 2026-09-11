@@ -119,7 +119,7 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
 1. Run the linter against the file you touched:
 
    ```bash
-   c8ctl bpmn lint path/to/process.bpmn
+   c8ctl bpmn lint process.bpmn
    ```
 
    `c8ctl bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
