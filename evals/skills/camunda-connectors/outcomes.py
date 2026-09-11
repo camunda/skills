@@ -40,6 +40,18 @@ def _norm(value: str | None) -> str:
     return "".join((value or "").split())
 
 
+def _normalize_http_method(value: str | None) -> str:
+    method = (value or "").strip()
+    if method.startswith("="):
+        literal = method[1:].strip()
+        if literal.startswith('"') and literal.endswith('"'):
+            return literal[1:-1]
+        return method
+    if method.startswith('"') and method.endswith('"'):
+        return method[1:-1]
+    return method
+
+
 @scorer(metrics=[mean(), stderr()])
 def rest_connector_configured() -> Scorer:
     """Check that Task_FetchWeather is configured as REST connector."""
@@ -136,9 +148,9 @@ def rest_connector_configured() -> Scorer:
             "method": "GET",
             "url": '="https://api.weather.gov/points/"+string(latitude)+","+string(longitude)',
         }
-        method = _norm(io_inputs.get("method") or headers.get("method"))
-        if method.startswith('"') and method.endswith('"'):
-            method = method[1:-1]
+        method = _normalize_http_method(
+            io_inputs.get("method") or headers.get("method")
+        )
         missing_inputs = {}
         if method != "GET":
             missing_inputs["method"] = "GET"
