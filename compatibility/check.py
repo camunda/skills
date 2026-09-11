@@ -26,7 +26,6 @@ RESERVED_SKILL_NAMES = frozenset({"anthropic", "claude"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
-MARKDOWN_LINK_START = re.compile(r"!?\[[^\]]*\]\(")
 MARKDOWN_CONTAINER_PREFIX = re.compile(
     r"(?P<container>(?:(?:[ \t]{0,3}>[ \t]?|"
     r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]+)*))"
@@ -49,7 +48,7 @@ MARKDOWN_FENCE_LINE = re.compile(
 MARKDOWN_ESCAPED_PUNCTUATION = re.compile(r"\\([^\w\s])")
 EXTERNAL_URI = re.compile(
     r"(?<![\w])(?!(?:file):)[A-Za-z][A-Za-z0-9+.-]*:"
-    r"[^\s<>()\[\]]+",
+    r"[^\s<>\[\]]+",
     re.IGNORECASE,
 )
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
@@ -407,10 +406,7 @@ def _strip_markdown_code_spans(content: str) -> str:
         fence = masked[fence_start:index]
         closing = masked.find(fence, index)
         if closing == -1:
-            code_span = masked[fence_start:]
-            result.append(
-                "".join("\n" if character == "\n" else " " for character in code_span)
-            )
+            result.append(masked[fence_start:])
             break
 
         code_span = masked[fence_start : closing + len(fence)]
@@ -436,6 +432,78 @@ def _link_destination(raw: str) -> str:
     return MARKDOWN_ESCAPED_PUNCTUATION.sub(r"\1", raw)
 
 
+def _matching_markdown_bracket(content: str, opening: int) -> int | None:
+    depth = 0
+    index = opening
+    while index < len(content):
+        character = content[index]
+        if character == "\\":
+            index += 2
+            continue
+        if character == "[":
+            depth += 1
+        elif character == "]":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
+def _markdown_inline_link_destinations(content: str) -> list[str]:
+    destinations: list[str] = []
+    index = 0
+    while index < len(content):
+        if content[index] == "\\":
+            index += 2
+            continue
+        image = content[index] == "!" and index + 1 < len(content) and content[index + 1] == "["
+        if content[index] != "[" and not image:
+            index += 1
+            continue
+
+        opening = index + 1 if image else index
+        closing = _matching_markdown_bracket(content, opening)
+        if closing is None:
+            index += 1
+            continue
+        destination_start = closing + 1
+        if destination_start >= len(content) or content[destination_start] != "(":
+            index = closing + 1
+            continue
+        destination_start += 1
+
+        if destination_start < len(content) and content[destination_start] == "<":
+            destination_end = content.find(">", destination_start + 1)
+            if destination_end == -1:
+                index = closing + 1
+                continue
+            destination = content[destination_start : destination_end + 1]
+            index = destination_end + 1
+        else:
+            depth = 0
+            destination_end = destination_start
+            while destination_end < len(content):
+                character = content[destination_end]
+                if character == "\\":
+                    destination_end += 2
+                    continue
+                if character == "(":
+                    depth += 1
+                elif character == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                destination_end += 1
+            if destination_end >= len(content):
+                index = closing + 1
+                continue
+            destination = content[destination_start:destination_end]
+            index = destination_end + 1
+        destinations.append(_link_destination(destination))
+    return destinations
+
+
 def _reference_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
@@ -455,36 +523,8 @@ def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
         definitions[_reference_label(match.group("label"))] = target
         add_target(target)
 
-    for match in MARKDOWN_LINK_START.finditer(masked):
-        start = match.end()
-        if start >= len(masked):
-            continue
-
-        if masked[start] == "<":
-            closing = masked.find(">", start + 1)
-            if closing == -1:
-                continue
-            raw = masked[start : closing + 1]
-        else:
-            depth = 0
-            cursor = start
-            while cursor < len(masked):
-                character = masked[cursor]
-                if character == "\\":
-                    cursor += 2
-                    continue
-                if character == "(":
-                    depth += 1
-                elif character == ")":
-                    if depth == 0:
-                        break
-                    depth -= 1
-                cursor += 1
-            if cursor >= len(masked):
-                continue
-            raw = masked[start:cursor]
-
-        add_target(_link_destination(raw))
+    for destination in _markdown_inline_link_destinations(masked):
+        add_target(destination)
 
     for match in MARKDOWN_REFERENCE_LINK.finditer(masked):
         label = match.group(2) or match.group(1)
@@ -1048,6 +1088,9 @@ def main(argv: list[str] | None = None) -> int:
                 f"{skill_directory}: rule=layout.skill-directory "
                 "skill directory must not be a symlink"
             )
+            errors.extend(format_skill_error(name, error) for error in skill_errors)
+            skill_results[name] = False
+            continue
         skill_markdown = skill_directory / "SKILL.md"
         if not skill_markdown.is_file():
             skill_errors.append(f"{skill_markdown}: required skill entrypoint does not exist")

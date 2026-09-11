@@ -253,6 +253,7 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
         '[guide](references/guide.md "Guide")\n'
         "[guide](references/guide_(v1).md)\n"
         r"[guide](references/guide_\(escaped\).md)" "\n"
+        "https://example.test/(skills/example/)\n"
         "[guide][guide-reference]\n"
         '[guide-reference]: references/guide.md "Reference title"\n'
         "`[missing](missing.md)`\n"
@@ -382,6 +383,29 @@ def test_rejects_unresolved_reference_definition(tmp_path: Path) -> None:
     assert any("[also missing]" in error for error in errors)
 
 
+def test_rejects_link_with_balanced_bracket_label() -> None:
+    errors: list[str] = []
+    package = CONFORMANCE_FIXTURES / "invalid-reference"
+
+    check.check_skill_self_containment(package, errors)
+
+    assert any("missing-balanced.md" in error for error in errors)
+
+
+def test_treats_unmatched_backtick_as_literal(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "` [outside](../README.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("local link escapes the skill package" in error for error in errors)
+
+
 def test_reports_symlink_loop_during_package_and_candidate_resolution(
     tmp_path: Path,
 ) -> None:
@@ -401,19 +425,16 @@ def test_reports_symlink_loop_during_package_and_candidate_resolution(
     assert any("cannot resolve local link destination" in error for error in errors)
 
 
-def test_classifies_empty_skill_body_as_content() -> None:
+def test_classifies_empty_skill_body_as_content(tmp_path: Path) -> None:
     errors: list[str] = []
     path = CONFORMANCE_FIXTURES / "valid" / "SKILL.md"
     content = path.read_text(encoding="utf-8")
     frontmatter = content.split("---", 2)
     empty_body = f"---{frontmatter[1]}---\n"
 
-    temporary_path = path.parent / "empty-body-test.md"
-    try:
-        temporary_path.write_text(empty_body, encoding="utf-8")
-        check.check_skill_frontmatter(temporary_path, "fixture-skill", errors)
-    finally:
-        temporary_path.unlink()
+    temporary_path = tmp_path / "empty-body-test.md"
+    temporary_path.write_text(empty_body, encoding="utf-8")
+    check.check_skill_frontmatter(temporary_path, "fixture-skill", errors)
 
     assert errors == [f"{temporary_path}: skill body must not be empty"]
     assert check.skill_error_rule(errors[0]) == "content.body"
@@ -587,11 +608,15 @@ def test_classifies_symlinked_skill_directory(
     tmp_path: Path, capsys: object
 ) -> None:
     root = copy_contract_root(tmp_path)
-    name = first_skill_name(root)
+    linked_target = tmp_path / "linked-target"
+    linked_target.mkdir()
+    (linked_target / "SKILL.md").write_bytes(b"\xff")
     (root / "skills" / "linked").symlink_to(
-        root / "skills" / name,
+        linked_target,
         target_is_directory=True,
     )
 
     assert check.main(["--root", str(root)]) == 1
-    assert "skill=linked rule=layout.skill-directory" in capsys.readouterr().err
+    output = capsys.readouterr().err
+    assert "skill=linked rule=layout.skill-directory" in output
+    assert "skill=linked rule=metadata.frontmatter" not in output

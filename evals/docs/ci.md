@@ -54,8 +54,10 @@ receive model secrets.
 
 The credentialed live Copilot job is limited to manual dispatches from the
 default branch and the protected `live-copilot` environment. Store
-`COPILOT_GITHUB_TOKEN` as an environment secret and require environment
-approval before enabling that job.
+`COPILOT_GITHUB_TOKEN` as an environment secret with the GitHub Copilot
+Requests permission. The token owner must also have Copilot access through the
+organization, with organization policies allowing Copilot requests. Require
+environment approval before enabling that job.
 
 ## Labels
 
