@@ -12,6 +12,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
+      - "plugin.json"
       - ".claude-plugin/**"
       - ".github/plugin/**"
       - ".github/workflows/compatibility.yml"
