@@ -17,12 +17,12 @@ Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BP
 ## Prerequisites
 
 - Java 21+, Maven (or `./mvnw`), Docker runtime (OrbStack, Docker Desktop, or Rancher Desktop) — see [references/setup.md](references/setup.md)
-- `camunda-process-test-spring` 8.8+ on the test classpath; the instruction-based JSON format and 8.9-only APIs require 8.9+
+- `camunda-process-test-spring` 8.8+ on the test classpath for Java fallback suites; the instruction-based `.test.json` format and 8.9-only APIs require 8.9+
 - A working BPMN file (lint clean — see camunda-bpmn). DMN and form files referenced by the BPMN must also be present.
 
-For a Node.js layout, set `NODE_RESOURCE_DIR` as described in [references/setup.md](references/setup.md). Use
-`-Dnode.resource.dir="${NODE_RESOURCE_DIR:-}"` on every Maven command below; the empty property is harmless
-for standard Java layouts.
+For a Node.js layout, set `NODE_RESOURCE_DIR` and run Maven from the generated `test/` directory as
+described in [references/setup.md](references/setup.md). The Maven commands below are shell-neutral; the
+Node.js POM reads the environment variable and standard Java layouts do not need it.
 
 ## Cross-References
 
@@ -68,12 +68,11 @@ Then classify current suite gaps:
 - **Stale**: IDs still exist, but branch-driving variables or assumptions no longer match gateway/DMN behavior.
 - **Missing**: new branches, boundary events, or end events have no segment coverage.
 
-Fix in this order: broken → stale → missing, then run `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`
-and continue with coverage verification.
+Fix in this order: broken → stale → missing, then run `mvn test` and continue with coverage verification.
 
 ### 2. Setup (only if missing)
 
-Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/`. Confirm with `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test-compile`.
+Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/` for CPT 8.9+, or use the Java fallback for CPT 8.8. Confirm with `mvn test-compile`.
 
 ### 3. Plan segments (set-cover, not per-element)
 
@@ -89,14 +88,14 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 ### 4. Author
 
-For each segment, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
+For CPT 8.9+, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). For CPT 8.8, use the Java fallback described in that reference instead of `.test.json`. Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-Use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers — see [references/test-context.md](references/test-context.md). Accept that Java tests are invisible to Web Modeler.
+For CPT 8.9+, use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers. For CPT 8.8, Java tests are required because the instruction-based format is not available. See [references/test-context.md](references/test-context.md); Java tests are invisible to Web Modeler.
 
 ### 5. Run
 
 ```bash
-mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test
+mvn test
 ```
 
 On failure, diagnose with [references/troubleshooting.md](references/troubleshooting.md). Distinguish **test problems** (variable typo, wrong element id, missing instruction) from **process problems** (wrong FEEL condition, wrong DMN rule, wrong error code). Fix the right side. Re-run. Stop after 3 repair cycles with no progress.
@@ -147,7 +146,7 @@ PY
 
 Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_]+"' <bpmn>`, exclude `_di`, `BPMNDiagram`, `BPMNPlane`, `Definitions_`, `ErrorDef_`, `TimerDef_`, `Signal_`, `Message_`).
 
-**Surface the HTML report path to the user as soon as `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
+**Surface the HTML report path to the user as soon as `mvn test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
 
 **Patch-loop on prediction misses — default behavior.** Set-cover planning in step 3 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
 
@@ -155,7 +154,7 @@ Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_
 2. Re-run greedy set-cover restricted to the remaining uncovered ids. Add the chosen candidates (often one) to the scenario file.
 3. For timer boundary events: use `INCREASE_TIME` with an ISO 8601 `duration` greater than the timer cycle (e.g. `"PT25H"` for `R/PT24H`). The boundary fires; the outgoing path's job is created; complete it with `COMPLETE_JOB`.
 4. For message boundary events: `PUBLISH_MESSAGE` instruction with matching name + correlationKey.
-5. Re-run step 5 (`mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`) → step 6. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
+5. Re-run step 5 (`mvn test`) → step 6. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
 
 Hard blockers that terminate the loop:
 
@@ -192,7 +191,7 @@ Duplicates flagged: 0
 
 When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
 
-1. **Run and diagnose failures** — execute `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
+1. **Run and diagnose failures** — execute `mvn test`, classify each failure as infrastructure/test/process, then fix in batches. Use [references/troubleshooting.md](references/troubleshooting.md) plus [references/run-and-diagnose.md](references/run-and-diagnose.md).
 2. **Evaluate coverage gaps before writing new tests** — explain current suite coverage in business terms, list uncovered branches/boundaries/rules, and recommend the smallest next set of scenarios. See [references/evaluation.md](references/evaluation.md).
 3. **Wire tests into CI** — configure CI to run CPT reliably and publish JUnit artifacts, with optional integration profile runs gated to trusted branches. See [references/ci.md](references/ci.md).
 

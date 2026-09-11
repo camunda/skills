@@ -1,6 +1,6 @@
 # CPT troubleshooting
 
-Diagnose `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test` failures. Each row classifies the failure as a **test problem** (fix the scenario) or a **process problem** (fix the BPMN, DMN, form, or worker). Confusing the two costs hours.
+Diagnose `mvn test` failures. For a Node.js layout, run it from `test/` with `NODE_RESOURCE_DIR` set as described in [setup.md](setup.md). Each row classifies the failure as a **test problem** (fix the scenario) or a **process problem** (fix the BPMN, DMN, form, or worker). Confusing the two costs hours.
 
 ## Quick triage
 
@@ -34,13 +34,13 @@ When BPMN changed since the last passing suite, sync tests before deep debugging
 1. Diff BPMN changes: `git diff <base-branch>...HEAD -- <bpmn-path>` (often `main`).
 2. Re-read BPMN IDs and compare with scenario `elementId`/`processDefinitionId` references.
 3. Update broken IDs first, then variable-driven branch expectations, then add missing branch segments.
-4. Re-run `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test` and return to the quick-triage table for remaining failures.
+4. Re-run `mvn test` and return to the quick-triage table for remaining failures.
 
 ## Repair discipline
 
 1. Diagnose **every** failure first. Do not start fixing until the full list is classified.
 2. Group fixes by class. Test problems batch into one commit; process problems batch into another. Mixed commits make later reviews hard.
-3. Re-run `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test` once per batch. Three repair cycles without progress means the diagnosis is wrong — stop and re-read.
+3. Re-run `mvn test` once per batch. Three repair cycles without progress means the diagnosis is wrong — stop and re-read.
 4. Never silence a failure by deleting the scenario. If a scenario is genuinely redundant, the deduplication pass in the main workflow handles it — not the repair loop.
 
 ## When in doubt

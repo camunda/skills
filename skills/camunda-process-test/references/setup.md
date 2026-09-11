@@ -56,6 +56,10 @@ Required entry in the project (or test harness) `pom.xml`:
 </dependencies>
 ```
 
+The dependency and `@TestCaseSource` scaffold above are for the 8.9+ instruction-based workflow. For
+an 8.8 project, pin a compatible 8.8.x release and use the Java fallback tests described in
+[authoring.md](authoring.md#java-fallback).
+
 Use 8.9+ for the instruction-based `.test.json` format (`CREATE_PROCESS_INSTANCE`, `COMPLETE_JOB`, …).
 Java fallback-only suites can use a compatible 8.8.x release.
 
@@ -155,7 +159,7 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
     <excludes><exclude>scenarios/**</exclude></excludes>
   </testResource>
   <testResource>
-    <directory>${node.resource.dir}</directory>
+    <directory>${env.NODE_RESOURCE_DIR}</directory>
     <targetPath>processes</targetPath>
     <includes>
       <include>**/*.bpmn</include>
@@ -166,15 +170,26 @@ If the project root has `package.json` but no `pom.xml`, scaffold a sibling `tes
 </testResources>
 ```
 
-Pass the resolved directory to every Maven invocation, including `test` and any retry. The workflow commands
-in `SKILL.md` use the same property:
+Run the commands below from the generated `test/` directory, which contains the `pom.xml`. Set
+`NODE_RESOURCE_DIR` to the resolved directory before running Maven. Maven reads the environment
+property independently of the shell:
 
-```bash
-mvn -Dnode.resource.dir="$NODE_RESOURCE_DIR" test-compile
-mvn -Dnode.resource.dir="$NODE_RESOURCE_DIR" test
+```sh
+export NODE_RESOURCE_DIR=/absolute/path/from-the-project-build
 ```
 
-Do not replace `node.resource.dir` with `../resources` unless that is the directory the project build declares.
+```powershell
+$env:NODE_RESOURCE_DIR = "C:\path\from-the-project-build"
+```
+
+Then run every Maven invocation, including `test` and any retry, from `test/`:
+
+```text
+mvn test-compile
+mvn test
+```
+
+Do not replace `NODE_RESOURCE_DIR` with `../resources` unless that is the directory the project build declares.
 
 ## Filename hygiene
 

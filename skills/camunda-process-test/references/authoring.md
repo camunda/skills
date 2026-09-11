@@ -1,6 +1,6 @@
 # Authoring CPT scenarios
 
-> Default to `.test.json` (instruction-based). Use Java `@Test` only when JSON cannot express the test — see [§ Java fallback](#java-fallback) at the bottom.
+> For CPT 8.9+, default to `.test.json` (instruction-based). CPT 8.8 suites must use Java `@Test`; for 8.9+, use Java only when JSON cannot express the test — see [§ Java fallback](#java-fallback) at the bottom.
 
 ## `.test.json` format
 

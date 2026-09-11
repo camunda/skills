@@ -95,7 +95,7 @@ Author exactly this list.
 
 ## Step 5 — verify against the CPT report
 
-Run `mvn -Dnode.resource.dir="${NODE_RESOURCE_DIR:-}" test`. Parse `target/coverage-report/report.html` (the page embeds the full dataset as a `window.COVERAGE_DATA` JSON literal — see SKILL.md for the extractor).
+Run `mvn test`. For a Node.js layout, run it from `test/` with `NODE_RESOURCE_DIR` set as described in [setup.md](setup.md). Parse `target/coverage-report/report.html` (the page embeds the full dataset as a `window.COVERAGE_DATA` JSON literal — see SKILL.md for the extractor).
 
 If aggregate runtime coverage equals predicted coverage, done. If it does not, the gap is a **prediction miss** — the static walk for one of the chosen candidates did not match the engine's actual path. Common causes: gateway condition the parser couldn't evaluate, FEEL expression depending on a variable the planner did not set, non-interrupting boundary that creates a parallel branch the walker missed.
 
