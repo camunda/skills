@@ -75,8 +75,8 @@ class CamundaBpmnIT {
   @ParameterizedTest(name = "{3}")
   @CsvSource({
     "1500, manual-approval, auto-approval, amount > 1000 routes to manual-approval",
-    "100, auto-approval, manual-approval, amount <= 1000 uses the default auto-approval branch",
-    "MISSING, auto-approval, manual-approval, missing amount uses the safe default branch"
+    "100, auto-approval, manual-approval, amount <= 1000 routes to auto-approval",
+    "MISSING, manual-approval, auto-approval, missing amount uses the safe default branch"
   })
   void xorGatewayRoutesCorrectly(
       String amount, String expectedType, String unexpectedType, String label)
@@ -113,7 +113,7 @@ class CamundaBpmnIT {
                             .send()
                             .join()
                             .items())
-                    .as("Expected job type '%s' for amount=%d", expectedType, amount)
+                    .as("Expected job type '%s' for amount=%s", expectedType, amount)
                     .isNotEmpty());
 
     // Assert the other branch was not taken
@@ -127,7 +127,7 @@ class CamundaBpmnIT {
                 .send()
                 .join()
                 .items())
-        .as("Unexpected job type '%s' should not be active for amount=%d", unexpectedType, amount)
+        .as("Unexpected job type '%s' should not be active for amount=%s", unexpectedType, amount)
         .isEmpty();
 
     // Complete the routed branch and verify the full process runs to completion
