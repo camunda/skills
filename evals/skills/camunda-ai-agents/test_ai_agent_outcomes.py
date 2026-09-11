@@ -479,12 +479,32 @@ def test_ai_agent_shape_scorer_ignores_quoted_from_ai_text(
 @pytest.mark.parametrize(
     "from_ai_source",
     [
+        "=fromAi(toolCall.query)",
+        "=fromAi(value: toolCall.query, description: &quot;Search term&quot;)",
+    ],
+)
+def test_ai_agent_shape_scorer_accepts_named_from_ai_value(
+    monkeypatch: pytest.MonkeyPatch,
+    from_ai_source: str,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, from_ai_source=from_ai_source),
+    )
+
+    assert score.value == 1.0
+
+
+@pytest.mark.parametrize(
+    "from_ai_source",
+    [
         "=fromAi",
         "=some.fromAi",
         "=fromAiValue(toolCall.query)",
         "=fromAi(&quot;literal&quot;)",
         "=some.fromAi(toolCall.query)",
         "=fromAi(process.query)",
+        "=fromAi(value: process.query)",
         "=fromAi(toolCall.query.extra)",
         "=fromAi(toolCall.query",
     ],

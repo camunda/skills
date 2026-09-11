@@ -119,6 +119,16 @@ def _has_from_ai_call(expression: str) -> bool:
         cursor += 1
         while cursor < len(sanitized) and sanitized[cursor].isspace():
             cursor += 1
+        named_value = "value"
+        if sanitized.startswith(named_value, cursor):
+            value_end = cursor + len(named_value)
+            while value_end < len(sanitized) and sanitized[value_end].isspace():
+                value_end += 1
+            if value_end >= len(sanitized) or sanitized[value_end] != ":":
+                continue
+            cursor = value_end + 1
+            while cursor < len(sanitized) and sanitized[cursor].isspace():
+                cursor += 1
         argument = "toolCall"
         if not sanitized.startswith(argument, cursor):
             continue
