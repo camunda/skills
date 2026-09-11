@@ -12,6 +12,7 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 
 from core.agents import AgentKind, build_agent
@@ -52,6 +53,10 @@ AI_AGENT_TEMPLATE_TASK_TYPES = {
 AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = (
     "io.camunda.agenticai:aiagent-job-worker:",
     "io.camunda.agenticai:aiagent:subprocess:",
+)
+TOOL_CALL_RESULT_MAP_ENTRY = re.compile(
+    r"(?:^=\s*\{\s*|,\s*)toolCallResult\s*:",
+    re.DOTALL,
 )
 
 
@@ -103,12 +108,15 @@ def has_tool_call_result(tool: ET.Element) -> bool:
             and node.get("resultVariable") == "toolCallResult"
         ):
             return True
-        if (
-            node.tag == f"{{{NS['zeebe']}}}header"
-            and node.get("key") in {"resultExpression", "resultVariable"}
-            and "toolCallResult" in (node.get("value") or "")
-        ):
-            return True
+        if node.tag == f"{{{NS['zeebe']}}}header":
+            key = node.get("key")
+            value = (node.get("value") or "").strip()
+            if key == "resultVariable" and value == "toolCallResult":
+                return True
+            if key == "resultExpression" and TOOL_CALL_RESULT_MAP_ENTRY.search(
+                value
+            ):
+                return True
     return False
 
 
