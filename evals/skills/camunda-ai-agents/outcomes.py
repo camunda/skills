@@ -377,7 +377,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
         from_ai_inputs = [
             inp
             for inp in host.findall(".//zeebe:input", NS)
-            if _has_feel_identifier(inp.get("source") or "", "fromAi(")
+            if _has_feel_identifier(inp.get("source") or "", "fromAi")
         ]
         if not from_ai_inputs:
             return Score(
