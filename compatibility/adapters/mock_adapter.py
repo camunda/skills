@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -14,11 +15,55 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from bpmn_lint import validate_bpmn
+
+SKILL_FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---(?:\s|$)", re.DOTALL)
 
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def activate_skill(
+    entrypoint: Path,
+    skill_name: Any,
+    prompt: Any,
+    tool_command: Any,
+) -> tuple[bool, list[str]]:
+    failures: list[str] = []
+    if not entrypoint.is_file():
+        return False, [f"missing skill entrypoint: {entrypoint}"]
+
+    try:
+        content = entrypoint.read_text(encoding="utf-8")
+    except OSError as error:
+        return False, [f"cannot read skill entrypoint: {error}"]
+
+    frontmatter = SKILL_FRONTMATTER.match(content)
+    if not frontmatter:
+        failures.append(f"skill entrypoint has no YAML frontmatter: {entrypoint}")
+    else:
+        try:
+            metadata = yaml.safe_load(frontmatter.group(1))
+        except yaml.YAMLError as error:
+            failures.append(f"skill entrypoint has invalid YAML frontmatter: {error}")
+        else:
+            if not isinstance(metadata, dict):
+                failures.append("skill entrypoint frontmatter must be a YAML object")
+            else:
+                if metadata.get("name") != skill_name:
+                    failures.append("skill entrypoint name does not match the fixture")
+                description = metadata.get("description")
+                if not isinstance(description, str) or not description.strip():
+                    failures.append("skill entrypoint description must be non-empty")
+
+    if not isinstance(prompt, str) or not prompt.strip():
+        failures.append("activation prompt must be non-empty")
+    if not isinstance(tool_command, str) or "c8ctl bpmn lint" not in content:
+        failures.append("skill entrypoint does not declare the required BPMN lint command")
+    return not failures, failures
 
 
 def main() -> int:
@@ -33,17 +78,22 @@ def main() -> int:
     expected = fixture["expected"]
     failures: list[str] = []
 
-    required_entrypoint = root / contract["discovery"]["requiredEntrypoint"]
-    discovered = required_entrypoint.is_file()
-    activated = discovered and fixture["skillName"] == "camunda-bpmn" and bool(fixture["prompt"])
-    if not discovered:
-        failures.append(f"missing skill entrypoint: {required_entrypoint}")
-    if not activated:
-        failures.append("fixture did not activate camunda-bpmn")
-
     artifact_name = assertions["artifact"]["path"]
     command = assertions["toolCall"]["command"]
     command_tokens = shlex.split(command)
+
+    required_entrypoint = root / contract["discovery"]["requiredEntrypoint"]
+    discovered = required_entrypoint.is_file()
+    activated, activation_failures = activate_skill(
+        required_entrypoint,
+        fixture["skillName"],
+        fixture["prompt"],
+        command,
+    )
+    failures.extend(activation_failures)
+    if not activated:
+        failures.append("fixture did not activate camunda-bpmn")
+
     expected_tokens = ["c8ctl", "bpmn", "lint", artifact_name]
     if command_tokens != expected_tokens:
         failures.append(f"unexpected tool command: {command!r}")

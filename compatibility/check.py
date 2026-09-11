@@ -32,9 +32,13 @@ def load_json(path: Path, errors: list[str]) -> Any:
 
 
 def validate_schema(document: Any, schema: Any, label: str, errors: list[str]) -> None:
-    if document is None or schema is None:
+    if document is None:
+        return
+    if not isinstance(schema, dict):
+        errors.append(f"{label}: schema must be a JSON object")
         return
     try:
+        Draft202012Validator.check_schema(schema)
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
         validation_errors = sorted(
             validator.iter_errors(document),
@@ -79,7 +83,11 @@ def non_empty_strings(value: Any, label: str, errors: list[str]) -> None:
 
 
 def status(value: Any, label: str, errors: list[str]) -> None:
-    if value not in {"portable", "portable-with-adapter", "harness-specific"}:
+    if not isinstance(value, str) or value not in {
+        "portable",
+        "portable-with-adapter",
+        "harness-specific",
+    }:
         errors.append(f"{label}: invalid repository status {value!r}")
 
 
@@ -137,7 +145,7 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
         for harness_name, declaration in harnesses.items():
             harness_label = f"{label}.harnesses.{harness_name}"
             if has_keys(declaration, {"status", "differences"}, harness_label, errors):
-                if declaration["status"] not in {
+                if not isinstance(declaration["status"], str) or declaration["status"] not in {
                     "native",
                     "adapter-required",
                     "unsupported",

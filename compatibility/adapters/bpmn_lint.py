@@ -51,7 +51,8 @@ def validate_bpmn(path: Path) -> None:
         if namespaces.get(prefix) != uri:
             raise ValueError(f"namespace {prefix!r} must be declared as {uri!r}")
 
-    if not root.get("id"):
+    definitions_id = root.get("id")
+    if not definitions_id:
         raise ValueError("definitions must have an id")
     if not root.get("targetNamespace"):
         raise ValueError("definitions must have a targetNamespace")
@@ -69,10 +70,12 @@ def validate_bpmn(path: Path) -> None:
     process_id = process.get("id")
     if not process_id:
         raise ValueError("process must have an id")
+    if process_id == definitions_id:
+        raise ValueError(f"duplicate BPMN id: {process_id}")
     if process.get("isExecutable") != "true":
         raise ValueError("process must be executable")
 
-    element_ids = {root.get("id"), process_id}
+    element_ids = {definitions_id, process_id}
     flow_nodes = []
     flows = []
     for element in process:

@@ -10,7 +10,7 @@ parallel compatibility metadata.
 ## Contract authority and scope
 
 The external format authority is the [Agent Skills specification](https://agentskills.io/specification).
-The canonical URL is repeated in every machine-readable artifact as
+The canonical URL is repeated in the inventory, audit, and portability declarations as
 `https://agentskills.io/specification`. The current audit baseline is
 `2026-09-11`; it is represented by `specRevisionOrAuditDate` until a named
 specification revision is available.
@@ -170,6 +170,10 @@ separate, opt-in integration. Its result must be explicitly `passed`, `failed`,
 `skipped`, or `unavailable`; `skipped` and `unavailable` are reported outcomes
 and never count as a mock pass. An unavailable live integration must not be
 converted into success by a catch-all fallback.
+Before activation, each adapter reads the required `SKILL.md`, validates its
+frontmatter name and description, and confirms that it declares the required
+BPMN lint command. This prevents path-only discovery from being reported as
+activation.
 
 ## Conformance and smoke commands
 
@@ -201,6 +205,7 @@ deterministic generic equivalent:
 
 ```json
 {
+  "$schema": "../../compatibility/portability.schema.json",
   "skillDirectory": "skills/example",
   "skillName": "example",
   "status": "harness-specific",
