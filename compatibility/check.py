@@ -34,7 +34,6 @@ MARKDOWN_LINK_DEFINITION = re.compile(
     rf"(?m)^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
     r"\[(?P<label>[^\]\n]+)\]:[ \t]*(?P<destination>.*)$"
 )
-MARKDOWN_REFERENCE_LINK = re.compile(r"!?\[([^\]\n]+)\]\[([^\]\n]*)\]")
 MARKDOWN_SHORTCUT_LINK = re.compile(
     r"(?<![!\w\]])\[([^\]\n]+)\](?![\[(}:])"
 )
@@ -239,26 +238,26 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
         errors.append(f"{label}.differences: replace the generic portability claim with a skill-specific difference")
 
 
-def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
+def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> bool:
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         errors.append(f"{path}: frontmatter cannot read ({error})")
-        return
+        return False
 
     frontmatter = re.match(r"^---\s*\n(.*?)\n---(?:\s|$)", content, re.DOTALL)
     if not frontmatter:
         errors.append(f"{path}: missing YAML frontmatter")
-        return
+        return True
 
     try:
         metadata = yaml.safe_load(frontmatter.group(1))
     except yaml.YAMLError as error:
         errors.append(f"{path}: invalid YAML frontmatter ({error})")
-        return
+        return True
     if not isinstance(metadata, dict):
         errors.append(f"{path}: frontmatter must be a YAML object")
-        return
+        return True
 
     required_keys = {"name", "description"}
     allowed_keys = required_keys | OPTIONAL_FRONTMATTER_KEYS
@@ -320,6 +319,11 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
     body = content[frontmatter.end() :].strip()
     if not body:
         errors.append(f"{path}: skill body must not be empty")
+    return True
+
+
+def _normalize_markdown_container(container: str) -> str:
+    return re.sub(r">[ \t]?", ">", container)
 
 
 def _mask_markdown_code_blocks(content: str) -> str:
@@ -358,12 +362,17 @@ def _mask_markdown_code_blocks(content: str) -> str:
                             closing_container,
                         )
                     )
+                    normalized_container = _normalize_markdown_container(container)
+                    normalized_closing_container = _normalize_markdown_container(
+                        closing_container
+                    )
                     opening_quote_depth = container.count(">")
                     closing_quote_depth = closing_container.count(">")
                     closes = (
                         opening_quote_depth == closing_quote_depth
                         and (
                             container == closing_container
+                            or normalized_container == normalized_closing_container
                             or (
                                 opening_quote_depth == closing_quote_depth
                                 and not closing_has_list
@@ -504,6 +513,50 @@ def _markdown_inline_link_destinations(content: str) -> list[str]:
     return destinations
 
 
+def _markdown_reference_link_labels(content: str) -> list[tuple[str, str]]:
+    links: list[tuple[str, str]] = []
+    index = 0
+    while index < len(content):
+        if content[index] == "\\":
+            index += 2
+            continue
+        image = (
+            content[index] == "!"
+            and index + 1 < len(content)
+            and content[index + 1] == "["
+        )
+        if content[index] != "[" and not image:
+            index += 1
+            continue
+
+        opening = index + 1 if image else index
+        closing = _matching_markdown_bracket(content, opening)
+        if closing is None:
+            index += 1
+            continue
+        reference_start = closing + 1
+        while (
+            reference_start < len(content)
+            and content[reference_start].isspace()
+        ):
+            reference_start += 1
+        if reference_start >= len(content) or content[reference_start] != "[":
+            index = closing + 1
+            continue
+        reference_end = _matching_markdown_bracket(content, reference_start)
+        if reference_end is None:
+            index = closing + 1
+            continue
+        links.append(
+            (
+                content[opening + 1 : closing],
+                content[reference_start + 1 : reference_end],
+            )
+        )
+        index = reference_end + 1
+    return links
+
+
 def _reference_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
@@ -526,8 +579,8 @@ def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
     for destination in _markdown_inline_link_destinations(masked):
         add_target(destination)
 
-    for match in MARKDOWN_REFERENCE_LINK.finditer(masked):
-        label = match.group(2) or match.group(1)
+    for text, reference in _markdown_reference_link_labels(masked):
+        label = reference or text
         target = definitions.get(_reference_label(label))
         if target is None:
             if label not in missing_references:
@@ -565,6 +618,8 @@ def check_skill_self_containment(
             resolved.relative_to(package_root)
         except ValueError:
             errors.append(f"{path}: symlink escapes the skill package")
+            continue
+        if path.is_symlink():
             continue
 
         if not path.is_file() or path.suffix.lower() not in {".md", ".markdown"}:
@@ -1092,11 +1147,20 @@ def main(argv: list[str] | None = None) -> int:
             skill_results[name] = False
             continue
         skill_markdown = skill_directory / "SKILL.md"
-        if not skill_markdown.is_file():
+        can_check_self_containment = True
+        if skill_markdown.is_symlink():
+            skill_errors.append(
+                f"{skill_markdown}: rule=layout.entrypoint "
+                "skill entrypoint must not be a symlink"
+            )
+        elif not skill_markdown.is_file():
             skill_errors.append(f"{skill_markdown}: required skill entrypoint does not exist")
         else:
-            check_skill_frontmatter(skill_markdown, name, skill_errors)
-        check_skill_self_containment(skill_directory, skill_errors)
+            can_check_self_containment = check_skill_frontmatter(
+                skill_markdown, name, skill_errors
+            )
+        if can_check_self_containment:
+            check_skill_self_containment(skill_directory, skill_errors)
 
         expected_index = {
             "name": name,
@@ -1121,7 +1185,14 @@ def main(argv: list[str] | None = None) -> int:
             skill_errors.append(f"audit.json: entry for {name!r} has stale or mismatched paths")
 
         sidecar_path = skill_directory / "portability.json"
-        sidecar = load_json(sidecar_path, skill_errors)
+        if sidecar_path.is_symlink():
+            skill_errors.append(
+                f"{sidecar_path}: rule=portability.sidecar "
+                "sidecar must not be a symlink"
+            )
+            sidecar = None
+        else:
+            sidecar = load_json(sidecar_path, skill_errors)
         validate_schema(sidecar, schemas["portability"], str(sidecar_path), skill_errors)
         check_sidecar(sidecar, str(sidecar_path.relative_to(root)), spec_date, skill_errors)
         if isinstance(sidecar, dict):

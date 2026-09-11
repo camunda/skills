@@ -201,7 +201,9 @@ def test_formats_unreadable_skill_frontmatter_as_metadata(
     (root / "skills" / name / "SKILL.md").write_bytes(b"\xff")
 
     assert check.main(["--root", str(root)]) == 1
-    assert f"skill={name} rule=metadata.frontmatter" in capsys.readouterr().err
+    output = capsys.readouterr().err
+    assert f"skill={name} rule=metadata.frontmatter" in output
+    assert f"skill={name} rule=layout.entrypoint" not in output
 
 
 def test_valid_conformance_fixture_allows_container_reference_definitions() -> None:
@@ -255,6 +257,7 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
         r"[guide](references/guide_\(escaped\).md)" "\n"
         "https://example.test/(skills/example/)\n"
         "[guide][guide-reference]\n"
+        "[guide] [guide-reference]\n"
         '[guide-reference]: references/guide.md "Reference title"\n'
         "`[missing](missing.md)`\n"
         "https://example.test/skills/foo/\n"
@@ -281,6 +284,11 @@ def test_ignores_repository_references_in_indented_and_nested_code_blocks(
         "> [missing](missing.md)\n"
         "> skills/example/\n"
         "> ```\n"
+        "\n"
+        "> ```text\n"
+        "> [missing](missing.md)\n"
+        "> skills/example/\n"
+        ">```\n"
         "\n"
         "- ```text\n"
         "  [missing](missing.md)\n"
@@ -370,6 +378,7 @@ def test_rejects_unresolved_reference_definition(tmp_path: Path) -> None:
     package.mkdir()
     (package / "README.md").write_text(
         "[missing][not-defined]\n"
+        "[spaced missing] [not-defined-spaced]\n"
         "[also missing][]\n",
         encoding="utf-8",
     )
@@ -377,9 +386,10 @@ def test_rejects_unresolved_reference_definition(tmp_path: Path) -> None:
     errors: list[str] = []
     check.check_skill_self_containment(package, errors)
 
-    assert len(errors) == 2
+    assert len(errors) == 3
     assert all("content.reference-exists" in error for error in errors)
     assert any("[not-defined]" in error for error in errors)
+    assert any("[not-defined-spaced]" in error for error in errors)
     assert any("[also missing]" in error for error in errors)
 
 
@@ -390,6 +400,7 @@ def test_rejects_link_with_balanced_bracket_label() -> None:
     check.check_skill_self_containment(package, errors)
 
     assert any("missing-balanced.md" in error for error in errors)
+    assert any("missing-nested-reference.md" in error for error in errors)
 
 
 def test_treats_unmatched_backtick_as_literal(tmp_path: Path) -> None:
@@ -423,6 +434,29 @@ def test_reports_symlink_loop_during_package_and_candidate_resolution(
 
     assert any("cannot resolve package path" in error for error in errors)
     assert any("cannot resolve local link destination" in error for error in errors)
+
+
+def test_skips_symlinked_entrypoint_and_sidecar_reads(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    skill_directory = root / "skills" / name
+    unreadable_entrypoint = tmp_path / "unreadable-SKILL.md"
+    unreadable_entrypoint.write_bytes(b"\xff")
+    unreadable_sidecar = tmp_path / "unreadable-portability.json"
+    unreadable_sidecar.write_bytes(b"\xff")
+    (skill_directory / "SKILL.md").unlink()
+    (skill_directory / "SKILL.md").symlink_to(unreadable_entrypoint)
+    (skill_directory / "portability.json").unlink()
+    (skill_directory / "portability.json").symlink_to(unreadable_sidecar)
+
+    assert check.main(["--root", str(root)]) == 1
+    output = capsys.readouterr().err
+    assert f"skill={name} rule=layout.entrypoint" in output
+    assert f"skill={name} rule=portability.sidecar" in output
+    assert f"skill={name} rule=metadata.frontmatter" not in output
+    assert "invalid JSON" not in output
 
 
 def test_classifies_empty_skill_body_as_content(tmp_path: Path) -> None:
