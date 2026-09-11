@@ -47,6 +47,9 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         expected_process_id = (state.metadata or {}).get("process_id")
         required_tools = set((state.metadata or {}).get("required_tools", []))
+        expected_provider = (state.metadata or {}).get("provider")
+        expected_model = (state.metadata or {}).get("model")
+        expected_secret = (state.metadata or {}).get("secret")
 
         sb = sandbox()
         cat = await sb.exec(["cat", path], timeout=10)
@@ -142,6 +145,22 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
                 explanation="missing toolCallResult mapping in tool implementation",
             )
 
+        host_xml = ET.tostring(host, encoding="unicode")
+        missing_configuration = [
+            label
+            for label, value in (
+                ("provider", expected_provider),
+                ("model", expected_model),
+                ("connector secret", f"secrets.{expected_secret}" if expected_secret else None),
+            )
+            if value and value not in host_xml
+        ]
+        if missing_configuration:
+            return Score(
+                value=0.0,
+                explanation=f"missing configured AI-agent {', '.join(missing_configuration)}",
+            )
+
         prompt_inputs = {
             inp.get("target"): (inp.get("source") or "")
             for inp in host.findall(".//zeebe:input", NS)
@@ -196,7 +215,10 @@ SAMPLES = [
             "4. Add bpmn:documentation text to each tool explaining when to use it.\n"
             "5. Use fromAi(...) for at least one tool input parameter.\n"
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
-            "7. Configure agent prompts as FEEL strings and set "
+            "7. Use the OpenAI provider with model 'gpt-4.1-mini' and the "
+            "already-configured connector secret 'OPENAI_API_KEY'; do not "
+            "invent another provider or secret name.\n"
+            "8. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
             "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
             + SAVE_AND_DEPLOY
@@ -208,6 +230,9 @@ SAMPLES = [
                 "LookupCustomerData",
                 "EscalateToHuman",
             ],
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "secret": "OPENAI_API_KEY",
         },
     ),
 ]

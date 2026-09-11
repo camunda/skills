@@ -20,7 +20,23 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 
 - Camunda 8.8+ cluster (the AI Agent connector ships in 8.8+)
 - c8ctl CLI installed and a profile configured — see **camunda-c8ctl**
-- An API key for the model provider you'll use (Anthropic, Amazon Bedrock, Azure OpenAI, Google Vertex AI, OpenAI, or any OpenAI-compatible provider). Store it as a Camunda cluster secret, never in the BPMN file. For local c8run, see **camunda-c8ctl** for the secrets bootstrap flow.
+- A user-selected model provider and exact model identifier. Supported providers include Anthropic, Amazon Bedrock, Azure OpenAI, Google Vertex AI, OpenAI, and OpenAI-compatible providers.
+- The exact name of each existing connector secret required by that provider. Store secret values as Camunda cluster secrets, never in the BPMN file. For local c8run, see **camunda-c8ctl** for the secrets bootstrap flow.
+
+### Provider and secret checkpoint
+
+Before creating or editing the BPMN, resolve these values with the user:
+
+1. The target cluster and c8ctl profile (local c8run, Self-Managed, or SaaS).
+2. The model provider.
+3. The exact model identifier.
+4. The exact existing connector-secret name or names required by that provider.
+
+If the user did not specify any of these, ask for the missing values and stop before applying the template or writing provider configuration. Do not default to a provider or model, and do not invent names such as `ANTHROPIC_API_KEY`. Ask for secret names, not secret values, and never put secret material in the BPMN or in the conversation.
+
+If the target environment exposes configured secret names through c8ctl or an approved local configuration, prefer those names. Otherwise, use only names confirmed by the user; do not infer them from the provider name. Inspect the current element-template properties because authentication fields and the number of secrets differ by provider.
+
+For Camunda 8 SaaS, connector secrets are managed in Camunda Console, not created or populated through c8ctl. Surface this constraint before deployment and ask the user to confirm that the user-provided secret names already exist in the target cluster. For local c8run, follow **camunda-c8ctl** without reading real secret values.
 
 ## Cross-References
 
@@ -54,11 +70,14 @@ c8ctl element-template search "ai agent"
 c8ctl element-template get-properties <id>
 c8ctl element-template get-properties <id> --detailed data.systemPrompt.prompt
 
-# 3. Apply to your ad-hoc subprocess element
+# 3. After the provider, model, and secret names are confirmed, apply to your
+#    ad-hoc subprocess element. Replace every angle-bracket value with the
+#    user's confirmed value; the authentication and model paths are
+#    provider-specific.
 c8ctl element-template apply -i <id> AgentTools process.bpmn \
-  --set provider.type=anthropic \
-  --set provider.anthropic.authentication.apiKey='{{secrets.ANTHROPIC_API_KEY}}' \
-  --set provider.anthropic.model.model=claude-sonnet-4-5 \
+  --set provider.type=<selected-provider> \
+  --set provider.<provider-specific-authentication-property>='{{secrets.<existing-secret-name>}}' \
+  --set provider.<provider-specific-model-property>=<selected-model> \
   --set data.systemPrompt.prompt='="You are a customer support agent. Use the available tools to look up customers and orders, and escalate to a human only when needed."' \
   --set data.userPrompt.prompt='="Customer " + customerId + " reports: " + issue' \
   --set data.limits.maxModelCalls='=10'
