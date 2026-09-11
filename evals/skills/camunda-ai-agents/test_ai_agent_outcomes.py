@@ -133,7 +133,7 @@ def _host(
             "io.camunda.connectors.agenticai.ai-agent-subprocess.v3",
             "io.camunda.agenticai:aiagent:subprocess:3",
             True,
-            False,
+            True,
         ),
     ],
     ids=[
@@ -148,7 +148,7 @@ def _host(
         "legacy-agent-task-rejected",
         "unrelated-custom-type",
         "marker-without-task-type",
-        "unknown-built-in-template-contract",
+        "future-built-in-template-version",
     ],
 )
 def test_ai_agent_connector_matching(
@@ -170,6 +170,7 @@ def _tool(
     tool_id: str,
     *,
     result_target: str | None = None,
+    result_source: str | None = None,
     result_header: tuple[str, str] | None = None,
 ) -> ET.Element:
     tool = ET.Element(f"{{{_outcomes.NS['bpmn']}}}serviceTask", {"id": tool_id})
@@ -178,10 +179,13 @@ def _tool(
             tool, f"{{{_outcomes.NS['bpmn']}}}extensionElements"
         )
         if result_target is not None:
+            output_attributes = {"target": result_target}
+            if result_source is not None:
+                output_attributes["source"] = result_source
             ET.SubElement(
                 extension_elements,
                 f"{{{_outcomes.NS['zeebe']}}}output",
-                {"target": result_target},
+                output_attributes,
             )
         if result_header is not None:
             key, value = result_header
@@ -194,10 +198,24 @@ def _tool(
 
 
 def test_tool_call_result_is_scoped_to_each_tool() -> None:
-    result_tool = _tool("ResultTool", result_target="toolCallResult.status")
+    result_tool = _tool(
+        "ResultTool",
+        result_target="toolCallResult",
+        result_source="=response",
+    )
+    dotted_result_tool = _tool(
+        "DottedResultTool",
+        result_target="toolCallResult.status",
+        result_source="=response",
+    )
+    source_less_result_tool = _tool(
+        "SourceLessResultTool", result_target="toolCallResult"
+    )
     missing_tool = _tool("MissingTool")
 
     assert _outcomes.has_tool_call_result(result_tool)
+    assert not _outcomes.has_tool_call_result(dotted_result_tool)
+    assert not _outcomes.has_tool_call_result(source_less_result_tool)
     assert not _outcomes.has_tool_call_result(missing_tool)
 
 
@@ -295,7 +313,7 @@ def _minimal_bpmn(
         <bpmn:documentation>Look up relevant knowledge.</bpmn:documentation>
         <bpmn:extensionElements>
 {tool_input_mapping if index == 0 else ""}\
-          <zeebe:output target="toolCallResult" />
+          <zeebe:output source="=toolResult" target="toolCallResult" />
         </bpmn:extensionElements>
       </bpmn:serviceTask>"""
         for index, tool_id in enumerate(tool_ids)
@@ -507,6 +525,8 @@ def test_ai_agent_shape_scorer_accepts_named_from_ai_value(
         "=fromAi(value: process.query)",
         "=fromAi(toolCall.query.extra)",
         "=fromAi(toolCall.query",
+        "=fromAi(toolCall.query,",
+        "=fromAi(toolCall.query,)",
     ],
 )
 def test_ai_agent_shape_scorer_requires_from_ai_call(
@@ -543,6 +563,43 @@ def test_ai_agent_shape_scorer_requires_each_tool_result(
         monkeypatch,
         _minimal_bpmn(connector=True, include_unmapped_tool=True),
     )
+
+    assert score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_ignores_tool_prompt_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = _minimal_bpmn(connector=True)
+    artifact = artifact.replace(
+        '            <zeebe:input source="=&quot;system&quot;" '
+        'target="data.systemPrompt.prompt" />\n',
+        "",
+    )
+    artifact = artifact.replace(
+        '            <zeebe:input source="=&quot;user&quot;" '
+        'target="data.userPrompt.prompt" />\n',
+        "",
+    )
+    artifact = artifact.replace(
+        '            <zeebe:input source="=10" '
+        'target="data.limits.maxModelCalls" />\n',
+        "",
+    )
+    artifact = artifact.replace(
+        '            <zeebe:input source="=fromAi(toolCall.query)" '
+        'target="query" />\n',
+        '            <zeebe:input source="=fromAi(toolCall.query)" '
+        'target="query" />\n'
+        '            <zeebe:input source="=&quot;fake system&quot;" '
+        'target="data.systemPrompt.prompt" />\n'
+        '            <zeebe:input source="=&quot;fake user&quot;" '
+        'target="data.userPrompt.prompt" />\n'
+        '            <zeebe:input source="=10" '
+        'target="data.limits.maxModelCalls" />\n',
+    )
+
+    score = _score_artifact(monkeypatch, artifact)
 
     assert score.value == 0.0
 

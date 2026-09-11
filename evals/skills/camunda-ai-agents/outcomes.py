@@ -45,9 +45,6 @@ ACTIVITY_TAGS = {
 AI_AGENT_TEMPLATE_MARKER_PREFIX = (
     "io.camunda.connectors.agenticai.ai-agent-subprocess."
 )
-AI_AGENT_TEMPLATE_MARKER = (
-    "io.camunda.connectors.agenticai.ai-agent-subprocess.v2"
-)
 AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent:subprocess:"
 AI_AGENT_LEGACY_TEMPLATE_PREFIXES = (
     "io.camunda.connectors.agenticai.aiagent.jobworker.",
@@ -155,8 +152,59 @@ def _has_from_ai_call(expression: str) -> bool:
             cursor += 1
         while cursor < len(sanitized) and sanitized[cursor].isspace():
             cursor += 1
-        if cursor < len(sanitized) and sanitized[cursor] in ",)":
+        if cursor >= len(sanitized) or sanitized[cursor] not in ",)":
+            continue
+        if sanitized[cursor] == ")":
             return True
+
+        cursor += 1
+        brace_depth = 0
+        bracket_depth = 0
+        parenthesis_depth = 0
+        argument_has_content = False
+        while cursor < len(sanitized):
+            character = sanitized[cursor]
+            if character == "{":
+                brace_depth += 1
+                argument_has_content = True
+            elif character == "}":
+                if brace_depth == 0:
+                    return False
+                brace_depth -= 1
+                argument_has_content = True
+            elif character == "[":
+                bracket_depth += 1
+                argument_has_content = True
+            elif character == "]":
+                if bracket_depth == 0:
+                    return False
+                bracket_depth -= 1
+                argument_has_content = True
+            elif character == "(":
+                parenthesis_depth += 1
+                argument_has_content = True
+            elif character == ")":
+                if parenthesis_depth:
+                    parenthesis_depth -= 1
+                    argument_has_content = True
+                elif brace_depth or bracket_depth:
+                    return False
+                elif not argument_has_content:
+                    return False
+                else:
+                    return True
+            elif (
+                character == ","
+                and not brace_depth
+                and not bracket_depth
+                and not parenthesis_depth
+            ):
+                if not argument_has_content:
+                    return False
+                argument_has_content = False
+            elif not expression[cursor].isspace():
+                argument_has_content = True
+            cursor += 1
     return False
 
 
@@ -322,12 +370,18 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
 
     if template:
         if template.startswith(AI_AGENT_TEMPLATE_MARKER_PREFIX):
-            if template != AI_AGENT_TEMPLATE_MARKER:
-                return False
+            template_version = template.removeprefix(
+                AI_AGENT_TEMPLATE_MARKER_PREFIX
+            )
+            task_type_version = task_type.removeprefix(
+                AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX
+            )
             return (
                 has_tool_container_property(host)
                 and has_ai_agent_output_binding(host)
-                and task_type.startswith(AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX)
+                and template_version.startswith("v")
+                and template_version[1:].isdigit()
+                and task_type_version == template_version[1:]
             )
         if any(
             template.startswith(prefix)
@@ -345,9 +399,8 @@ def has_tool_call_result(tool: ET.Element) -> bool:
     for node in tool.iter():
         if node.tag == f"{{{NS['zeebe']}}}output":
             target = node.get("target") or ""
-            if target == "toolCallResult" or target.startswith(
-                "toolCallResult."
-            ):
+            source = (node.get("source") or "").strip()
+            if target == "toolCallResult" and source:
                 return True
         if (
             node.tag == f"{{{NS['zeebe']}}}script"
@@ -442,10 +495,17 @@ def _validate_ai_agent_host(
             ),
         )
 
-    prompt_inputs = {
-        inp.get("target"): (inp.get("source") or "")
-        for inp in host.findall(".//zeebe:input", NS)
-    }
+    host_io_mapping = host.find(
+        "./bpmn:extensionElements/zeebe:ioMapping", NS
+    )
+    prompt_inputs = (
+        {
+            inp.get("target"): (inp.get("source") or "")
+            for inp in host_io_mapping.findall("./zeebe:input", NS)
+        }
+        if host_io_mapping is not None
+        else {}
+    )
     system_prompt = prompt_inputs.get("data.systemPrompt.prompt", "")
     user_prompt = prompt_inputs.get("data.userPrompt.prompt", "")
     if not system_prompt.startswith("=") or not user_prompt.startswith("="):
