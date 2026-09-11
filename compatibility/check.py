@@ -566,10 +566,10 @@ def check_fixture(fixture: Any, errors: list[str]) -> None:
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     root = args.root.resolve()
     errors: list[str] = []
 

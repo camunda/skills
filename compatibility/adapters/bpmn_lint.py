@@ -22,10 +22,52 @@ REQUIRED_NAMESPACES = {
     "zeebe": ZEEBE_NAMESPACE,
     "modeler": MODELER_NAMESPACE,
 }
+SUPPORTED_FLOW_NODE_TYPES = frozenset(
+    {
+        "adHocSubProcess",
+        "boundaryEvent",
+        "businessRuleTask",
+        "callActivity",
+        "complexGateway",
+        "endEvent",
+        "eventBasedGateway",
+        "exclusiveGateway",
+        "inclusiveGateway",
+        "intermediateCatchEvent",
+        "intermediateThrowEvent",
+        "manualTask",
+        "parallelGateway",
+        "receiveTask",
+        "scriptTask",
+        "sendTask",
+        "serviceTask",
+        "startEvent",
+        "subProcess",
+        "task",
+        "transaction",
+        "userTask",
+    }
+)
+NON_FLOW_PROCESS_ELEMENTS = frozenset({"extensionElements", "laneSet"})
 
 
 def local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
+
+
+def declared_flow_refs(node: ElementTree.Element, direction: str) -> set[str]:
+    reference_tag = f"{{{BPMN_NAMESPACE}}}{direction}"
+    references = []
+    for child in node:
+        if child.tag != reference_tag:
+            continue
+        reference = (child.text or "").strip()
+        if not reference:
+            raise ValueError(f"{direction} reference on {node.get('id')} must not be empty")
+        references.append(reference)
+    if len(references) != len(set(references)):
+        raise ValueError(f"{direction} references on {node.get('id')} must be unique")
+    return set(references)
 
 
 def validate_bpmn(path: Path) -> None:
@@ -92,16 +134,24 @@ def validate_bpmn(path: Path) -> None:
     for element in process:
         if not isinstance(element.tag, str):
             continue
+        element_name = local_name(element.tag)
+        if (
+            not element.tag.startswith(f"{{{BPMN_NAMESPACE}}}")
+            or element_name not in SUPPORTED_FLOW_NODE_TYPES
+            | {"sequenceFlow"}
+            | NON_FLOW_PROCESS_ELEMENTS
+        ):
+            raise ValueError(f"unsupported process element: {element_name}")
+        if element_name in NON_FLOW_PROCESS_ELEMENTS:
+            continue
         element_id = element.get("id")
         if not element_id:
-            if local_name(element.tag) in {"extensionElements", "laneSet"}:
-                continue
-            raise ValueError(f"{local_name(element.tag)} must have an id")
-        if local_name(element.tag) == "sequenceFlow":
+            raise ValueError(f"{element_name} must have an id")
+        if element_name == "sequenceFlow":
             flows.append(element)
         else:
             if not element.get("name"):
-                raise ValueError(f"{local_name(element.tag)} must have a name")
+                raise ValueError(f"{element_name} must have a name")
             flow_nodes.append(element)
 
     if not any(local_name(element.tag) == "startEvent" for element in flow_nodes):
@@ -114,7 +164,10 @@ def validate_bpmn(path: Path) -> None:
     flow_node_ids = {node.get("id") for node in flow_nodes}
     outgoing = {node_id: set() for node_id in flow_node_ids}
     incoming = {node_id: set() for node_id in flow_node_ids}
+    outgoing_flow_ids = {node_id: set() for node_id in flow_node_ids}
+    incoming_flow_ids = {node_id: set() for node_id in flow_node_ids}
     for flow in flows:
+        flow_id = flow.get("id")
         source = flow.get("sourceRef")
         target = flow.get("targetRef")
         if (
@@ -122,8 +175,17 @@ def validate_bpmn(path: Path) -> None:
             or target not in flow_node_ids
         ):
             raise ValueError("sequence flow references an unknown element")
+        outgoing_flow_ids[source].add(flow_id)
+        incoming_flow_ids[target].add(flow_id)
         outgoing[source].add(target)
         incoming[target].add(source)
+
+    for node in flow_nodes:
+        node_id = node.get("id")
+        if declared_flow_refs(node, "incoming") != incoming_flow_ids[node_id]:
+            raise ValueError(f"incoming references on {node_id} do not match sequence flows")
+        if declared_flow_refs(node, "outgoing") != outgoing_flow_ids[node_id]:
+            raise ValueError(f"outgoing references on {node_id} do not match sequence flows")
 
     def reachable(
         starts: set[str | None], graph: dict[str | None, set[str | None]]
