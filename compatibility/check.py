@@ -184,7 +184,9 @@ def check_skill_frontmatter(path: Path, name: str, errors: list[str]) -> None:
         errors.append(f"{path}: frontmatter must be a YAML object")
         return
 
-    has_keys(metadata, {"name", "description"}, f"{path}: frontmatter", errors)
+    missing = {"name", "description"} - set(metadata)
+    if missing:
+        errors.append(f"{path}: frontmatter missing keys {sorted(missing)}")
 
     frontmatter_name = metadata.get("name")
     if not isinstance(frontmatter_name, str) or not SKILL_NAME.fullmatch(frontmatter_name):

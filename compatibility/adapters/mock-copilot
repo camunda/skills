@@ -1,3 +1,5 @@
 #!/bin/sh
 set -eu
-exec python3 "$(dirname "$0")/mock_adapter.py" --harness copilot "$@"
+script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+exec uv run --project "$project_root" --no-dev python "$script_dir/mock_adapter.py" --harness copilot "$@"

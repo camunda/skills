@@ -11,6 +11,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
+      - ".claude-plugin/**"
       - ".github/workflows/compatibility.yml"
   workflow_dispatch:
 
