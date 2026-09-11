@@ -38,7 +38,8 @@ from solvers.collect_artifacts import with_artifact_collection
 METADATA = EvalMetadata(skills=["camunda-bpmn"], max_sandboxes=1)
 
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
-NS = {"bpmn": BPMN_NS}
+ZEEBE_NS = "http://camunda.org/schema/zeebe/1.0"
+NS = {"bpmn": BPMN_NS, "zeebe": ZEEBE_NS}
 
 # Maps each sample to the surefire test filter that exercises it.
 # Surefire syntax: ClassName#methodName (selects all parameterized cases of that method).
@@ -50,9 +51,19 @@ SAMPLE_TESTS = {
 SAVE = "\n\nSave the finished process to /workspace/process.bpmn."
 
 
+def _task_type(element: ET.Element | None) -> str | None:
+    if element is None:
+        return None
+    task_definition = element.find(
+        "./bpmn:extensionElements/zeebe:taskDefinition",
+        NS,
+    )
+    return task_definition.get("type") if task_definition is not None else None
+
+
 @scorer(metrics=[mean(), stderr()])
 def xor_gateway_structure_valid(path: str = "/workspace/process.bpmn") -> Scorer:
-    """Verify the XOR gateway's default flow is structural and conditionless."""
+    """Verify the amount-routing XOR gateway's safe default structure."""
 
     async def score(state: TaskState, target: Target) -> Score:
         if state.sample_id != "exclusive-gateway-routing":
@@ -77,57 +88,88 @@ def xor_gateway_structure_valid(path: str = "/workspace/process.bpmn") -> Scorer
                 explanation="process id order-fulfillment not found",
             )
 
-        gateway = next(
-            (
-                candidate
-                for candidate in process.findall(".//bpmn:exclusiveGateway", NS)
-                if candidate.get("default")
-            ),
-            None,
-        )
-        if gateway is None:
-            return Score(
-                value=0.0,
-                explanation="order-fulfillment has no exclusive gateway with a default",
-            )
-
-        gateway_id = gateway.get("id")
-        default_id = gateway.get("default")
-        outgoing_flows = {
-            flow.get("id"): flow
-            for flow in process.findall("./bpmn:sequenceFlow", NS)
-            if flow.get("sourceRef") == gateway_id and flow.get("id")
+        elements = {
+            element.get("id"): element
+            for element in process.iter()
+            if element.get("id")
         }
-        if default_id not in outgoing_flows:
+        sequence_flows = list(process.iter(f"{{{BPMN_NS}}}sequenceFlow"))
+        routing_gateways = []
+        for candidate in process.iter(f"{{{BPMN_NS}}}exclusiveGateway"):
+            gateway_id = candidate.get("id")
+            outgoing_flows = [
+                flow
+                for flow in sequence_flows
+                if flow.get("sourceRef") == gateway_id
+            ]
+            target_types = {
+                _task_type(elements.get(flow.get("targetRef")))
+                for flow in outgoing_flows
+            }
+            if {"manual-approval", "auto-approval"}.issubset(target_types):
+                routing_gateways.append((candidate, outgoing_flows))
+
+        if not routing_gateways:
             return Score(
                 value=0.0,
                 explanation=(
-                    f"gateway default {default_id!r} is not an outgoing flow "
-                    f"from gateway {gateway_id!r}"
+                    "order-fulfillment has no exclusive gateway whose outgoing "
+                    "flows target manual-approval and auto-approval"
                 ),
             )
 
-        default_flow = outgoing_flows[default_id]
-        if default_flow.find("bpmn:conditionExpression", NS) is not None:
-            return Score(
-                value=0.0,
-                explanation=f"default flow {default_id} must not have a condition",
-            )
+        for gateway, outgoing_flows in routing_gateways:
+            gateway_id = gateway.get("id")
+            default_id = gateway.get("default")
+            outgoing_by_id = {
+                flow.get("id"): flow
+                for flow in outgoing_flows
+                if flow.get("id")
+            }
+            if default_id not in outgoing_by_id:
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"gateway {gateway_id!r} default {default_id!r} is not "
+                        "one of its outgoing flows"
+                    ),
+                )
 
-        if not any(
-            flow.find("bpmn:conditionExpression", NS) is not None
-            for flow in outgoing_flows.values()
-            if flow.get("id") != default_id
-        ):
-            return Score(
-                value=0.0,
-                explanation="gateway needs a condition on a non-default outgoing flow",
-            )
+            default_flow = outgoing_by_id[default_id]
+            if default_flow.find("bpmn:conditionExpression", NS) is not None:
+                return Score(
+                    value=0.0,
+                    explanation=f"default flow {default_id} must not have a condition",
+                )
+
+            if _task_type(elements.get(default_flow.get("targetRef"))) != "manual-approval":
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"gateway {gateway_id} default flow {default_id} must "
+                        "target manual-approval"
+                    ),
+                )
+
+            if not any(
+                _task_type(elements.get(flow.get("targetRef"))) == "auto-approval"
+                and flow.find("bpmn:conditionExpression", NS) is not None
+                for flow in outgoing_flows
+                if flow.get("id") != default_id
+            ):
+                return Score(
+                    value=0.0,
+                    explanation=(
+                        f"gateway {gateway_id} needs a condition on the "
+                        "non-default auto-approval flow"
+                    ),
+                )
 
         return Score(
             value=1.0,
             explanation=(
-                f"gateway {gateway_id} defaults to conditionless flow {default_id}"
+                "amount-routing gateway(s) default to conditionless "
+                "manual-approval flow(s)"
             ),
         )
 
