@@ -28,7 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *
  * The cpt_scorer selects which test runs via surefire {@code -Dtest=ClassName#methodName}:
  *   linear-invoice-review      → reviewInvoiceUserTaskIsReached
- *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 4 cases)
+ *   exclusive-gateway-routing  → xorGatewayRoutesCorrectly (parameterized, 5 cases)
  */
 @SpringBootTest
 @CamundaSpringProcessTest
@@ -76,6 +76,7 @@ class CamundaBpmnIT {
   @CsvSource({
     "1500, manual-approval, auto-approval, amount > 1000 routes to manual-approval",
     "100, auto-approval, manual-approval, amount <= 1000 routes to auto-approval",
+    "1000, auto-approval, manual-approval, amount = 1000 routes to auto-approval",
     "MISSING, manual-approval, auto-approval, missing amount uses the safe default branch",
     "UNEXPECTED, manual-approval, auto-approval, unexpected amount uses the safe default branch"
   })
