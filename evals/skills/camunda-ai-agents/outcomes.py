@@ -586,18 +586,20 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
 
 SAVE_AND_DEPLOY = (
-    "\n\nThe initial /workspace/process.bpmn shell is only an intermediate step. "
-    "Do not stop when that file first exists. Continue until the AI Agent "
-    "Sub-process template has been applied, all tools and mappings are present, "
-    "and the completed BPMN is saved to /workspace/process.bpmn."
+    "\n\nThe first /workspace/process.bpmn write must be a complete process, "
+    "not a placeholder shell. After writing it, apply the specified AI Agent "
+    "Sub-process template and verify that the completed BPMN still contains "
+    "all tools, mappings, and connector metadata before finishing."
 )
 
 SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
-            "Create the initial /workspace/process.bpmn shell first (do not do "
-            "exploratory reads), but do not stop when that shell exists.\n"
+            "Write the complete /workspace/process.bpmn artifact first; do not "
+            "create a placeholder shell. Do not open reference files or search "
+            "other templates for this task: use the exact template ID and command "
+            "given below, then continue through the final validation.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
@@ -613,7 +615,7 @@ SAMPLES = [
             "stand-in. The final host must retain the v2 template marker, its "
             "matching AI Agent Sub-process task definition, the tool-container "
             "property, and the template-owned toolCallResults output binding; "
-            "the initial shell is not completion.\n"
+            "the first file write must already contain a complete process.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -639,8 +641,10 @@ SAMPLES = [
     Sample(
         id="claim-review-subprocess",
         input=(
-            "Create the initial /workspace/process.bpmn shell first (do not do "
-            "exploratory reads), but do not stop when that shell exists.\n"
+            "Write the complete /workspace/process.bpmn artifact first; do not "
+            "create a placeholder shell. Do not open reference files or search "
+            "other templates for this task: use the exact template ID and command "
+            "given below, then continue through the final validation.\n"
             "Create a Camunda 8.8+ BPMN process (id: claim-review, name: "
             "'Claim Review') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Claim received'.\n"
@@ -656,7 +660,7 @@ SAMPLES = [
             "stand-in. The final host must retain the v2 template marker, its "
             "matching AI Agent Sub-process task definition, the tool-container "
             "property, and the template-owned toolCallResults output binding; "
-            "the initial shell is not completion.\n"
+            "the first file write must already contain a complete process.\n"
             "3. Inside ClaimReviewAgent add these independent root tools (do not "
             "replace them with one generic tool):\n"
             "   - service task id DetectDuplicateClaims, name 'Detect duplicate claims'\n"
