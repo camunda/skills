@@ -184,8 +184,11 @@ make compatibility-check
 ```
 
 The conformance checker validates the inventory, audit, sidecar, schema-shape,
-and filesystem relationships. The two deterministic adapters then validate
-the artifact and execute the required command independently.
+and filesystem relationships. It emits one `Compatibility skill <name>:
+passed` or `failed` record for every discovered skill before the aggregate
+result. The two deterministic adapters then validate the artifact and execute
+the required command independently; each smoke result retains its `adapter`
+harness name.
 
 ## Examples
 

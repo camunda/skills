@@ -649,7 +649,9 @@ def main() -> int:
             f"found={sorted(actual_sidecars)} expected={sorted(expected_sidecars)}"
         )
 
+    skill_results: dict[str, bool] = {}
     for name, skill_directory in sorted(skill_directories.items()):
+        skill_error_count = len(errors)
         skill_markdown = skill_directory / "SKILL.md"
         if not skill_markdown.is_file():
             errors.append(f"{skill_markdown}: required skill entrypoint does not exist")
@@ -706,6 +708,7 @@ def main() -> int:
                 f"skills-index.json and audit.json status for {name!r}",
                 errors,
             )
+        skill_results[name] = len(errors) == skill_error_count
 
     if isinstance(contract, dict):
         discovery = contract.get("discovery")
@@ -730,6 +733,10 @@ def main() -> int:
             errors.append(f"{adapter}: required executable does not exist")
         elif not adapter.stat().st_mode & 0o111:
             errors.append(f"{adapter}: required executable bit is not set")
+
+    for name in sorted(skill_results):
+        result = "passed" if skill_results[name] else "failed"
+        print(f"Compatibility skill {name}: {result}")
 
     if errors:
         print("Compatibility conformance failed:", file=sys.stderr)
