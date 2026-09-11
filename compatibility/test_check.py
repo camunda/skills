@@ -131,6 +131,22 @@ def test_rejects_external_skill_reference(tmp_path: Path, capsys: object) -> Non
     assert f"skill={name} rule=content.self-contained" in capsys.readouterr().err
 
 
+def test_rejects_file_url_escaping_skill_package(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[secret](file:///etc/passwd)\n"
+        "[outside](file:../README.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 2
+    assert all("content.self-contained" in error for error in errors)
+
+
 def test_reports_each_checked_skill(tmp_path: Path, capsys: object) -> None:
     root = copy_contract_root(tmp_path)
 

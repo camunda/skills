@@ -438,10 +438,22 @@ def check_skill_self_containment(
         for target in _markdown_link_targets(masked_content):
             if target.startswith("#"):
                 continue
-            parsed = urlsplit(target)
-            if parsed.scheme or parsed.netloc:
+            try:
+                parsed = urlsplit(target)
+            except ValueError as error:
+                errors.append(
+                    f"{path}: rule=content.self-contained invalid local link "
+                    f"destination {target!r} ({error})"
+                )
+                continue
+            is_file_url = parsed.scheme.casefold() == "file"
+            if (parsed.scheme and not is_file_url) or (
+                parsed.netloc and not is_file_url
+            ):
                 continue
             target_path = unquote(parsed.path)
+            if is_file_url and parsed.netloc:
+                target_path = f"//{parsed.netloc}{target_path}"
             if not target_path:
                 continue
             candidate = (path.parent / target_path).resolve()
