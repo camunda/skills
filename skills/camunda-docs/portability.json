@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
+  "skillDirectory": "skills/camunda-docs",
+  "skillName": "camunda-docs",
+  "status": "portable-with-adapter",
+  "agentSkillsSpec": {
+    "specUrl": "https://agentskills.io/specification",
+    "specRevisionOrAuditDate": "2026-09-11"
+  },
+  "harnesses": {
+    "claude": {
+      "status": "native",
+      "differences": ["Uses the repository's Claude Code skill discovery path."]
+    },
+    "copilot": {
+      "status": "adapter-required",
+      "differences": ["Maps documentation lookup to the Copilot tool surface."]
+    },
+    "generic": {
+      "status": "adapter-required",
+      "differences": ["The host supplies documentation discovery and retrieval adapters."]
+    }
+  },
+  "limitations": [
+    "Current Camunda behavior depends on access to the official documentation source."
+  ],
+  "differences": [
+    "Documentation lookups use the harness's network, browser, or cached documentation retrieval capability."
+  ]
+}

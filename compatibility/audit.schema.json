@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/camunda/skills/compatibility/audit.schema.json",
+  "title": "Camunda skills portability audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "specUrl",
+    "specRevisionOrAuditDate",
+    "auditDate",
+    "skills"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "./audit.schema.json"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "specUrl": {
+      "type": "string",
+      "format": "uri",
+      "const": "https://agentskills.io/specification"
+    },
+    "specRevisionOrAuditDate": {
+      "type": "string",
+      "minLength": 1
+    },
+    "auditDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/auditEntry"
+      }
+    }
+  },
+  "$defs": {
+    "auditEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "skillDirectory", "sidecar", "status"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 64,
+          "not": {
+            "enum": ["anthropic", "claude"]
+          },
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "skillDirectory": {
+          "type": "string",
+          "not": {
+            "enum": ["skills/anthropic", "skills/claude"]
+          },
+          "pattern": "^skills/[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "sidecar": {
+          "type": "string",
+          "not": {
+            "enum": [
+              "skills/anthropic/portability.json",
+              "skills/claude/portability.json"
+            ]
+          },
+          "pattern": "^skills/[a-z0-9]+(?:-[a-z0-9]+)*/portability\\.json$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["portable", "portable-with-adapter", "harness-specific"]
+        }
+      }
+    }
+  }
+}

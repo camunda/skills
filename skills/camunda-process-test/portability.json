@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
+  "skillDirectory": "skills/camunda-process-test",
+  "skillName": "camunda-process-test",
+  "status": "portable-with-adapter",
+  "agentSkillsSpec": {
+    "specUrl": "https://agentskills.io/specification",
+    "specRevisionOrAuditDate": "2026-09-11"
+  },
+  "harnesses": {
+    "claude": {
+      "status": "native",
+      "differences": ["Uses the repository's Claude Code skill discovery path."]
+    },
+    "copilot": {
+      "status": "adapter-required",
+      "differences": ["Maps process test operations to the Copilot tool surface."]
+    },
+    "generic": {
+      "status": "adapter-required",
+      "differences": ["The host supplies test execution and reporting adapters."]
+    }
+  },
+  "limitations": [
+    "Process tests require the supported Camunda Process Test runtime and build tools."
+  ],
+  "differences": [
+    "Process-test execution depends on the harness's Java/Maven runner and embedded engine support."
+  ]
+}

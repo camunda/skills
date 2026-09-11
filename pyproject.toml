@@ -10,6 +10,7 @@ dependencies = [
     "anthropic==0.107.1",
     "jsonschema>=4.20",
     "pydantic>=2.10",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]

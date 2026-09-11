@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/camunda/skills/compatibility/harness-smoke-contract.schema.json",
+  "title": "Camunda harness smoke contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "contractId",
+    "discovery",
+    "activation",
+    "resultAssertions",
+    "adapters"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "./harness-smoke-contract.schema.json"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "contractId": {
+      "type": "string",
+      "const": "camunda-skills-harness-smoke-v1"
+    },
+    "discovery": {
+      "$ref": "#/$defs/discovery"
+    },
+    "activation": {
+      "$ref": "#/$defs/activation"
+    },
+    "resultAssertions": {
+      "$ref": "#/$defs/resultAssertions"
+    },
+    "adapters": {
+      "$ref": "#/$defs/adapters"
+    }
+  },
+  "$defs": {
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryRoot",
+        "skillEntrypointPattern",
+        "requiredEntrypoint",
+        "sidecarPattern",
+        "discoveryResultField"
+      ],
+      "properties": {
+        "repositoryRoot": {
+          "type": "string",
+          "const": "."
+        },
+        "skillEntrypointPattern": {
+          "type": "string",
+          "const": "skills/<name>/SKILL.md"
+        },
+        "requiredEntrypoint": {
+          "type": "string",
+          "const": "skills/camunda-bpmn/SKILL.md"
+        },
+        "sidecarPattern": {
+          "type": "string",
+          "const": "skills/<name>/portability.json"
+        },
+        "discoveryResultField": {
+          "type": "string",
+          "const": "discovered"
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixturePath", "skillNameField", "promptField", "activationResultField"],
+      "properties": {
+        "fixturePath": {
+          "type": "string",
+          "const": "compatibility/fixtures/camunda-bpmn-smoke.json"
+        },
+        "skillNameField": {
+          "type": "string",
+          "const": "skillName"
+        },
+        "promptField": {
+          "type": "string",
+          "const": "prompt"
+        },
+        "activationResultField": {
+          "type": "string",
+          "const": "activated"
+        }
+      }
+    },
+    "resultAssertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "artifact", "toolCall"],
+      "properties": {
+        "required": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["discovered", "activated"],
+          "properties": {
+            "discovered": {
+              "const": true
+            },
+            "activated": {
+              "const": true
+            }
+          }
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "required", "mustExist", "mustBeValid"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "const": "process.bpmn"
+            },
+            "required": {
+              "const": true
+            },
+            "mustExist": {
+              "const": true
+            },
+            "mustBeValid": {
+              "const": true
+            }
+          }
+        },
+        "toolCall": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command", "match", "required", "mustExecute", "mustSucceed"],
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "c8ctl bpmn lint process.bpmn"
+            },
+            "match": {
+              "type": "string",
+              "const": "exact"
+            },
+            "required": {
+              "const": true
+            },
+            "mustExecute": {
+              "const": true
+            },
+            "mustSucceed": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "adapters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deterministicMocks", "liveCopilot"],
+      "properties": {
+        "deterministicMocks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required",
+            "networkAccess",
+            "credentialsRequired",
+            "modelOutputRequired",
+            "entryPoints",
+            "passCondition"
+          ],
+          "properties": {
+            "required": {
+              "const": true
+            },
+            "networkAccess": {
+              "const": false
+            },
+            "credentialsRequired": {
+              "const": false
+            },
+            "modelOutputRequired": {
+              "const": false
+            },
+            "entryPoints": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["claude", "copilot"],
+              "properties": {
+                "claude": {
+                  "type": "string",
+                  "const": "compatibility/adapters/mock-claude"
+                },
+                "copilot": {
+                  "type": "string",
+                  "const": "compatibility/adapters/mock-copilot"
+                }
+              }
+            },
+            "passCondition": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "liveCopilot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["optional", "optIn", "allowedResults", "unavailableBehavior"],
+          "properties": {
+            "optional": {
+              "const": true
+            },
+            "optIn": {
+              "type": "string",
+              "minLength": 1
+            },
+            "allowedResults": {
+              "type": "array",
+              "uniqueItems": true,
+              "const": ["passed", "failed", "skipped", "unavailable"]
+            },
+            "unavailableBehavior": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

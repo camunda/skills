@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
+  "skillDirectory": "skills/camunda-ai-agents",
+  "skillName": "camunda-ai-agents",
+  "status": "portable-with-adapter",
+  "agentSkillsSpec": {
+    "specUrl": "https://agentskills.io/specification",
+    "specRevisionOrAuditDate": "2026-09-11"
+  },
+  "harnesses": {
+    "claude": {
+      "status": "native",
+      "differences": ["Uses the repository's Claude Code skill discovery path."]
+    },
+    "copilot": {
+      "status": "adapter-required",
+      "differences": ["Maps Camunda tool operations to the Copilot tool surface."]
+    },
+    "generic": {
+      "status": "adapter-required",
+      "differences": ["The host supplies discovery and tool invocation adapters."]
+    }
+  },
+  "limitations": [
+    "Live agent operations require an installed and configured Camunda toolchain."
+  ],
+  "differences": [
+    "AI Agent Sub-process configuration is mapped to each harness's available model and tool-call surface."
+  ]
+}

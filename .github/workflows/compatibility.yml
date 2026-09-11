@@ -1,0 +1,35 @@
+name: Skills compatibility contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "compatibility/**"
+      - "skills/**"
+      - "README.md"
+      - "Makefile"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".claude-plugin/**"
+      - ".github/workflows/compatibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    name: Portability conformance and deterministic smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - name: Install repository Python environment
+        run: uv sync --frozen
+      - name: Run compatibility regression tests
+        run: uv run pytest compatibility
+      - name: Run compatibility contract gate
+        run: make compatibility-check

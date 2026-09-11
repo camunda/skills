@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
+  "skillDirectory": "skills/camunda-process-mgmt",
+  "skillName": "camunda-process-mgmt",
+  "status": "portable-with-adapter",
+  "agentSkillsSpec": {
+    "specUrl": "https://agentskills.io/specification",
+    "specRevisionOrAuditDate": "2026-09-11"
+  },
+  "harnesses": {
+    "claude": {
+      "status": "native",
+      "differences": ["Uses the repository's Claude Code skill discovery path."]
+    },
+    "copilot": {
+      "status": "adapter-required",
+      "differences": ["Maps cluster operations to the Copilot tool surface."]
+    },
+    "generic": {
+      "status": "adapter-required",
+      "differences": ["The host supplies cluster discovery and operation adapters."]
+    }
+  },
+  "limitations": [
+    "Live process operations require a reachable and authorized Camunda cluster."
+  ],
+  "differences": [
+    "Deployment and process-operation commands require the harness to map credentials and cluster endpoints into c8ctl."
+  ]
+}

@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+"""Deterministic local c8ctl shim for the credential-free smoke adapters."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from bpmn_lint import validate_bpmn
+
+
+def main() -> int:
+    if sys.argv[1:] != ["bpmn", "lint", "process.bpmn"]:
+        print("unsupported deterministic c8ctl command", file=sys.stderr)
+        return 2
+    try:
+        validate_bpmn(Path.cwd() / "process.bpmn")
+    except ValueError as error:
+        print(f"c8ctl bpmn lint failed: {error}", file=sys.stderr)
+        return 1
+    print("c8ctl bpmn lint process.bpmn: passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

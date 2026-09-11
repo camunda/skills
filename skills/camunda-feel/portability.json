@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/camunda/skills/main/compatibility/portability.schema.json",
+  "skillDirectory": "skills/camunda-feel",
+  "skillName": "camunda-feel",
+  "status": "portable-with-adapter",
+  "agentSkillsSpec": {
+    "specUrl": "https://agentskills.io/specification",
+    "specRevisionOrAuditDate": "2026-09-11"
+  },
+  "harnesses": {
+    "claude": {
+      "status": "native",
+      "differences": ["Uses the repository's Claude Code skill discovery path."]
+    },
+    "copilot": {
+      "status": "adapter-required",
+      "differences": ["Maps FEEL evaluation to the Copilot tool surface."]
+    },
+    "generic": {
+      "status": "adapter-required",
+      "differences": ["The host supplies discovery and FEEL evaluation adapters."]
+    }
+  },
+  "limitations": [
+    "Expression evaluation requires a compatible Camunda FEEL engine."
+  ],
+  "differences": [
+    "FEEL expressions are evaluated through a harness-provided c8ctl or local FEEL engine with potentially different runtime capabilities."
+  ]
+}

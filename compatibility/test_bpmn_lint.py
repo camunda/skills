@@ -1,0 +1,130 @@
+from pathlib import Path
+
+import pytest
+
+from adapters.bpmn_lint import validate_bpmn
+
+
+FIXTURE = Path(__file__).with_name("fixtures") / "process.bpmn"
+
+
+def copy_fixture(tmp_path: Path) -> Path:
+    artifact = tmp_path / "process.bpmn"
+    artifact.write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    return artifact
+
+
+def test_rejects_flow_nodes_with_dangling_references(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        "<bpmn:incoming>Flow_1</bpmn:incoming>",
+        "<bpmn:incoming>Missing</bpmn:incoming>",
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="incoming references"):
+        validate_bpmn(artifact)
+
+
+def test_rejects_start_events_with_incoming_flows(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '    <bpmn:startEvent id="StartEvent_1" name="Start process">\n',
+        '    <bpmn:startEvent id="StartEvent_1" name="Start process">\n'
+        "      <bpmn:incoming>Flow_2</bpmn:incoming>\n",
+        1,
+    ).replace(
+        "      <bpmn:incoming>Flow_1</bpmn:incoming>\n"
+        "    </bpmn:endEvent>",
+        "      <bpmn:incoming>Flow_1</bpmn:incoming>\n"
+        "      <bpmn:outgoing>Flow_2</bpmn:outgoing>\n"
+        "    </bpmn:endEvent>",
+        1,
+    ).replace(
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n',
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n'
+        '    <bpmn:sequenceFlow id="Flow_2" sourceRef="EndEvent_1" targetRef="StartEvent_1" />\n',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="start event .*incoming"):
+        validate_bpmn(artifact)
+
+
+def test_rejects_end_events_with_outgoing_flows(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '      <bpmn:incoming>Flow_1</bpmn:incoming>\n',
+        '      <bpmn:incoming>Flow_1</bpmn:incoming>\n'
+        "      <bpmn:incoming>Flow_2</bpmn:incoming>\n"
+        "      <bpmn:outgoing>Flow_2</bpmn:outgoing>\n",
+        1,
+    ).replace(
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n',
+        '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />\n'
+        '    <bpmn:sequenceFlow id="Flow_2" sourceRef="EndEvent_1" targetRef="EndEvent_1" />\n',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="end event .*outgoing"):
+        validate_bpmn(artifact)
+
+
+def test_rejects_unsupported_process_elements(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '    <bpmn:sequenceFlow id="Flow_1"',
+        '    <bpmn:bogus id="Bogus" name="Bogus" />\n'
+        '    <bpmn:sequenceFlow id="Flow_1"',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported process element"):
+        validate_bpmn(artifact)
+
+
+def test_rejects_nested_flow_containers_until_they_are_supported(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        '    <bpmn:startEvent id="StartEvent_1"',
+        '    <bpmn:subProcess id="Nested_1" />\n'
+        '    <bpmn:startEvent id="StartEvent_1"',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported process element"):
+        validate_bpmn(artifact)
+
+
+def test_allows_flow_nodes_without_names(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        ' name="Start process"',
+        "",
+        1,
+    ).replace(
+        ' name="End process"',
+        "",
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    validate_bpmn(artifact)
+
+
+def test_rejects_elements_reusing_definitions_id(tmp_path: Path) -> None:
+    artifact = copy_fixture(tmp_path)
+    content = artifact.read_text(encoding="utf-8").replace(
+        'id="StartEvent_1"',
+        'id="Definitions_1"',
+        1,
+    )
+    artifact.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate BPMN id"):
+        validate_bpmn(artifact)

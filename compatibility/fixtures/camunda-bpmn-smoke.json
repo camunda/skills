@@ -1,0 +1,17 @@
+{
+  "$schema": "../harness-smoke-fixture.schema.json",
+  "fixtureId": "camunda-bpmn-basic",
+  "skillName": "camunda-bpmn",
+  "prompt": "Create a minimal Camunda 8 process in process.bpmn and validate it.",
+  "expected": {
+    "discovered": true,
+    "activated": true,
+    "artifact": "process.bpmn",
+    "artifactSource": "compatibility/fixtures/process.bpmn",
+    "artifactExists": true,
+    "artifactValid": true,
+    "toolCommand": "c8ctl bpmn lint process.bpmn",
+    "toolExecuted": true,
+    "toolSucceeded": true
+  }
+}

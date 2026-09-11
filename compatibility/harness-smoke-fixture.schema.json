@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/camunda/skills/compatibility/harness-smoke-fixture.schema.json",
+  "title": "Camunda harness smoke fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "fixtureId", "skillName", "prompt", "expected"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "../harness-smoke-fixture.schema.json"
+    },
+    "fixtureId": {
+      "type": "string",
+      "const": "camunda-bpmn-basic"
+    },
+    "skillName": {
+      "type": "string",
+      "const": "camunda-bpmn"
+    },
+    "prompt": {
+      "type": "string",
+      "const": "Create a minimal Camunda 8 process in process.bpmn and validate it."
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "discovered",
+        "activated",
+        "artifact",
+        "artifactSource",
+        "artifactExists",
+        "artifactValid",
+        "toolCommand",
+        "toolExecuted",
+        "toolSucceeded"
+      ],
+      "properties": {
+        "discovered": {
+          "const": true
+        },
+        "activated": {
+          "const": true
+        },
+        "artifact": {
+          "type": "string",
+          "const": "process.bpmn"
+        },
+        "artifactSource": {
+          "type": "string",
+          "const": "compatibility/fixtures/process.bpmn"
+        },
+        "artifactExists": {
+          "const": true
+        },
+        "artifactValid": {
+          "const": true
+        },
+        "toolCommand": {
+          "type": "string",
+          "const": "c8ctl bpmn lint process.bpmn"
+        },
+        "toolExecuted": {
+          "const": true
+        },
+        "toolSucceeded": {
+          "const": true
+        }
+      }
+    }
+  }
+}
