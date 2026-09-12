@@ -258,6 +258,8 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
         "https://example.test/(skills/example/)\n"
         "[guide][guide-reference]\n"
         "[guide] [guide-reference]\n"
+        "[guide]\n"
+        "[guide-reference]\n"
         '[guide-reference]: references/guide.md "Reference title"\n'
         "`[missing](missing.md)`\n"
         "https://example.test/skills/foo/\n"
@@ -269,6 +271,26 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
     check.check_skill_self_containment(package, errors)
 
     assert errors == []
+
+
+def test_rejects_absolute_local_destinations_inside_skill_package(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    guide = package / "guide.md"
+    guide.write_text("# Guide\n", encoding="utf-8")
+    (package / "README.md").write_text(
+        f"[absolute]({guide})\n"
+        f"[file](file://{guide})\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 2
+    assert all("destination must be relative" in error for error in errors)
 
 
 def test_ignores_repository_references_in_indented_and_nested_code_blocks(
@@ -293,7 +315,8 @@ def test_ignores_repository_references_in_indented_and_nested_code_blocks(
         "- ```text\n"
         "  [missing](missing.md)\n"
         "  skills/example/\n"
-        "  ```\n",
+        "  ```\n"
+        "-     [missing](missing.md)\n",
         encoding="utf-8",
     )
 
@@ -391,6 +414,22 @@ def test_rejects_unresolved_reference_definition(tmp_path: Path) -> None:
     assert any("[not-defined]" in error for error in errors)
     assert any("[not-defined-spaced]" in error for error in errors)
     assert any("[also missing]" in error for error in errors)
+
+
+def test_does_not_treat_blank_line_as_reference_link(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[foo]\n"
+        "\n"
+        "[bar]\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
 
 
 def test_rejects_link_with_balanced_bracket_label() -> None:

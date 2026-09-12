@@ -83,6 +83,19 @@ def test_reports_workspace_staging_failure_after_activation(
     assert result["activated"] is True
 
 
+def test_rejects_symlink_escaping_skill_package(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside", encoding="utf-8")
+    (package / "SKILL.md").symlink_to(outside)
+
+    error = live_copilot.validate_skill_package(package)
+
+    assert error is not None
+    assert "escapes the package" in error
+
+
 @pytest.mark.parametrize(
     ("copilot_exit_code", "write_artifact", "tool_exit_code", "expected_status"),
     (
@@ -109,9 +122,11 @@ def test_maps_live_process_and_tool_outcomes(
         command: list[str],
         *,
         cwd: str | Path,
+        env: dict[str, str],
         **_: object,
     ) -> subprocess.CompletedProcess[str]:
         if command[0] == "copilot":
+            assert env["COPILOT_GITHUB_TOKEN"] == "token"
             if write_artifact:
                 source = (
                     Path(live_copilot.__file__).resolve().parents[2]
@@ -125,6 +140,10 @@ def test_maps_live_process_and_tool_outcomes(
                 )
             return subprocess.CompletedProcess(command, copilot_exit_code, "", "")
         assert command == ["c8ctl", "bpmn", "lint", "process.bpmn"]
+        assert all(
+            variable not in env
+            for variable in ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
+        )
         return subprocess.CompletedProcess(command, tool_exit_code, "lint output", "")
 
     monkeypatch.setattr(live_copilot.subprocess, "run", run)

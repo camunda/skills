@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -14,9 +15,35 @@ from typing import Any
 from bpmn_lint import validate_bpmn
 from mock_adapter import activate_skill
 
+TOKEN_ENV_VARS = frozenset({"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"})
+
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def validate_skill_package(skill_directory: Path) -> str | None:
+    if skill_directory.is_symlink():
+        return f"skill package is a symlink: {skill_directory}"
+    try:
+        package_root = skill_directory.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        return f"skill package cannot be resolved: {error}"
+    if not skill_directory.is_dir():
+        return f"skill package is not a directory: {skill_directory}"
+
+    for path in skill_directory.rglob("*"):
+        if not path.is_symlink():
+            continue
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            return f"skill package symlink cannot be resolved: {path} ({error})"
+        try:
+            resolved.relative_to(package_root)
+        except ValueError:
+            return f"skill package symlink escapes the package: {path}"
+    return None
 
 
 def result(
@@ -97,7 +124,37 @@ def main() -> int:
             )
         )
 
+    tool_command = expected["toolCommand"]
+    try:
+        tool_tokens = shlex.split(tool_command)
+    except (TypeError, ValueError) as error:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason=f"invalid tool command in smoke fixture: {error}",
+            )
+        )
+    expected_tool_tokens = ["c8ctl", "bpmn", "lint", expected["artifact"]]
+    if tool_tokens != expected_tool_tokens:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason=f"unexpected tool command in smoke fixture: {tool_command!r}",
+            )
+        )
+
     entrypoint = root / "skills" / fixture["skillName"] / "SKILL.md"
+    package_error = validate_skill_package(entrypoint.parent)
+    if package_error:
+        return emit(
+            result(
+                "unavailable",
+                fixture,
+                reason=package_error,
+            )
+        )
     discovered = entrypoint.is_file()
     if not discovered:
         return emit(
@@ -128,6 +185,11 @@ def main() -> int:
     environment = os.environ.copy()
     environment["GH_TOKEN"] = token
     environment["GITHUB_TOKEN"] = token
+    lint_environment = {
+        key: value
+        for key, value in environment.items()
+        if key not in TOKEN_ENV_VARS
+    }
 
     with tempfile.TemporaryDirectory(prefix="camunda-skills-live-copilot-") as directory:
         workspace = Path(directory)
@@ -196,9 +258,9 @@ def main() -> int:
         if artifact_valid:
             try:
                 tool = subprocess.run(
-                    ["c8ctl", "bpmn", "lint", expected["artifact"]],
+                    tool_tokens,
                     cwd=workspace,
-                    env=environment,
+                    env=lint_environment,
                     check=False,
                     capture_output=True,
                     text=True,

@@ -28,8 +28,9 @@ GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can 
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 MARKDOWN_CONTAINER_PREFIX = re.compile(
     r"(?P<container>(?:(?:[ \t]{0,3}>[ \t]?|"
-    r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]+)*))"
+    r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]?)*))"
 )
+MARKDOWN_REFERENCE_SEPARATOR = re.compile(r"[ \t]*(?:(?:\r\n|[\r\n])[ \t]*)?")
 MARKDOWN_LINK_DEFINITION = re.compile(
     rf"(?m)^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
     r"\[(?P<label>[^\]\n]+)\]:[ \t]*(?P<destination>.*)$"
@@ -534,12 +535,8 @@ def _markdown_reference_link_labels(content: str) -> list[tuple[str, str]]:
         if closing is None:
             index += 1
             continue
-        reference_start = closing + 1
-        while (
-            reference_start < len(content)
-            and content[reference_start].isspace()
-        ):
-            reference_start += 1
+        separator = MARKDOWN_REFERENCE_SEPARATOR.match(content, closing + 1)
+        reference_start = separator.end() if separator else closing + 1
         if reference_start >= len(content) or content[reference_start] != "[":
             index = closing + 1
             continue
@@ -657,6 +654,12 @@ def check_skill_self_containment(
             if is_file_url and parsed.netloc:
                 target_path = f"//{parsed.netloc}{target_path}"
             if not target_path:
+                continue
+            if Path(target_path).is_absolute():
+                errors.append(
+                    f"{path}: rule=content.self-contained local link "
+                    f"destination must be relative: {target!r}"
+                )
                 continue
             try:
                 candidate = (path.parent / target_path).resolve()
