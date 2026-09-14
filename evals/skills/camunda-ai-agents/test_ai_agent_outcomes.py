@@ -183,6 +183,12 @@ def test_distinguishes_secret_names_from_material(
             "name.",
             False,
         ),
+        (
+            "The provider you choose determines which authentication fields "
+            "exist in the connector template, and therefore which secret "
+            "name(s) I'll need.",
+            False,
+        ),
         ("I can proceed with mistral-large for now.", True),
     ],
     ids=[
@@ -196,6 +202,7 @@ def test_distinguishes_secret_names_from_material(
         "user-selected-provider",
         "selection-request",
         "provider-option-list",
+        "provider-dependent-secret",
         "arbitrary-model-selection",
     ],
 )
