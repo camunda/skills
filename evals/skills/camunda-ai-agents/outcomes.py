@@ -153,7 +153,8 @@ SECRET_EXAMPLE_PATH_PATTERN = re.compile(
     r"(?<![\w.-])(?:"
     r"(?:\.env|"
     r"(?:connector[-_]?secrets?|secrets?|credentials?))"
-    r"(?:\.[\w.-]+)*\.example(?:\.env)?"
+    r"(?:\.[\w-]+)*\.example|"
+    r"(?:connector[-_]?secrets?|secrets?|credentials?)\.example\.env"
     r")(?![\w.-])"
 )
 SECRET_NAMES_ONLY_PATH_PATTERN = re.compile(
@@ -188,9 +189,12 @@ SECRET_ENV_READ_PATTERN = re.compile(
     r")"
 )
 SECRET_FILE_VARIABLE_PATTERN = re.compile(
-    r"\$[{\"]?[A-Za-z0-9_]*"
-    r"(?:SECRET|CREDENTIAL|TOKEN|PASSWORD|KEY)"
-    r"[A-Za-z0-9_]*[}\"]?",
+    r"(?<![\w])\$(?:\{)?(?:"
+    r"(?:secret|secrets|credential|credentials|token|tokens|password|passwords|"
+    r"private[_-]?key|private[_-]?keys)(?:[_-]?(?:file|path))|"
+    r"(?:dotenv|env)[_-]?file|"
+    r"[A-Za-z0-9_]*(?:secret|credential|token|password|key)[A-Za-z0-9_]*"
+    r")(?:\})?(?![\w])",
     re.IGNORECASE,
 )
 SECRET_SEARCH_OPERATION_PATTERN = re.compile(
@@ -354,22 +358,6 @@ def _configuration_mismatches(
         missing_configuration.append(
             "unexpected connector secret references "
             f"({', '.join(unexpected_secret_references)})"
-        )
-
-    misplaced_secret_references = sorted(
-        f"{reference} in {target}"
-        for target, source in host_inputs.items()
-        if target not in expected_authentication_secrets
-        for reference in {
-            match.group()
-            for match in SECRET_REFERENCE_PATTERN.finditer(_normalize_literal(source))
-        }
-        if reference in expected_secret_references
-    )
-    if misplaced_secret_references:
-        missing_configuration.append(
-            "connector secret references outside authentication targets "
-            f"({', '.join(misplaced_secret_references)})"
         )
 
     authentication_targets = {
