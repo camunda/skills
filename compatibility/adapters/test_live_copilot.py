@@ -275,7 +275,7 @@ def test_maps_live_process_and_tool_outcomes(
     ) -> subprocess.CompletedProcess[str]:
         if command[0] == "copilot":
             assert env["COPILOT_GITHUB_TOKEN"] == "token"
-            assert env.get("GH_TOKEN") is None
+            assert env["GH_TOKEN"] == "token"
             assert env.get("GITHUB_TOKEN") is None
             assert env.get("UNRELATED_SECRET") is None
             plugin_index = command.index("--plugin-dir")
@@ -362,6 +362,54 @@ def test_maps_live_process_and_tool_outcomes(
         assert isinstance(reason, str)
         assert '"copilotExitCode"' in reason
         assert '"assertions"' in reason
+
+
+def test_reports_invalid_artifact_validation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "token")
+    monkeypatch.setattr(live_copilot.shutil, "which", lambda _: "copilot")
+    monkeypatch.setattr(live_copilot, "activate_skill", lambda *args: (True, []))
+
+    def run(
+        command: list[str],
+        *,
+        cwd: str | Path,
+        **_: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if command[0] == "copilot":
+            source = (
+                Path(live_copilot.__file__).resolve().parents[2]
+                / "compatibility"
+                / "fixtures"
+                / "process.bpmn"
+            )
+            (Path(cwd) / "process.bpmn").write_text(
+                source.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(command, 0, "", "")
+        raise AssertionError("post-run lint must not run for an invalid artifact")
+
+    def validate_invalid_artifact(_: Path) -> None:
+        raise LookupError("unknown XML encoding")
+
+    monkeypatch.setattr(live_copilot.subprocess, "run", run)
+    monkeypatch.setattr(live_copilot, "validate_bpmn", validate_invalid_artifact)
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "failed"
+    artifact = result["artifact"]
+    assert isinstance(artifact, dict)
+    assert artifact["exists"] is True
+    assert artifact["valid"] is False
+    reason = result["reason"]
+    assert isinstance(reason, str)
+    assert '"assertions"' in reason
 
 
 def test_rejects_symlinked_generated_artifact(

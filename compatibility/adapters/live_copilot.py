@@ -508,6 +508,7 @@ def main() -> int:
             )
         copilot_environment = runtime_environment.copy()
         copilot_environment["COPILOT_GITHUB_TOKEN"] = token
+        copilot_environment["GH_TOKEN"] = token
         copilot_environment["COPILOT_HOME"] = str(workspace / ".copilot")
         copilot_environment["PATH"] = (
             str(tools_directory)
@@ -581,7 +582,7 @@ def main() -> int:
         if artifact_exists:
             try:
                 validate_bpmn(artifact_path)
-            except ValueError:
+            except (LookupError, OSError, UnicodeError, ValueError):
                 pass
             else:
                 artifact_valid = True

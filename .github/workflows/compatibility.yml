@@ -78,7 +78,7 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           set +e
-          compatibility/adapters/live-copilot > live-copilot-result.json
+          uv run --project . compatibility/adapters/live-copilot > live-copilot-result.json
           status=$?
           cat live-copilot-result.json
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"

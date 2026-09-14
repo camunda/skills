@@ -48,10 +48,17 @@ EXTERNAL_URI = re.compile(
     re.IGNORECASE,
 )
 WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
+PATH_REFERENCE = r"[^\s<>\[\](),;!?]+"
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
-    r"(?<![\w./:-])(?:(?:\.\./)+|\./)?(?:skills/[a-z0-9-]+/|"
-    r"(?:README|CONTRIBUTING|evals|compatibility|\.github)(?:/|\.md\b))"
-    r"|(?<![\w.])/(?:Users|home)/"
+    rf"(?:"
+    rf"(?<![\w./:-])(?:\.\./)+{PATH_REFERENCE}|"
+    rf"(?<![\w./:-])\./{PATH_REFERENCE}|"
+    rf"(?<![\w./:()<>-])/(?=[A-Za-z_.~]){PATH_REFERENCE}|"
+    rf"(?<![\w./:-])"
+    r"skills/[a-z0-9-]+/|"
+    rf"(?<![\w./:-])"
+    r"(?:README|CONTRIBUTING|evals|compatibility|\.github)(?:/|\.md\b)"
+    r")"
 )
 
 
@@ -589,6 +596,67 @@ def _markdown_shortcut_link_labels(content: str) -> list[str]:
     return labels
 
 
+def _mask_markdown_link_labels(content: str) -> str:
+    masked = list(content)
+    index = 0
+    while index < len(content):
+        if content[index] == "\\":
+            index += 2
+            continue
+        image = (
+            content[index] == "!"
+            and index + 1 < len(content)
+            and content[index + 1] == "["
+        )
+        if content[index] != "[" and not image:
+            index += 1
+            continue
+
+        opening = index + 1 if image else index
+        closing = _matching_markdown_bracket(content, opening)
+        if closing is None:
+            index += 1
+            continue
+
+        end = closing + 1
+        if end < len(content) and content[end] in "([:":
+            if content[end] == "[":
+                reference_end = _matching_markdown_bracket(content, end)
+                if reference_end is not None:
+                    end = reference_end + 1
+            elif content[end] == "(":
+                destination_end = end + 1
+                depth = 0
+                while destination_end < len(content):
+                    character = content[destination_end]
+                    if character == "\\":
+                        destination_end += 2
+                        continue
+                    if character == "<":
+                        angle_end = content.find(">", destination_end + 1)
+                        if angle_end == -1:
+                            break
+                        destination_end = angle_end + 1
+                        continue
+                    if character == "(":
+                        depth += 1
+                    elif character == ")":
+                        if depth == 0:
+                            end = destination_end + 1
+                            break
+                        depth -= 1
+                    destination_end += 1
+            else:
+                end = len(content)
+            for label_index in range(opening, end):
+                if content[label_index] not in "\r\n":
+                    masked[label_index] = " "
+            index = end
+        else:
+            index = opening + 1
+    return "".join(masked)
+
+
 def _reference_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
@@ -738,6 +806,12 @@ def check_skill_self_containment(
                 target_path = f"//{parsed.netloc}{target_path}"
             if not target_path:
                 continue
+            if "\x00" in target_path:
+                errors.append(
+                    f"{path}: rule=content.self-contained cannot resolve local "
+                    f"link destination {target!r} (decoded path contains NUL)"
+                )
+                continue
             if Path(target_path).is_absolute():
                 errors.append(
                     f"{path}: rule=content.self-contained local link "
@@ -767,7 +841,9 @@ def check_skill_self_containment(
                 )
 
         for line_number, line in enumerate(masked_content.splitlines(), start=1):
-            line_without_urls = EXTERNAL_URI.sub("", line)
+            line_without_urls = _mask_markdown_link_labels(
+                EXTERNAL_URI.sub("", line)
+            )
             for forbidden_reference in FORBIDDEN_LOCAL_REFERENCE.finditer(
                 line_without_urls
             ):

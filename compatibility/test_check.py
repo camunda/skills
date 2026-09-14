@@ -296,6 +296,38 @@ def test_allows_local_directories_with_repository_like_names(
     assert errors == []
 
 
+def test_rejects_arbitrary_parent_relative_and_absolute_references(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "See ../AGENTS.md for repository guidance.\n"
+        "See /etc/passwd for an external file.\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 2
+    assert all("content.self-contained" in error for error in errors)
+
+
+def test_ignores_repository_paths_in_external_link_labels(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[README.md](https://example.test/readme)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
 def test_rejects_explicit_relative_repository_reference(tmp_path: Path) -> None:
     package = tmp_path / "skill"
     package.mkdir()
@@ -359,6 +391,21 @@ def test_rejects_windows_absolute_local_destination(tmp_path: Path) -> None:
 
     assert len(errors) == 1
     assert "destination must be relative" in errors[0]
+
+
+def test_allows_nested_bracket_inline_link(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    (package / "README.md").write_text(
+        "[guide [v1]](guide.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
 
 
 def test_rejects_multiline_reference_definition(tmp_path: Path) -> None:
