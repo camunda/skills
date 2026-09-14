@@ -14,12 +14,13 @@ make compatibility-check
 ```
 
 The checker emits one `Compatibility skill <name>: passed|failed` line for
-every skill, followed by an aggregate result. Failures identify the skill and
-rule (for example, `skill=camunda-bpmn rule=content.reference-exists`) and
-explain the actionable path or metadata problem. The command then emits one
-JSON result for each deterministic `claude` and `copilot` adapter. Each result
-identifies its adapter and skill and records `discovered`, `activated`, the
-`process.bpmn` artifact validity, and the exact
+every skill, followed by an aggregate result. Skill-scoped failures identify the
+skill and rule (for example, `skill=camunda-bpmn rule=content.reference-exists`)
+and explain the actionable path or metadata problem. Inventory, schema, and
+post-skill failures are reported as unscoped global messages. The command then
+emits one JSON result for each deterministic `claude` and `copilot` adapter.
+Each result identifies its adapter and skill and records `discovered`,
+`activated`, the `process.bpmn` artifact validity, and the exact
 `c8ctl bpmn lint process.bpmn` tool call. These local adapters require no
 credentials, network access, or model output.
 

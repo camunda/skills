@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -156,6 +157,19 @@ def test_rejects_symlink_escaping_skill_package(tmp_path: Path) -> None:
     assert "escapes the package" in error
 
 
+def test_rejects_directory_symlink_in_skill_package(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    target = package / "nested"
+    target.mkdir()
+    (package / "linked-directory").symlink_to(target, target_is_directory=True)
+
+    error = live_copilot.validate_skill_package(package)
+
+    assert error is not None
+    assert "contains directory symlink" in error
+
+
 def test_rejects_skill_package_outside_repository(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     (repository / "skills").mkdir(parents=True)
@@ -166,6 +180,55 @@ def test_rejects_skill_package_outside_repository(tmp_path: Path) -> None:
 
     assert error is not None
     assert "outside the checkout" in error
+
+
+def test_tool_recorder_sanitizes_token_environment(tmp_path: Path) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    trace_path = tmp_path / "tool-calls.jsonl"
+    live_copilot.create_tool_recorder(tools, trace_path)
+
+    real_c8ctl = tmp_path / "real-c8ctl"
+    real_c8ctl.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+
+print(json.dumps({
+    variable: os.environ.get(variable)
+    for variable in ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
+}))
+""",
+        encoding="utf-8",
+    )
+    real_c8ctl.chmod(0o755)
+
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CAMUNDA_LIVE_COPILOT_REAL_C8CTL": str(real_c8ctl),
+            "CAMUNDA_LIVE_COPILOT_TOOL_TRACE": str(trace_path),
+            "COPILOT_GITHUB_TOKEN": "copilot-secret",
+            "GH_TOKEN": "gh-secret",
+            "GITHUB_TOKEN": "github-secret",
+        }
+    )
+    completed = subprocess.run(
+        [str(tools / "c8ctl"), "bpmn", "lint", "process.bpmn"],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    records = live_copilot.read_tool_trace(trace_path)
+    assert len(records) == 1
+    assert json.loads(records[0]["output"]) == {
+        "COPILOT_GITHUB_TOKEN": None,
+        "GH_TOKEN": None,
+        "GITHUB_TOKEN": None,
+    }
 
 
 @pytest.mark.parametrize(

@@ -60,12 +60,16 @@ if not real_c8ctl:
     record["output"] = "c8ctl executable was not found"
     print(record["output"], file=sys.stderr)
 else:
+    sanitized_environment = os.environ.copy()
+    for variable in ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+        sanitized_environment.pop(variable, None)
     try:
         completed = subprocess.run(
             [real_c8ctl, *sys.argv[1:]],
             check=False,
             capture_output=True,
             text=True,
+            env=sanitized_environment,
         )
     except (OSError, UnicodeError) as error:
         record["output"] = str(error)
@@ -136,6 +140,8 @@ def validate_skill_package(
             resolved.relative_to(package_root)
         except ValueError:
             return f"skill package symlink escapes the package: {path}"
+        if resolved.is_dir():
+            return f"skill package contains directory symlink: {path}"
     return None
 
 
