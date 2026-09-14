@@ -154,7 +154,19 @@ def test_rejects_symlink_escaping_skill_package(tmp_path: Path) -> None:
     error = live_copilot.validate_skill_package(package)
 
     assert error is not None
-    assert "escapes the package" in error
+    assert "entrypoint is a symlink" in error
+
+
+def test_rejects_internal_skill_entrypoint_symlink(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "target.md").write_text("target", encoding="utf-8")
+    (package / "SKILL.md").symlink_to(package / "target.md")
+
+    error = live_copilot.validate_skill_package(package)
+
+    assert error is not None
+    assert "entrypoint is a symlink" in error
 
 
 def test_rejects_directory_symlink_in_skill_package(tmp_path: Path) -> None:
@@ -250,6 +262,7 @@ def test_maps_live_process_and_tool_outcomes(
 ) -> None:
     monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "token")
+    monkeypatch.setenv("UNRELATED_SECRET", "must-not-reach-copilot")
     monkeypatch.setattr(live_copilot.shutil, "which", lambda _: "copilot")
     monkeypatch.setattr(live_copilot, "activate_skill", lambda *args: (True, []))
 
@@ -262,6 +275,15 @@ def test_maps_live_process_and_tool_outcomes(
     ) -> subprocess.CompletedProcess[str]:
         if command[0] == "copilot":
             assert env["COPILOT_GITHUB_TOKEN"] == "token"
+            assert env.get("GH_TOKEN") is None
+            assert env.get("GITHUB_TOKEN") is None
+            assert env.get("UNRELATED_SECRET") is None
+            plugin_index = command.index("--plugin-dir")
+            plugin_directory = Path(command[plugin_index + 1])
+            assert (plugin_directory / "plugin.json").is_file()
+            assert (
+                plugin_directory / "skills" / "camunda-bpmn" / "SKILL.md"
+            ).is_file()
             assert "--allow-tool=shell(c8ctl bpmn lint process.bpmn)" in command
             if write_artifact:
                 source = (
@@ -340,6 +362,49 @@ def test_maps_live_process_and_tool_outcomes(
         assert isinstance(reason, str)
         assert '"copilotExitCode"' in reason
         assert '"assertions"' in reason
+
+
+def test_rejects_symlinked_generated_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "token")
+    monkeypatch.setattr(live_copilot.shutil, "which", lambda _: "copilot")
+    monkeypatch.setattr(live_copilot, "activate_skill", lambda *args: (True, []))
+
+    source = tmp_path / "valid-process.bpmn"
+    source.write_text(
+        (
+            Path(live_copilot.__file__).resolve().parents[2]
+            / "compatibility"
+            / "fixtures"
+            / "process.bpmn"
+        ).read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    def run(
+        command: list[str],
+        *,
+        cwd: str | Path,
+        **_: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if command[0] == "copilot":
+            (Path(cwd) / "process.bpmn").symlink_to(source)
+            return subprocess.CompletedProcess(command, 0, "", "")
+        raise AssertionError("post-run lint must not run for a symlinked artifact")
+
+    monkeypatch.setattr(live_copilot.subprocess, "run", run)
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "failed"
+    artifact = result["artifact"]
+    assert isinstance(artifact, dict)
+    assert artifact["exists"] is False
 
 
 def test_does_not_count_post_run_lint_as_copilot_tool_execution(

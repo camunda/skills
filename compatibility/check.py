@@ -477,14 +477,14 @@ def _markdown_inline_link_destinations(content: str) -> list[str]:
             continue
         destination_start = closing + 1
         if destination_start >= len(content) or content[destination_start] != "(":
-            index = closing + 1
+            index = opening + 1
             continue
         destination_start += 1
 
         if destination_start < len(content) and content[destination_start] == "<":
             destination_end = content.find(">", destination_start + 1)
             if destination_end == -1:
-                index = closing + 1
+                index = opening + 1
                 continue
             destination = content[destination_start : destination_end + 1]
             index = destination_end + 1
@@ -504,7 +504,7 @@ def _markdown_inline_link_destinations(content: str) -> list[str]:
                     depth -= 1
                 destination_end += 1
             if destination_end >= len(content):
-                index = closing + 1
+                index = opening + 1
                 continue
             destination = content[destination_start:destination_end]
             index = destination_end + 1
@@ -536,11 +536,11 @@ def _markdown_reference_link_labels(content: str) -> list[tuple[str, str]]:
         separator = MARKDOWN_REFERENCE_SEPARATOR.match(content, closing + 1)
         reference_start = separator.end() if separator else closing + 1
         if reference_start >= len(content) or content[reference_start] != "[":
-            index = closing + 1
+            index = opening + 1
             continue
         reference_end = _matching_markdown_bracket(content, reference_start)
         if reference_end is None:
-            index = closing + 1
+            index = opening + 1
             continue
         links.append(
             (
@@ -578,11 +578,11 @@ def _markdown_shortcut_link_labels(content: str) -> list[str]:
         if next_character in (
             "[(:"
         ):
-            index = closing + 1
+            index += 1
             continue
         label = content[index + 1 : closing]
         if re.search(r"\]\s*(?:\(|\[)", label):
-            index = closing + 1
+            index += 1
             continue
         labels.append(label)
         index = closing + 1

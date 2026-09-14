@@ -16,6 +16,9 @@ from bpmn_lint import validate_bpmn
 from mock_adapter import activate_skill
 
 TOKEN_ENV_VARS = frozenset({"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"})
+COPILOT_RUNTIME_ENV_VARS = frozenset(
+    {"CI", "HOME", "LANG", "LC_ALL", "PATH", "TMP", "TEMP", "TMPDIR"}
+)
 TOOL_TRACE_ENV = "CAMUNDA_LIVE_COPILOT_TOOL_TRACE"
 REAL_C8CTL_ENV = "CAMUNDA_LIVE_COPILOT_REAL_C8CTL"
 EXPECTED_FIXTURE_ID = "camunda-bpmn-basic"
@@ -149,6 +152,10 @@ def validate_skill_package(
             return f"repository or skills root cannot be resolved: {error}"
         except ValueError:
             return f"skill package is outside the checkout: {skill_directory}"
+
+    entrypoint = skill_directory / "SKILL.md"
+    if entrypoint.is_symlink():
+        return f"skill package entrypoint is a symlink: {entrypoint}"
 
     for path in skill_directory.rglob("*"):
         if not path.is_symlink():
@@ -454,14 +461,12 @@ def main() -> int:
             )
         )
 
-    environment = os.environ.copy()
-    environment["GH_TOKEN"] = token
-    environment["GITHUB_TOKEN"] = token
-    lint_environment = {
+    runtime_environment = {
         key: value
-        for key, value in environment.items()
-        if key not in TOKEN_ENV_VARS
+        for key, value in os.environ.items()
+        if key in COPILOT_RUNTIME_ENV_VARS
     }
+    lint_environment = runtime_environment.copy()
     real_c8ctl = shutil.which("c8ctl")
 
     with (
@@ -484,9 +489,12 @@ def main() -> int:
                 )
             )
         try:
+            plugin_directory = workspace / "plugin"
+            plugin_directory.mkdir()
+            shutil.copy2(root / "plugin.json", plugin_directory / "plugin.json")
             shutil.copytree(
                 entrypoint.parent,
-                workspace / "skills" / fixture["skillName"],
+                plugin_directory / "skills" / fixture["skillName"],
             )
         except (OSError, shutil.Error) as error:
             return emit(
@@ -498,7 +506,9 @@ def main() -> int:
                     reason=f"live workspace could not be staged: {error}",
                 )
             )
-        copilot_environment = environment.copy()
+        copilot_environment = runtime_environment.copy()
+        copilot_environment["COPILOT_GITHUB_TOKEN"] = token
+        copilot_environment["COPILOT_HOME"] = str(workspace / ".copilot")
         copilot_environment["PATH"] = (
             str(tools_directory)
             + os.pathsep
@@ -511,11 +521,11 @@ def main() -> int:
                 [
                     copilot,
                     "--plugin-dir",
-                    str(root),
+                    str(plugin_directory),
                     "--allow-tool=write",
                     f"--allow-tool=shell({' '.join(tool_tokens)})",
                     "--no-ask-user",
-                    "--secret-env-vars=COPILOT_GITHUB_TOKEN,GH_TOKEN,GITHUB_TOKEN",
+                    "--secret-env-vars=COPILOT_GITHUB_TOKEN",
                     "--prompt",
                     prompt,
                 ],
@@ -565,7 +575,7 @@ def main() -> int:
         tool_succeeded = tool_executed and tool_exit_code == 0
 
         artifact_path = workspace / artifact_name
-        artifact_exists = artifact_path.is_file()
+        artifact_exists = artifact_path.is_file() and not artifact_path.is_symlink()
         copilot_succeeded = completed.returncode == 0
         artifact_valid = False
         if artifact_exists:

@@ -577,6 +577,24 @@ def test_rejects_missing_balanced_shortcut_reference(tmp_path: Path) -> None:
     assert any("[guide [v1]]" in error for error in errors)
 
 
+def test_rejects_nested_links_inside_non_link_labels(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[See [missing](missing.md)]\n"
+        "[See [outside](../README.md)]\n"
+        "[See [unresolved][missing-reference]]\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("missing.md" in error for error in errors)
+    assert any("../README.md" in error for error in errors)
+    assert any("[missing-reference]" in error for error in errors)
+
+
 def test_treats_unmatched_backtick_as_literal(tmp_path: Path) -> None:
     package = tmp_path / "skill"
     package.mkdir()
