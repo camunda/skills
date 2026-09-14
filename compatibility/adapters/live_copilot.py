@@ -16,13 +16,26 @@ from bpmn_lint import validate_bpmn
 from mock_adapter import activate_skill
 
 TOKEN_ENV_VARS = frozenset({"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"})
+DEFAULT_ARTIFACT = "process.bpmn"
+DEFAULT_TOOL_COMMAND = "c8ctl bpmn lint process.bpmn"
+FALLBACK_FIXTURE: dict[str, Any] = {
+    "fixtureId": "unknown",
+    "skillName": "unknown",
+    "prompt": "",
+    "expected": {
+        "artifact": DEFAULT_ARTIFACT,
+        "toolCommand": DEFAULT_TOOL_COMMAND,
+    },
+}
 
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def validate_skill_package(skill_directory: Path) -> str | None:
+def validate_skill_package(
+    skill_directory: Path, repository_root: Path | None = None
+) -> str | None:
     if skill_directory.is_symlink():
         return f"skill package is a symlink: {skill_directory}"
     try:
@@ -31,6 +44,18 @@ def validate_skill_package(skill_directory: Path) -> str | None:
         return f"skill package cannot be resolved: {error}"
     if not skill_directory.is_dir():
         return f"skill package is not a directory: {skill_directory}"
+    if repository_root is not None:
+        try:
+            checkout_root = repository_root.resolve(strict=True)
+            skills_root = checkout_root / "skills"
+            if skills_root.is_symlink():
+                return f"skills root is a symlink: {skills_root}"
+            package_root.relative_to(checkout_root)
+            package_root.relative_to(skills_root.resolve(strict=True))
+        except (OSError, RuntimeError) as error:
+            return f"repository or skills root cannot be resolved: {error}"
+        except ValueError:
+            return f"skill package is outside the checkout: {skill_directory}"
 
     for path in skill_directory.rglob("*"):
         if not path.is_symlink():
@@ -60,21 +85,36 @@ def result(
     output: str | None = None,
     reason: str | None = None,
 ) -> dict[str, Any]:
+    expected = fixture.get("expected")
+    if not isinstance(expected, dict):
+        expected = {}
+    fixture_id = fixture.get("fixtureId")
+    if not isinstance(fixture_id, str):
+        fixture_id = "unknown"
+    skill_name = fixture.get("skillName")
+    if not isinstance(skill_name, str):
+        skill_name = "unknown"
+    artifact = expected.get("artifact")
+    if not isinstance(artifact, str):
+        artifact = DEFAULT_ARTIFACT
+    tool_command = expected.get("toolCommand")
+    if not isinstance(tool_command, str):
+        tool_command = DEFAULT_TOOL_COMMAND
     value = {
         "adapter": "copilot-live",
         "harness": "copilot",
         "status": status,
-        "fixtureId": fixture["fixtureId"],
-        "skillName": fixture["skillName"],
+        "fixtureId": fixture_id,
+        "skillName": skill_name,
         "discovered": discovered,
         "activated": activated,
         "artifact": {
-            "path": fixture["expected"]["artifact"],
+            "path": artifact,
             "exists": artifact_exists,
             "valid": artifact_valid,
         },
         "toolCall": {
-            "command": fixture["expected"]["toolCommand"],
+            "command": tool_command,
             "executed": tool_executed,
             "succeeded": tool_succeeded,
             "exitCode": exit_code,
@@ -93,8 +133,72 @@ def emit(value: dict[str, Any]) -> int:
 
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
-    fixture = load_json(root / "compatibility" / "fixtures" / "camunda-bpmn-smoke.json")
-    expected = fixture["expected"]
+    try:
+        fixture_value = load_json(
+            root / "compatibility" / "fixtures" / "camunda-bpmn-smoke.json"
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        return emit(
+            result(
+                "failed",
+                FALLBACK_FIXTURE,
+                reason=f"invalid smoke fixture: {error}",
+            )
+        )
+    if not isinstance(fixture_value, dict):
+        return emit(
+            result(
+                "failed",
+                FALLBACK_FIXTURE,
+                reason="invalid smoke fixture: expected a JSON object",
+            )
+        )
+    fixture = fixture_value
+    expected = fixture.get("expected")
+    if not isinstance(expected, dict):
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: expected must be an object",
+            )
+        )
+    artifact_name = expected.get("artifact")
+    tool_command = expected.get("toolCommand")
+    skill_name = fixture.get("skillName")
+    prompt = fixture.get("prompt")
+    if not isinstance(artifact_name, str) or not artifact_name:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: expected.artifact must be a non-empty string",
+            )
+        )
+    if not isinstance(tool_command, str) or not tool_command:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: expected.toolCommand must be a non-empty string",
+            )
+        )
+    if not isinstance(skill_name, str) or not skill_name:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: skillName must be a non-empty string",
+            )
+        )
+    if not isinstance(prompt, str) or not prompt.strip():
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: prompt must be a non-empty string",
+            )
+        )
 
     if os.environ.get("CAMUNDA_LIVE_COPILOT") != "1":
         return emit(
@@ -124,7 +228,6 @@ def main() -> int:
             )
         )
 
-    tool_command = expected["toolCommand"]
     try:
         tool_tokens = shlex.split(tool_command)
     except (TypeError, ValueError) as error:
@@ -135,7 +238,7 @@ def main() -> int:
                 reason=f"invalid tool command in smoke fixture: {error}",
             )
         )
-    expected_tool_tokens = ["c8ctl", "bpmn", "lint", expected["artifact"]]
+    expected_tool_tokens = ["c8ctl", "bpmn", "lint", artifact_name]
     if tool_tokens != expected_tool_tokens:
         return emit(
             result(
@@ -145,8 +248,8 @@ def main() -> int:
             )
         )
 
-    entrypoint = root / "skills" / fixture["skillName"] / "SKILL.md"
-    package_error = validate_skill_package(entrypoint.parent)
+    entrypoint = root / "skills" / skill_name / "SKILL.md"
+    package_error = validate_skill_package(entrypoint.parent, root)
     if package_error:
         return emit(
             result(
@@ -167,9 +270,9 @@ def main() -> int:
 
     activated, activation_failures = activate_skill(
         entrypoint,
-        fixture["skillName"],
-        fixture["prompt"],
-        expected["toolCommand"],
+        skill_name,
+        prompt,
+        tool_command,
     )
     if not activated:
         return emit(
@@ -181,7 +284,6 @@ def main() -> int:
             )
         )
 
-    prompt = fixture["prompt"]
     environment = os.environ.copy()
     environment["GH_TOKEN"] = token
     environment["GITHUB_TOKEN"] = token
@@ -215,7 +317,7 @@ def main() -> int:
                     "--plugin-dir",
                     str(root),
                     "--allow-tool=write",
-                    "--allow-tool=shell(c8ctl:*)",
+                    f"--allow-tool=shell({' '.join(tool_tokens)})",
                     "--no-ask-user",
                     "--secret-env-vars=COPILOT_GITHUB_TOKEN,GH_TOKEN,GITHUB_TOKEN",
                     "--prompt",
@@ -239,7 +341,7 @@ def main() -> int:
                 )
             )
 
-        artifact_path = workspace / expected["artifact"]
+        artifact_path = workspace / artifact_name
         artifact_exists = artifact_path.is_file()
         copilot_succeeded = completed.returncode == 0
         artifact_valid = False

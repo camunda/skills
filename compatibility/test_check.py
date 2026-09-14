@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 
 import check
+import pytest
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -273,6 +274,46 @@ def test_allows_markdown_link_titles_balanced_destinations_and_urls(
     assert errors == []
 
 
+def test_allows_local_directories_with_repository_like_names(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    for directory in ("home", "Users", "compatibility", "evals"):
+        path = package / directory
+        path.mkdir(parents=True)
+        (path / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    (package / "README.md").write_text(
+        "[home](./home/guide.md)\n"
+        "[users](./Users/guide.md)\n"
+        "[compatibility](./compatibility/guide.md)\n"
+        "[evals](./evals/guide.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert errors == []
+
+
+def test_rejects_balanced_bracket_reference_definition() -> None:
+    package = CONFORMANCE_FIXTURES / "invalid-reference"
+    content = (
+        "[guide [v1]]: missing-balanced-definition.md\n"
+        "\n"
+        "[guide [v1]]\n"
+    )
+    temporary_path = package / "balanced-definition-test.md"
+    temporary_path.write_text(content, encoding="utf-8")
+    try:
+        errors: list[str] = []
+        check.check_skill_self_containment(package, errors)
+    finally:
+        temporary_path.unlink()
+
+    assert any("missing-balanced-definition.md" in error for error in errors)
+
+
 def test_rejects_absolute_local_destinations_inside_skill_package(
     tmp_path: Path,
 ) -> None:
@@ -473,6 +514,17 @@ def test_reports_symlink_loop_during_package_and_candidate_resolution(
 
     assert any("cannot resolve package path" in error for error in errors)
     assert any("cannot resolve local link destination" in error for error in errors)
+
+
+def test_reports_dangling_package_resource(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "broken.md").symlink_to(package / "missing.md")
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("cannot resolve package path" in error for error in errors)
 
 
 def test_skips_symlinked_entrypoint_and_sidecar_reads(
@@ -693,3 +745,29 @@ def test_classifies_symlinked_skill_directory(
     output = capsys.readouterr().err
     assert "skill=linked rule=layout.skill-directory" in output
     assert "skill=linked rule=metadata.frontmatter" not in output
+
+
+@pytest.mark.parametrize("target_is_directory", (False, True))
+def test_classifies_non_directory_symlinked_skill_entries(
+    tmp_path: Path, capsys: object, target_is_directory: bool
+) -> None:
+    root = copy_contract_root(tmp_path)
+    target = tmp_path / ("missing-directory" if target_is_directory else "missing-file")
+    (root / "skills" / "linked").symlink_to(
+        target,
+        target_is_directory=target_is_directory,
+    )
+
+    assert check.main(["--root", str(root)]) == 1
+    output = capsys.readouterr().err
+    assert "skill=linked rule=layout.skill-directory" in output
+
+
+def test_rejects_symlinked_skills_root(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    target = tmp_path / "skills-target"
+    (root / "skills").rename(target)
+    (root / "skills").symlink_to(target, target_is_directory=True)
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "rule=layout.skills-root" in capsys.readouterr().err

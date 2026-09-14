@@ -31,9 +31,8 @@ MARKDOWN_CONTAINER_PREFIX = re.compile(
     r"[ \t]{0,3}(?:[-+*]|\d+[.)])[ \t]?)*))"
 )
 MARKDOWN_REFERENCE_SEPARATOR = re.compile(r"[ \t]*(?:(?:\r\n|[\r\n])[ \t]*)?")
-MARKDOWN_LINK_DEFINITION = re.compile(
+MARKDOWN_LINK_DEFINITION_PREFIX = re.compile(
     rf"(?m)^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
-    r"\[(?P<label>[^\]\n]+)\]:[ \t]*(?P<destination>.*)$"
 )
 MARKDOWN_SHORTCUT_LINK = re.compile(
     r"(?<![!\w\]])\[([^\]\n]+)\](?![\[(}:])"
@@ -52,8 +51,9 @@ EXTERNAL_URI = re.compile(
     re.IGNORECASE,
 )
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
-    r"(?<![\w])(?:skills/[a-z0-9-]+/|(?:README|CONTRIBUTING|evals|compatibility|\.github)/"
-    r"|/(?:Users|home)/)"
+    r"(?<![\w./])(?:skills/[a-z0-9-]+/|"
+    r"(?:README|CONTRIBUTING|evals|compatibility|\.github)/)"
+    r"|(?<![\w.])/(?:Users|home)/"
 )
 
 
@@ -558,6 +558,27 @@ def _reference_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
+def _markdown_link_definitions(content: str) -> list[tuple[str, str]]:
+    definitions: list[tuple[str, str]] = []
+    for line in content.splitlines():
+        prefix = MARKDOWN_LINK_DEFINITION_PREFIX.match(line)
+        if prefix is None:
+            continue
+        opening = prefix.end()
+        if opening >= len(line) or line[opening] != "[":
+            continue
+        closing = _matching_markdown_bracket(line, opening)
+        if closing is None or closing + 1 >= len(line) or line[closing + 1] != ":":
+            continue
+        definitions.append(
+            (
+                line[opening + 1 : closing],
+                _link_destination(line[closing + 2 :].lstrip(" \t")),
+            )
+        )
+    return definitions
+
+
 def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
     masked = _strip_markdown_code_spans(content)
     targets: list[str] = []
@@ -568,9 +589,9 @@ def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
             targets.append(target)
 
     definitions: dict[str, str] = {}
-    for match in MARKDOWN_LINK_DEFINITION.finditer(masked):
-        target = _link_destination(match.group("destination"))
-        definitions[_reference_label(match.group("label"))] = target
+    for label, destination in _markdown_link_definitions(masked):
+        target = destination
+        definitions[_reference_label(label)] = target
         add_target(target)
 
     for destination in _markdown_inline_link_destinations(masked):
@@ -600,14 +621,14 @@ def check_skill_self_containment(
     """Reject local references that escape a distributable skill package."""
 
     try:
-        package_root = skill_directory.resolve()
+        package_root = skill_directory.resolve(strict=True)
     except (OSError, RuntimeError) as error:
         errors.append(f"{skill_directory}: cannot resolve package directory ({error})")
         return
 
     for path in sorted(skill_directory.rglob("*")):
         try:
-            resolved = path.resolve()
+            resolved = path.resolve(strict=True)
         except (OSError, RuntimeError) as error:
             errors.append(f"{path}: cannot resolve package path ({error})")
             continue
@@ -685,7 +706,23 @@ def check_skill_self_containment(
 
         for line_number, line in enumerate(masked_content.splitlines(), start=1):
             line_without_urls = EXTERNAL_URI.sub("", line)
-            if FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls):
+            forbidden_reference = FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls)
+            if forbidden_reference:
+                relative_reference = forbidden_reference.group(0)
+                if relative_reference.startswith("/"):
+                    is_local_reference = False
+                else:
+                    local_reference = (
+                        path.parent / relative_reference.rstrip("/")
+                    ).resolve()
+                    try:
+                        local_reference.relative_to(package_root)
+                    except ValueError:
+                        is_local_reference = False
+                    else:
+                        is_local_reference = local_reference.exists()
+                if is_local_reference:
+                    continue
                 errors.append(
                     f"{path}:{line_number}: rule=content.self-contained "
                     "references a repository-level or external local path"
@@ -1099,11 +1136,18 @@ def main(argv: list[str] | None = None) -> int:
         expect(audit.get("specRevisionOrAuditDate"), spec_date, "audit specification date", errors)
 
     skills_root = root / "skills"
-    skill_directories = {
-        path.name: path
-        for path in skills_root.iterdir()
-        if path.is_dir()
-    } if skills_root.is_dir() else {}
+    if skills_root.is_symlink():
+        errors.append(
+            f"{skills_root}: rule=layout.skills-root "
+            "skills root must not be a symlink"
+        )
+        skill_directories: dict[str, Path] = {}
+    elif skills_root.is_dir():
+        skill_directories = {
+            path.name: path for path in skills_root.iterdir()
+        }
+    else:
+        skill_directories = {}
     if not skill_directories:
         errors.append("skills: no skill directories were found")
 
@@ -1122,9 +1166,13 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     actual_sidecars = {
-        path.relative_to(root).as_posix()
-        for path in skills_root.glob("*/portability.json")
-    } if skills_root.is_dir() else set()
+        (skill_directory / "portability.json").relative_to(root).as_posix()
+        for skill_directory in skill_directories.values()
+        if skill_directory.is_dir()
+        and not skill_directory.is_symlink()
+        and (skill_directory / "portability.json").is_file()
+        and not (skill_directory / "portability.json").is_symlink()
+    }
     expected_sidecars = {f"skills/{name}/portability.json" for name in names}
     if actual_sidecars != expected_sidecars:
         errors.append(

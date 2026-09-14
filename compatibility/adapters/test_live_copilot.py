@@ -34,6 +34,23 @@ def test_reports_missing_token_as_unavailable(
     assert result["status"] == "unavailable"
 
 
+def test_reports_malformed_fixture_as_structured_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setattr(
+        live_copilot,
+        "load_json",
+        lambda *_args: {"fixtureId": "broken"},
+    )
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "failed"
+    assert "expected must be an object" in result["reason"]
+
+
 @pytest.mark.parametrize(
     "error",
     (
@@ -96,6 +113,18 @@ def test_rejects_symlink_escaping_skill_package(tmp_path: Path) -> None:
     assert "escapes the package" in error
 
 
+def test_rejects_skill_package_outside_repository(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    (repository / "skills").mkdir(parents=True)
+    package = tmp_path / "outside"
+    package.mkdir()
+
+    error = live_copilot.validate_skill_package(package, repository)
+
+    assert error is not None
+    assert "outside the checkout" in error
+
+
 @pytest.mark.parametrize(
     ("copilot_exit_code", "write_artifact", "tool_exit_code", "expected_status"),
     (
@@ -127,6 +156,7 @@ def test_maps_live_process_and_tool_outcomes(
     ) -> subprocess.CompletedProcess[str]:
         if command[0] == "copilot":
             assert env["COPILOT_GITHUB_TOKEN"] == "token"
+            assert "--allow-tool=shell(c8ctl bpmn lint process.bpmn)" in command
             if write_artifact:
                 source = (
                     Path(live_copilot.__file__).resolve().parents[2]
