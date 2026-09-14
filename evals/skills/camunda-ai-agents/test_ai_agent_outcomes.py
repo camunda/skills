@@ -490,6 +490,26 @@ def test_missing_configuration_guard_rejects_any_bpmn_artifact(
     assert "BPMN artifact" in result.explanation
 
 
+def test_missing_configuration_guard_ignores_preexisting_bpmn_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _outcomes,
+        "sandbox",
+        lambda: _FindSandbox("/workspace/other.bpmn"),
+    )
+    state = _clarification_state(
+        "missing-provider-configuration",
+        "Please provide the provider, exact model identifier, and "
+        "existing connector-secret name.",
+    )
+    state.store = {"preexisting_bpmn_paths": ["/workspace/other.bpmn"]}
+
+    result = asyncio.run(_outcomes.missing_configuration_guard()(state, None))
+
+    assert result.value == 1.0
+
+
 def test_saas_secret_boundary_scorer_accepts_boundary_guidance() -> None:
     state = _clarification_state(
         "saas-secret-boundary",

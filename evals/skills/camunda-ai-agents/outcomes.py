@@ -1462,7 +1462,18 @@ def missing_configuration_guard(path: str = BPMN_PATH) -> Scorer:
             for artifact_path in (artifacts.stdout or "").splitlines()
             if artifact_path
         ]
-        if artifact_paths:
+        store = getattr(state, "store", None)
+        preexisting_artifacts = set(
+            store.get("preexisting_bpmn_paths") or []
+            if store is not None and hasattr(store, "get")
+            else []
+        )
+        new_artifact_paths = [
+            artifact_path
+            for artifact_path in artifact_paths
+            if artifact_path not in preexisting_artifacts
+        ]
+        if new_artifact_paths or (artifact_paths and _bpmn_write_attempted(state)):
             return Score(
                 value=0.0,
                 explanation=(
