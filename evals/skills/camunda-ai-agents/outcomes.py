@@ -805,10 +805,12 @@ def _is_negated_fallback_action(clause: str, start: int) -> bool:
         return False
     negation = negations[-1]
     between = prefix[negation.end() :]
-    if re.search(r"[,;:]|\b(?:and|but|if|when|unless)\b", between):
+    if re.search(r";|:|\b(?:but|if|when|unless)\b", between):
         return False
-    if re.search(r"\bor\b", between):
-        return bool(FALLBACK_ACTION_PATTERN.search(between))
+    if re.search(r",|\b(?:and|or)\b", between):
+        return bool(
+            re.search(r"\bguess\b", between) or FALLBACK_ACTION_PATTERN.search(between)
+        )
     return not re.search(
         r"\b(?:name|provide|specify|confirm|tell|identify|indicate|share|supply)\b",
         between,

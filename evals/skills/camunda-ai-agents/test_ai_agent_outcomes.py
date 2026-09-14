@@ -161,6 +161,7 @@ def test_distinguishes_secret_names_from_material(
         ),
         ("Please provide the exact model identifier you want to use.", False),
         ("I won't choose a default provider or invent a secret name.", False),
+        ("I won't guess, default, or invent names for any of them.", False),
         (
             "Please provide the provider (for example, OpenAI) and exact "
             "model identifier (for example, gpt-4.1-mini).",
@@ -190,6 +191,7 @@ def test_distinguishes_secret_names_from_material(
         "concrete-continuation",
         "request-intent-tail",
         "negated-coordinated-actions",
+        "negated-list-actions",
         "example-values",
         "user-selected-provider",
         "selection-request",
