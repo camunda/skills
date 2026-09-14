@@ -105,6 +105,22 @@ def with_artifact_collection(agent: Agent, root: str = "/workspace") -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         try:
+            before = await sandbox().exec(
+                [
+                    "find",
+                    root,
+                    "-type",
+                    "f",
+                    "-name",
+                    "*.bpmn",
+                ],
+                timeout=10,
+            )
+            if before.returncode == 0:
+                state.store.set(
+                    "preexisting_bpmn_paths",
+                    [path for path in (before.stdout or "").splitlines() if path],
+                )
             state = await agent_solver(state, generate)
         finally:
             state = await cleanup(state, generate)
