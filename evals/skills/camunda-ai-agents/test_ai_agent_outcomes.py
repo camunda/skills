@@ -131,6 +131,7 @@ def test_restricts_secret_file_reads(
             "holds the API credential for your provider?",
             False,
         ),
+        ("Which credential fields are needed for the provider?", False),
         ("Please provide the provider, not API key values.", False),
     ],
     ids=[
@@ -140,6 +141,7 @@ def test_restricts_secret_file_reads(
         "secret-value",
         "secret-name-and-values",
         "secret-description",
+        "credential-fields",
         "negated",
     ],
 )

@@ -130,7 +130,12 @@ SECRET_RELATIVE_MATERIAL_PATTERN = re.compile(
     r"(?:secret\s+)?(?:values?|contents?)\b"
 )
 SECRET_MATERIAL_DESCRIPTION_PATTERN = re.compile(
-    r"\b(?:holds?|contains?|stores?|keeps?)\b"
+    r"(?:"
+    r"\b(?:holds?|contains?|stores?|keeps?)\b|"
+    r"\b(?:credential|secret|api[- ]?key|token)s?\s+fields?\b|"
+    r"\b(?:which|what)\b[^.?!\n]{0,40}"
+    r"\b(?:credential|secret|api[- ]?key|token)s?\s+fields?\b"
+    r")"
 )
 SECRET_FILE_PATH_PATTERN = re.compile(
     r"(?<![\w.-])(?:"
@@ -826,7 +831,7 @@ def _requests_secret_material(sentence: str) -> bool:
                 continue
             if SECRET_MATERIAL_DESCRIPTION_PATTERN.search(
                 clause[max(0, match.start() - 80) : match.start()]
-            ):
+            ) or re.search(r"\bfields?\b", clause[match.start() : match.end() + 40]):
                 continue
             if not _is_negated_term(clause, match.start()):
                 return True
