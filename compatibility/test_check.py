@@ -296,6 +296,20 @@ def test_allows_local_directories_with_repository_like_names(
     assert errors == []
 
 
+def test_rejects_explicit_relative_repository_reference(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "See ./skills/other/ for the repository skill.\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("content.self-contained" in error for error in errors)
+
+
 def test_rejects_balanced_bracket_reference_definition() -> None:
     package = CONFORMANCE_FIXTURES / "invalid-reference"
     content = (
@@ -483,6 +497,18 @@ def test_rejects_link_with_balanced_bracket_label() -> None:
     assert any("missing-nested-reference.md" in error for error in errors)
 
 
+def test_rejects_missing_balanced_shortcut_reference(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text("[guide [v1]]\n", encoding="utf-8")
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("content.reference-exists" in error for error in errors)
+    assert any("[guide [v1]]" in error for error in errors)
+
+
 def test_treats_unmatched_backtick_as_literal(tmp_path: Path) -> None:
     package = tmp_path / "skill"
     package.mkdir()
@@ -514,6 +540,24 @@ def test_reports_symlink_loop_during_package_and_candidate_resolution(
 
     assert any("cannot resolve package path" in error for error in errors)
     assert any("cannot resolve local link destination" in error for error in errors)
+
+
+def test_reports_symlink_loop_during_repository_reference_resolution(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    loop = package / "README"
+    loop.symlink_to(loop, target_is_directory=True)
+    (package / "guide.md").write_text(
+        "See README/ for repository context.\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("cannot resolve repository reference" in error for error in errors)
 
 
 def test_reports_dangling_package_resource(tmp_path: Path) -> None:

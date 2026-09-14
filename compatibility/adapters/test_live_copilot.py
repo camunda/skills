@@ -52,6 +52,48 @@ def test_reports_malformed_fixture_as_structured_failure(
 
 
 @pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("skillName", "other-skill", "skillName must be"),
+        ("prompt", "run another prompt", "prompt does not match"),
+        ("artifact", "other.bpmn", "expected.artifact must be"),
+        ("toolCommand", "c8ctl bpmn lint other.bpmn", "expected.toolCommand must be"),
+    ),
+)
+def test_rejects_fixture_values_outside_live_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    fixture: dict[str, object] = {
+        "fixtureId": "camunda-bpmn-basic",
+        "skillName": "camunda-bpmn",
+        "prompt": "Create a minimal Camunda 8 process in process.bpmn and validate it.",
+        "expected": {
+            "artifact": "process.bpmn",
+            "toolCommand": "c8ctl bpmn lint process.bpmn",
+        },
+    }
+    if field in {"artifact", "toolCommand"}:
+        expected = fixture["expected"]
+        assert isinstance(expected, dict)
+        expected[field] = value
+    else:
+        fixture[field] = value
+
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setattr(live_copilot, "load_json", lambda *_args: fixture)
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "failed"
+    assert message in result["reason"]
+
+
+@pytest.mark.parametrize(
     "error",
     (
         OSError("copilot unavailable"),

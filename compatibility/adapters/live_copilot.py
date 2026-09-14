@@ -16,8 +16,12 @@ from bpmn_lint import validate_bpmn
 from mock_adapter import activate_skill
 
 TOKEN_ENV_VARS = frozenset({"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"})
-DEFAULT_ARTIFACT = "process.bpmn"
-DEFAULT_TOOL_COMMAND = "c8ctl bpmn lint process.bpmn"
+EXPECTED_SKILL_NAME = "camunda-bpmn"
+EXPECTED_PROMPT = "Create a minimal Camunda 8 process in process.bpmn and validate it."
+EXPECTED_ARTIFACT = "process.bpmn"
+EXPECTED_TOOL_COMMAND = "c8ctl bpmn lint process.bpmn"
+DEFAULT_ARTIFACT = EXPECTED_ARTIFACT
+DEFAULT_TOOL_COMMAND = EXPECTED_TOOL_COMMAND
 FALLBACK_FIXTURE: dict[str, Any] = {
     "fixtureId": "unknown",
     "skillName": "unknown",
@@ -199,6 +203,41 @@ def main() -> int:
                 reason="invalid smoke fixture: prompt must be a non-empty string",
             )
         )
+    if skill_name != EXPECTED_SKILL_NAME:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason=f"invalid smoke fixture: skillName must be {EXPECTED_SKILL_NAME!r}",
+            )
+        )
+    if prompt != EXPECTED_PROMPT:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: prompt does not match the fixed contract",
+            )
+        )
+    if artifact_name != EXPECTED_ARTIFACT:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason=f"invalid smoke fixture: expected.artifact must be {EXPECTED_ARTIFACT!r}",
+            )
+        )
+    if tool_command != EXPECTED_TOOL_COMMAND:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason=(
+                    "invalid smoke fixture: expected.toolCommand must be "
+                    f"{EXPECTED_TOOL_COMMAND!r}"
+                ),
+            )
+        )
 
     if os.environ.get("CAMUNDA_LIVE_COPILOT") != "1":
         return emit(
@@ -238,7 +277,7 @@ def main() -> int:
                 reason=f"invalid tool command in smoke fixture: {error}",
             )
         )
-    expected_tool_tokens = ["c8ctl", "bpmn", "lint", artifact_name]
+    expected_tool_tokens = ["c8ctl", "bpmn", "lint", EXPECTED_ARTIFACT]
     if tool_tokens != expected_tool_tokens:
         return emit(
             result(

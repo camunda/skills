@@ -34,9 +34,6 @@ MARKDOWN_REFERENCE_SEPARATOR = re.compile(r"[ \t]*(?:(?:\r\n|[\r\n])[ \t]*)?")
 MARKDOWN_LINK_DEFINITION_PREFIX = re.compile(
     rf"(?m)^{MARKDOWN_CONTAINER_PREFIX.pattern}[ \t]{{0,3}}"
 )
-MARKDOWN_SHORTCUT_LINK = re.compile(
-    r"(?<![!\w\]])\[([^\]\n]+)\](?![\[(}:])"
-)
 MARKDOWN_URI_AUTOLINK = re.compile(
     r"<([A-Za-z][A-Za-z0-9+.-]*:[^<>\s]*)>"
 )
@@ -51,7 +48,7 @@ EXTERNAL_URI = re.compile(
     re.IGNORECASE,
 )
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
-    r"(?<![\w./])(?:skills/[a-z0-9-]+/|"
+    r"(?<![\w./])(?:\./)?(?:skills/[a-z0-9-]+/|"
     r"(?:README|CONTRIBUTING|evals|compatibility|\.github)/)"
     r"|(?<![\w.])/(?:Users|home)/"
 )
@@ -554,6 +551,43 @@ def _markdown_reference_link_labels(content: str) -> list[tuple[str, str]]:
     return links
 
 
+def _markdown_shortcut_link_labels(content: str) -> list[str]:
+    labels: list[str] = []
+    index = 0
+    while index < len(content):
+        if content[index] == "\\":
+            index += 2
+            continue
+        if content[index] != "[":
+            index += 1
+            continue
+        if index > 0 and (
+            content[index - 1] == "!"
+            or content[index - 1] == "]"
+            or content[index - 1] == "_"
+            or content[index - 1].isalnum()
+        ):
+            index += 1
+            continue
+        closing = _matching_markdown_bracket(content, index)
+        if closing is None:
+            index += 1
+            continue
+        next_character = content[closing + 1] if closing + 1 < len(content) else ""
+        if next_character in (
+            "[(:"
+        ):
+            index = closing + 1
+            continue
+        label = content[index + 1 : closing]
+        if re.search(r"\]\s*(?:\(|\[)", label):
+            index = closing + 1
+            continue
+        labels.append(label)
+        index = closing + 1
+    return labels
+
+
 def _reference_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
@@ -606,8 +640,13 @@ def _markdown_link_targets(content: str) -> tuple[list[str], list[str]]:
         else:
             add_target(target)
 
-    for match in MARKDOWN_SHORTCUT_LINK.finditer(masked):
-        add_target(definitions.get(_reference_label(match.group(1)), ""))
+    for label in _markdown_shortcut_link_labels(masked):
+        target = definitions.get(_reference_label(label))
+        if target is not None:
+            add_target(target)
+        elif "[" in label:
+            if label not in missing_references:
+                missing_references.append(label)
 
     for match in MARKDOWN_URI_AUTOLINK.finditer(masked):
         add_target(match.group(1))
@@ -712,9 +751,16 @@ def check_skill_self_containment(
                 if relative_reference.startswith("/"):
                     is_local_reference = False
                 else:
-                    local_reference = (
-                        path.parent / relative_reference.rstrip("/")
-                    ).resolve()
+                    try:
+                        local_reference = (
+                            path.parent / relative_reference.rstrip("/")
+                        ).resolve()
+                    except (OSError, RuntimeError, ValueError) as error:
+                        errors.append(
+                            f"{path}: rule=content.self-contained cannot resolve "
+                            f"repository reference {relative_reference!r} ({error})"
+                        )
+                        continue
                     try:
                         local_reference.relative_to(package_root)
                     except ValueError:
