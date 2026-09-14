@@ -85,6 +85,8 @@ c8ctl element-template apply -i <id> AgentTools process.bpmn \
   --set data.limits.maxModelCalls='=10'
 ```
 
+Repeat the secret mapping for every provider-specific authentication property that requires an existing secret; providers such as Bedrock can require multiple secret-bearing authentication properties.
+
 The template handles `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindings, default input mappings, and the model-provider-specific fields — they change across template versions, don't hand-code them.
 
 Supported providers: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
