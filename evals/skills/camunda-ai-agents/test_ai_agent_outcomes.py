@@ -118,6 +118,11 @@ def test_restricts_secret_file_reads(
         ("Please provide the name of the existing API key.", False),
         ("Please provide the API key's value.", True),
         ("Please provide the connector-secret name and values.", True),
+        (
+            "What is the exact name of the existing connector secret that "
+            "holds the API credential for your provider?",
+            False,
+        ),
         ("Please provide the provider, not API key values.", False),
     ],
     ids=[
@@ -126,6 +131,7 @@ def test_restricts_secret_file_reads(
         "name-of-api-key",
         "secret-value",
         "secret-name-and-values",
+        "secret-description",
         "negated",
     ],
 )
@@ -201,6 +207,10 @@ def test_accepts_qualified_provider_question() -> None:
     assert _outcomes._contains_requested_provider(
         "Which LLM provider would you like to use?"
     )
+    assert _outcomes._contains_requested_configuration(
+        "What is the exact model identifier you want to use?",
+        "model identifier",
+    )
 
 
 def test_accepts_third_person_configuration_request() -> None:
@@ -232,6 +242,12 @@ def test_requires_saas_console_secret_boundary_guidance() -> None:
     assert _outcomes._has_saas_secret_boundary_guidance(
         "SaaS connector secrets can only be set in Console; c8ctl cannot create them. "
         "Please provide the existing connector-secret name."
+    )
+    assert _outcomes._has_saas_secret_boundary_guidance(
+        "Connector secrets for a Camunda 8 SaaS cluster are created and managed "
+        "exclusively in **Camunda Console**. c8ctl cannot create, list, or populate "
+        "them on SaaS. What is the exact name of the connector secret already "
+        "stored in your SaaS cluster?"
     )
 
 

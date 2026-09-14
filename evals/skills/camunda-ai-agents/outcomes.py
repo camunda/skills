@@ -78,7 +78,7 @@ SECRET_NAME_PATTERN = re.compile(
     r"(?:"
     r"\b(?:connector[- ]secret|secret|api[- ]?key|access[- ]?key|"
     r"token|credential)s?(?:['’]s)?\s+names?\b"
-    r"|\bnames?\b[^.?!\n]{0,80}\b(?:connector[- ]secret|secret|"
+    r"|\bnames?\b[^.?!\n]{0,80}?\b(?:connector[- ]secret|secret|"
     r"api[- ]?key|access[- ]?key|token|credential)s?\b"
     r"|\bnames?\s+of\s+"
     r"(?:(?:the|an?|your|existing|configured|preconfigured|"
@@ -95,7 +95,7 @@ SECRET_NAME_PATTERN = re.compile(
 SECRET_CONFIGURATION_PATTERN = re.compile(
     r"\b(?:"
     r"existing|configured|preconfigured|available|"
-    r"already\s+(?:configured|set\s+up|created|available|exist(?:s)?)|"
+    r"already\s+(?:configured|set\s+up|created|available|stored|exist(?:s)?)|"
     r"(?:must|needs?\s+to|has\s+to|have\s+to)\s+(?:already\s+)?"
     r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing))|"
     r"in\s+(?:the\s+)?(?:cluster|environment|profile|console)"
@@ -103,13 +103,13 @@ SECRET_CONFIGURATION_PATTERN = re.compile(
 )
 SECRET_EXPLICIT_CONFIGURATION_PATTERN = re.compile(
     r"\b(?:"
-    r"already\s+(?:configured|set\s+up|created|available|exists?)|"
+    r"already\s+(?:configured|set\s+up|created|available|stored|exists?)|"
     r"(?:exist(?:s)?|is\s+existing)|"
     r"(?:(?:should|would)\s+(?:already\s+)?"
     r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing)))|"
     r"(?:must|needs?\s+to|has\s+to|have\s+to)\s+(?:already\s+)?"
     r"(?:exist(?:s)?|be\s+(?:configured|preconfigured|available|created|set\s+up|existing))|"
-    r"(?:configured|preconfigured|available|created|existing|exist(?:s)?)\s+"
+    r"(?:configured|preconfigured|available|created|stored|existing|exist(?:s)?)\s+"
     r"(?:in|on)\s+(?:the\s+)?(?:target\s+)?"
     r"(?:cluster|environment|profile|console)"
     r")\b"
@@ -128,6 +128,9 @@ SECRET_MATERIAL_PATTERN = re.compile(
 SECRET_RELATIVE_MATERIAL_PATTERN = re.compile(
     r"\b(?:its|their|the|that|this)?\s*"
     r"(?:secret\s+)?(?:values?|contents?)\b"
+)
+SECRET_MATERIAL_DESCRIPTION_PATTERN = re.compile(
+    r"\b(?:holds?|contains?|stores?|keeps?)\b"
 )
 SECRET_FILE_PATH_PATTERN = re.compile(
     r"(?<![\w.-])(?:"
@@ -546,6 +549,10 @@ def _is_request_sentence(sentence: str) -> bool:
             r"\b(?:should|could|would|can|do)\s+i\s+use\b",
             clause,
         )
+        or re.search(
+            r"\b(?:which|what)\b[^.?!\n]{0,120}\b(?:is|are)\b",
+            clause,
+        )
         for clause in _split_clauses(normalized)
     )
 
@@ -734,7 +741,10 @@ def _secret_configuration_applies_to_name(
         elif secret_name.end() <= configuration_match.start():
             between = clause[secret_name.end() : configuration_match.start()]
             following = re.split(r"[,;:]", clause[configuration_match.end() :], 1)[0]
-            if re.search(r"\b(?:provider|model)\b", following):
+            if re.search(r"\b(?:provider|model)\b", following) and not re.search(
+                r"\b(?:stored|configured|available|created|set\s+up|exist)\b",
+                configuration_match.group(),
+            ):
                 continue
         else:
             between = ""
@@ -766,6 +776,10 @@ def _requests_secret_material(sentence: str) -> bool:
             if re.match(r"(?:\s+|['’]s\s+)names?\b", clause[match.end() :]):
                 continue
             if SECRET_NAME_OF_MATERIAL_PATTERN.search(clause[: match.start()]):
+                continue
+            if SECRET_MATERIAL_DESCRIPTION_PATTERN.search(
+                clause[max(0, match.start() - 80) : match.start()]
+            ):
                 continue
             if not _is_negated_term(clause, match.start()):
                 return True
@@ -1254,7 +1268,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
 
 def _has_saas_secret_boundary_guidance(text: str) -> bool:
-    normalized = re.sub(r"[*_`]", "", text.casefold())
+    normalized = re.sub(r"[*_`\[\]]", "", text.casefold())
     has_saas = bool(re.search(r"\bsaas\b", normalized))
     has_console_secret = bool(
         re.search(
@@ -1472,7 +1486,13 @@ SAMPLES = [
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
             "7. Use the OpenAI provider with model 'gpt-4.1-mini' and the "
             "already-configured connector secret 'OPENAI_API_KEY'; do not "
-            "invent another provider or secret name.\n"
+            "invent another provider or secret name. On AgentTools, use these "
+            "exact provider-specific input targets and FEEL sources: "
+            'provider.type = "openai", '
+            'provider.openai.model.model = "gpt-4.1-mini", and '
+            "provider.openai.authentication.apiKey = "
+            '"{{secrets.OPENAI_API_KEY}}"; do not use generic provider.model '
+            "or provider.apiKey targets.\n"
             "8. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
             "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
