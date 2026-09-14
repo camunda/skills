@@ -98,6 +98,12 @@ def _host(
             False,
         ),
         (
+            "io.camunda.connectors.agenticai.aiagent.v1",
+            "io.camunda.agenticai:aiagent:subprocess:2",
+            True,
+            False,
+        ),
+        (
             "io.camunda.connectors.agenticai.ai-agent-subprocess.v2",
             "io.camunda.agenticai:aiagent-job-worker:1",
             True,
@@ -153,6 +159,7 @@ def _host(
         "current-built-in",
         "built-in-marker-with-unrelated-task-type",
         "legacy-marker-current-type",
+        "legacy-task-marker-current-subprocess-type",
         "current-marker-legacy-type",
         "missing-tool-container-property",
         "custom-marker-with-subprocess-type",
@@ -231,6 +238,20 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
     assert not _outcomes.has_tool_call_result(dotted_result_tool)
     assert not _outcomes.has_tool_call_result(source_less_result_tool)
     assert not _outcomes.has_tool_call_result(missing_tool)
+
+
+@pytest.mark.parametrize(
+    "result_source",
+    ["=", "not a FEEL expression", "=unclosed("],
+)
+def test_output_mapping_requires_a_valid_feel_expression(result_source: str) -> None:
+    tool = _tool(
+        "InvalidResultTool",
+        result_target="toolCallResult",
+        result_source=result_source,
+    )
+
+    assert not _outcomes.has_tool_call_result(tool)
 
 
 @pytest.mark.parametrize(

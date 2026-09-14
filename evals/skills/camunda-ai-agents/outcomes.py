@@ -45,7 +45,7 @@ ACTIVITY_TAGS = {
 AI_AGENT_TEMPLATE_MARKER_PREFIX = "io.camunda.connectors.agenticai.ai-agent-subprocess."
 AI_AGENT_TEMPLATE_TASK_TYPE_PREFIX = "io.camunda.agenticai:aiagent:subprocess:"
 AI_AGENT_LEGACY_TEMPLATE_PREFIXES = (
-    "io.camunda.connectors.agenticai.aiagent.jobworker.",
+    "io.camunda.connectors.agenticai.aiagent.",
 )
 AI_AGENT_SUBPROCESS_TASK_TYPE_PREFIXES = ("io.camunda.agenticai:aiagent:subprocess:",)
 
@@ -380,12 +380,44 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
     )
 
 
+def _is_feel_expression(expression: str) -> bool:
+    expression = expression.strip()
+    if not expression.startswith("="):
+        return False
+
+    body = expression[1:].strip()
+    if not body:
+        return False
+
+    closing_delimiters = {")": "(", "]": "[", "}": "{"}
+    opening_delimiters = set(closing_delimiters.values())
+    delimiters: list[str] = []
+    in_string = False
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character == '"':
+            if in_string and index + 1 < len(body) and body[index + 1] == '"':
+                index += 2
+                continue
+            in_string = not in_string
+        elif not in_string:
+            if character in opening_delimiters:
+                delimiters.append(character)
+            elif character in closing_delimiters:
+                if not delimiters or delimiters.pop() != closing_delimiters[character]:
+                    return False
+        index += 1
+
+    return not in_string and not delimiters
+
+
 def has_tool_call_result(tool: ET.Element) -> bool:
     for node in tool.iter():
         if node.tag == f"{{{NS['zeebe']}}}output":
             target = node.get("target") or ""
             source = (node.get("source") or "").strip()
-            if target == "toolCallResult" and source:
+            if target == "toolCallResult" and _is_feel_expression(source):
                 return True
         if (
             node.tag == f"{{{NS['zeebe']}}}script"
