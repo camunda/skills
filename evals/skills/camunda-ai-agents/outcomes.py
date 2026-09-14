@@ -13,6 +13,7 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 
 from core.agents import AgentKind, build_agent
@@ -57,6 +58,12 @@ CLAIM_REVIEW_TOOL_IDS = (
     "DetectDuplicateClaims",
     "CheckAmountCategoryMismatch",
     "DetectPersonalBusinessLanguage",
+)
+FEEL_REFERENCE_PATTERN = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
+)
+FEEL_CONTROL_KEYWORDS = frozenset(
+    {"and", "between", "else", "for", "if", "in", "instance", "not", "of", "or", "then"}
 )
 
 
@@ -342,6 +349,7 @@ def has_ai_agent_output_binding(host: ET.Element) -> bool:
         and output_element
         and (
             output_element == AI_AGENT_OUTPUT_ELEMENT
+            or output_element == f"={AI_AGENT_OUTPUT_ELEMENT}"
             or _has_top_level_feel_map_entry(
                 output_element,
                 AI_AGENT_OUTPUT_ELEMENT_KEY,
@@ -381,35 +389,17 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
 
 
 def _is_feel_expression(expression: str) -> bool:
+    """Accept the documented direct variable/property output mapping shape."""
+
     expression = expression.strip()
     if not expression.startswith("="):
         return False
 
     body = expression[1:].strip()
-    if not body:
-        return False
-
-    closing_delimiters = {")": "(", "]": "[", "}": "{"}
-    opening_delimiters = set(closing_delimiters.values())
-    delimiters: list[str] = []
-    in_string = False
-    index = 0
-    while index < len(body):
-        character = body[index]
-        if character == '"':
-            if in_string and index + 1 < len(body) and body[index + 1] == '"':
-                index += 2
-                continue
-            in_string = not in_string
-        elif not in_string:
-            if character in opening_delimiters:
-                delimiters.append(character)
-            elif character in closing_delimiters:
-                if not delimiters or delimiters.pop() != closing_delimiters[character]:
-                    return False
-        index += 1
-
-    return not in_string and not delimiters
+    return bool(
+        FEEL_REFERENCE_PATTERN.fullmatch(body)
+        and not any(part in FEEL_CONTROL_KEYWORDS for part in body.split("."))
+    )
 
 
 def has_tool_call_result(tool: ET.Element) -> bool:
@@ -441,6 +431,7 @@ def _validate_ai_agent_host(
     required_tools: set[str],
     path: str,
     expected_process_id: str | None,
+    process: ET.Element,
 ) -> Score:
     tools = [child for child in list(host) if child.tag in ACTIVITY_TAGS]
     if not tools:
@@ -451,7 +442,7 @@ def _validate_ai_agent_host(
 
     tool_ids = {tool.get("id") for tool in tools if tool.get("id")}
     incoming_flow_targets = {
-        flow.get("targetRef") for flow in host.findall(".//bpmn:sequenceFlow", NS)
+        flow.get("targetRef") for flow in process.findall(".//bpmn:sequenceFlow", NS)
     }
     chained_tools = sorted(
         tool_id for tool_id in tool_ids if tool_id in incoming_flow_targets
@@ -599,7 +590,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
         candidate_scores = [
             _validate_ai_agent_host(
-                candidate, required_tools, path, expected_process_id
+                candidate, required_tools, path, expected_process_id, process
             )
             for candidate in candidate_hosts
         ]
@@ -629,22 +620,24 @@ SAMPLES = [
             "Your first tool call must write the complete "
             "/workspace/process.bpmn artifact; do not create a placeholder shell "
             "or invoke another skill, shell command, c8ctl command, or reference "
-            "read before that write. After the complete artifact exists, use only "
-            "the exact template ID and apply command given below; do not run "
-            "c8ctl sync, search, info, or get-properties.\n"
+            "read before that write. After the complete artifact exists, identify "
+            "the current AI Agent Sub-process connector template with "
+            "c8ctl element-template search \"ai agent\" and apply its exact ID. "
+            "If the element-template cache is not initialized, run "
+            "c8ctl element-template sync once before the search/apply sequence. "
+            "Do not use the older AI Agent Task templates or a generic "
+            "ad-hoc-subprocess stand-in.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host. Apply exactly the AI Agent Sub-process connector template "
-            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2 with "
-            "c8ctl element-template apply -i "
-            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2 "
+            "agent host. Apply the current AI Agent Sub-process connector template "
+            "with c8ctl element-template apply -i <current-template-id> "
             "AgentTools /workspace/process.bpmn. Do not use the "
             "io.camunda.connectors.agenticai.aiagent.jobworker.v1, "
             "io.camunda.connectors.agenticai.aiagent.v1, or any AI Agent Task "
             "template. Do not model a generic or unconfigured ad-hoc subprocess "
-            "stand-in. The final host must retain the v2 template marker, its "
+            "stand-in. The final host must retain the selected template marker, its "
             "matching AI Agent Sub-process task definition, the tool-container "
             "property, and the template-owned toolCallResults output binding; "
             "the first file write must already contain a complete process.\n"
@@ -676,22 +669,24 @@ SAMPLES = [
             "Your first tool call must write the complete "
             "/workspace/process.bpmn artifact; do not create a placeholder shell "
             "or invoke another skill, shell command, c8ctl command, or reference "
-            "read before that write. After the complete artifact exists, use only "
-            "the exact template ID and apply command given below; do not run "
-            "c8ctl sync, search, info, or get-properties.\n"
+            "read before that write. After the complete artifact exists, identify "
+            "the current AI Agent Sub-process connector template with "
+            "c8ctl element-template search \"ai agent\" and apply its exact ID. "
+            "If the element-template cache is not initialized, run "
+            "c8ctl element-template sync once before the search/apply sequence. "
+            "Do not use the older AI Agent Task templates or a generic "
+            "ad-hoc-subprocess stand-in.\n"
             "Create a Camunda 8.8+ BPMN process (id: claim-review, name: "
             "'Claim Review') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Claim received'.\n"
             "2. Ad-hoc subprocess id ClaimReviewAgent (name 'Claim review agent') "
-            "as the AI agent host. Apply exactly the AI Agent Sub-process connector "
-            "template io.camunda.connectors.agenticai.ai-agent-subprocess.v2 with "
-            "c8ctl element-template apply -i "
-            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2 "
+            "as the AI agent host. Apply the current AI Agent Sub-process connector "
+            "template with c8ctl element-template apply -i <current-template-id> "
             "ClaimReviewAgent /workspace/process.bpmn. Do not use the "
             "io.camunda.connectors.agenticai.aiagent.jobworker.v1, "
             "io.camunda.connectors.agenticai.aiagent.v1, or any AI Agent Task "
             "template. Do not model a generic or unconfigured ad-hoc subprocess "
-            "stand-in. The final host must retain the v2 template marker, its "
+            "stand-in. The final host must retain the selected template marker, its "
             "matching AI Agent Sub-process task definition, the tool-container "
             "property, and the template-owned toolCallResults output binding; "
             "the first file write must already contain a complete process.\n"

@@ -242,7 +242,7 @@ def test_tool_call_result_is_scoped_to_each_tool() -> None:
 
 @pytest.mark.parametrize(
     "result_source",
-    ["=", "not a FEEL expression", "=unclosed("],
+    ["=", "not a FEEL expression", "=unclosed(", "=if"],
 )
 def test_output_mapping_requires_a_valid_feel_expression(result_source: str) -> None:
     tool = _tool(
@@ -312,6 +312,7 @@ def _minimal_bpmn(
     prepend_connector_host: bool = False,
     from_ai_source: str | None = "=fromAi(toolCall.query)",
     host_from_ai_source: str | None = None,
+    external_tool_flow: bool = False,
 ) -> str:
     if connector:
         host_attributes = (
@@ -360,6 +361,12 @@ def _minimal_bpmn(
             f'sourceRef="{source}" targetRef="{target}" />'
             for source, target in zip(tool_ids, tool_ids[1:])
         )
+    external_sequence_flow = (
+        f'    <bpmn:sequenceFlow id="external-tool-flow" '
+        f'sourceRef="ExternalSource" targetRef="{tool_ids[0]}" />\n'
+        if external_tool_flow
+        else ""
+    )
     unrelated_host = ""
     if prepend_unrelated_host:
         unrelated_host = """\
@@ -411,7 +418,7 @@ def _minimal_bpmn(
   {tool_xml}
   {unmapped_tool}{sequence_flows}
       </bpmn:adHocSubProcess>
-    </bpmn:process>
+{external_sequence_flow}    </bpmn:process>
   </bpmn:definitions>
   """
 
@@ -465,6 +472,20 @@ def test_ai_agent_shape_scorer_accepts_current_catalog_output_binding(
         _minimal_bpmn(
             connector=True,
             template_output_element="toolCallResult",
+        ),
+    )
+
+    assert score.value == 1.0
+
+
+def test_ai_agent_shape_scorer_accepts_direct_feel_output_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            template_output_element="=toolCallResult",
         ),
     )
 
@@ -679,6 +700,17 @@ def test_ai_agent_shape_scorer_rejects_chained_claim_review_tools(
             chain_tools=True,
         ),
         required_tools=list(_outcomes.CLAIM_REVIEW_TOOL_IDS),
+    )
+
+    assert score.value == 0.0
+
+
+def test_ai_agent_shape_scorer_rejects_external_incoming_tool_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(connector=True, external_tool_flow=True),
     )
 
     assert score.value == 0.0
