@@ -314,6 +314,32 @@ def test_maps_live_process_and_tool_outcomes(
     assert isinstance(tool_call, dict)
     assert tool_call["succeeded"] is (write_artifact and tool_exit_code == 0)
     assert tool_call["exitCode"] == (tool_exit_code if write_artifact else None)
+    copilot = result["copilot"]
+    assert isinstance(copilot, dict)
+    assert copilot["succeeded"] is (copilot_exit_code == 0)
+    assert copilot["exitCode"] == copilot_exit_code
+    post_run_lint = result["postRunLint"]
+    assert isinstance(post_run_lint, dict)
+    assert post_run_lint["succeeded"] is (write_artifact and tool_exit_code == 0)
+    assert post_run_lint["exitCode"] == (
+        tool_exit_code if write_artifact else None
+    )
+    assertions = result["assertions"]
+    assert isinstance(assertions, dict)
+    assert assertions == {
+        "activated": True,
+        "copilotSucceeded": copilot_exit_code == 0,
+        "artifactExists": write_artifact,
+        "artifactValid": write_artifact,
+        "toolExecuted": write_artifact,
+        "toolSucceeded": write_artifact and tool_exit_code == 0,
+        "postRunLintSucceeded": write_artifact and tool_exit_code == 0,
+    }
+    if expected_status == "failed":
+        reason = result["reason"]
+        assert isinstance(reason, str)
+        assert '"copilotExitCode"' in reason
+        assert '"assertions"' in reason
 
 
 def test_does_not_count_post_run_lint_as_copilot_tool_execution(

@@ -47,6 +47,7 @@ EXTERNAL_URI = re.compile(
     r"[^\s<>\[\]]+",
     re.IGNORECASE,
 )
+WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
     r"(?<![\w./:-])(?:(?:\.\./)+|\./)?(?:skills/[a-z0-9-]+/|"
     r"(?:README|CONTRIBUTING|evals|compatibility|\.github)(?:/|\.md\b))"
@@ -721,6 +722,12 @@ def check_skill_self_containment(
                     f"destination {target!r} ({error})"
                 )
                 continue
+            if WINDOWS_ABSOLUTE_PATH.match(target):
+                errors.append(
+                    f"{path}: rule=content.self-contained local link "
+                    f"destination must be relative: {target!r}"
+                )
+                continue
             is_file_url = parsed.scheme.casefold() == "file"
             if (parsed.scheme and not is_file_url) or (
                 parsed.netloc and not is_file_url
@@ -761,8 +768,9 @@ def check_skill_self_containment(
 
         for line_number, line in enumerate(masked_content.splitlines(), start=1):
             line_without_urls = EXTERNAL_URI.sub("", line)
-            forbidden_reference = FORBIDDEN_LOCAL_REFERENCE.search(line_without_urls)
-            if forbidden_reference:
+            for forbidden_reference in FORBIDDEN_LOCAL_REFERENCE.finditer(
+                line_without_urls
+            ):
                 relative_reference = forbidden_reference.group(0)
                 if relative_reference.startswith("/"):
                     is_local_reference = False

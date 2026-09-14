@@ -93,6 +93,21 @@ jobs:
           print(f"- Skill: `{result['skillName']}`")
           if result.get("reason"):
               print(f"- Result: {result['reason']}")
+          assertions = result.get("assertions")
+          if isinstance(assertions, dict):
+              print(f"- Assertions: `{json.dumps(assertions, sort_keys=True)}`")
+          copilot = result.get("copilot")
+          if isinstance(copilot, dict):
+              print(
+                  f"- Copilot exit code: `{copilot.get('exitCode')}` "
+                  f"(succeeded: `{copilot.get('succeeded')}`)"
+              )
+          post_run_lint = result.get("postRunLint")
+          if isinstance(post_run_lint, dict):
+              print(
+                  f"- Post-run lint exit code: `{post_run_lint.get('exitCode')}` "
+                  f"(succeeded: `{post_run_lint.get('succeeded')}`)"
+              )
           PY
           summary_status=$?
           if [ "$status" -ne 0 ] || [ "$summary_status" -ne 0 ]; then

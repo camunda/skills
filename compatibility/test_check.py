@@ -333,8 +333,9 @@ def test_allows_local_repository_named_files_but_rejects_external_files(
     package.mkdir()
     (package / "CONTRIBUTING.md").write_text("# Contributing\n", encoding="utf-8")
     (package / "README.md").write_text(
-        "See README.md and CONTRIBUTING.md for package-local context.\n"
-        "See ../README.md for repository context.\n",
+        "See README.md and ../README.md for repository context.\n"
+        "See CONTRIBUTING.md for package-local context.\n"
+        "See package-local CONTRIBUTING.md for context.\n",
         encoding="utf-8",
     )
 
@@ -343,6 +344,21 @@ def test_allows_local_repository_named_files_but_rejects_external_files(
 
     assert len(errors) == 1
     assert "content.self-contained" in errors[0]
+
+
+def test_rejects_windows_absolute_local_destination(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[process](C:/tmp/process.md)\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 1
+    assert "destination must be relative" in errors[0]
 
 
 def test_rejects_multiline_reference_definition(tmp_path: Path) -> None:

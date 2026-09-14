@@ -105,6 +105,27 @@ def read_tool_trace(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+def smoke_assertions(
+    *,
+    activated: bool,
+    copilot_succeeded: bool | None,
+    artifact_exists: bool,
+    artifact_valid: bool,
+    tool_executed: bool,
+    tool_succeeded: bool,
+    post_run_lint_succeeded: bool | None,
+) -> dict[str, bool | None]:
+    return {
+        "activated": activated,
+        "copilotSucceeded": copilot_succeeded,
+        "artifactExists": artifact_exists,
+        "artifactValid": artifact_valid,
+        "toolExecuted": tool_executed,
+        "toolSucceeded": tool_succeeded,
+        "postRunLintSucceeded": post_run_lint_succeeded,
+    }
+
+
 def validate_skill_package(
     skill_directory: Path, repository_root: Path | None = None
 ) -> str | None:
@@ -156,6 +177,9 @@ def result(
     tool_executed: bool = False,
     tool_succeeded: bool = False,
     exit_code: int | None = None,
+    copilot_exit_code: int | None = None,
+    post_run_lint_succeeded: bool | None = None,
+    post_run_lint_exit_code: int | None = None,
     output: str | None = None,
     reason: str | None = None,
 ) -> dict[str, Any]:
@@ -174,6 +198,9 @@ def result(
     tool_command = expected.get("toolCommand")
     if not isinstance(tool_command, str):
         tool_command = DEFAULT_TOOL_COMMAND
+    copilot_succeeded = (
+        None if copilot_exit_code is None else copilot_exit_code == 0
+    )
     value = {
         "adapter": "copilot-live",
         "harness": "copilot",
@@ -194,6 +221,23 @@ def result(
             "exitCode": exit_code,
             "output": output,
         },
+        "copilot": {
+            "succeeded": copilot_succeeded,
+            "exitCode": copilot_exit_code,
+        },
+        "postRunLint": {
+            "succeeded": post_run_lint_succeeded,
+            "exitCode": post_run_lint_exit_code,
+        },
+        "assertions": smoke_assertions(
+            activated=activated,
+            copilot_succeeded=copilot_succeeded,
+            artifact_exists=artifact_exists,
+            artifact_valid=artifact_valid,
+            tool_executed=tool_executed,
+            tool_succeeded=tool_succeeded,
+            post_run_lint_succeeded=post_run_lint_succeeded,
+        ),
     }
     if reason:
         value["reason"] = reason
@@ -533,6 +577,7 @@ def main() -> int:
                 artifact_valid = True
 
         post_run_lint_succeeded = False
+        post_run_lint_exit_code: int | None = None
         if artifact_valid:
             try:
                 tool = subprocess.run(
@@ -551,12 +596,15 @@ def main() -> int:
                         fixture,
                         discovered=discovered,
                         activated=activated,
+                        copilot_exit_code=completed.returncode,
+                        post_run_lint_succeeded=False,
                         artifact_exists=artifact_exists,
                         artifact_valid=artifact_valid,
                         reason=f"c8ctl could not be invoked: {error}",
                     )
                 )
             post_run_lint_succeeded = tool.returncode == 0
+            post_run_lint_exit_code = tool.returncode
 
         passed = (
             activated
@@ -567,7 +615,31 @@ def main() -> int:
             and tool_succeeded
             and post_run_lint_succeeded
         )
-        reason = None if passed else "Copilot did not satisfy the smoke assertions"
+        assertions = smoke_assertions(
+            activated=activated,
+            copilot_succeeded=copilot_succeeded,
+            artifact_exists=artifact_exists,
+            artifact_valid=artifact_valid,
+            tool_executed=tool_executed,
+            tool_succeeded=tool_succeeded,
+            post_run_lint_succeeded=post_run_lint_succeeded,
+        )
+        reason = (
+            None
+            if passed
+            else (
+                "Copilot did not satisfy the smoke assertions: "
+                + json.dumps(
+                    {
+                        "copilotExitCode": completed.returncode,
+                        "toolExitCode": tool_exit_code,
+                        "postRunLintExitCode": post_run_lint_exit_code,
+                        "assertions": assertions,
+                    },
+                    sort_keys=True,
+                )
+            )
+        )
         return emit(
             result(
                 "passed" if passed else "failed",
@@ -579,6 +651,9 @@ def main() -> int:
                 tool_executed=tool_executed,
                 tool_succeeded=tool_succeeded,
                 exit_code=tool_exit_code,
+                copilot_exit_code=completed.returncode,
+                post_run_lint_succeeded=post_run_lint_succeeded,
+                post_run_lint_exit_code=post_run_lint_exit_code,
                 output=tool_output,
                 reason=reason,
             )
