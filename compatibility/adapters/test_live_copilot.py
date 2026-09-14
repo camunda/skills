@@ -54,6 +54,7 @@ def test_reports_malformed_fixture_as_structured_failure(
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     (
+        ("fixtureId", "other-fixture", "fixtureId must be"),
         ("skillName", "other-skill", "skillName must be"),
         ("prompt", "run another prompt", "prompt does not match"),
         ("artifact", "other.bpmn", "expected.artifact must be"),
@@ -210,6 +211,24 @@ def test_maps_live_process_and_tool_outcomes(
                     source.read_text(encoding="utf-8"),
                     encoding="utf-8",
                 )
+                trace_path = env.get(live_copilot.TOOL_TRACE_ENV)
+                assert trace_path is not None
+                Path(trace_path).write_text(
+                    json.dumps(
+                        {
+                            "command": [
+                                "c8ctl",
+                                "bpmn",
+                                "lint",
+                                "process.bpmn",
+                            ],
+                            "exitCode": tool_exit_code,
+                            "output": "lint output",
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
             return subprocess.CompletedProcess(command, copilot_exit_code, "", "")
         assert command == ["c8ctl", "bpmn", "lint", "process.bpmn"]
         assert all(
@@ -232,3 +251,45 @@ def test_maps_live_process_and_tool_outcomes(
     assert isinstance(tool_call, dict)
     assert tool_call["succeeded"] is (write_artifact and tool_exit_code == 0)
     assert tool_call["exitCode"] == (tool_exit_code if write_artifact else None)
+
+
+def test_does_not_count_post_run_lint_as_copilot_tool_execution(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("CAMUNDA_LIVE_COPILOT", "1")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "token")
+    monkeypatch.setattr(live_copilot.shutil, "which", lambda _: "copilot")
+    monkeypatch.setattr(live_copilot, "activate_skill", lambda *args: (True, []))
+
+    def run(
+        command: list[str],
+        *,
+        cwd: str | Path,
+        **_: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if command[0] == "copilot":
+            source = (
+                Path(live_copilot.__file__).resolve().parents[2]
+                / "compatibility"
+                / "fixtures"
+                / "process.bpmn"
+            )
+            (Path(cwd) / "process.bpmn").write_text(
+                source.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(command, 0, "", "")
+        assert command == ["c8ctl", "bpmn", "lint", "process.bpmn"]
+        return subprocess.CompletedProcess(command, 0, "lint output", "")
+
+    monkeypatch.setattr(live_copilot.subprocess, "run", run)
+
+    assert live_copilot.main() == 1
+
+    result = read_result(capsys.readouterr().out)
+    assert result["status"] == "failed"
+    tool_call = result["toolCall"]
+    assert isinstance(tool_call, dict)
+    assert tool_call["executed"] is False
+    assert tool_call["succeeded"] is False

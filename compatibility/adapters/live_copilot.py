@@ -16,6 +16,9 @@ from bpmn_lint import validate_bpmn
 from mock_adapter import activate_skill
 
 TOKEN_ENV_VARS = frozenset({"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"})
+TOOL_TRACE_ENV = "CAMUNDA_LIVE_COPILOT_TOOL_TRACE"
+REAL_C8CTL_ENV = "CAMUNDA_LIVE_COPILOT_REAL_C8CTL"
+EXPECTED_FIXTURE_ID = "camunda-bpmn-basic"
 EXPECTED_SKILL_NAME = "camunda-bpmn"
 EXPECTED_PROMPT = "Create a minimal Camunda 8 process in process.bpmn and validate it."
 EXPECTED_ARTIFACT = "process.bpmn"
@@ -35,6 +38,67 @@ FALLBACK_FIXTURE: dict[str, Any] = {
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def create_tool_recorder(directory: Path, trace_path: Path) -> None:
+    recorder = directory / "c8ctl"
+    recorder.write_text(
+        """#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+trace_path = Path(os.environ["CAMUNDA_LIVE_COPILOT_TOOL_TRACE"])
+command = ["c8ctl", *sys.argv[1:]]
+record = {"command": command, "exitCode": 127, "output": ""}
+real_c8ctl = os.environ.get("CAMUNDA_LIVE_COPILOT_REAL_C8CTL")
+if not real_c8ctl:
+    record["output"] = "c8ctl executable was not found"
+    print(record["output"], file=sys.stderr)
+else:
+    try:
+        completed = subprocess.run(
+            [real_c8ctl, *sys.argv[1:]],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, UnicodeError) as error:
+        record["output"] = str(error)
+        print(record["output"], file=sys.stderr)
+    else:
+        record["exitCode"] = completed.returncode
+        record["output"] = completed.stdout.strip()
+        if completed.stdout:
+            sys.stdout.write(completed.stdout)
+        if completed.stderr:
+            sys.stderr.write(completed.stderr)
+
+with trace_path.open("a", encoding="utf-8") as trace:
+    trace.write(json.dumps(record) + "\\n")
+raise SystemExit(record["exitCode"])
+""",
+        encoding="utf-8",
+    )
+    recorder.chmod(0o755)
+
+
+def read_tool_trace(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    records: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        record = json.loads(line)
+        if not isinstance(record, dict):
+            raise ValueError("tool trace entries must be JSON objects")
+        records.append(record)
+    return records
 
 
 def validate_skill_package(
@@ -167,10 +231,27 @@ def main() -> int:
                 reason="invalid smoke fixture: expected must be an object",
             )
         )
+    fixture_id = fixture.get("fixtureId")
     artifact_name = expected.get("artifact")
     tool_command = expected.get("toolCommand")
     skill_name = fixture.get("skillName")
     prompt = fixture.get("prompt")
+    if not isinstance(fixture_id, str) or not fixture_id:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason="invalid smoke fixture: fixtureId must be a non-empty string",
+            )
+        )
+    if fixture_id != EXPECTED_FIXTURE_ID:
+        return emit(
+            result(
+                "failed",
+                fixture,
+                reason=f"invalid smoke fixture: fixtureId must be {EXPECTED_FIXTURE_ID!r}",
+            )
+        )
     if not isinstance(artifact_name, str) or not artifact_name:
         return emit(
             result(
@@ -331,9 +412,27 @@ def main() -> int:
         for key, value in environment.items()
         if key not in TOKEN_ENV_VARS
     }
+    real_c8ctl = shutil.which("c8ctl")
 
-    with tempfile.TemporaryDirectory(prefix="camunda-skills-live-copilot-") as directory:
+    with (
+        tempfile.TemporaryDirectory(prefix="camunda-skills-live-copilot-") as directory,
+        tempfile.TemporaryDirectory(prefix="camunda-skills-live-copilot-tools-") as tools,
+    ):
         workspace = Path(directory)
+        tools_directory = Path(tools)
+        tool_trace_path = tools_directory / "tool-calls.jsonl"
+        try:
+            create_tool_recorder(tools_directory, tool_trace_path)
+        except OSError as error:
+            return emit(
+                result(
+                    "unavailable",
+                    fixture,
+                    discovered=discovered,
+                    activated=activated,
+                    reason=f"live tool recorder could not be created: {error}",
+                )
+            )
         try:
             shutil.copytree(
                 entrypoint.parent,
@@ -349,6 +448,14 @@ def main() -> int:
                     reason=f"live workspace could not be staged: {error}",
                 )
             )
+        copilot_environment = environment.copy()
+        copilot_environment["PATH"] = (
+            str(tools_directory)
+            + os.pathsep
+            + copilot_environment.get("PATH", os.defpath)
+        )
+        copilot_environment[TOOL_TRACE_ENV] = str(tool_trace_path)
+        copilot_environment[REAL_C8CTL_ENV] = real_c8ctl or ""
         try:
             completed = subprocess.run(
                 [
@@ -363,7 +470,7 @@ def main() -> int:
                     prompt,
                 ],
                 cwd=workspace,
-                env=environment,
+                env=copilot_environment,
                 check=False,
                 capture_output=True,
                 text=True,
@@ -380,6 +487,33 @@ def main() -> int:
                 )
             )
 
+        try:
+            tool_records = read_tool_trace(tool_trace_path)
+        except (OSError, UnicodeError, ValueError) as error:
+            return emit(
+                result(
+                    "unavailable",
+                    fixture,
+                    discovered=discovered,
+                    activated=activated,
+                    reason=f"live tool invocation trace could not be read: {error}",
+                )
+            )
+        tool_calls = [
+            record
+            for record in tool_records
+            if record.get("command") == tool_tokens
+        ]
+        tool_executed = bool(tool_calls)
+        tool_record = tool_calls[-1] if tool_calls else {}
+        tool_exit_code = tool_record.get("exitCode")
+        if not isinstance(tool_exit_code, int):
+            tool_exit_code = None
+        tool_output = tool_record.get("output")
+        if not isinstance(tool_output, str):
+            tool_output = None
+        tool_succeeded = tool_executed and tool_exit_code == 0
+
         artifact_path = workspace / artifact_name
         artifact_exists = artifact_path.is_file()
         copilot_succeeded = completed.returncode == 0
@@ -392,10 +526,7 @@ def main() -> int:
             else:
                 artifact_valid = True
 
-        tool_executed = False
-        tool_succeeded = False
-        tool_exit_code: int | None = None
-        tool_output: str | None = None
+        post_run_lint_succeeded = False
         if artifact_valid:
             try:
                 tool = subprocess.run(
@@ -419,10 +550,7 @@ def main() -> int:
                         reason=f"c8ctl could not be invoked: {error}",
                     )
                 )
-            tool_executed = True
-            tool_exit_code = tool.returncode
-            tool_output = tool.stdout.strip()
-            tool_succeeded = tool.returncode == 0
+            post_run_lint_succeeded = tool.returncode == 0
 
         passed = (
             activated
@@ -431,6 +559,7 @@ def main() -> int:
             and artifact_valid
             and tool_executed
             and tool_succeeded
+            and post_run_lint_succeeded
         )
         reason = None if passed else "Copilot did not satisfy the smoke assertions"
         return emit(

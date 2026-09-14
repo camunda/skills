@@ -310,6 +310,58 @@ def test_rejects_explicit_relative_repository_reference(tmp_path: Path) -> None:
     assert any("content.self-contained" in error for error in errors)
 
 
+def test_rejects_parent_relative_repository_references(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "See ../skills/other/ for the repository skill.\n"
+        "See ../../README.md for repository context.\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 2
+    assert all("content.self-contained" in error for error in errors)
+
+
+def test_allows_local_repository_named_files_but_rejects_external_files(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "CONTRIBUTING.md").write_text("# Contributing\n", encoding="utf-8")
+    (package / "README.md").write_text(
+        "See README.md and CONTRIBUTING.md for package-local context.\n"
+        "See ../README.md for repository context.\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert len(errors) == 1
+    assert "content.self-contained" in errors[0]
+
+
+def test_rejects_multiline_reference_definition(tmp_path: Path) -> None:
+    package = tmp_path / "skill"
+    package.mkdir()
+    (package / "README.md").write_text(
+        "[missing][ref]\n"
+        "\n"
+        "> [ref]:\n"
+        ">   missing.md\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    check.check_skill_self_containment(package, errors)
+
+    assert any("missing.md" in error for error in errors)
+
+
 def test_rejects_balanced_bracket_reference_definition() -> None:
     package = CONFORMANCE_FIXTURES / "invalid-reference"
     content = (
@@ -805,6 +857,18 @@ def test_classifies_non_directory_symlinked_skill_entries(
     assert check.main(["--root", str(root)]) == 1
     output = capsys.readouterr().err
     assert "skill=linked rule=layout.skill-directory" in output
+
+
+def test_classifies_regular_file_skill_entry(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_contract_root(tmp_path)
+    (root / "skills" / "README").write_text("not a skill directory\n", encoding="utf-8")
+
+    assert check.main(["--root", str(root)]) == 1
+    output = capsys.readouterr().err
+    assert "skill=README rule=layout.skill-directory" in output
+    assert "skill=README rule=layout.entrypoint" not in output
 
 
 def test_rejects_symlinked_skills_root(tmp_path: Path, capsys: object) -> None:

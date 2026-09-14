@@ -48,8 +48,8 @@ EXTERNAL_URI = re.compile(
     re.IGNORECASE,
 )
 FORBIDDEN_LOCAL_REFERENCE = re.compile(
-    r"(?<![\w./])(?:\./)?(?:skills/[a-z0-9-]+/|"
-    r"(?:README|CONTRIBUTING|evals|compatibility|\.github)/)"
+    r"(?<![\w./:-])(?:(?:\.\./)+|\./)?(?:skills/[a-z0-9-]+/|"
+    r"(?:README|CONTRIBUTING|evals|compatibility|\.github)(?:/|\.md\b))"
     r"|(?<![\w.])/(?:Users|home)/"
 )
 
@@ -594,7 +594,8 @@ def _reference_label(value: str) -> str:
 
 def _markdown_link_definitions(content: str) -> list[tuple[str, str]]:
     definitions: list[tuple[str, str]] = []
-    for line in content.splitlines():
+    lines = content.splitlines()
+    for line_number, line in enumerate(lines):
         prefix = MARKDOWN_LINK_DEFINITION_PREFIX.match(line)
         if prefix is None:
             continue
@@ -604,10 +605,25 @@ def _markdown_link_definitions(content: str) -> list[tuple[str, str]]:
         closing = _matching_markdown_bracket(line, opening)
         if closing is None or closing + 1 >= len(line) or line[closing + 1] != ":":
             continue
+        destination = line[closing + 2 :].lstrip(" \t")
+        if not destination and line_number + 1 < len(lines):
+            continuation = lines[line_number + 1]
+            continuation_prefix = MARKDOWN_LINK_DEFINITION_PREFIX.match(continuation)
+            if continuation_prefix is not None:
+                continuation_container = continuation_prefix.group("container")
+                is_indented = continuation_prefix.end() > len(continuation_container)
+                has_same_container = (
+                    bool(prefix.group("container"))
+                    and continuation_container == prefix.group("container")
+                )
+                if is_indented or has_same_container:
+                    destination = continuation[continuation_prefix.end() :].lstrip(
+                        " \t"
+                    )
         definitions.append(
             (
                 line[opening + 1 : closing],
-                _link_destination(line[closing + 2 :].lstrip(" \t")),
+                _link_destination(destination),
             )
         )
     return definitions
@@ -1239,6 +1255,14 @@ def main(argv: list[str] | None = None) -> int:
             skill_errors.append(
                 f"{skill_directory}: rule=layout.skill-directory "
                 "skill directory must not be a symlink"
+            )
+            errors.extend(format_skill_error(name, error) for error in skill_errors)
+            skill_results[name] = False
+            continue
+        if not skill_directory.is_dir():
+            skill_errors.append(
+                f"{skill_directory}: rule=layout.skill-directory "
+                "skill entry must be a directory"
             )
             errors.extend(format_skill_error(name, error) for error in skill_errors)
             skill_results[name] = False
