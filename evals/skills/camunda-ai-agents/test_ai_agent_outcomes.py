@@ -653,6 +653,21 @@ def test_ai_agent_shape_scorer_ignores_tool_prompt_inputs(
     assert score.value == 0.0
 
 
+def test_ai_agent_shape_scorer_accepts_independent_claim_review_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score = _score_artifact(
+        monkeypatch,
+        _minimal_bpmn(
+            connector=True,
+            tool_ids=_outcomes.CLAIM_REVIEW_TOOL_IDS,
+        ),
+        required_tools=list(_outcomes.CLAIM_REVIEW_TOOL_IDS),
+    )
+
+    assert score.value == 1.0
+
+
 def test_ai_agent_shape_scorer_rejects_chained_claim_review_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
