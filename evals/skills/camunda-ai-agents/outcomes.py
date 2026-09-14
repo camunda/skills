@@ -213,7 +213,10 @@ def _has_from_ai_call(expression: str) -> bool:
 
 
 def _has_top_level_feel_map_entry(
-    expression: str, key: str, expected_value: str | None = None
+    expression: str,
+    key: str,
+    expected_value: str | None = None,
+    validate_value: bool = False,
 ) -> bool:
     sanitized = _without_feel_string_literals(expression)
 
@@ -296,6 +299,10 @@ def _has_top_level_feel_map_entry(
                     entry_key.strip() == key
                     and (
                         expected_value is None or entry_value.strip() == expected_value
+                    )
+                    and (
+                        not validate_value
+                        or _is_feel_expression(f"={entry_value.strip()}")
                     )
                     for entry_key, entry_value in entries
                 )
@@ -420,7 +427,7 @@ def has_tool_call_result(tool: ET.Element) -> bool:
             if key == "resultVariable" and value == "toolCallResult":
                 return True
             if key == "resultExpression" and _has_top_level_feel_map_entry(
-                value, "toolCallResult"
+                value, "toolCallResult", validate_value=True
             ):
                 return True
     return False

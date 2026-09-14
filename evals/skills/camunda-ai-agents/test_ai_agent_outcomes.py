@@ -272,6 +272,7 @@ def test_output_mapping_requires_a_valid_feel_expression(result_source: str) -> 
             '={message: "toolCallResult: text", toolCallResult: response.body}',
             True,
         ),
+        ("resultExpression", "={toolCallResult: if}", False),
         (
             "resultExpression",
             "={details: {status: 1, toolCallResult: response.body}}",
@@ -287,6 +288,7 @@ def test_output_mapping_requires_a_valid_feel_expression(result_source: str) -> 
         "result-expression-is-not-a-map",
         "quoted-map-like-text-is-not-a-map",
         "quoted-text-does-not-hide-real-map-entry",
+        "result-expression-value-must-be-valid-feel",
         "nested-map-entry-is-not-root-mapping",
         "empty-map-entry-value",
     ],
