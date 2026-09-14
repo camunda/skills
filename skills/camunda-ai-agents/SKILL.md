@@ -34,7 +34,9 @@ Before creating or editing the BPMN, resolve these values with the user:
 
 If any of these values are missing, ask for each missing value and stop before applying the template or writing provider configuration. Do not default to a provider or model, and do not invent names such as `ANTHROPIC_API_KEY`. Ask for secret names, not secret values, and never put secret material in the BPMN or in the conversation.
 
-If the target environment exposes configured secret names through c8ctl or another approved names-only source, prefer those names. Otherwise, use only names confirmed by the user; never read real secret files or values (such as `.env` files or credential stores), and do not infer names from the provider. Inspect the current element-template properties because authentication fields and the number of secrets differ by provider.
+Use only secret names confirmed by the user or returned by an explicitly documented names-only source. This skill does not assume that c8ctl can enumerate connector-secret names; do not probe undocumented secret-listing commands. Never read real secret files or values (such as `.env` files or credential stores), and do not infer names from the provider. Inspect the current element-template properties because authentication fields and the number of secrets differ by provider.
+
+If the user explicitly requires an artifact before exploratory work, honor that ordering: write the requested artifact with the confirmed values before reading references, querying c8ctl, or deploying anything.
 
 For Camunda 8 SaaS, connector secrets are managed in Camunda Console, not created or populated through c8ctl. Surface this constraint before deployment and ask the user to confirm that the user-provided secret names already exist in the target cluster. For local c8run, follow **camunda-c8ctl** without reading real secret values.
 
