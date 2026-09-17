@@ -33,9 +33,9 @@ user and stop until they are confirmed. Do not choose a default provider or
 model, invent a secret name, or ask for secret values. Inspect the selected
 template for provider-specific model and authentication fields.
 
-For Camunda SaaS with Camunda-hosted connectors, connector secrets are
-configured and referenced through Console. Confirm the names for the target
-cluster before deployment.
+For Camunda SaaS with Camunda-hosted connectors, configure secret values in
+Console. Use the confirmed secret names in BPMN as `{{secrets.NAME}}`
+references.
 
 ## Cross-References
 
