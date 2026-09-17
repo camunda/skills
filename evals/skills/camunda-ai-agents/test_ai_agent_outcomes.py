@@ -155,7 +155,18 @@ def test_configuration_request_stops_before_bpmn_work() -> None:
     )
 
     assert _configuration_score(request) == 1.0
+    assert (
+        _configuration_score(("skill", {"command": "camunda-ai-agents"}), request)
+        == 1.0
+    )
     assert _configuration_score(request, ("list_files", {})) == 0.0
+    assert (
+        _configuration_score(
+            ("text_editor", {"path": "/workspace/process.bpmn"}),
+            request,
+        )
+        == 0.0
+    )
     assert _configuration_score(request, artifacts=("/workspace/process.BPMN",)) == 0.0
     assert (
         _configuration_score(

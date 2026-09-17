@@ -337,7 +337,14 @@ def configuration_requested() -> Scorer:
                 "mcp__configuration__request_configuration",
             }
         ]
-        if len(requested) != 1 or requested[0][0] != len(calls) - 1 or bpmn_paths:
+        pre_request_calls = calls[: requested[0][0]] if len(requested) == 1 else []
+        performed_work = any(name.lower() != "skill" for name, _ in pre_request_calls)
+        if (
+            len(requested) != 1
+            or requested[0][0] != len(calls) - 1
+            or bpmn_paths
+            or performed_work
+        ):
             return Score(
                 value=0.0,
                 explanation="did not request configuration and stop before BPMN work",
