@@ -19,7 +19,7 @@ from core.agents import AgentKind, WORKSPACE_RULES, build_agent
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from inspect_ai import Task, task
-from inspect_ai.agent import Agent, AgentPrompt, react
+from inspect_ai.agent import Agent, AgentPrompt, BridgedToolsSpec, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
@@ -34,6 +34,7 @@ from inspect_ai.tool import (
     web_search,
 )
 from inspect_ai.util import sandbox
+from inspect_swe import claude_code
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
@@ -85,7 +86,28 @@ def request_configuration() -> Tool:
     return execute
 
 
-def _build_evaluator_agent(agent: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
+def _build_evaluator_agent(
+    agent: AgentKind,
+    skill_dirs: Sequence[Path],
+    include_configuration_tool: bool,
+) -> Agent:
+    if agent == "claude_code":
+        return claude_code(
+            system_prompt=WORKSPACE_RULES,
+            skills=[str(path) for path in skill_dirs] if skill_dirs else None,
+            bridged_tools=(
+                [
+                    BridgedToolsSpec(
+                        name="configuration",
+                        tools=[request_configuration()],
+                    )
+                ]
+                if include_configuration_tool
+                else None
+            ),
+            cwd="/workspace",
+            disallowed_tools=["ExitPlanMode"],
+        )
     if agent != "react":
         return build_agent(agent, skill_dirs, submit=False)
     return react(
@@ -98,7 +120,7 @@ def _build_evaluator_agent(agent: AgentKind, skill_dirs: Sequence[Path]) -> Agen
             list_files(timeout=30),
             web_search(),
             *([skill(list(skill_dirs))] if skill_dirs else []),
-            request_configuration(),
+            *([request_configuration()] if include_configuration_tool else []),
         ],
     )
 
@@ -123,6 +145,14 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
         and bool(task_type.removeprefix(task_type_prefix))
         for template_prefix, task_type_prefix in AI_AGENT_CONNECTOR_FAMILIES
     )
+
+
+def has_expected_configuration(
+    inputs: dict[str, str], expected: dict[str, str]
+) -> bool:
+    """Check connector inputs against the user-supplied configuration."""
+
+    return all(inputs.get(target) == value for target, value in expected.items())
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -240,9 +270,18 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             )
 
         prompt_inputs = {
-            inp.get("target"): (inp.get("source") or "")
+            target: (inp.get("source") or "")
             for inp in host.findall(".//zeebe:input", NS)
+            if (target := inp.get("target")) is not None
         }
+        expected_configuration = (state.metadata or {}).get(
+            "expected_configuration", {}
+        )
+        if not has_expected_configuration(prompt_inputs, expected_configuration):
+            return Score(
+                value=0.0,
+                explanation="connector inputs do not match the supplied configuration",
+            )
         system_prompt = prompt_inputs.get("data.systemPrompt.prompt", "")
         user_prompt = prompt_inputs.get("data.userPrompt.prompt", "")
         if not system_prompt.startswith("=") or not user_prompt.startswith("="):
@@ -292,7 +331,11 @@ def configuration_requested() -> Scorer:
         requested = [
             (index, arguments)
             for index, (name, arguments) in enumerate(calls)
-            if name == "request_configuration"
+            if name
+            in {
+                "request_configuration",
+                "mcp__configuration__request_configuration",
+            }
         ]
         if len(requested) != 1 or requested[0][0] != len(calls) - 1 or bpmn_paths:
             return Score(
@@ -352,7 +395,9 @@ SAMPLES = [
             "`gpt-4.1-mini` and existing connector secret `OPENAI_API_KEY`; do "
             "not invent another provider or secret name, inspect unrelated "
             "template properties, or hand-write connector metadata. Do not stop "
-            "until the command succeeds. Then add the tools below.\n"
+            "until the command succeeds. Your next action must use the text "
+            "editor to add all three tool activities and mappings inside "
+            "AgentTools; do not read the file or stop before doing so.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -371,6 +416,11 @@ SAMPLES = [
                 "LookupCustomerData",
                 "EscalateToHuman",
             ],
+            "expected_configuration": {
+                "provider.type": "openai",
+                "provider.openai.model.model": "gpt-4.1-mini",
+                "provider.openai.authentication.apiKey": "{{secrets.OPENAI_API_KEY}}",
+            },
         },
     ),
     Sample(
@@ -415,11 +465,15 @@ SAMPLES = [
 @task
 def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
-    # Claude Code does not receive the test-only request_configuration tool.
-    samples = SAMPLES if agent == "react" else SAMPLES[:1]
     return Task(
-        dataset=samples,
-        solver=with_artifact_collection(_build_evaluator_agent(agent, skill_dirs)),
+        dataset=SAMPLES,
+        solver=with_artifact_collection(
+            _build_evaluator_agent(
+                agent,
+                skill_dirs,
+                include_configuration_tool=arm == "with_skill",
+            )
+        ),
         scorer=[
             ai_agent_shape_valid(),
             configuration_requested(),

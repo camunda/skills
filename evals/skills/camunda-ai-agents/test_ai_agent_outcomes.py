@@ -171,9 +171,34 @@ def test_configuration_request_stops_before_bpmn_work() -> None:
         )
         == 0.0
     )
+    assert (
+        _configuration_score(
+            (
+                "mcp__configuration__request_configuration",
+                {"missing": ["provider", "model", "secret_names"]},
+            )
+        )
+        == 1.0
+    )
 
 
-def test_claude_code_keeps_positive_sample() -> None:
+def test_requires_expected_configuration_inputs() -> None:
+    expected = {
+        "provider.type": "openai",
+        "provider.openai.model.model": "gpt-4.1-mini",
+        "provider.openai.authentication.apiKey": "{{secrets.OPENAI_API_KEY}}",
+    }
+
+    assert _outcomes.has_expected_configuration(expected, expected)
+    assert not _outcomes.has_expected_configuration(
+        {**expected, "provider.type": "anthropic"},
+        expected,
+    )
+
+
+def test_claude_code_evaluates_configuration_samples() -> None:
     task = _outcomes.camunda_ai_agents(agent="claude_code")
 
-    assert [sample.id for sample in task.dataset] == ["ticket-triage-subprocess"]
+    assert [sample.id for sample in task.dataset] == [
+        sample.id for sample in _outcomes.SAMPLES
+    ]
