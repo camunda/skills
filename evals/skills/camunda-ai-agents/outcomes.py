@@ -213,12 +213,16 @@ SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
-            "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host. Apply the AI Agent Sub-process connector template to it.\n"
+            "agent host. Run `c8ctl element-template sync`, then use "
+            "`c8ctl element-template search \"ai agent\"` to find the AI Agent "
+            "Sub-process template and "
+            "`c8ctl element-template apply -i <id> AgentTools "
+            "/workspace/process.bpmn` to apply it. Do not hand-write connector "
+            "metadata.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -228,7 +232,7 @@ SAMPLES = [
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
             "7. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
-            "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
+            "Save the completed BPMN to /workspace/process.bpmn."
             + SAVE_AND_DEPLOY
         ),
         metadata={
