@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
+from inspect_ai.tool import ToolDef
 
 
 def _load_outcomes() -> ModuleType:
@@ -114,3 +116,100 @@ def test_requires_ai_agent_tool_container_property() -> None:
     )
 
     assert not _outcomes.has_ai_agent_connector(host)
+
+
+def _configuration_score(
+    *calls: tuple[str, dict[str, object]],
+    artifacts: tuple[str, ...] = (),
+    expected_fields: tuple[str, ...] = ("provider", "model", "secret_names"),
+) -> float:
+    state = SimpleNamespace(
+        metadata={"missing_configuration": list(expected_fields)},
+        messages=[
+            SimpleNamespace(
+                tool_calls=[
+                    SimpleNamespace(function=function, arguments=arguments)
+                    for function, arguments in calls
+                ]
+            )
+        ],
+        store={"artifacts": {path: "" for path in artifacts}},
+    )
+    return asyncio.run(_outcomes.configuration_requested()(state, None)).value
+
+
+def test_configuration_tool_requests_required_values() -> None:
+    tool = ToolDef(_outcomes.request_configuration())
+    message = asyncio.run(tool.tool(missing=["provider"]))
+
+    assert tool.name == "request_configuration"
+    assert "configuration fields" in tool.description
+    assert tool.parameters.required == ["missing"]
+    assert "Wait for the user response" in message
+
+
+def test_configuration_request_stops_before_bpmn_work() -> None:
+    request = (
+        "request_configuration",
+        {"missing": ["provider", "model", "secret_names"]},
+    )
+
+    assert _configuration_score(request) == 1.0
+    assert (
+        _configuration_score(("skill", {"command": "camunda-ai-agents"}), request)
+        == 1.0
+    )
+    assert _configuration_score(request, ("list_files", {})) == 0.0
+    assert (
+        _configuration_score(
+            ("text_editor", {"path": "/workspace/process.bpmn"}),
+            request,
+        )
+        == 0.0
+    )
+    assert _configuration_score(request, artifacts=("/workspace/process.BPMN",)) == 0.0
+    assert (
+        _configuration_score(
+            ("request_configuration", {"missing": ["model"]}),
+            expected_fields=("model",),
+        )
+        == 1.0
+    )
+    assert (
+        _configuration_score(
+            ("request_configuration", {"missing": ["secret"]}),
+            expected_fields=("secret_names",),
+        )
+        == 0.0
+    )
+    assert (
+        _configuration_score(
+            (
+                "mcp__configuration__request_configuration",
+                {"missing": ["provider", "model", "secret_names"]},
+            )
+        )
+        == 1.0
+    )
+
+
+def test_requires_expected_configuration_inputs() -> None:
+    expected = {
+        "provider.type": "openai",
+        "provider.openai.model.model": "gpt-4.1-mini",
+        "provider.openai.authentication.apiKey": "{{secrets.OPENAI_API_KEY}}",
+    }
+
+    assert _outcomes.has_expected_configuration(expected, expected)
+    assert not _outcomes.has_expected_configuration(
+        {**expected, "provider.type": "anthropic"},
+        expected,
+    )
+
+
+def test_claude_code_evaluates_configuration_samples() -> None:
+    task = _outcomes.camunda_ai_agents(agent="claude_code")
+
+    assert [sample.id for sample in task.dataset] == [
+        sample.id for sample in _outcomes.SAMPLES
+    ]

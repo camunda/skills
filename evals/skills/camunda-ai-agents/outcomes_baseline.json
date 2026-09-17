@@ -2,16 +2,49 @@
   "model": "anthropic/claude-sonnet-4-6",
   "with_skill": {
     "samples": {
+      "missing-model-configuration": {
+        "tokens": {
+          "input": 5,
+          "cache_write": 193,
+          "cache_read": 34220,
+          "output": 338
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 21
+      },
+      "missing-provider-configuration": {
+        "tokens": {
+          "input": 5,
+          "cache_write": 170,
+          "cache_read": 34190,
+          "output": 553
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 25
+      },
+      "missing-secret-configuration": {
+        "tokens": {
+          "input": 5,
+          "cache_write": 186,
+          "cache_read": 34226,
+          "output": 459
+        },
+        "turns": 3,
+        "tool_calls": 2,
+        "duration_s": 24
+      },
       "ticket-triage-subprocess": {
         "tokens": {
-          "input": 8,
-          "cache_write": 8200,
-          "cache_read": 64000,
-          "output": 6600
+          "input": 11,
+          "cache_write": 4566,
+          "cache_read": 139038,
+          "output": 3771
         },
-        "turns": 5,
-        "tool_calls": 5,
-        "duration_s": 95
+        "turns": 8,
+        "tool_calls": 8,
+        "duration_s": 91
       }
     }
   }

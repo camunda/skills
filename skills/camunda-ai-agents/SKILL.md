@@ -20,7 +20,22 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 
 - Camunda 8.8+ cluster (the AI Agent connector ships in 8.8+)
 - c8ctl CLI installed and a profile configured — see **camunda-c8ctl**
-- An API key for the model provider you'll use (Anthropic, Amazon Bedrock, Azure OpenAI, Google Vertex AI, OpenAI, or any OpenAI-compatible provider). Store it as a Camunda cluster secret, never in the BPMN file. For local c8run, see **camunda-c8ctl** for the secrets bootstrap flow.
+- A provider, exact model identifier, and names of its existing connector secrets,
+  supplied by the user. Store secret values as Camunda cluster secrets, never in
+  the BPMN file. For local c8run, see **camunda-c8ctl** for the secrets bootstrap
+  flow.
+
+## Provider Configuration
+
+Before creating or editing BPMN, confirm the provider, exact model identifier,
+and every required existing connector-secret name. If any are missing, ask the
+user and stop until they are confirmed. Do not choose a default provider or
+model, invent a secret name, or ask for secret values. Inspect the selected
+template for provider-specific model and authentication fields.
+
+For Camunda SaaS with Camunda-hosted connectors, configure secret values in
+Console. Use the confirmed secret names in BPMN as `{{secrets.NAME}}`
+references.
 
 ## Cross-References
 
@@ -53,15 +68,15 @@ c8ctl element-template sync
 # 1. Find the current template ID and version — they evolve
 c8ctl element-template search "ai agent"
 
-# 2. Inspect the properties you care about
+# 2. Inspect the selected provider's model and authentication fields.
 c8ctl element-template get-properties <id>
 c8ctl element-template get-properties <id> --detailed data.systemPrompt.prompt
 
-# 3. Apply to your ad-hoc subprocess element
+# 3. Replace placeholders with user-supplied values and selected-template fields.
 c8ctl element-template apply -i <id> AgentTools process.bpmn \
-  --set provider.type=anthropic \
-  --set provider.anthropic.authentication.apiKey='{{secrets.ANTHROPIC_API_KEY}}' \
-  --set provider.anthropic.model.model=claude-sonnet-4-5 \
+  --set 'provider.type=<provider>' \
+  --set 'provider.<provider>.authentication.<field>={{secrets.<secret-name>}}' \
+  --set 'provider.<provider>.model.<field>=<model>' \
   --set data.systemPrompt.prompt='="You are a customer support agent. Use the available tools to look up customers and orders, and escalate to a human only when needed."' \
   --set data.userPrompt.prompt='="Customer " + customerId + " reports: " + issue' \
   --set data.limits.maxModelCalls='=10'
@@ -225,7 +240,8 @@ Lint catches structural BPMN problems but does not validate connector-template i
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.
 - `data.limits.maxModelCalls` is set.
-- API keys are pulled from `{{secrets.*}}`, not literal values.
+- Provider, model, and `{{secrets.NAME}}` references are user-confirmed; never
+  put secret values in BPMN.
 
 ## References
 
