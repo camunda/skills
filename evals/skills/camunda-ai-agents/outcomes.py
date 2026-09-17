@@ -10,15 +10,28 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from core.agents import AgentKind, build_agent
+from core.agents import AgentKind, WORKSPACE_RULES, build_agent
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from inspect_ai import Task, task
+from inspect_ai.agent import Agent, AgentPrompt, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
+from inspect_ai.tool import (
+    Tool,
+    bash_session,
+    grep,
+    list_files,
+    skill,
+    text_editor,
+    tool as inspect_tool,
+    web_search,
+)
 from inspect_ai.util import sandbox
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
@@ -52,6 +65,37 @@ AI_AGENT_CONNECTOR_FAMILIES = (
 AI_AGENT_TOOL_CONTAINER_PROPERTY = "io.camunda.agenticai.toolContainer"
 
 
+@inspect_tool
+def request_configuration() -> Tool:
+    """Ask for missing provider configuration before BPMN work."""
+
+    async def execute() -> str:
+        return (
+            "Ask the user for the provider, exact model identifier, and names of "
+            "existing connector secrets, then stop."
+        )
+
+    return execute
+
+
+def _build_evaluator_agent(agent: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
+    if agent != "react":
+        return build_agent(agent, skill_dirs, submit=False)
+    return react(
+        prompt=AgentPrompt(instructions=WORKSPACE_RULES),
+        submit=False,
+        tools=[
+            bash_session(timeout=300),
+            text_editor(timeout=60),
+            grep(timeout=30),
+            list_files(timeout=30),
+            web_search(),
+            *([skill(list(skill_dirs))] if skill_dirs else []),
+            request_configuration(),
+        ],
+    )
+
+
 def has_ai_agent_connector(host: ET.Element) -> bool:
     """Check for connector metadata emitted by an AI Agent template."""
 
@@ -79,6 +123,9 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     """Verify that the authored BPMN contains core AI-agent subprocess wiring."""
 
     async def score(state: TaskState, target: Target) -> Score:
+        if not (state.metadata or {}).get("check_shape", True):
+            return Score(value=1.0, explanation="shape check not applicable")
+
         expected_process_id = (state.metadata or {}).get("process_id")
         required_tools = set((state.metadata or {}).get("required_tools", []))
 
@@ -219,9 +266,35 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     return score
 
 
-SAVE_AND_DEPLOY = (
-    "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
-)
+@scorer(metrics=[mean(), stderr()])
+def configuration_requested() -> Scorer:
+    """Verify that incomplete provider configuration stops BPMN authoring."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if not (state.metadata or {}).get("requires_configuration_request"):
+            return Score(value=1.0, explanation="configuration request not applicable")
+
+        calls = [
+            str(call.function)
+            for message in state.messages
+            for call in getattr(message, "tool_calls", None) or []
+        ]
+        artifacts = state.store.get("artifacts") or {}
+        bpmn_paths = [path for path in artifacts if path.lower().endswith(".bpmn")]
+        requested = [
+            index for index, name in enumerate(calls) if name == "request_configuration"
+        ]
+        if len(requested) != 1 or requested[0] != len(calls) - 1 or bpmn_paths:
+            return Score(
+                value=0.0,
+                explanation="did not request configuration and stop before BPMN work",
+            )
+        return Score(value=1.0, explanation="requested configuration before BPMN work")
+
+    return score
+
+
+SAVE_AND_DEPLOY = "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
 
 SAMPLES = [
     Sample(
@@ -238,18 +311,25 @@ SAMPLES = [
             "`c8ctl element-template sync`, use "
             '`c8ctl element-template search "AI Agent Sub-process" '
             "--engine-version 8.8.0` to find the non-hybrid template, inspect "
-            "only `data.systemPrompt.prompt`, `data.userPrompt.prompt`, and "
-            "`data.limits.maxModelCalls` with `c8ctl element-template "
-            "get-properties <id> data.systemPrompt.prompt data.userPrompt.prompt "
+            "only `provider.type`, `provider.openai.model.model`, "
+            "`provider.openai.authentication.apiKey`, `data.systemPrompt.prompt`, "
+            "`data.userPrompt.prompt`, and `data.limits.maxModelCalls` with "
+            "`c8ctl element-template get-properties <id> provider.type "
+            "provider.openai.model.model provider.openai.authentication.apiKey "
+            "data.systemPrompt.prompt data.userPrompt.prompt "
             "data.limits.maxModelCalls --engine-version 8.8.0`, then apply that "
             "template ID with `c8ctl element-template apply -i <id> AgentTools "
-            "/workspace/process.bpmn --set "
+            "/workspace/process.bpmn --set provider.type=openai --set "
+            "provider.openai.model.model=gpt-4.1-mini --set "
+            "provider.openai.authentication.apiKey={{secrets.OPENAI_API_KEY}} --set "
             "'data.systemPrompt.prompt==\"You are a ticket-triage agent. Use the "
             "available tools.\"' --set "
             "'data.userPrompt.prompt==\"Triage the current ticket.\"' --set "
-            "'data.limits.maxModelCalls==10'`. Do not inspect unrelated template "
-            "properties, configure an LLM provider, or hand-write connector "
-            "metadata. Do not stop until the command succeeds.\n"
+            "'data.limits.maxModelCalls==10'`. Use OpenAI with model "
+            "`gpt-4.1-mini` and existing connector secret `OPENAI_API_KEY`; do "
+            "not invent another provider or secret name, inspect unrelated "
+            "template properties, or hand-write connector metadata. Do not stop "
+            "until the command succeeds.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -259,8 +339,7 @@ SAMPLES = [
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
             "7. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
-            "Save the completed BPMN to /workspace/process.bpmn."
-            + SAVE_AND_DEPLOY
+            "Save the completed BPMN to /workspace/process.bpmn." + SAVE_AND_DEPLOY
         ),
         metadata={
             "process_id": "ai-ticket-triage",
@@ -271,17 +350,33 @@ SAMPLES = [
             ],
         },
     ),
+    Sample(
+        id="missing-provider-configuration",
+        input=(
+            "Use only the camunda-ai-agents skill. I want an AI Agent Sub-process "
+            "BPMN, but have not provided the provider, exact model identifier, or "
+            "connector-secret names. Ask for them and then stop. Do not create or "
+            "edit BPMN. To ask in this evaluation, call request_configuration."
+        ),
+        metadata={
+            "check_shape": False,
+            "requires_configuration_request": True,
+        },
+    ),
 ]
 
 
 @task
 def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
+    # Claude Code does not receive the test-only request_configuration tool.
+    samples = SAMPLES if agent == "react" else SAMPLES[:1]
     return Task(
-        dataset=SAMPLES,
-        solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
+        dataset=samples,
+        solver=with_artifact_collection(_build_evaluator_agent(agent, skill_dirs)),
         scorer=[
             ai_agent_shape_valid(),
+            configuration_requested(),
             assert_skill_loaded("camunda-ai-agents", gating=False),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),

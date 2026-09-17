@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -114,3 +115,41 @@ def test_requires_ai_agent_tool_container_property() -> None:
     )
 
     assert not _outcomes.has_ai_agent_connector(host)
+
+
+def _configuration_score(*calls: str, artifacts: tuple[str, ...] = ()) -> float:
+    state = SimpleNamespace(
+        metadata={"requires_configuration_request": True},
+        messages=[
+            SimpleNamespace(
+                tool_calls=[SimpleNamespace(function=call) for call in calls]
+            )
+        ],
+        store={"artifacts": {path: "" for path in artifacts}},
+    )
+    return asyncio.run(_outcomes.configuration_requested()(state, None)).value
+
+
+def test_configuration_tool_requests_required_values() -> None:
+    message = asyncio.run(_outcomes.request_configuration()())
+
+    assert "provider" in message
+    assert "exact model identifier" in message
+    assert "connector secrets" in message
+
+
+def test_configuration_request_stops_before_bpmn_work() -> None:
+    assert _configuration_score("request_configuration") == 1.0
+    assert _configuration_score("request_configuration", "list_files") == 0.0
+    assert (
+        _configuration_score(
+            "request_configuration", artifacts=("/workspace/process.BPMN",)
+        )
+        == 0.0
+    )
+
+
+def test_claude_code_keeps_positive_sample() -> None:
+    task = _outcomes.camunda_ai_agents(agent="claude_code")
+
+    assert [sample.id for sample in task.dataset] == ["ticket-triage-subprocess"]
