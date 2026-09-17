@@ -10,17 +10,29 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Literal
 import xml.etree.ElementTree as ET
 
-from core.agents import AgentKind, build_agent
+from core.agents import AgentKind, WORKSPACE_RULES, build_agent
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from inspect_ai import Task, task
+from inspect_ai.agent import Agent, AgentPrompt, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
-from inspect_ai.tool import Tool, tool as inspect_tool
+from inspect_ai.tool import (
+    Tool,
+    bash_session,
+    grep,
+    list_files,
+    skill,
+    text_editor,
+    tool as inspect_tool,
+    web_search,
+)
 from inspect_ai.util import sandbox
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
@@ -71,6 +83,24 @@ def request_configuration() -> Tool:
         return "Configuration request sent. Wait for the user response before further work."
 
     return execute
+
+
+def _build_evaluator_agent(agent: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
+    if agent != "react":
+        return build_agent(agent, skill_dirs, submit=False)
+    return react(
+        prompt=AgentPrompt(instructions=WORKSPACE_RULES),
+        submit=False,
+        tools=[
+            bash_session(timeout=300),
+            text_editor(timeout=60),
+            grep(timeout=30),
+            list_files(timeout=30),
+            web_search(),
+            *([skill(list(skill_dirs))] if skill_dirs else []),
+            request_configuration(),
+        ],
+    )
 
 
 def has_ai_agent_connector(host: ET.Element) -> bool:
@@ -298,8 +328,9 @@ SAMPLES = [
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host. Before running c8ctl, write a complete, diagrammed BPMN "
-            "process to /workspace/process.bpmn. Then run exactly "
+            "agent host. Before running c8ctl, write a diagrammed BPMN process "
+            "with an empty AgentTools host to /workspace/process.bpmn. Then run "
+            "exactly "
             "`c8ctl element-template sync`, use "
             '`c8ctl element-template search "AI Agent Sub-process" '
             "--engine-version 8.8.0` to find the non-hybrid template, inspect "
@@ -321,7 +352,7 @@ SAMPLES = [
             "`gpt-4.1-mini` and existing connector secret `OPENAI_API_KEY`; do "
             "not invent another provider or secret name, inspect unrelated "
             "template properties, or hand-write connector metadata. Do not stop "
-            "until the command succeeds.\n"
+            "until the command succeeds. Then add the tools below.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -388,14 +419,7 @@ def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Ta
     samples = SAMPLES if agent == "react" else SAMPLES[:1]
     return Task(
         dataset=samples,
-        solver=with_artifact_collection(
-            build_agent(
-                agent,
-                skill_dirs,
-                submit=False,
-                extra_react_tools=[request_configuration()] if agent == "react" else (),
-            )
-        ),
+        solver=with_artifact_collection(_build_evaluator_agent(agent, skill_dirs)),
         scorer=[
             ai_agent_shape_valid(),
             configuration_requested(),

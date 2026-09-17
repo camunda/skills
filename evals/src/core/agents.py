@@ -7,7 +7,6 @@ from typing import Literal, Sequence
 
 from inspect_ai.agent import Agent, AgentPrompt, react
 from inspect_ai.tool import (
-    Tool,
     bash_session,
     grep,
     list_files,
@@ -41,13 +40,11 @@ def build_agent(
     kind: AgentKind,
     skill_dirs: Sequence[Path],
     submit: bool = True,
-    extra_react_tools: Sequence[Tool] = (),
 ) -> Agent:
     """Construct the configured agent loop with the given skill set.
 
     ``submit=False`` removes react's submit() tool, so the agent halts when
-    it stops calling tools. ``extra_react_tools`` adds evaluator-specific
-    tools without changing the default tool set.
+    it stops calling tools.
     """
     if kind == "react":
         instructions = INSTRUCTIONS_REACT if submit else WORKSPACE_RULES
@@ -61,7 +58,6 @@ def build_agent(
                 list_files(timeout=30),
                 web_search(),
                 *([skill(list(skill_dirs))] if skill_dirs else []),
-                *extra_react_tools,
             ],
         )
     if kind == "claude_code":
