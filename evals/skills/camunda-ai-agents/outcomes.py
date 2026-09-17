@@ -39,13 +39,15 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}subProcess",
 }
 
-AI_AGENT_TEMPLATE_PREFIXES = (
-    "io.camunda.connectors.agenticai.aiagent.jobworker.",
-    "io.camunda.connectors.agenticai.ai-agent-subprocess.",
-)
-AI_AGENT_TASK_TYPE_PREFIXES = (
-    "io.camunda.agenticai:aiagent-job-worker:",
-    "io.camunda.agenticai:aiagent:subprocess:",
+AI_AGENT_CONNECTOR_FAMILIES = (
+    (
+        "io.camunda.connectors.agenticai.aiagent.jobworker.",
+        "io.camunda.agenticai:aiagent-job-worker:",
+    ),
+    (
+        "io.camunda.connectors.agenticai.ai-agent-subprocess.",
+        "io.camunda.agenticai:aiagent:subprocess:",
+    ),
 )
 AI_AGENT_TOOL_CONTAINER_PROPERTY = "io.camunda.agenticai.toolContainer"
 
@@ -63,10 +65,12 @@ def has_ai_agent_connector(host: ET.Element) -> bool:
             "./bpmn:extensionElements/zeebe:properties/zeebe:property", NS
         )
     )
-    return (
-        any(template.startswith(prefix) for prefix in AI_AGENT_TEMPLATE_PREFIXES)
-        and any(task_type.startswith(prefix) for prefix in AI_AGENT_TASK_TYPE_PREFIXES)
-        and tool_container
+    return tool_container and any(
+        template.startswith(template_prefix)
+        and bool(template.removeprefix(template_prefix))
+        and task_type.startswith(task_type_prefix)
+        and bool(task_type.removeprefix(task_type_prefix))
+        for template_prefix, task_type_prefix in AI_AGENT_CONNECTOR_FAMILIES
     )
 
 
@@ -233,15 +237,19 @@ SAMPLES = [
             "process to /workspace/process.bpmn. Then run exactly "
             "`c8ctl element-template sync`, use "
             '`c8ctl element-template search "AI Agent Sub-process" '
-            "--engine-version 8.8` to find the non-hybrid template, then apply "
-            "that template ID with `c8ctl element-template apply -i <id> AgentTools "
+            "--engine-version 8.8.0` to find the non-hybrid template, inspect "
+            "only `data.systemPrompt.prompt`, `data.userPrompt.prompt`, and "
+            "`data.limits.maxModelCalls` with `c8ctl element-template "
+            "get-properties <id> data.systemPrompt.prompt data.userPrompt.prompt "
+            "data.limits.maxModelCalls --engine-version 8.8.0`, then apply that "
+            "template ID with `c8ctl element-template apply -i <id> AgentTools "
             "/workspace/process.bpmn --set "
             "'data.systemPrompt.prompt==\"You are a ticket-triage agent. Use the "
             "available tools.\"' --set "
             "'data.userPrompt.prompt==\"Triage the current ticket.\"' --set "
-            "'data.limits.maxModelCalls==10'`. Do not inspect template properties, "
-            "configure an LLM provider, or hand-write connector metadata. Do not "
-            "stop until the command succeeds.\n"
+            "'data.limits.maxModelCalls==10'`. Do not inspect unrelated template "
+            "properties, configure an LLM provider, or hand-write connector "
+            "metadata. Do not stop until the command succeeds.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"

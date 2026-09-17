@@ -62,6 +62,16 @@ def _host(
             "io.camunda.agenticai:aiagent:subprocess:2",
             True,
         ),
+        (
+            "io.camunda.connectors.agenticai.aiagent.jobworker.v1",
+            "io.camunda.agenticai:aiagent:subprocess:2",
+            False,
+        ),
+        (
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.v2",
+            "io.camunda.agenticai:aiagent-job-worker:1",
+            False,
+        ),
         (None, None, False),
         (
             "io.camunda.connectors.agenticai.aiagent.jobworker.v1",
@@ -81,6 +91,11 @@ def _host(
         (
             "io.camunda.connectors.agenticai.aiagent.v1",
             "io.camunda.agenticai:aiagent:subprocess:1",
+            False,
+        ),
+        (
+            "io.camunda.connectors.agenticai.ai-agent-subprocess.",
+            "io.camunda.agenticai:aiagent:subprocess:",
             False,
         ),
     ],
