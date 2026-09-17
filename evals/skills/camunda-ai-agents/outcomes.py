@@ -2,7 +2,7 @@
 
 Deterministic, machine-checkable verification:
 - ``ai_agent_shape_valid`` parses ``/workspace/process.bpmn`` and checks for
-  an ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
+  an AI Agent connector-backed ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
   ``toolCallResult`` wiring, and prompt/limit inputs.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
@@ -38,6 +38,40 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}userTask",
     f"{{{NS['bpmn']}}}subProcess",
 }
+
+AI_AGENT_CONNECTOR_FAMILIES = (
+    (
+        "io.camunda.connectors.agenticai.aiagent.jobworker.",
+        "io.camunda.agenticai:aiagent-job-worker:",
+    ),
+    (
+        "io.camunda.connectors.agenticai.ai-agent-subprocess.",
+        "io.camunda.agenticai:aiagent:subprocess:",
+    ),
+)
+AI_AGENT_TOOL_CONTAINER_PROPERTY = "io.camunda.agenticai.toolContainer"
+
+
+def has_ai_agent_connector(host: ET.Element) -> bool:
+    """Check for connector metadata emitted by an AI Agent template."""
+
+    template = host.get(f"{{{NS['zeebe']}}}modelerTemplate", "")
+    task_definition = host.find("./bpmn:extensionElements/zeebe:taskDefinition", NS)
+    task_type = task_definition.get("type", "") if task_definition is not None else ""
+    tool_container = any(
+        prop.get("name") == AI_AGENT_TOOL_CONTAINER_PROPERTY
+        and prop.get("value") == "true"
+        for prop in host.findall(
+            "./bpmn:extensionElements/zeebe:properties/zeebe:property", NS
+        )
+    )
+    return tool_container and any(
+        template.startswith(template_prefix)
+        and bool(template.removeprefix(template_prefix))
+        and task_type.startswith(task_type_prefix)
+        and bool(task_type.removeprefix(task_type_prefix))
+        for template_prefix, task_type_prefix in AI_AGENT_CONNECTOR_FAMILIES
+    )
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -77,6 +111,15 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             )
 
         host = hosts[0]
+        if not has_ai_agent_connector(host):
+            return Score(
+                value=0.0,
+                explanation=(
+                    "ad-hoc subprocess is not configured with the AI Agent "
+                    "connector template"
+                ),
+            )
+
         tools = [child for child in list(host) if child.tag in ACTIVITY_TAGS]
         if not tools:
             return Score(
@@ -175,6 +218,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
     return score
 
+
 SAVE_AND_DEPLOY = (
     "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
 )
@@ -183,12 +227,29 @@ SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
-            "Immediately create /workspace/process.bpmn first (do not do exploratory reads).\n"
+            "Use only the camunda-ai-agents skill; do not load other skills or "
+            "references.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host.\n"
+            "agent host. Before running c8ctl, write a complete, diagrammed BPMN "
+            "process to /workspace/process.bpmn. Then run exactly "
+            "`c8ctl element-template sync`, use "
+            '`c8ctl element-template search "AI Agent Sub-process" '
+            "--engine-version 8.8.0` to find the non-hybrid template, inspect "
+            "only `data.systemPrompt.prompt`, `data.userPrompt.prompt`, and "
+            "`data.limits.maxModelCalls` with `c8ctl element-template "
+            "get-properties <id> data.systemPrompt.prompt data.userPrompt.prompt "
+            "data.limits.maxModelCalls --engine-version 8.8.0`, then apply that "
+            "template ID with `c8ctl element-template apply -i <id> AgentTools "
+            "/workspace/process.bpmn --set "
+            "'data.systemPrompt.prompt==\"You are a ticket-triage agent. Use the "
+            "available tools.\"' --set "
+            "'data.userPrompt.prompt==\"Triage the current ticket.\"' --set "
+            "'data.limits.maxModelCalls==10'`. Do not inspect unrelated template "
+            "properties, configure an LLM provider, or hand-write connector "
+            "metadata. Do not stop until the command succeeds.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
@@ -198,7 +259,7 @@ SAMPLES = [
             "6. Ensure tool outputs are mapped to toolCallResult.\n"
             "7. Configure agent prompts as FEEL strings and set "
             "data.limits.maxModelCalls.\n"
-            "Write the BPMN in one pass and finish as soon as /workspace/process.bpmn exists."
+            "Save the completed BPMN to /workspace/process.bpmn."
             + SAVE_AND_DEPLOY
         ),
         metadata={
