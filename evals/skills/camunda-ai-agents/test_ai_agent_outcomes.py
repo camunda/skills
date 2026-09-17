@@ -21,17 +21,30 @@ def _load_outcomes() -> ModuleType:
 _outcomes = _load_outcomes()
 
 
-def _host(template: str | None, task_type: str | None) -> ET.Element:
+def _host(
+    template: str | None, task_type: str | None, tool_container: bool = True
+) -> ET.Element:
     attributes = {}
     if template:
         attributes[f"{{{_outcomes.NS['zeebe']}}}modelerTemplate"] = template
     host = ET.Element(f"{{{_outcomes.NS['bpmn']}}}adHocSubProcess", attributes)
-    if task_type:
+    if task_type or tool_container:
         extensions = ET.SubElement(host, f"{{{_outcomes.NS['bpmn']}}}extensionElements")
+    if task_type:
         ET.SubElement(
             extensions,
             f"{{{_outcomes.NS['zeebe']}}}taskDefinition",
             {"type": task_type},
+        )
+    if tool_container:
+        properties = ET.SubElement(extensions, f"{{{_outcomes.NS['zeebe']}}}properties")
+        ET.SubElement(
+            properties,
+            f"{{{_outcomes.NS['zeebe']}}}property",
+            {
+                "name": _outcomes.AI_AGENT_TOOL_CONTAINER_PROPERTY,
+                "value": "true",
+            },
         )
     return host
 
@@ -76,3 +89,13 @@ def test_requires_ai_agent_template_and_task_definition(
     template: str | None, task_type: str | None, expected: bool
 ) -> None:
     assert _outcomes.has_ai_agent_connector(_host(template, task_type)) is expected
+
+
+def test_requires_ai_agent_tool_container_property() -> None:
+    host = _host(
+        "io.camunda.connectors.agenticai.aiagent.jobworker.v1",
+        "io.camunda.agenticai:aiagent-job-worker:1",
+        tool_container=False,
+    )
+
+    assert not _outcomes.has_ai_agent_connector(host)
