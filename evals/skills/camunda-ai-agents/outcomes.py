@@ -71,7 +71,7 @@ AI_AGENT_TOOL_CONTAINER_PROPERTY = "io.camunda.agenticai.toolContainer"
 def request_configuration() -> Tool:
     """Request specific configuration from the user."""
 
-    async def execute(
+    async def request_configuration(
         missing: list[Literal["provider", "model", "secret_names"]],
     ) -> str:
         """Request the missing configuration fields from the user.
@@ -83,7 +83,7 @@ def request_configuration() -> Tool:
 
         return "Configuration request sent. Wait for the user response before further work."
 
-    return execute
+    return request_configuration
 
 
 def _build_evaluator_agent(
