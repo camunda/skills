@@ -10,6 +10,7 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
+from typing import Literal
 import xml.etree.ElementTree as ET
 
 from core.agents import AgentKind, build_agent
@@ -55,13 +56,16 @@ AI_AGENT_TOOL_CONTAINER_PROPERTY = "io.camunda.agenticai.toolContainer"
 
 @inspect_tool
 def request_configuration() -> Tool:
-    """Request user-provided configuration."""
+    """Request specific configuration from the user."""
 
-    async def execute(message: str) -> str:
-        """Send a user-facing request for missing configuration.
+    async def execute(
+        missing: list[Literal["provider", "model", "secret_names"]],
+    ) -> str:
+        """Request the missing configuration fields from the user.
 
         Args:
-            message: Concise question asking the user for required configuration.
+            missing: ``provider``, exact ``model``, or existing ``secret_names``.
+                Never request secret values.
         """
 
         return "Configuration request sent. Wait for the user response before further work."
@@ -244,8 +248,8 @@ def configuration_requested() -> Scorer:
     """Verify that incomplete provider configuration stops BPMN authoring."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        expected_terms = (state.metadata or {}).get("missing_configuration")
-        if not expected_terms:
+        expected_fields = (state.metadata or {}).get("missing_configuration")
+        if not expected_fields:
             return Score(value=1.0, explanation="configuration request not applicable")
 
         calls = [
@@ -265,16 +269,17 @@ def configuration_requested() -> Scorer:
                 value=0.0,
                 explanation="did not request configuration and stop before BPMN work",
             )
-        message = requested[0][1].get("message")
-        if not isinstance(message, str):
-            return Score(value=0.0, explanation="configuration request has no message")
-        missing_terms = [
-            term for term in expected_terms if term.casefold() not in message.casefold()
-        ]
-        if missing_terms:
+        missing = requested[0][1].get("missing")
+        if (
+            not isinstance(missing, list)
+            or not all(isinstance(field, str) for field in missing)
+            or sorted(missing) != sorted(expected_fields)
+        ):
             return Score(
                 value=0.0,
-                explanation=f"configuration request omits: {missing_terms}",
+                explanation=(
+                    f"requested {missing!r}, expected missing fields {expected_fields!r}"
+                ),
             )
         return Score(value=1.0, explanation="requested configuration before BPMN work")
 
@@ -346,7 +351,7 @@ SAMPLES = [
         ),
         metadata={
             "check_shape": False,
-            "missing_configuration": ["provider", "model", "secret"],
+            "missing_configuration": ["provider", "model", "secret_names"],
         },
     ),
     Sample(
@@ -370,7 +375,7 @@ SAMPLES = [
         ),
         metadata={
             "check_shape": False,
-            "missing_configuration": ["secret"],
+            "missing_configuration": ["secret_names"],
         },
     ),
 ]

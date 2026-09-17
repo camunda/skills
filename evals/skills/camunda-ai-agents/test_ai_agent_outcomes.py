@@ -121,10 +121,10 @@ def test_requires_ai_agent_tool_container_property() -> None:
 def _configuration_score(
     *calls: tuple[str, dict[str, object]],
     artifacts: tuple[str, ...] = (),
-    expected_terms: tuple[str, ...] = ("provider", "model", "secret"),
+    expected_fields: tuple[str, ...] = ("provider", "model", "secret_names"),
 ) -> float:
     state = SimpleNamespace(
-        metadata={"missing_configuration": list(expected_terms)},
+        metadata={"missing_configuration": list(expected_fields)},
         messages=[
             SimpleNamespace(
                 tool_calls=[
@@ -140,22 +140,18 @@ def _configuration_score(
 
 def test_configuration_tool_requests_required_values() -> None:
     tool = ToolDef(_outcomes.request_configuration())
-    message = asyncio.run(tool.tool(message="Please provide the missing values."))
+    message = asyncio.run(tool.tool(missing=["provider"]))
 
     assert tool.name == "request_configuration"
-    assert "user-facing request" in tool.description
+    assert "configuration fields" in tool.description
+    assert tool.parameters.required == ["missing"]
     assert "Wait for the user response" in message
 
 
 def test_configuration_request_stops_before_bpmn_work() -> None:
     request = (
         "request_configuration",
-        {
-            "message": (
-                "Please provide the provider, exact model identifier, and "
-                "connector-secret name."
-            )
-        },
+        {"missing": ["provider", "model", "secret_names"]},
     )
 
     assert _configuration_score(request) == 1.0
@@ -163,10 +159,17 @@ def test_configuration_request_stops_before_bpmn_work() -> None:
     assert _configuration_score(request, artifacts=("/workspace/process.BPMN",)) == 0.0
     assert (
         _configuration_score(
-            ("request_configuration", {"message": "Please provide the model."}),
-            expected_terms=("model",),
+            ("request_configuration", {"missing": ["model"]}),
+            expected_fields=("model",),
         )
         == 1.0
+    )
+    assert (
+        _configuration_score(
+            ("request_configuration", {"missing": ["secret"]}),
+            expected_fields=("secret_names",),
+        )
+        == 0.0
     )
 
 
