@@ -118,12 +118,19 @@ def test_requires_ai_agent_tool_container_property() -> None:
     assert not _outcomes.has_ai_agent_connector(host)
 
 
-def _configuration_score(*calls: str, artifacts: tuple[str, ...] = ()) -> float:
+def _configuration_score(
+    *calls: tuple[str, dict[str, object]],
+    artifacts: tuple[str, ...] = (),
+    expected_terms: tuple[str, ...] = ("provider", "model", "secret"),
+) -> float:
     state = SimpleNamespace(
-        metadata={"requires_configuration_request": True},
+        metadata={"missing_configuration": list(expected_terms)},
         messages=[
             SimpleNamespace(
-                tool_calls=[SimpleNamespace(function=call) for call in calls]
+                tool_calls=[
+                    SimpleNamespace(function=function, arguments=arguments)
+                    for function, arguments in calls
+                ]
             )
         ],
         store={"artifacts": {path: "" for path in artifacts}},
@@ -133,23 +140,33 @@ def _configuration_score(*calls: str, artifacts: tuple[str, ...] = ()) -> float:
 
 def test_configuration_tool_requests_required_values() -> None:
     tool = ToolDef(_outcomes.request_configuration())
-    message = asyncio.run(tool.tool())
+    message = asyncio.run(tool.tool(message="Please provide the missing values."))
 
     assert tool.name == "request_configuration"
-    assert "provider configuration" in tool.description
-    assert "provider" in message
-    assert "exact model identifier" in message
-    assert "connector secrets" in message
+    assert "user-facing request" in tool.description
+    assert "Wait for the user response" in message
 
 
 def test_configuration_request_stops_before_bpmn_work() -> None:
-    assert _configuration_score("request_configuration") == 1.0
-    assert _configuration_score("request_configuration", "list_files") == 0.0
+    request = (
+        "request_configuration",
+        {
+            "message": (
+                "Please provide the provider, exact model identifier, and "
+                "connector-secret name."
+            )
+        },
+    )
+
+    assert _configuration_score(request) == 1.0
+    assert _configuration_score(request, ("list_files", {})) == 0.0
+    assert _configuration_score(request, artifacts=("/workspace/process.BPMN",)) == 0.0
     assert (
         _configuration_score(
-            "request_configuration", artifacts=("/workspace/process.BPMN",)
+            ("request_configuration", {"message": "Please provide the model."}),
+            expected_terms=("model",),
         )
-        == 0.0
+        == 1.0
     )
 
 

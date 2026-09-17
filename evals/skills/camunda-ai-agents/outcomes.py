@@ -10,28 +10,16 @@ Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from core.agents import AgentKind, WORKSPACE_RULES, build_agent
+from core.agents import AgentKind, build_agent
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from inspect_ai import Task, task
-from inspect_ai.agent import Agent, AgentPrompt, react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
-from inspect_ai.tool import (
-    Tool,
-    bash_session,
-    grep,
-    list_files,
-    skill,
-    text_editor,
-    tool as inspect_tool,
-    web_search,
-)
+from inspect_ai.tool import Tool, tool as inspect_tool
 from inspect_ai.util import sandbox
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
@@ -67,35 +55,18 @@ AI_AGENT_TOOL_CONTAINER_PROPERTY = "io.camunda.agenticai.toolContainer"
 
 @inspect_tool
 def request_configuration() -> Tool:
-    """Ask for missing provider configuration before BPMN work."""
+    """Request user-provided configuration."""
 
-    async def execute() -> str:
-        """Ask for provider configuration and stop BPMN work."""
+    async def execute(message: str) -> str:
+        """Send a user-facing request for missing configuration.
 
-        return (
-            "Ask the user for the provider, exact model identifier, and names of "
-            "existing connector secrets, then stop."
-        )
+        Args:
+            message: Concise question asking the user for required configuration.
+        """
+
+        return "Configuration request sent. Wait for the user response before further work."
 
     return execute
-
-
-def _build_evaluator_agent(agent: AgentKind, skill_dirs: Sequence[Path]) -> Agent:
-    if agent != "react":
-        return build_agent(agent, skill_dirs, submit=False)
-    return react(
-        prompt=AgentPrompt(instructions=WORKSPACE_RULES),
-        submit=False,
-        tools=[
-            bash_session(timeout=300),
-            text_editor(timeout=60),
-            grep(timeout=30),
-            list_files(timeout=30),
-            web_search(),
-            *([skill(list(skill_dirs))] if skill_dirs else []),
-            request_configuration(),
-        ],
-    )
 
 
 def has_ai_agent_connector(host: ET.Element) -> bool:
@@ -273,23 +244,37 @@ def configuration_requested() -> Scorer:
     """Verify that incomplete provider configuration stops BPMN authoring."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        if not (state.metadata or {}).get("requires_configuration_request"):
+        expected_terms = (state.metadata or {}).get("missing_configuration")
+        if not expected_terms:
             return Score(value=1.0, explanation="configuration request not applicable")
 
         calls = [
-            str(call.function)
+            (str(call.function), call.arguments or {})
             for message in state.messages
             for call in getattr(message, "tool_calls", None) or []
         ]
         artifacts = state.store.get("artifacts") or {}
         bpmn_paths = [path for path in artifacts if path.lower().endswith(".bpmn")]
         requested = [
-            index for index, name in enumerate(calls) if name == "request_configuration"
+            (index, arguments)
+            for index, (name, arguments) in enumerate(calls)
+            if name == "request_configuration"
         ]
-        if len(requested) != 1 or requested[0] != len(calls) - 1 or bpmn_paths:
+        if len(requested) != 1 or requested[0][0] != len(calls) - 1 or bpmn_paths:
             return Score(
                 value=0.0,
                 explanation="did not request configuration and stop before BPMN work",
+            )
+        message = requested[0][1].get("message")
+        if not isinstance(message, str):
+            return Score(value=0.0, explanation="configuration request has no message")
+        missing_terms = [
+            term for term in expected_terms if term.casefold() not in message.casefold()
+        ]
+        if missing_terms:
+            return Score(
+                value=0.0,
+                explanation=f"configuration request omits: {missing_terms}",
             )
         return Score(value=1.0, explanation="requested configuration before BPMN work")
 
@@ -355,14 +340,37 @@ SAMPLES = [
     Sample(
         id="missing-provider-configuration",
         input=(
-            "Use only the camunda-ai-agents skill. I want an AI Agent Sub-process "
-            "BPMN, but have not provided the provider, exact model identifier, or "
-            "connector-secret names. Ask for them and then stop. Do not create or "
-            "edit BPMN. To ask in this evaluation, call request_configuration."
+            "Use only the camunda-ai-agents skill. Create an AI Agent Sub-process "
+            "BPMN, but no provider, exact model identifier, or connector-secret "
+            "names were supplied."
         ),
         metadata={
             "check_shape": False,
-            "requires_configuration_request": True,
+            "missing_configuration": ["provider", "model", "secret"],
+        },
+    ),
+    Sample(
+        id="missing-model-configuration",
+        input=(
+            "Use only the camunda-ai-agents skill. Create an AI Agent Sub-process "
+            "BPMN with provider `openai` and existing connector secret "
+            "`OPENAI_API_KEY`, but no exact model identifier was supplied."
+        ),
+        metadata={
+            "check_shape": False,
+            "missing_configuration": ["model"],
+        },
+    ),
+    Sample(
+        id="missing-secret-configuration",
+        input=(
+            "Use only the camunda-ai-agents skill. Create an AI Agent Sub-process "
+            "BPMN with provider `openai` and exact model identifier "
+            "`gpt-4.1-mini`, but no connector-secret name was supplied."
+        ),
+        metadata={
+            "check_shape": False,
+            "missing_configuration": ["secret"],
         },
     ),
 ]
@@ -375,7 +383,14 @@ def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Ta
     samples = SAMPLES if agent == "react" else SAMPLES[:1]
     return Task(
         dataset=samples,
-        solver=with_artifact_collection(_build_evaluator_agent(agent, skill_dirs)),
+        solver=with_artifact_collection(
+            build_agent(
+                agent,
+                skill_dirs,
+                submit=False,
+                extra_react_tools=[request_configuration()] if agent == "react" else (),
+            )
+        ),
         scorer=[
             ai_agent_shape_valid(),
             configuration_requested(),
