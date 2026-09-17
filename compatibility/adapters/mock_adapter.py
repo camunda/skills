@@ -38,7 +38,7 @@ def activate_skill(
 
     try:
         content = entrypoint.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         return False, [f"cannot read skill entrypoint: {error}"]
 
     frontmatter = SKILL_FRONTMATTER.match(content)
