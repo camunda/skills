@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+from inspect_ai.tool import ToolDef
 
 
 def _load_outcomes() -> ModuleType:
@@ -131,8 +132,11 @@ def _configuration_score(*calls: str, artifacts: tuple[str, ...] = ()) -> float:
 
 
 def test_configuration_tool_requests_required_values() -> None:
-    message = asyncio.run(_outcomes.request_configuration()())
+    tool = ToolDef(_outcomes.request_configuration())
+    message = asyncio.run(tool.tool())
 
+    assert tool.name == "request_configuration"
+    assert "provider configuration" in tool.description
     assert "provider" in message
     assert "exact model identifier" in message
     assert "connector secrets" in message

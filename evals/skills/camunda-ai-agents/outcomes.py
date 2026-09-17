@@ -70,6 +70,8 @@ def request_configuration() -> Tool:
     """Ask for missing provider configuration before BPMN work."""
 
     async def execute() -> str:
+        """Ask for provider configuration and stop BPMN work."""
+
         return (
             "Ask the user for the provider, exact model identifier, and names of "
             "existing connector secrets, then stop."
