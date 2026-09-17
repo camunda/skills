@@ -39,6 +39,9 @@ The older **Task variant** (AI Agent connector on a service task paired with an 
 
 ## Applying the AI Agent Connector
 
+An ad-hoc subprocess alone is not an AI agent. Apply the AI Agent **Sub-process**
+connector template to it; do not substitute a generic subprocess or service task.
+
 **Example** — apply the template via c8ctl rather than hand-writing the many provider/prompt/memory fields:
 
 ```bash
@@ -89,6 +92,9 @@ Hard rules that the lint loop does NOT catch — verify by reading the BPMN:
 - Somewhere in the tool's execution flow, the variable `toolCallResult` must be set — for a single-activity tool that's the activity itself; for a sub-flow tool, it can be any activity inside the sub-flow.
 
 ## Defining Tools
+
+For a multi-part review, model each independent check as a focused root tool
+rather than a catch-all task.
 
 Three things determine whether the LLM picks a tool correctly:
 
@@ -213,7 +219,8 @@ Lint now catches `fromAi()` misplacement on sub-flow tools — the `agent-fromai
 
 Lint catches structural BPMN problems but does not validate connector-template inputs. After lint is clean, verify by reading the BPMN:
 
-- Host element is `bpmn:adHocSubProcess` with the AI Agent template applied.
+- Host element is `bpmn:adHocSubProcess` with the AI Agent **Sub-process**
+  template applied, not an unconfigured ad-hoc subprocess.
 - Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it via a direct edit).
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.

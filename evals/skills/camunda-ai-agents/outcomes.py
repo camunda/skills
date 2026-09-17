@@ -2,7 +2,7 @@
 
 Deterministic, machine-checkable verification:
 - ``ai_agent_shape_valid`` parses ``/workspace/process.bpmn`` and checks for
-  an ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
+  an AI Agent connector-backed ad-hoc subprocess host, tool documentation, ``fromAi()`` usage,
   ``toolCallResult`` wiring, and prompt/limit inputs.
 
 Skill-load is diagnostic; the without-skill arm drops only camunda-ai-agents.
@@ -38,6 +38,26 @@ ACTIVITY_TAGS = {
     f"{{{NS['bpmn']}}}userTask",
     f"{{{NS['bpmn']}}}subProcess",
 }
+
+AI_AGENT_TEMPLATE_PREFIXES = (
+    "io.camunda.connectors.agenticai.aiagent.jobworker.",
+    "io.camunda.connectors.agenticai.ai-agent-subprocess.",
+)
+AI_AGENT_TASK_TYPE_PREFIXES = (
+    "io.camunda.agenticai:aiagent-job-worker:",
+    "io.camunda.agenticai:aiagent:subprocess:",
+)
+
+
+def has_ai_agent_connector(host: ET.Element) -> bool:
+    """Check for connector metadata emitted by an AI Agent template."""
+
+    template = host.get(f"{{{NS['zeebe']}}}modelerTemplate", "")
+    task_definition = host.find("./bpmn:extensionElements/zeebe:taskDefinition", NS)
+    task_type = task_definition.get("type", "") if task_definition is not None else ""
+    return any(
+        template.startswith(prefix) for prefix in AI_AGENT_TEMPLATE_PREFIXES
+    ) and any(task_type.startswith(prefix) for prefix in AI_AGENT_TASK_TYPE_PREFIXES)
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -77,6 +97,15 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
             )
 
         host = hosts[0]
+        if not has_ai_agent_connector(host):
+            return Score(
+                value=0.0,
+                explanation=(
+                    "ad-hoc subprocess is not configured with the AI Agent "
+                    "connector template"
+                ),
+            )
+
         tools = [child for child in list(host) if child.tag in ACTIVITY_TAGS]
         if not tools:
             return Score(
@@ -175,6 +204,7 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
 
     return score
 
+
 SAVE_AND_DEPLOY = (
     "\n\nSave the BPMN to /workspace/process.bpmn. Do not stop until the file is created."
 )
@@ -188,7 +218,7 @@ SAMPLES = [
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
             "2. Ad-hoc subprocess id AgentTools (name 'Agent tools') as the AI "
-            "agent host.\n"
+            "agent host. Apply the AI Agent Sub-process connector template to it.\n"
             "3. Inside AgentTools add these root tools:\n"
             "   - service task id LookupKnowledgeBase, name 'Lookup knowledge base'\n"
             "   - service task id LookupCustomerData, name 'Lookup customer data'\n"
