@@ -24,6 +24,7 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 | Workflow | Trigger | Scope |
 |---|---|---|
 | `lint.yml` | PR touching `skills/**` or `.waza.yaml` | `waza check` only |
+| `compatibility.yml` | Relevant PR paths, weekly schedule, or manual dispatch | Portability conformance plus deterministic Claude/Copilot smoke checks. |
 | `eval.yml` | PR changes to skill/eval/harness paths, or the Actions tab (`evals:run-all` / `evals:compare` labels optional) | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
 | `eval-nightly.yml` | `workflow_dispatch` only (cron re-enabled in a follow-up) | Every target; uploads logs as artifacts |
 | `eval-baseline.yml` | `evals:regenerate-baselines` label, or the Actions tab | Re-runs outcome evals, regenerates baselines, commits them to the branch |

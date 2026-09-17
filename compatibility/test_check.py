@@ -107,6 +107,16 @@ def test_rejects_invalid_utf8_json(tmp_path: Path) -> None:
     assert check.main(["--root", str(root)]) == 1
 
 
+def test_rejects_invalid_skill_frontmatter(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    path = root / "skills" / name / "SKILL.md"
+    path.write_bytes(b"\xff")
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "cannot read" in capsys.readouterr().err
+
+
 def test_rejects_portable_status_with_adapter_required_harness(
     tmp_path: Path, capsys: object
 ) -> None:
