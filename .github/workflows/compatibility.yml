@@ -38,3 +38,5 @@ jobs:
         run: uv run pytest compatibility
       - name: Run compatibility contract gate
         run: make compatibility-check
+      - name: Check plugin manifest version consistency
+        run: make version-check

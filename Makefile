@@ -42,6 +42,7 @@ help:
 	@echo "  try                  Launch an interactive Claude Code session with this repo's skills loaded (no install)."
 	@echo "  lint                 Run waza check across all skills (or one if SKILL=<name> is set)."
 	@echo "  compatibility-check  Validate portability metadata and run deterministic smoke adapters."
+	@echo "  version-check        Assert every plugin manifest carries the same bundle version."
 	@echo ""
 	@echo "Run:"
 	@echo "  run-trigger-evals    Run trigger evals: every skill, or one with SKILL=<name>."
@@ -100,6 +101,10 @@ compatibility-check:
 	compatibility/adapters/mock-claude || status=$$?; \
 	compatibility/adapters/mock-copilot || status=$$?; \
 	exit $$status
+
+.PHONY: version-check
+version-check:
+	@python3 compatibility/version_check.py
 
 .PHONY: build-docker-images
 build-docker-images:
