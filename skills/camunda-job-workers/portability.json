@@ -27,6 +27,9 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8"
+  },
   "limitations": [
     "Java and Spring worker implementations target a reachable Camunda 8.8+ cluster. The @camunda8/orchestration-cluster-api TypeScript path requires Camunda 8.9+, while the Node-only @camunda8/sdk remains the documented fallback for gRPC streaming, Camunda 8.7-or-earlier targets, Operate v1 queries, or migration friction; browser-hosted workers cannot use that fallback."
   ],

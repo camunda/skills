@@ -11,6 +11,7 @@
     "status",
     "agentSkillsSpec",
     "harnesses",
+    "requires",
     "limitations",
     "differences"
   ],
@@ -75,6 +76,21 @@
     },
     "differences": {
       "$ref": "#/$defs/nonEmptyStringList"
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["camunda"],
+      "description": "Dependency envelope for a stable deployment of this skill. Each value is a semantic-version range (e.g. \">=8.8\", \">=3.0.0\", \"*\"). Informational per-skill metadata under the hybrid versioning model — the deployable, pinnable unit is the bundle version.",
+      "properties": {
+        "camunda": { "$ref": "#/$defs/versionRange" },
+        "c8ctl": { "$ref": "#/$defs/versionRange" },
+        "node": { "$ref": "#/$defs/versionRange" },
+        "java": { "$ref": "#/$defs/versionRange" },
+        "maven": { "$ref": "#/$defs/versionRange" },
+        "docker": { "$ref": "#/$defs/versionRange" },
+        "dmnlint": { "$ref": "#/$defs/versionRange" }
+      }
     }
   },
   "$defs": {
@@ -99,6 +115,11 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "versionRange": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(\\*|(>=|>|<=|<|~|\\^|=)?\\d+(\\.\\d+){0,2})$"
     }
   }
 }
