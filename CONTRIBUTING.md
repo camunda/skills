@@ -167,6 +167,55 @@ feat(camunda-bpmn): cover ad-hoc subprocess and end-event ioMapping   # ✅
 
 Keep the subject under ~70 characters. Use the body for the *why*, not the *what*.
 
+## Versioning and Releases
+
+The skills ship as one semantically versioned bundle. That gives consumers a
+**stable, pinnable deployment**: install `camunda-skills` at a Git tag / GitHub
+Release instead of floating on `main`.
+
+### Hybrid model
+
+- **Bundle version (deployable).** A single [SemVer](https://semver.org/) for
+  the whole `camunda-skills` plugin is the unit you pin. It lives in four
+  manifests — `plugin.json` (source of truth), `.claude-plugin/plugin.json`,
+  `.claude-plugin/marketplace.json`, and `.github/plugin/marketplace.json`.
+  `make version-check` fails if any of them drift from `plugin.json`.
+- **Per-skill `requires` (informational).** Each `skills/<name>/portability.json`
+  declares its dependency envelope — `camunda`, and where relevant `c8ctl`,
+  `node`, `java`, `maven`, `docker`, `dmnlint` — as SemVer ranges. This is
+  metadata for consumers and changelogs; it is **not** a separately installable
+  version. Keep it consistent with the skill's `limitations`.
+
+### What a bump means for skills
+
+Skills are prose and contracts, not a code API, so map SemVer to consumer impact:
+
+- **major** — a breaking change to something a consumer relies on: a removed or
+  renamed skill, a dropped/renamed workflow, changed required inputs, or dropped
+  harness support. Signal it with a `!` or `BREAKING CHANGE:` footer.
+- **minor** — additive: a new skill, or a new capability/workflow within one
+  (`feat`).
+- **patch** — corrections and clarifications that don't change the contract
+  (`fix`, `refactor`, and skill-content wording fixes).
+
+### How releases happen
+
+Releases are automated from Conventional Commits by
+[release-please](https://github.com/googleapis/release-please) (see
+`.github/workflows/release.yml` and `release-please-config.json`):
+
+1. Commits merged to `main` are classified — `feat` → minor, `fix` → patch,
+   `!` / `BREAKING CHANGE` → major.
+2. release-please maintains a **release PR** that updates `CHANGELOG.md` and all
+   four version manifests.
+3. Merging that PR tags `v<x.y.z>` and publishes the matching GitHub Release.
+   The release notes get a **Compatibility** section appended — the tested triple
+   of skills bundle version ↔ minimum c8ctl ↔ minimum Camunda, derived from the
+   per-skill `requires` envelopes (`make compat-matrix` prints it locally).
+
+Don't hand-edit the version manifests or `CHANGELOG.md` — let the release PR own
+them. If you do touch a manifest, `make version-check` must still pass.
+
 ## Pull Request Process
 
 1. Create a branch from `main`
