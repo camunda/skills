@@ -22,6 +22,8 @@ PORTABILITY_SCHEMA_URL = (
 SKILL_NAME = re.compile(r"(?=.{1,64}\Z)[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 RESERVED_SKILL_NAMES = frozenset({"anthropic", "claude"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+REQUIRES_KEYS = ("camunda", "c8ctl", "node", "java", "maven", "docker", "dmnlint")
+VERSION_RANGE = re.compile(r"^(\*|(>=|>|<=|<|~|\^|=)?\d+(\.\d+){0,2})$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 
@@ -113,6 +115,7 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
         "status",
         "agentSkillsSpec",
         "harnesses",
+        "requires",
         "limitations",
         "differences",
     }
@@ -201,6 +204,22 @@ def check_sidecar(sidecar: Any, label: str, spec_date: Any, errors: list[str]) -
 
     non_empty_strings(sidecar["limitations"], f"{label}.limitations", errors)
     non_empty_strings(sidecar["differences"], f"{label}.differences", errors)
+
+    requires = sidecar["requires"]
+    if not isinstance(requires, dict):
+        errors.append(f"{label}.requires: expected an object")
+    else:
+        if "camunda" not in requires:
+            errors.append(f"{label}.requires: missing required 'camunda' version range")
+        unknown = [key for key in requires if key not in REQUIRES_KEYS]
+        if unknown:
+            errors.append(f"{label}.requires: unsupported keys {sorted(unknown)}")
+        for key, value in requires.items():
+            if not isinstance(value, str) or not VERSION_RANGE.fullmatch(value):
+                errors.append(
+                    f"{label}.requires.{key}: expected a version range like '>=8.8' or '*'"
+                )
+
     if (
         isinstance(sidecar["differences"], list)
         and GENERIC_DIFFERENCE in sidecar["differences"]

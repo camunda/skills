@@ -27,6 +27,12 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8",
+    "c8ctl": ">=3.0.0",
+    "java": ">=17",
+    "maven": ">=3.8"
+  },
   "limitations": [
     "Java connector builds require Java 17 or newer, Maven 3.8+ or an equivalent Gradle toolchain, and a connector runtime or hosting target."
   ],
