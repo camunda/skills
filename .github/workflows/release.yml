@@ -21,6 +21,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # Append the tested compatibility triple (skills <-> c8ctl <-> Camunda) to
+      # the freshly published Release notes so a pinned tag documents its floors.
+      - if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - if: ${{ steps.release.outputs.release_created }}
+        name: Append compatibility matrix to release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          matrix="$(python3 compatibility/compat_matrix.py)"
+          body="$(gh release view "$TAG" --json body --jq .body)"
+          printf '%s\n\n%s\n' "$body" "$matrix" | gh release edit "$TAG" --notes-file -
