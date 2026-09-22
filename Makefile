@@ -43,6 +43,7 @@ help:
 	@echo "  lint                 Run waza check across all skills (or one if SKILL=<name> is set)."
 	@echo "  compatibility-check  Validate portability metadata and run deterministic smoke adapters."
 	@echo "  version-check        Assert every plugin manifest carries the same bundle version."
+	@echo "  compat-matrix        Print the tested compatibility triple (skills <-> c8ctl <-> Camunda)."
 	@echo ""
 	@echo "Run:"
 	@echo "  run-trigger-evals    Run trigger evals: every skill, or one with SKILL=<name>."
@@ -105,6 +106,10 @@ compatibility-check:
 .PHONY: version-check
 version-check:
 	@python3 compatibility/version_check.py
+
+.PHONY: compat-matrix
+compat-matrix:
+	@python3 compatibility/compat_matrix.py
 
 .PHONY: build-docker-images
 build-docker-images:
