@@ -1,0 +1,26 @@
+name: Release
+
+# Automates the bundle version under the hybrid versioning model. release-please
+# reads Conventional Commits merged to main, derives the next SemVer bump, and
+# maintains a release PR that updates CHANGELOG.md and every version manifest
+# (plugin.json is the source of truth; version_check.py guards the rest). Merging
+# that PR tags `v<x.y.z>` and publishes the matching GitHub Release — the stable,
+# pinnable deployment surface.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
