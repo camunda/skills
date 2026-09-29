@@ -28,6 +28,7 @@ EXTENSIONS = (
     ".txt",
     ".properties",
     ".feel",
+    ".html",
 )
 
 MAX_BYTES = 256 * 1024

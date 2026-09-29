@@ -12,7 +12,7 @@ description: |
 
 Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
-Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BPMN element coverage** with the minimum number of test segments. Test assertions are limited to reachability and routing — CPT exercises that the engine traverses the right elements, not the data values produced by service tasks or external systems.
+Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BPMN element coverage** with the minimum number of test segments. For agentic or integration-heavy processes, separate deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
 
 ## Prerequisites
 
@@ -37,7 +37,9 @@ Node.js POM reads the environment variable and standard Java layouts do not need
 ## Scope boundaries
 
 - **In scope**: BPMN reachability (every element visited at least once), gateway-branch selection, DMN rule selection, error-boundary firing, timer / escalation boundary firing, end-event selection.
-- **Out of scope**: asserting data values produced by service tasks, external system payloads, UI behavior, agent / LLM output. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
+- **Process-test scope**: assertions are limited to reachability and routing. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
+- **Integration-test scope**: assert stable connector/tool contracts (shape, status class, required fields), never volatile exact payloads or generated response wording.
+- **Out of scope**: UI behavior, semantic answer quality, real LLM calls in the required CI path, and authenticated production dependencies.
 
 ## Workflow
 
@@ -85,6 +87,8 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 5. Print the segment plan as a table: `segment name | root | predicted ids covered | end condition`. Authoring then implements exactly this list — no speculative scenarios that may be deduped later.
 
 **Example:** for a gateway with `approved` and `rejected` flows, plan one segment per flow, predict the visited IDs through the next join, and keep the smallest set of segments that covers both branches and the shared end path.
+
+When the request includes connectors, agent tools, or whole-process business outcomes, first split the plan into the three independent layers in [references/three-layer-strategy.md](references/three-layer-strategy.md). Apply set-cover and leave-one-out redundancy checks **within** each layer; cross-layer overlap is expected because each layer proves a different contract.
 
 ### 4. Author
 
@@ -191,6 +195,8 @@ Segments: 1 happy path + 5 secondary
 Duplicates flagged: 0
 ```
 
+For a three-layer suite, also report connector/tool path coverage, named E2E outcomes, and per-suite/per-scenario coverage. Produce machine-readable data and an interactive HTML report with BPMN element/sequence-flow highlighting. Keep required CI offline and credential-free; document live-dev commands separately.
+
 ## Maintenance workflows for existing suites
 
 When tests already exist and the user asks to run, diagnose, or improve them (without generating a brand-new suite), use these focused workflows:
@@ -208,6 +214,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
 - [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
+- [three-layer-strategy.md](references/three-layer-strategy.md) — deterministic process, point-integration, and mocked/local E2E suites for connector- and agent-heavy processes
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
 - [run-and-diagnose.md](references/run-and-diagnose.md) — test-run execution loop and failure-batch repair strategy
 - [evaluation.md](references/evaluation.md) — coverage-gap assessment and recommendation workflow

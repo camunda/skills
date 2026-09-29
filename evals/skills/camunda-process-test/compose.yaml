@@ -1,0 +1,59 @@
+services:
+  orchestration:
+    image: camunda/camunda:8.9.5
+    mem_limit: 1g
+    networks: [eval-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /v1/topology HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n\" >&3 && head -n 1 <&3 | grep -q 200'"]
+      interval: 1s
+      retries: 60
+      start_period: 30s
+    configs:
+      - source: orchestration-config
+        target: /usr/local/camunda/config/application.yaml
+
+  default:
+    image: camunda-skills-evals-verifier:latest
+    network_mode: "service:orchestration"
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+      - ./fixture:/fixture:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
+
+  verifier:
+    image: camunda-skills-evals-verifier:latest
+    network_mode: "service:orchestration"
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /verifier-workspace
+    volumes:
+      - workspace:/agent-workspace:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+    depends_on:
+      orchestration:
+        condition: service_healthy
+
+configs:
+  orchestration-config:
+    file: ../../sandboxes/orchestration/application-h2.yaml
+
+networks:
+  eval-internal:
+    internal: true
+
+volumes:
+  workspace:
