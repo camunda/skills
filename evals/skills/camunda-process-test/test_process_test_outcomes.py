@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import json
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -20,143 +19,110 @@ def _load_outcomes() -> ModuleType:
 _outcomes = _load_outcomes()
 
 
-def _integration_case(tool: str) -> dict:
-    inactive = sorted((_outcomes.TOOLS - {tool}) | {_outcomes.FEEDBACK})
-    return {
-        "name": f"{tool} — stable point integration contract",
-        "instructions": [
-            {
-                "type": "CREATE_PROCESS_INSTANCE",
-                "startInstructions": [{"elementId": tool}],
-            },
-            {
-                "type": "ASSERT_ELEMENT_INSTANCE",
-                "elementSelector": {"elementId": tool},
-                "state": "IS_COMPLETED",
-            },
-            {
-                "type": "ASSERT_ELEMENT_INSTANCES",
-                "elementSelectors": [{"elementId": value} for value in inactive],
-                "state": "IS_NOT_ACTIVATED",
-            },
-        ],
-    }
+def _score(markdown: str) -> float:
+    state = SimpleNamespace(
+        store={"artifacts": {_outcomes.SPEC_PATH: markdown}},
+        messages=[],
+    )
+    return asyncio.run(_outcomes.test_spec_complete()(state, None)).value
 
 
-def _state(*, omit_tool: str | None = None) -> SimpleNamespace:
-    integration_cases = [
-        _integration_case(tool) for tool in sorted(_outcomes.TOOLS - {omit_tool})
-    ]
-    e2e = {
-        "name": "Feedback journey — retry then approved outcome",
-        "instructions": [
-            *[
-                {
-                    "type": "ASSERT_ELEMENT_INSTANCE",
-                    "elementSelector": {"elementId": tool},
-                    "state": "IS_COMPLETED",
-                }
-                for tool in sorted(_outcomes.TOOLS)
-            ],
-            {
-                "type": "COMPLETE_USER_TASK",
-                "variables": {"userSatisfied": False},
-            },
-            {
-                "type": "COMPLETE_USER_TASK",
-                "variables": {"userSatisfied": True},
-            },
-            {"type": "ASSERT_PROCESS_INSTANCE", "state": "IS_COMPLETED"},
-        ],
-    }
-    summary = {
-        "processCoverage": {
-            "reachableElements": 10,
-            "coveredElements": 10,
-            "reachableSequenceFlows": 9,
-            "coveredSequenceFlows": 9,
-            "unreachableElements": [],
-        },
-        "integrationCoverage": {
-            "coveredTools": sorted(_outcomes.TOOLS),
-            "totalPaths": 4,
-        },
-        "e2eOutcomes": ["retry then approved"],
-        "suites": [
-            {"name": "deterministic", "runs": [{}]},
-            {"name": "point integration", "runs": [{}]},
-            {"name": "e2e", "runs": [{}]},
-        ],
-        "redundancy": {
-            "layers": {
-                layer: {
-                    "leaveOneOutApplied": True,
-                    "redundantScenarios": [],
-                }
-                for layer in ("deterministic", "pointIntegration", "e2e")
-            },
-            "crossLayerOverlapExplanation": "Each layer proves a different contract.",
-        },
-    }
-    artifacts = {
-        "/workspace/process.bpmn": '<bpmn:process id="ai-agent-chat-with-tools"/>',
-        "/workspace/test/pom.xml": "<project/>",
-        "/workspace/test/README.md": (
-            "deterministic; point-integration; E2E; optional live-dev profile"
-        ),
-        "/workspace/test/process.test.json": json.dumps(
-            {
-                "processId": _outcomes.PROCESS_ID,
-                "testCases": [
-                    {
-                        "name": "Direct answer — no tools required",
-                        "instructions": [],
-                    }
-                ],
-            }
-        ),
-        "/workspace/test/integration.test.json": json.dumps(
-            {"processId": _outcomes.PROCESS_ID, "testCases": integration_cases}
-        ),
-        "/workspace/test/e2e.test.json": json.dumps(
-            {"processId": _outcomes.PROCESS_ID, "testCases": [e2e]}
-        ),
-        "/workspace/test/target/coverage-summary.json": json.dumps(summary),
-        "/workspace/test/target/coverage-report/report.html": (
-            "<script>window.COVERAGE_DATA={completedElements:[]}</script>"
-        ),
-    }
-    return SimpleNamespace(store={"artifacts": artifacts}, messages=[])
+def _complete_spec() -> str:
+    return """
+# Testing and acceptance criteria
+
+## High-level testing strategy
+| Layer | Purpose | External systems | Acceptance signal | Run |
+| Process | Routing | Mocked | Coverage | Every push |
+| Segment integration | Contract | Local stubs | Tool path | On demand |
+| Process integration | Business outcome | Local/live profile | Named E2E | Scheduled |
+
+## Requirements traceability
+| ID | Requirement | Layer | Scenario | Evidence | Status | Comment |
+| PR-1 | Completes | Process | happy | terminal | planned | — |
+| PR-2 | Retries | Process | retry | loop | planned | — |
+| PR-3 | No tool | Process | answer | path | planned | — |
+| SIR-1 | Users | Segment | ListUsers | shape | planned | — |
+| SIR-2 | Recipe | Segment | Search_Recipe | shape | planned | — |
+| SIR-3 | Joke | Segment | Jokes_API | shape | planned | — |
+| SIR-4 | Tech | Segment | Activity_0x3prgn | shape | planned | — |
+| PIR-1 | Journey | Process integration | feedback | outcome | planned | — |
+Assertion philosophy: prove requirements. Exact prose and UI are out of scope.
+
+## Coverage thresholds
+| Layer | Target | Gate | Report | Rationale |
+| Process | 100% | 100% | report.json | all routing |
+| Segment | 100% | 100% | contracts.json | all tools |
+| Integration | 100% | 80% | junit | realistic paths |
+Thresholds are user-tunable and require approval.
+
+## End-to-end scenarios
+| # | Scenario | Expected outcome | Terminal element | Expected tools | Requirement |
+| 1 | Ask for users | Answer | Event_0i39jej | ListUsers | PIR-1 |
+| 2 | Ask for recipe | Answer | Event_0i39jej | Search_Recipe | PIR-1 |
+| 3 | Reject first result, provide follow-up, then approve satisfied result | Complete | Event_0i39jej | Jokes_API, Activity_0x3prgn | PIR-1 |
+No tool order assertion. Retry unexpected model routing once.
+
+## How to run
+Process: `mvn test`. Integration: `mvn test -P integration-test`.
+E2E: `mvn test -P e2e`.
+Prerequisites: Java, Maven, Docker. Reports: `target/coverage-report/report.html`.
+
+## Artifacts and links
+| Artifact | Link |
+| BPMN | [source BPMN](./ai-agent-chat-with-tools.bpmn) |
+| Spec | [this test spec](./TESTING.md) |
+| CPT docs | [Camunda Process Test](https://docs.camunda.io/docs/apis-tools/testing/) |
+| Planned tests | [planned scenarios](./test/src/test/resources/scenarios/) |
+
+## Approval and open questions
+Status: DRAFT. Approval required before implementation. Do not implement tests
+until the user approves requirements, scenarios, dependencies, and thresholds.
+Open question: which live endpoints are allowed? Decision needed: CI cadence.
+"""
 
 
-def _score(scorer, state) -> float:
-    return asyncio.run(scorer(state, None)).value
+def test_complete_markdown_spec_passes() -> None:
+    assert _score(_complete_spec()) == 1.0
 
 
-def test_complete_three_layer_artifacts_pass_static_scorers() -> None:
-    state = _state()
-
-    for factory in (
-        _outcomes.artifact_scorer,
-        _outcomes.process_coverage_scorer,
-        _outcomes.integration_path_scorer,
-        _outcomes.e2e_scorer,
-        _outcomes.isolation_scorer,
-        _outcomes.redundancy_scorer,
-        _outcomes.report_scorer,
-    ):
-        assert _score(factory(), state) == 1.0, factory.__name__
-
-
-def test_point_integration_requires_every_canonical_tool() -> None:
+def test_missing_approval_gate_fails() -> None:
     assert (
-        _score(_outcomes.integration_path_scorer(), _state(omit_tool="Jokes_API"))
+        _score(
+            _complete_spec()
+            .replace("Approval required before implementation.", "")
+            .replace(
+                "Do not implement tests\nuntil the user approves requirements, scenarios, dependencies, and thresholds.",
+                "",
+            )
+        )
         == 0.0
     )
 
 
-def test_task_uses_executable_canonical_sample() -> None:
+def test_placeholder_artifact_links_fail() -> None:
+    assert (
+        _score(
+            _complete_spec().replace(
+                "[source BPMN](./ai-agent-chat-with-tools.bpmn)",
+                "[source BPMN](#)",
+            )
+        )
+        == 0.0
+    )
+
+
+def test_reference_qwen_benchmark_passes() -> None:
+    benchmark = (
+        Path(__file__).parent
+        / "benchmarks/qwen3-coder-30b/2026-09-29T21-34-03Z/TESTING.md"
+    )
+
+    assert _score(benchmark.read_text()) == 1.0
+
+
+def test_task_requests_one_markdown_artifact() -> None:
     task = _outcomes.camunda_process_test()
 
-    assert [sample.id for sample in task.dataset] == ["agentic-three-layer-suite"]
-    assert str(task.sandbox.config).endswith("camunda-process-test/compose.yaml")
+    assert [sample.id for sample in task.dataset] == ["agentic-test-specification"]
+    assert "write only `/workspace/TESTING.md`" in task.dataset[0].input

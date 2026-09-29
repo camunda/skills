@@ -6,13 +6,13 @@ description: |
 
 # Camunda Process Test
 
-**WORKFLOW SKILL**: plan segments, author scenarios, run the Maven test command, and close coverage gaps.
+**WORKFLOW SKILL**: specify requirements and acceptance criteria, get human approval, then plan segments, author scenarios, run the Maven test command, and close coverage gaps.
 
 ## DO NOT USE FOR:
 
 Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
-Author and run Camunda Process Test suites for Camunda 8.8+ that reach **100% BPMN element coverage** with the minimum number of test segments. For agentic or integration-heavy processes, separate deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
+Author and run Camunda Process Test suites for Camunda 8.8+ from a reviewed Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage gates, dependencies, and commands. For agentic or integration-heavy processes, separate deterministic process, segment-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
 
 ## Prerequisites
 
@@ -43,7 +43,19 @@ Node.js POM reads the environment variable and standard Java layouts do not need
 
 ## Workflow
 
-### 1. Detect
+### 1. Specify and approve
+
+Before writing test code, create or update a Markdown test specification using [references/test-specification.md](references/test-specification.md). Prefer `TESTING.md` beside the process or its test harness.
+
+1. Inspect the BPMN and existing project artifacts.
+2. Draft the layered strategy, requirement traceability matrix, user-tunable coverage thresholds, realistic E2E catalogue, run commands, dependencies, and artifact links.
+3. Mark unresolved assumptions and decisions. Keep the specification status `DRAFT`.
+4. In interactive mode, present the specification to the user and iterate on requirements, scenarios, dependencies, and thresholds. **Do not implement tests until the user explicitly approves the plan.**
+5. Record the approval and agreed thresholds in the specification, then proceed. If the user requested planning only, stop after the approved specification.
+
+The test suite must trace back to this specification. When later implementation evidence changes, update the requirement row and links rather than letting the Markdown drift.
+
+### 2. Detect
 
 Find the BPMN under test in priority order:
 
@@ -54,7 +66,7 @@ Find the BPMN under test in priority order:
 
 Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, list them and ask which to target.
 
-Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 2.
+Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 3.
 
 If scenarios already exist, run a drift check before editing tests:
 
@@ -72,11 +84,11 @@ Then classify current suite gaps:
 
 Fix in this order: broken → stale → missing, then run `mvn test` and continue with coverage verification.
 
-### 2. Setup (only if missing)
+### 3. Setup (only if missing)
 
 Follow [references/setup.md](references/setup.md): run the readiness preflight (Java, Maven/wrapper, Docker), add the CPT dependency, scaffold `src/test/java/io/camunda/tests/ProcessTest.java` and `src/test/resources/scenarios/` for CPT 8.9+, or use the Java fallback for CPT 8.8. Confirm with `mvn test-compile`.
 
-### 3. Plan segments (set-cover, not per-element)
+### 4. Plan segments (set-cover, not per-element)
 
 Plan the minimum number of segments **before** authoring anything. Apply [references/coverage-strategy.md](references/coverage-strategy.md):
 
@@ -90,13 +102,13 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 When the request includes connectors, agent tools, or whole-process business outcomes, first split the plan into the three independent layers in [references/three-layer-strategy.md](references/three-layer-strategy.md). Apply set-cover and leave-one-out redundancy checks **within** each layer; cross-layer overlap is expected because each layer proves a different contract.
 
-### 4. Author
+### 5. Author
 
 For CPT 8.9+, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). For CPT 8.8, use the Java fallback described in that reference instead of `.test.json`. Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
 For CPT 8.9+, use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers. For CPT 8.8, Java tests are required because the instruction-based format is not available. See [references/test-context.md](references/test-context.md); Java tests are invisible to Web Modeler.
 
-### 5. Run
+### 6. Run
 
 Run Maven from the directory containing the relevant `pom.xml`. For a Node.js layout, use the
 generated `test/` directory and keep `NODE_RESOURCE_DIR` set to the resolved resource directory
@@ -108,9 +120,9 @@ mvn test
 
 On failure, diagnose with [references/troubleshooting.md](references/troubleshooting.md). Distinguish **test problems** (variable typo, wrong element id, missing instruction) from **process problems** (wrong FEEL condition, wrong DMN rule, wrong error code). Fix the right side. Re-run. Stop after 3 repair cycles with no progress.
 
-When the run exits — pass or fail — proceed straight to step 6 and open the coverage report.
+When the run exits — pass or fail — proceed straight to step 7 and open the coverage report.
 
-### 6. Coverage check — exit gate (100% loop)
+### 7. Coverage check — exit gate
 
 CPT emits a coverage report at `target/coverage-report/report.html` (per-process HTML; the page embeds the full coverage dataset in a `window.COVERAGE_DATA` JSON literal). Parse it:
 
@@ -174,7 +186,9 @@ Do not declare the suite done while ids remain uncovered and no hard blocker app
 
 > **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios from source to confirm coverage in that case.
 
-### 7. Verify no redundancy slipped through
+Compare measured coverage with the **approved per-layer gates in the test specification**. Default a new deterministic process layer to 100% reachable BPMN element and sequence-flow coverage, but do not silently override an explicitly approved threshold. Explain any gap between the aspirational target and machine gate.
+
+### 8. Verify no redundancy slipped through
 
 Set-cover planning in step 3 should produce a non-redundant suite by construction. Verify with a leave-one-out check against the runtime coverage data: for each scenario, compute the union of all *other* scenarios' covered ids; if removing the scenario loses zero ids, it is redundant and the planner has a bug — fix the planner, then drop the scenario.
 
@@ -184,7 +198,7 @@ Also flag (cheap, do unconditionally):
 - Duplicated descriptions across scenarios.
 - `ASSERT_VARIABLE` instructions on variables that no gateway or DMN downstream consumes — data assertions are out of scope.
 
-### 8. Report
+### 9. Report
 
 Print the Surefire result line, the coverage percentage, the segment count, and any flagged duplicates.
 
@@ -210,6 +224,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
+- [test-specification.md](references/test-specification.md) — required Markdown plan, traceability matrix, tunable thresholds, realistic scenarios, approval gate, and maintenance rules
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
