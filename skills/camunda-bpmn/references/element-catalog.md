@@ -2,7 +2,7 @@
 
 Complete reference for BPMN 2.0 elements supported by Camunda 8 (Zeebe engine).
 
-Snippets omit `<bpmn:incoming>`/`<bpmn:outgoing>` for brevity. In a real process they go **before** any `*EventDefinition` child (after `extensionElements`) — the other order fails deployment schema validation.
+Snippets show `<bpmn:incoming>`/`<bpmn:outgoing>` where relevant. In a real process they go **before** any `*EventDefinition` child (after `extensionElements`) — the other order fails deployment schema validation.
 
 ## Start Events
 
@@ -16,8 +16,8 @@ Snippets omit `<bpmn:incoming>`/`<bpmn:outgoing>` for brevity. In a real process
 **Message Start Event:**
 ```xml
 <bpmn:startEvent id="Start_OrderReceived" name="Order received">
-  <bpmn:messageEventDefinition messageRef="Message_Order" />
   <bpmn:outgoing>Flow_1</bpmn:outgoing>
+  <bpmn:messageEventDefinition messageRef="Message_Order" />
 </bpmn:startEvent>
 <bpmn:message id="Message_Order" name="order-received" />
 ```
@@ -76,24 +76,24 @@ Attached to tasks or subprocesses. Default is interrupting (`cancelActivity="tru
 ```xml
 <!-- Interrupting timer boundary (cancels the task after 4 hours) -->
 <bpmn:boundaryEvent id="Boundary_Timeout" attachedToRef="Task_Review" cancelActivity="true">
+  <bpmn:outgoing>Flow_Escalate</bpmn:outgoing>
   <bpmn:timerEventDefinition>
     <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT4H"</bpmn:timeDuration>
   </bpmn:timerEventDefinition>
-  <bpmn:outgoing>Flow_Escalate</bpmn:outgoing>
 </bpmn:boundaryEvent>
 
 <!-- Non-interrupting timer (sends reminder, task continues) -->
 <bpmn:boundaryEvent id="Boundary_Reminder" attachedToRef="Task_Review" cancelActivity="false">
+  <bpmn:outgoing>Flow_Remind</bpmn:outgoing>
   <bpmn:timerEventDefinition>
     <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT1H"</bpmn:timeDuration>
   </bpmn:timerEventDefinition>
-  <bpmn:outgoing>Flow_Remind</bpmn:outgoing>
 </bpmn:boundaryEvent>
 
 <!-- Error boundary (catches specific error from service task) -->
 <bpmn:boundaryEvent id="Boundary_Error" attachedToRef="Task_CallAPI">
-  <bpmn:errorEventDefinition errorRef="Error_APIFailed" />
   <bpmn:outgoing>Flow_HandleError</bpmn:outgoing>
+  <bpmn:errorEventDefinition errorRef="Error_APIFailed" />
 </bpmn:boundaryEvent>
 <bpmn:error id="Error_APIFailed" name="API Failed" errorCode="API_ERROR" />
 ```
