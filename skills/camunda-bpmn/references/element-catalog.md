@@ -49,11 +49,15 @@ Note: Processes with ONLY a timer start event cannot be started manually. Add a 
 ```xml
 <!-- Message catch -->
 <bpmn:intermediateCatchEvent id="Event_WaitApproval" name="Approval received">
+  <bpmn:incoming>Flow_Reviewed</bpmn:incoming>
+  <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
   <bpmn:messageEventDefinition messageRef="Message_Approval" />
 </bpmn:intermediateCatchEvent>
 
 <!-- Timer catch -->
 <bpmn:intermediateCatchEvent id="Event_Wait3Days" name="Wait 3 days">
+  <bpmn:incoming>Flow_Submitted</bpmn:incoming>
+  <bpmn:outgoing>Flow_TimedOut</bpmn:outgoing>
   <bpmn:timerEventDefinition>
     <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT3D"</bpmn:timeDuration>
   </bpmn:timerEventDefinition>
