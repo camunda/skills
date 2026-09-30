@@ -12,6 +12,7 @@ def copy_version_root(tmp_path: Path) -> Path:
     root = tmp_path / "repository"
     root.mkdir(parents=True)
     shutil.copy(REPOSITORY_ROOT / "plugin.json", root / "plugin.json")
+    shutil.copy(REPOSITORY_ROOT / "version.txt", root / "version.txt")
     shutil.copytree(REPOSITORY_ROOT / ".claude-plugin", root / ".claude-plugin")
     shutil.copytree(REPOSITORY_ROOT / ".github" / "plugin", root / ".github" / "plugin")
     return root
@@ -119,4 +120,32 @@ def test_accepts_valid_semver_with_prerelease_and_build(tmp_path: Path) -> None:
                     plugin["version"] = version
         write_json(manifest, document)
 
+    (root / "version.txt").write_text(version + "\n", encoding="utf-8")
+
     assert version_check.main(["--root", str(root)]) == 0
+
+
+def test_rejects_version_txt_drift(tmp_path: Path, capsys: object) -> None:
+    root = copy_version_root(tmp_path)
+    (root / "version.txt").write_text("0.0.0\n", encoding="utf-8")
+
+    assert version_check.main(["--root", str(root)]) == 1
+    err = capsys.readouterr().err
+    assert "version.txt" in err
+    assert "!= source-of-truth" in err
+
+
+def test_rejects_missing_version_txt(tmp_path: Path, capsys: object) -> None:
+    root = copy_version_root(tmp_path)
+    (root / "version.txt").unlink()
+
+    assert version_check.main(["--root", str(root)]) == 1
+    assert "version file does not exist" in capsys.readouterr().err
+
+
+def test_rejects_invalid_semver_version_txt(tmp_path: Path, capsys: object) -> None:
+    root = copy_version_root(tmp_path)
+    (root / "version.txt").write_text("not-a-version\n", encoding="utf-8")
+
+    assert version_check.main(["--root", str(root)]) == 1
+    assert "expected a semantic version" in capsys.readouterr().err

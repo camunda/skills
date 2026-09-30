@@ -25,8 +25,10 @@ TRIPLE = (("camunda", "Camunda"), ("c8ctl", "c8ctl"))
 RANGE = re.compile(r"^(>=|>|<=|<|~|\^|=)?(\d+(?:\.\d+){0,2})$")
 # Comparators that express a lower bound and therefore contribute a floor.
 # Upper-only ranges (`<`, `<=`) declare a ceiling, not a minimum, so they must
-# not be rendered under a "Minimum version" heading.
-LOWER_BOUND = (">=", ">", "~", "^", "=")
+# not be rendered under a "Minimum version" heading. A strict lower bound (`>`)
+# is also excluded: reducing `>8.8` to `8.8` would claim 8.8 satisfies the floor
+# when it does not, so a strict bound is not a safe minimum to render.
+LOWER_BOUND = (">=", "~", "^", "=")
 
 
 def floor(version_range: str) -> tuple[int, ...] | None:

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Assert every plugin manifest carries the same bundle version.
+"""Assert every versioned file carries the same bundle version.
 
 Under the hybrid versioning model the whole `camunda-skills` package ships as
 one semantically versioned, pinnable bundle. That single version is duplicated
-across four manifests that different harnesses read. `plugin.json` is the source
-of truth; this guard fails if any other manifest drifts from it, so a manual
-edit or a botched release bump can never publish mismatched versions.
+across the four JSON manifests that different harnesses read, plus the root
+`version.txt` that release-please's `simple` strategy uses as its version file.
+`plugin.json` is the source of truth; this guard fails if any other manifest or
+`version.txt` drifts from it, so a manual edit or a botched release bump can
+never publish mismatched versions (or compute the next bump from a stale value).
 
 Stdlib-only so it runs anywhere (`python3 compatibility/version_check.py`)
 without the project virtualenv.
@@ -42,6 +44,12 @@ MANIFESTS: tuple[tuple[str, tuple[tuple[Any, ...], ...]], ...] = (
         (("metadata", "version"), ("plugins", 0, "version")),
     ),
 )
+
+# release-please's `simple` strategy reads and rewrites this plain-text version
+# file. It is not a JSON manifest, so it is checked separately below; if it
+# drifts from `plugin.json`, the next release bump is computed from a stale
+# value even though every JSON manifest passes the consistency guard.
+VERSION_FILE = "version.txt"
 
 
 def resolve(document: Any, path: tuple[Any, ...]) -> Any:
@@ -94,6 +102,21 @@ def main(argv: list[str] | None = None) -> int:
                     f"{filename}.{dotted}: {value!r} != source-of-truth "
                     f"plugin.json version {canonical!r}"
                 )
+
+    version_file = root / VERSION_FILE
+    if not version_file.is_file():
+        errors.append(f"{VERSION_FILE}: version file does not exist")
+    else:
+        file_version = version_file.read_text(encoding="utf-8").strip()
+        if not SEMVER.fullmatch(file_version):
+            errors.append(
+                f"{VERSION_FILE}: expected a semantic version, got {file_version!r}"
+            )
+        elif file_version != canonical:
+            errors.append(
+                f"{VERSION_FILE}: {file_version!r} != source-of-truth "
+                f"plugin.json version {canonical!r}"
+            )
 
     if errors:
         print("Version consistency check failed:", file=sys.stderr)
