@@ -23,7 +23,7 @@ SKILL_NAME = re.compile(r"(?=.{1,64}\Z)[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 RESERVED_SKILL_NAMES = frozenset({"anthropic", "claude"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 REQUIRES_KEYS = ("camunda", "c8ctl", "node", "java", "maven", "docker", "dmnlint")
-VERSION_RANGE = re.compile(r"^(\*|(>=|>|<=|<|~|\^|=)?\d+(\.\d+){0,2})$")
+VERSION_RANGE = re.compile(r"^(\*|(>=|>|<=|<|~|\^|=)?(0|[1-9]\d*)(\.(0|[1-9]\d*)){0,2})$")
 GENERIC_DIFFERENCE = "Tool names, model configuration, and credential setup can vary by harness."
 OPTIONAL_FRONTMATTER_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 

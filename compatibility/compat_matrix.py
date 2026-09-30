@@ -44,14 +44,13 @@ def render(root: Path) -> str:
             parsed = floor(value) if isinstance(value, str) else None
             if parsed is None:
                 continue
-            if tool not in floors or parsed < floors[tool]:
+            if tool not in floors or parsed > floors[tool]:
                 floors[tool] = parsed
 
     lines = [
         "### Compatibility",
         "",
-        f"`camunda-skills@{bundle}` is validated as a tested triple against these"
-        " minimum versions:",
+        f"`camunda-skills@{bundle}` declares these minimum versions:",
         "",
         "| Component | Minimum version |",
         "| --- | --- |",

@@ -209,9 +209,9 @@ Releases are automated from Conventional Commits by
 2. release-please maintains a **release PR** that updates `CHANGELOG.md` and all
    four version manifests.
 3. Merging that PR tags `v<x.y.z>` and publishes the matching GitHub Release.
-   The release notes get a **Compatibility** section appended — the tested triple
-   of skills bundle version ↔ minimum c8ctl ↔ minimum Camunda, derived from the
-   per-skill `requires` envelopes (`make compat-matrix` prints it locally).
+   The release notes get a **Compatibility** section with the declared minimums
+   for the skills bundle, c8ctl, and Camunda, derived from each skill's
+   `requires` envelope (`make compat-matrix` prints these declarations locally).
 
 Don't hand-edit the version manifests or `CHANGELOG.md` — let the release PR own
 them. If you do touch a manifest, `make version-check` must still pass.
