@@ -222,3 +222,54 @@ def test_marks_skills_failed_for_global_post_skill_errors(
     ]
     assert skill_lines
     assert all(line.endswith(": failed") for line in skill_lines)
+
+
+def test_rejects_requires_missing_camunda(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    sidecar_path = root / "skills" / name / "portability.json"
+    sidecar = read_json(sidecar_path)
+    assert isinstance(sidecar, dict)
+    sidecar["requires"] = {"c8ctl": ">=3.0.0"}
+    write_json(sidecar_path, sidecar)
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "missing required 'camunda' version range" in capsys.readouterr().err
+
+
+def test_rejects_requires_unsupported_key(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    sidecar_path = root / "skills" / name / "portability.json"
+    sidecar = read_json(sidecar_path)
+    assert isinstance(sidecar, dict)
+    sidecar["requires"]["unknown-tool"] = ">=1.0"
+    write_json(sidecar_path, sidecar)
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "unsupported keys" in capsys.readouterr().err
+
+
+def test_rejects_requires_invalid_range(tmp_path: Path, capsys: object) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    sidecar_path = root / "skills" / name / "portability.json"
+    sidecar = read_json(sidecar_path)
+    assert isinstance(sidecar, dict)
+    sidecar["requires"]["camunda"] = "not-a-version"
+    write_json(sidecar_path, sidecar)
+
+    assert check.main(["--root", str(root)]) == 1
+    assert "expected a version range" in capsys.readouterr().err
+
+
+def test_accepts_requires_wildcard_range(tmp_path: Path) -> None:
+    root = copy_contract_root(tmp_path)
+    name = first_skill_name(root)
+    sidecar_path = root / "skills" / name / "portability.json"
+    sidecar = read_json(sidecar_path)
+    assert isinstance(sidecar, dict)
+    sidecar["requires"]["camunda"] = "*"
+    write_json(sidecar_path, sidecar)
+
+    assert check.main(["--root", str(root)]) == 0

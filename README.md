@@ -131,6 +131,20 @@ claude --plugin-dir .
 make try
 ```
 
+### Pinning a version
+
+The skills ship as one semantically versioned bundle. Each release is published as a Git tag `v<x.y.z>` and a matching [GitHub Release](https://github.com/camunda/skills/releases) — pin to a tag for a stable deployment instead of tracking `main`.
+
+```bash
+# Clone-based installs (Claude --plugin-dir, manual copy): check out a release tag.
+git clone https://github.com/camunda/skills && cd skills
+git checkout v1.0.0
+```
+
+For GitHub CLI, pin one skill by appending the tag to its name (for example, `gh skill install camunda/skills camunda-bpmn@v<x.y.z>`) or with `--pin v<x.y.z>`; pin all skills with `gh skill install camunda/skills --all --pin v<x.y.z>`. Other installers may accept a repository Git ref; otherwise install from a clone checked out at the tag. Marketplace installs that track a branch follow `main` — pin via a tagged clone when you need a fixed version.
+
+Every release's notes carry a **Compatibility** section with the declared minimum versions for the skills bundle, c8ctl, and Camunda. Run `make compat-matrix` to print the current declared floors from the checkout. Per-skill dependency envelopes live in each skill's `portability.json` under `requires`.
+
 ### Generic installers and manual installation
 
 Use the npm-based [Agent Skills installer](https://github.com/vercel-labs/skills) for a compatible host:
