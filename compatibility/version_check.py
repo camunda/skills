@@ -3,11 +3,13 @@
 
 Under the hybrid versioning model the whole `camunda-skills` package ships as
 one semantically versioned, pinnable bundle. That single version is duplicated
-across the four JSON manifests that different harnesses read, plus the root
-`version.txt` that release-please's `simple` strategy uses as its version file.
-`plugin.json` is the source of truth; this guard fails if any other manifest or
-`version.txt` drifts from it, so a manual edit or a botched release bump can
-never publish mismatched versions (or compute the next bump from a stale value).
+across the four JSON manifests that different harnesses read, the root
+`version.txt` that release-please's `simple` strategy uses as its version file,
+and `.release-please-manifest.json`, which records the last released version.
+`plugin.json` is the source of truth; this guard fails if any other manifest,
+`version.txt`, or the release-please manifest drifts from it, so a manual edit
+or a botched release bump can never publish mismatched versions (or compute the
+next bump from a stale value).
 
 Stdlib-only so it runs anywhere (`python3 compatibility/version_check.py`)
 without the project virtualenv.
@@ -43,6 +45,10 @@ MANIFESTS: tuple[tuple[str, tuple[tuple[Any, ...], ...]], ...] = (
         ".github/plugin/marketplace.json",
         (("metadata", "version"), ("plugins", 0, "version")),
     ),
+    # release-please records the last released version for the root package
+    # under the "." key; if it drifts, the next release bump is computed from a
+    # stale value even though every plugin manifest passes the guard.
+    (".release-please-manifest.json", ((".",),)),
 )
 
 # release-please's `simple` strategy reads and rewrites this plain-text version

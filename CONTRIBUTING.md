@@ -178,8 +178,10 @@ Release instead of floating on `main`.
 - **Bundle version (deployable).** A single [SemVer](https://semver.org/) for
   the whole `camunda-skills` plugin is the unit you pin. It lives in four
   manifests — `plugin.json` (source of truth), `.claude-plugin/plugin.json`,
-  `.claude-plugin/marketplace.json`, and `.github/plugin/marketplace.json`.
-  `make version-check` fails if any of them drift from `plugin.json`.
+  `.claude-plugin/marketplace.json`, and `.github/plugin/marketplace.json` —
+  plus the root `version.txt` and `.release-please-manifest.json` that
+  release-please uses as its version state. `make version-check` fails if any
+  of them drift from `plugin.json`.
 - **Per-skill `requires` (informational).** Each `skills/<name>/portability.json`
   declares its dependency envelope — `camunda`, and where relevant `c8ctl`,
   `node`, `java`, `maven`, `docker`, `dmnlint` — as SemVer ranges. This is
@@ -206,8 +208,8 @@ Releases are automated from Conventional Commits by
 
 1. Commits merged to `main` are classified — `feat` → minor, `fix` → patch,
    `!` / `BREAKING CHANGE` → major.
-2. release-please maintains a **release PR** that updates `CHANGELOG.md` and all
-   four version manifests.
+2. release-please maintains a **release PR** that updates `CHANGELOG.md`, all
+   four version manifests, `version.txt`, and `.release-please-manifest.json`.
 3. Merging that PR tags `v<x.y.z>` and publishes the matching GitHub Release.
    The release notes get a **Compatibility** section with the declared minimums
    for the skills bundle, c8ctl, and Camunda, derived from each skill's

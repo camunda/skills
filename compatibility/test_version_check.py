@@ -13,6 +13,10 @@ def copy_version_root(tmp_path: Path) -> Path:
     root.mkdir(parents=True)
     shutil.copy(REPOSITORY_ROOT / "plugin.json", root / "plugin.json")
     shutil.copy(REPOSITORY_ROOT / "version.txt", root / "version.txt")
+    shutil.copy(
+        REPOSITORY_ROOT / ".release-please-manifest.json",
+        root / ".release-please-manifest.json",
+    )
     shutil.copytree(REPOSITORY_ROOT / ".claude-plugin", root / ".claude-plugin")
     shutil.copytree(REPOSITORY_ROOT / ".github" / "plugin", root / ".github" / "plugin")
     return root
@@ -107,6 +111,7 @@ def test_accepts_valid_semver_with_prerelease_and_build(tmp_path: Path) -> None:
         root / ".claude-plugin" / "plugin.json",
         root / ".claude-plugin" / "marketplace.json",
         root / ".github" / "plugin" / "marketplace.json",
+        root / ".release-please-manifest.json",
     ):
         document = read_json(manifest)
         assert isinstance(document, dict)
@@ -118,6 +123,8 @@ def test_accepts_valid_semver_with_prerelease_and_build(tmp_path: Path) -> None:
             for plugin in document["plugins"]:
                 if isinstance(plugin, dict) and "version" in plugin:
                     plugin["version"] = version
+        if "." in document:
+            document["."] = version
         write_json(manifest, document)
 
     (root / "version.txt").write_text(version + "\n", encoding="utf-8")
@@ -149,3 +156,43 @@ def test_rejects_invalid_semver_version_txt(tmp_path: Path, capsys: object) -> N
 
     assert version_check.main(["--root", str(root)]) == 1
     assert "expected a semantic version" in capsys.readouterr().err
+
+
+def test_rejects_release_please_manifest_drift(tmp_path: Path, capsys: object) -> None:
+    root = copy_version_root(tmp_path)
+    path = root / ".release-please-manifest.json"
+    document = read_json(path)
+    assert isinstance(document, dict)
+    document["."] = "0.0.0"
+    write_json(path, document)
+
+    assert version_check.main(["--root", str(root)]) == 1
+    err = capsys.readouterr().err
+    assert ".release-please-manifest.json" in err
+    assert "!= source-of-truth" in err
+
+
+def test_rejects_missing_release_please_manifest(tmp_path: Path, capsys: object) -> None:
+    root = copy_version_root(tmp_path)
+    (root / ".release-please-manifest.json").unlink()
+
+    assert version_check.main(["--root", str(root)]) == 1
+    err = capsys.readouterr().err
+    assert ".release-please-manifest.json" in err
+    assert "manifest does not exist" in err
+
+
+def test_rejects_missing_release_please_version_field(
+    tmp_path: Path, capsys: object
+) -> None:
+    root = copy_version_root(tmp_path)
+    path = root / ".release-please-manifest.json"
+    document = read_json(path)
+    assert isinstance(document, dict)
+    del document["."]
+    write_json(path, document)
+
+    assert version_check.main(["--root", str(root)]) == 1
+    err = capsys.readouterr().err
+    assert ".release-please-manifest.json" in err
+    assert "version field is missing" in err
