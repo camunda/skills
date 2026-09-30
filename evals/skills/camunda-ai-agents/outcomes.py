@@ -372,8 +372,7 @@ SAMPLES = [
     Sample(
         id="ticket-triage-subprocess",
         input=(
-            "Use only the camunda-ai-agents skill; do not load other skills or "
-            "references.\n"
+            "Use only the camunda-ai-agents skill; do not load other skills.\n"
             "Create a Camunda 8.8+ BPMN process (id: ai-ticket-triage, name: "
             "'AI Ticket Triage') with an AI Agent Sub-process pattern:\n"
             "1. Start event 'Ticket received'.\n"
