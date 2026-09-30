@@ -22,14 +22,21 @@ from pathlib import Path
 # Tools surfaced in the headline triple, in display order. `requires{}` may
 # carry more (node/java/maven/docker/dmnlint); those stay per-skill metadata.
 TRIPLE = (("camunda", "Camunda"), ("c8ctl", "c8ctl"))
-RANGE = re.compile(r"^(?:>=|>|<=|<|~|\^|=)?(\d+(?:\.\d+){0,2})$")
+RANGE = re.compile(r"^(>=|>|<=|<|~|\^|=)?(\d+(?:\.\d+){0,2})$")
+# Comparators that express a lower bound and therefore contribute a floor.
+# Upper-only ranges (`<`, `<=`) declare a ceiling, not a minimum, so they must
+# not be rendered under a "Minimum version" heading.
+LOWER_BOUND = (">=", ">", "~", "^", "=")
 
 
 def floor(version_range: str) -> tuple[int, ...] | None:
     match = RANGE.fullmatch(version_range.strip())
     if not match:
         return None
-    return tuple(int(part) for part in match.group(1).split("."))
+    comparator = match.group(1) or ">="
+    if comparator not in LOWER_BOUND:
+        return None
+    return tuple(int(part) for part in match.group(2).split("."))
 
 
 def render(root: Path) -> str:
