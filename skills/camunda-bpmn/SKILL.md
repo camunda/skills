@@ -111,6 +111,7 @@ BPMN files can be large. Follow these rules:
 - Keep unique, descriptive IDs
 - Include BPMN DI section for visual layout (see [references/layout-rules.md](references/layout-rules.md))
 - Include `<bpmn:incoming>` and `<bpmn:outgoing>` flow references on elements
+- **Child elements follow the XSD sequence** — deployment rejects any other order (`cvc-complex-type.2.4.a … One of '{…eventDefinition…}' is expected`): `documentation`, `extensionElements`, `incoming`, `outgoing`, then (events) the `*EventDefinition`. On events, flow refs come **before** the event definition. `c8ctl bpmn format -i <file>` rewrites children into schema order — run it before deploying hand-written XML
 
 ### Lint loop — structural exit gate
 

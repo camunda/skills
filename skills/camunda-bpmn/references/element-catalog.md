@@ -2,6 +2,8 @@
 
 Complete reference for BPMN 2.0 elements supported by Camunda 8 (Zeebe engine).
 
+Snippets omit `<bpmn:incoming>`/`<bpmn:outgoing>` for brevity. In a real process they go **before** any `*EventDefinition` child (after `extensionElements`) — the other order fails deployment schema validation.
+
 ## Start Events
 
 | Type | XML | When to Use |
@@ -23,6 +25,7 @@ Complete reference for BPMN 2.0 elements supported by Camunda 8 (Zeebe engine).
 **Timer Start Event:**
 ```xml
 <bpmn:startEvent id="Start_Daily" name="Daily trigger">
+  <bpmn:outgoing>Flow_DailyToCheck</bpmn:outgoing>
   <bpmn:timerEventDefinition>
     <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
   </bpmn:timerEventDefinition>
