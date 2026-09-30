@@ -490,6 +490,9 @@ def camunda_ai_agents(arm: Arm = "with_skill", agent: AgentKind = "react") -> Ta
         sandbox=("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml")),
         metadata=METADATA.model_dump(),
         time_limit=420,
-        token_limit=140_000,
+        # Counts cache reads: every turn re-reads the growing context. The
+        # ticket-triage sample needs ~10 turns (write BPMN, sync, search,
+        # get-properties, apply, verify) and hit 140k right before `apply`.
+        token_limit=250_000,
         message_limit=45,
     )
