@@ -141,6 +141,8 @@ def camunda_docs(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),
         metadata=METADATA.model_dump(),
         time_limit=180,
-        token_limit=120_000,
+        # Counts cache reads: each turn re-reads the growing context, so a ~10-turn
+        # search → fetch → answer run can pass 120k before writing answer.json.
+        token_limit=200_000,
         message_limit=60,
     )
