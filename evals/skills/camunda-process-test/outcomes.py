@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -14,18 +15,21 @@ from inspect_ai.util import sandbox
 
 from core.agents import AgentKind, build_agent
 from core.metadata import EvalMetadata
-from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
+from core.paths import Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
 METADATA = EvalMetadata(skills=["camunda-process-test"], max_sandboxes=1)
 
-SCENARIO_PATH = "/workspace/invoice-approval.test.json"
 SPEC_PATH = "/workspace/TESTING.md"
+PROCESS_ID = "ai-agent-chat-with-tools"
+TOOLS = {"ListUsers", "Search_Recipe", "Jokes_API", "Activity_0x3prgn"}
+FEEDBACK = "User_Feedback"
 SPEC_SAMPLE = "agentic-test-specification"
 CONNECTOR_SPEC_SAMPLE = "connector-user-task-test-specification"
 SIMPLE_SPEC_SAMPLE = "simple-user-task-test-specification"
 SPEC_SAMPLES = {SPEC_SAMPLE, CONNECTOR_SPEC_SAMPLE, SIMPLE_SPEC_SAMPLE}
+IMPLEMENTATION_SAMPLE = "agentic-three-layer-suite"
 OPTIONAL_SPEC_FAILURE_PREFIXES = (
     "guarantees do not consistently",
     "guarantee rows are not concise",
@@ -41,7 +45,84 @@ OPTIONAL_SPEC_FAILURE_PREFIXES = (
 )
 OPTIONAL_SPEC_CRITERIA = len(OPTIONAL_SPEC_FAILURE_PREFIXES)
 
-SAVE = "\n\nSave ONLY the scenario JSON to /workspace/invoice-approval.test.json."
+
+def _not_applicable(state: TaskState, sample_id: str) -> Score | None:
+    if state.sample_id == sample_id:
+        return None
+    return Score(
+        value=1.0,
+        explanation=f"not applicable to sample {state.sample_id}",
+        metadata={"not_applicable": True},
+    )
+
+
+def _artifacts(state: TaskState) -> dict[str, str]:
+    return {
+        path: content
+        for path, content in (state.store.get("artifacts") or {}).items()
+        if isinstance(path, str) and isinstance(content, str)
+    }
+
+
+def _artifact(state: TaskState) -> str:
+    artifacts = _artifacts(state)
+    value = artifacts.get(SPEC_PATH, "")
+    return value if isinstance(value, str) else ""
+
+
+def _json_documents(state: TaskState) -> list[tuple[str, dict[str, Any]]]:
+    documents = []
+    for path, content in _artifacts(state).items():
+        if not path.endswith(".json"):
+            continue
+        try:
+            value = json.loads(content)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            documents.append((path, value))
+    return documents
+
+
+def _test_cases(state: TaskState) -> list[tuple[str, dict[str, Any]]]:
+    cases = []
+    for path, document in _json_documents(state):
+        if document.get("processId") != PROCESS_ID:
+            continue
+        for case in document.get("testCases", []):
+            if isinstance(case, dict):
+                cases.append((path, case))
+    return cases
+
+
+def _instructions(case: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        instruction
+        for instruction in case.get("instructions", [])
+        if isinstance(instruction, dict)
+    ]
+
+
+def _mentioned_elements(case: dict[str, Any]) -> set[str]:
+    return {
+        value
+        for instruction in _instructions(case)
+        for value in re.findall(r'"elementId"\s*:\s*"([^"]+)"', json.dumps(instruction))
+    }
+
+
+def _summary(state: TaskState) -> tuple[str, dict[str, Any]] | None:
+    required = {
+        "processCoverage",
+        "integrationCoverage",
+        "e2eOutcomes",
+        "suites",
+        "redundancy",
+    }
+    for path, document in _json_documents(state):
+        if required.issubset(document):
+            return path, document
+    return None
 
 
 def _spec_artifact(state: TaskState) -> str:
@@ -353,122 +434,424 @@ def test_spec_overall() -> Scorer:
 
 
 @scorer(metrics=[mean(), stderr()])
-def cpt_scenario_shape() -> Scorer:
-    """Check that the authored `.test.json` covers both gateway outcomes."""
+def artifact_scorer() -> Scorer:
+    """Require the approved spec and runnable, separated test-layer artifacts."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        sb = sandbox()
-        read = await sb.exec(["cat", SCENARIO_PATH], timeout=10)
-        if read.returncode != 0:
-            return Score(
-                value=0.0,
-                explanation=f"missing scenario file at {SCENARIO_PATH}",
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        files = _artifacts(state)
+        cases = _test_cases(state)
+        failures = []
+        if not _artifact(state) or not re.search(
+            r"\bAPPROVED\b", _artifact(state), re.IGNORECASE
+        ):
+            failures.append("missing approved TESTING.md")
+        if not any(path.endswith("pom.xml") for path in files):
+            failures.append("missing Maven harness")
+        poms = [path for path in files if path.endswith("pom.xml")]
+        if sorted(poms) != ["/workspace/test/pom.xml"]:
+            failures.append(
+                "expected exactly the approved Maven harness at /workspace/test/pom.xml"
             )
-
-        try:
-            payload = json.loads(read.stdout)
-        except json.JSONDecodeError as exc:
-            return Score(value=0.0, explanation=f"invalid JSON: {exc}")
-
-        test_cases = payload.get("testCases")
-        if not isinstance(test_cases, list) or len(test_cases) != 2:
-            return Score(
-                value=0.0,
-                explanation="testCases must contain exactly 2 branch scenarios",
+        if not any(
+            path.endswith(".bpmn") and PROCESS_ID in text
+            for path, text in files.items()
+        ):
+            failures.append("missing canonical BPMN")
+        if not cases:
+            failures.append("missing importable CPT JSON with top-level processId")
+        if any(
+            "placeholder" in text.lower()
+            for path, text in files.items()
+            if path.endswith((".java", ".kt"))
+        ):
+            failures.append("placeholder test source is not executable evidence")
+        generated_test_sources = sorted(
+            path
+            for path in files
+            if path.startswith("/workspace/test/src/test/java/")
+            and Path(path).name not in {"ProcessTest.java", "TestApplication.java"}
+        )
+        if generated_test_sources:
+            failures.append(
+                f"unexpected generated test sources: {generated_test_sources}"
             )
+        names = [case.get("name") for _, case in cases]
+        if any(not isinstance(name, str) or " — " not in name for name in names):
+            failures.append("scenario names must use '<who/what> — <outcome>'")
+        corpus = "\n".join(f"{path}\n{text}" for path, text in files.items()).lower()
+        for layer, pattern in {
+            "deterministic": r"\bdeterministic\b",
+            "point integration": r"\bpoint[- ]integration\b",
+            "E2E": r"\be2e\b|end[- ]to[- ]end",
+        }.items():
+            if not re.search(pattern, corpus):
+                failures.append(f"missing separated {layer} artifact")
+        if "live-dev" not in corpus and "live dev" not in corpus:
+            failures.append("missing optional live-dev documentation")
+        return Score(
+            value=0.0 if failures else 1.0,
+            explanation="; ".join(failures)
+            or f"approved runnable three-layer harness with {len(cases)} JSON scenarios",
+        )
 
-        required = [
-            ("approved-branch", True, "NotifyApproved", "ApprovedEnd"),
-            ("rejected-branch", False, "NotifyRejected", "RejectedEnd"),
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def build_scorer() -> Scorer:
+    """Compile and execute the generated default suite in the offline verifier."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        verifier = sandbox("verifier")
+        prep = await verifier.exec(
+            [
+                "sh",
+                "-c",
+                "cp -R /agent-workspace/. /verifier-workspace/ "
+                "&& mkdir -p "
+                "/verifier-workspace/test/src/test/java/io/camunda/tests "
+                "/verifier-workspace/test/src/test/resources/processes "
+                "/verifier-workspace/test/src/test/resources/forms "
+                "&& cp /fixture/TESTING.md /verifier-workspace/TESTING.md "
+                "&& cp /fixture/pom.xml /verifier-workspace/test/pom.xml "
+                "&& cp /fixture/ProcessTest.java "
+                "/verifier-workspace/test/src/test/java/io/camunda/tests/ "
+                "&& cp /fixture/TestApplication.java "
+                "/verifier-workspace/test/src/test/java/io/camunda/tests/ "
+                "&& cp /fixture/ai-agent-chat-with-tools.bpmn "
+                "/verifier-workspace/test/src/test/resources/processes/ "
+                "&& cp /fixture/ai-agent-chat-initial-request.form "
+                "/fixture/ai-agent-chat-user-feedback.form "
+                "/verifier-workspace/test/src/test/resources/forms/ "
+                "&& find /verifier-workspace -name pom.xml "
+                "-not -path '*/target/*' -print -quit",
+            ],
+            timeout=30,
+        )
+        pom = "/verifier-workspace/test/pom.xml"
+        if prep.returncode != 0 or not pom:
+            return Score(value=0.0, explanation="generated Maven pom.xml not found")
+        pom_probe = await verifier.exec(["test", "-f", pom], timeout=10)
+        if pom_probe.returncode != 0:
+            return Score(value=0.0, explanation=f"generated Maven pom missing: {pom}")
+        await verifier.exec(["rm", "-rf", str(Path(pom).parent / "target")], timeout=30)
+        run = await verifier.exec(["mvn", "-B", "-o", "-f", pom, "test"], timeout=900)
+        output = "\n".join(filter(None, [run.stdout, run.stderr]))
+        evidence = [
+            line
+            for line in output.splitlines()
+            if "Tests run:" in line or "BUILD " in line or "[ERROR]" in line
         ]
+        tests = [int(match) for match in re.findall(r"Tests run:\s*(\d+)", output)]
+        passed = run.returncode == 0 and bool(tests) and sum(tests) > 0
+        return Score(
+            value=1.0 if passed else 0.0,
+            explanation="\n".join(evidence[-30:])
+            or f"offline Maven exited {run.returncode}; tests={sum(tests)}",
+            metadata={
+                "mvn_returncode": run.returncode,
+                "tests_run": sum(tests),
+                "raw_tail": output[-2000:],
+            },
+        )
 
-        def _elements(instruction: dict) -> set[str]:
-            selectors = instruction.get("elementSelectors")
-            if not isinstance(selectors, list):
-                return set()
-            return {
-                e.get("elementId")
-                for e in selectors
-                if isinstance(e, dict) and isinstance(e.get("elementId"), str)
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def process_coverage_scorer() -> Scorer:
+    """Require machine evidence for complete reachable BPMN and flow coverage."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        found = _summary(state)
+        if not found:
+            return Score(
+                value=0.0,
+                explanation="missing combined machine-readable coverage summary",
+            )
+        path, data = found
+        coverage = data["processCoverage"]
+        keys = (
+            "reachableElements",
+            "coveredElements",
+            "reachableSequenceFlows",
+            "coveredSequenceFlows",
+        )
+        complete = isinstance(coverage, dict) and all(
+            isinstance(coverage.get(key), int) for key in keys
+        )
+        if complete:
+            complete = (
+                coverage["reachableElements"] > 0
+                and coverage["reachableElements"] == coverage["coveredElements"]
+                and coverage["reachableSequenceFlows"] > 0
+                and coverage["reachableSequenceFlows"]
+                == coverage["coveredSequenceFlows"]
+            )
+        if isinstance(coverage, dict) and coverage.get("unreachableElements"):
+            complete = complete and coverage.get("bpmnDefectsReported") is True
+        return Score(value=1.0 if complete else 0.0, explanation=f"{path}: {coverage}")
+
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def integration_path_scorer() -> Scorer:
+    """Require an isolated point-integration JSON scenario for every tool."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        covered = set()
+        invalid = []
+        for _, case in _test_cases(state):
+            instructions = _instructions(case)
+            activated_ids = {
+                activation.get("elementId")
+                for instruction in instructions
+                if instruction.get("type") == "COMPLETE_JOB_AD_HOC_SUB_PROCESS"
+                and instruction.get("completionConditionFulfilled") is False
+                for activation in instruction.get("activateElements", [])
+                if isinstance(activation, dict)
             }
+            intended = activated_ids & TOOLS
+            if len(intended) != 1:
+                continue
+            tool = next(iter(intended))
+            completed = any(
+                instruction.get("state") == "IS_COMPLETED"
+                and tool in _mentioned_elements({"instructions": [instruction]})
+                for instruction in instructions
+            )
+            job_completed = any(
+                instruction.get("type") == "COMPLETE_JOB"
+                and instruction.get("jobSelector", {}).get("elementId") == tool
+                for instruction in instructions
+            )
+            not_activated = {
+                selector.get("elementId")
+                for instruction in instructions
+                if instruction.get("state") == "IS_NOT_ACTIVATED"
+                for selector in instruction.get("elementSelectors", [])
+                if isinstance(selector, dict) and selector.get("elementId")
+            }
+            if (
+                completed
+                and job_completed
+                and ((TOOLS - {tool}) | {FEEDBACK}).issubset(not_activated)
+            ):
+                covered.add(tool)
+            else:
+                invalid.append(tool)
+        missing = sorted(TOOLS - covered)
+        return Score(
+            value=0.0 if missing or invalid else 1.0,
+            explanation=f"covered={sorted(covered)} missing={missing} invalid={sorted(invalid)}",
+        )
 
-        for label, approved_value, job_element, end_event in required:
-            matching_case = None
-            for case in test_cases:
-                if not isinstance(case, dict):
-                    continue
-                instructions = case.get("instructions")
-                if not isinstance(instructions, list):
-                    continue
-                for inst in instructions:
-                    variables = (
-                        inst.get("variables") if isinstance(inst, dict) else None
-                    )
-                    approved = (
-                        variables.get("approved")
-                        if isinstance(variables, dict)
-                        else None
-                    )
-                    if (
-                        isinstance(inst, dict)
-                        and inst.get("type") == "CREATE_PROCESS_INSTANCE"
-                        and approved == approved_value
-                    ):
-                        matching_case = case
-                        break
-                if matching_case:
-                    break
+    return score
 
-            if matching_case is None:
-                return Score(
-                    value=0.0,
-                    explanation=(
-                        f"{label}: missing CREATE_PROCESS_INSTANCE with "
-                        f"approved={approved_value}"
-                    ),
-                )
 
-            instructions = matching_case.get("instructions") or []
-            active_asserts = [
-                inst
-                for inst in instructions
-                if isinstance(inst, dict)
-                and inst.get("type") == "ASSERT_ELEMENT_INSTANCES"
-                and inst.get("state") == "IS_ACTIVE"
-            ]
-            completed_asserts = [
-                inst
-                for inst in instructions
-                if isinstance(inst, dict)
-                and inst.get("type") == "ASSERT_ELEMENT_INSTANCES"
-                and inst.get("state") == "IS_COMPLETED"
+@scorer(metrics=[mean(), stderr()])
+def e2e_scorer() -> Scorer:
+    """Require a named feedback/retry outcome that reaches every expected tool."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        matches = []
+        for _, case in _test_cases(state):
+            instructions = _instructions(case)
+            feedback_values = [
+                instruction.get("variables", {}).get("userSatisfied")
+                for instruction in instructions
+                if instruction.get("type") == "COMPLETE_USER_TASK"
+                and isinstance(instruction.get("variables"), dict)
             ]
             process_done = any(
-                isinstance(inst, dict)
-                and inst.get("type") == "ASSERT_PROCESS_INSTANCE"
-                and inst.get("state") == "IS_COMPLETED"
-                for inst in instructions
+                instruction.get("type") == "ASSERT_PROCESS_INSTANCE"
+                and instruction.get("state") == "IS_COMPLETED"
+                for instruction in instructions
             )
-
-            if not any(job_element in _elements(inst) for inst in active_asserts):
-                return Score(
-                    value=0.0,
-                    explanation=f"{label}: missing IS_ACTIVE assertion for {job_element}",
-                )
-            if not any(end_event in _elements(inst) for inst in completed_asserts):
-                return Score(
-                    value=0.0,
-                    explanation=f"{label}: missing IS_COMPLETED assertion for {end_event}",
-                )
-            if not process_done:
-                return Score(
-                    value=0.0,
-                    explanation=f"{label}: missing ASSERT_PROCESS_INSTANCE IS_COMPLETED",
-                )
-
+            ahsp_true = sum(
+                instruction.get("type") == "COMPLETE_JOB_AD_HOC_SUB_PROCESS"
+                and instruction.get("completionConditionFulfilled") is True
+                for instruction in instructions
+            )
+            ahsp_false = sum(
+                instruction.get("type") == "COMPLETE_JOB_AD_HOC_SUB_PROCESS"
+                and instruction.get("completionConditionFulfilled") is False
+                for instruction in instructions
+            )
+            completed_jobs = {
+                instruction.get("jobSelector", {}).get("elementId")
+                for instruction in instructions
+                if instruction.get("type") == "COMPLETE_JOB"
+            }
+            if (
+                False in feedback_values
+                and True in feedback_values
+                and TOOLS.issubset(_mentioned_elements(case))
+                and ahsp_true >= 2
+                and ahsp_false >= 2
+                and TOOLS.issubset(completed_jobs)
+                and process_done
+                and " — " in str(case.get("name", ""))
+            ):
+                matches.append(case.get("name"))
         return Score(
-            value=1.0,
-            explanation="scenario JSON covers both gateway outcomes deterministically",
+            value=1.0 if matches else 0.0,
+            explanation=f"named feedback/retry E2E outcomes: {matches}",
+        )
+
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def isolation_scorer() -> Scorer:
+    """Reject mandatory tests that call public services, models, or credentials."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        suspicious = []
+        for path, text in _artifacts(state).items():
+            lower_path = path.lower()
+            if (
+                lower_path.endswith((".bpmn", ".md"))
+                or "live" in lower_path
+                or not lower_path.endswith(
+                    (".java", ".kt", ".yml", ".yaml", ".properties", ".xml")
+                )
+            ):
+                continue
+            for marker in (
+                "api.openai.com",
+                "api.anthropic.com",
+                "system.getenv(",
+                'WebClient.create("http',
+                'new URL("http',
+            ):
+                if marker.lower() in text.lower():
+                    suspicious.append(f"{path}: {marker}")
+        return Score(
+            value=0.0 if suspicious else 1.0,
+            explanation="; ".join(suspicious)
+            or "mandatory suite contains no public/model client or credential access",
+        )
+
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def redundancy_scorer() -> Scorer:
+    """Require per-layer leave-one-out evidence and overlap justification."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        found = _summary(state)
+        redundancy = found[1]["redundancy"] if found else {}
+        layers = redundancy.get("layers", {}) if isinstance(redundancy, dict) else {}
+        valid = all(
+            isinstance(layers.get(layer), dict)
+            and layers[layer].get("leaveOneOutApplied") is True
+            and layers[layer].get("redundantScenarios") == []
+            for layer in ("deterministic", "pointIntegration", "e2e")
+        )
+        valid = valid and bool(redundancy.get("crossLayerOverlapExplanation"))
+        return Score(
+            value=1.0 if valid else 0.0, explanation=f"redundancy={redundancy}"
+        )
+
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def report_scorer() -> Scorer:
+    """Require machine and HTML suite/run-level coverage evidence."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        files = _artifacts(state)
+        found = _summary(state)
+        html = [
+            path
+            for path, text in files.items()
+            if path.endswith(".html")
+            and ("COVERAGE_DATA" in text or "completedElements" in text)
+        ]
+        data = found[1] if found else {}
+        suites = data.get("suites", [])
+        integration = data.get("integrationCoverage", {})
+        covered_tools = set(integration.get("coveredTools", []))
+        integration_complete = covered_tools == TOOLS and integration.get(
+            "totalPaths"
+        ) == len(TOOLS)
+        outcomes = data.get("e2eOutcomes", [])
+        valid_suites = (
+            isinstance(suites, list)
+            and len(suites) >= 3
+            and all(
+                isinstance(suite, dict)
+                and isinstance(suite.get("runs"), list)
+                and suite["runs"]
+                for suite in suites
+            )
+        )
+        valid_outcomes = isinstance(outcomes, list) and bool(outcomes)
+        return Score(
+            value=1.0
+            if found
+            and html
+            and valid_suites
+            and integration_complete
+            and valid_outcomes
+            else 0.0,
+            explanation=(
+                f"machine={found[0] if found else None} html={html} "
+                f"suites={len(suites) if isinstance(suites, list) else 0} "
+                f"integration={sorted(covered_tools)} "
+                f"e2e={len(outcomes) if isinstance(outcomes, list) else 0}"
+            ),
+        )
+
+    return score
+
+
+@scorer(metrics=[mean(), stderr()])
+def report_handoff_scorer() -> Scorer:
+    """Require opening or immediately surfacing the absolute HTML report path."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if skipped := _not_applicable(state, IMPLEMENTATION_SAMPLE):
+            return skipped
+        transcript = "\n".join(
+            str(getattr(message, "content", ""))
+            for message in state.messages
+            if getattr(message, "role", None) == "assistant"
+        )
+        for message in state.messages:
+            if getattr(message, "role", None) != "assistant":
+                continue
+            for call in getattr(message, "tool_calls", None) or []:
+                transcript += "\n" + json.dumps(call.arguments or {})
+        path = re.search(r"/workspace/[^\s\"']*report[^\s\"']*\.html", transcript)
+        valid_path = path is not None and "..." not in path.group(0)
+        opened = bool(re.search(r"\b(open|xdg-open|start)\b[^\n]*\.html", transcript))
+        return Score(
+            value=1.0 if valid_path or opened else 0.0,
+            explanation=(
+                f"report handoff path={path.group(0) if valid_path else None}, "
+                f"opened={opened}"
+            ),
         )
 
     return score
@@ -545,30 +928,287 @@ report handoff, and at least three non-placeholder artifact links. Finish with
 gate. Keep the plan concise and save no other files.
 """
 
-SAMPLES = [
-    Sample(
-        id="invoice-approval-two-outcomes",
-        input=(
-            "Author one Camunda Process Test instruction file for processDefinitionId "
-            "`invoice-approval` with exactly two test cases, one per XOR outcome.\n"
-            "Process shape:\n"
-            "- StartEvent_InvoiceReceived -> ReviewInvoice (user task)\n"
-            "- Gateway_Approved?\n"
-            "- approved=true path -> NotifyApproved (service task) -> ApprovedEnd\n"
-            "- approved=false path -> NotifyRejected (service task) -> RejectedEnd\n\n"
-            "Requirements:\n"
-            "1) Use CPT `.test.json` instruction format.\n"
-            "2) In each test case: CREATE_PROCESS_INSTANCE sets `approved` to route "
-            "the intended branch.\n"
-            "3) Assert the branch service task is active (ASSERT_ELEMENT_INSTANCES "
-            "state IS_ACTIVE).\n"
-            "4) Assert the matching end event completed (ASSERT_ELEMENT_INSTANCES "
-            "state IS_COMPLETED).\n"
-            "5) Assert process completion (ASSERT_PROCESS_INSTANCE state "
-            "IS_COMPLETED)." + SAVE
-        ),
-    )
+IMPLEMENTATION_PROMPT = f"""
+Your first action must load the `camunda-process-test` skill. The user has
+approved `/fixture/TESTING.md`. Use that skill
+to implement that specification against
+`/fixture/ai-agent-chat-with-tools.bpmn`. Build the generated test artifacts
+under `/workspace/test`.
+
+The approved `TESTING.md`, pinned `pom.xml`, canonical BPMN, JUnit runner,
+Spring application, `generate-report-summary.py`, and `validate-output.py` are
+already installed read-only
+at their final `/workspace` paths. Do not copy, rewrite, summarize, edit, or
+replace them. Generate only scenario JSON, the machine summary, optional
+live-dev documentation, and the HTML report.
+
+`/fixture/canonical-scenarios.test.json` is the upstream passing CPT reference
+for this exact process. Read and reuse its valid agent state, job selector,
+tool activation, feedback-loop, and assertion shapes instead of inventing CPT
+instructions. Reorganize those outcomes into the three required layer files
+and add isolated point-integration cases; the scorers execute the result and
+judge behavior rather than byte equality.
+
+Completion has four non-negotiable gates: exactly three scenario JSON files,
+a passing offline Maven run, `/workspace/report-summary.json` plus the CPT HTML
+report, and a passing no-argument `validate-output.py` run. The first Maven
+success is only the midpoint; never respond with a summary before all four
+gates pass. Do not add Java/Kotlin test classes or modify the approved runner.
+
+Do not `cat`, open, or read the full BPMN: it contains large embedded base64
+icons that will exhaust context. Use the supplied process topology and exact
+element IDs in this prompt. Copy the BPMN without inspecting it. If a specific
+XML fact is indispensable, use a narrow `grep` that excludes
+`modelerTemplateIcon` lines.
+
+The read-only POM's Spring Boot 4.0.0 and `camunda-process-test-spring` 8.9.5
+dependencies are present in the verifier's offline Maven cache. The local
+Camunda runtime is available at `localhost:8080`; there is no Docker socket and
+no external network.
+
+Implement all three separately identifiable layers from the approved spec:
+Keep the implementation economical: create exactly three scenario files named
+`deterministic.test.json`, `point-integration.test.json`, and `e2e.test.json`.
+The point-integration file contains its four tool cases. Do not create one file
+per requirement or extra speculative scenarios.
+
+Process topology: `StartEvent_1` routes through `Gateway_0z6ctwk` into the
+`AI_Agent` ad-hoc subprocess. Its tools are `ListUsers`, `Search_Recipe`,
+`Jokes_API`, and `Activity_0x3prgn`. `User_Feedback` routes through
+`Gateway_1dcg4ha`: false loops back to `Gateway_0z6ctwk`; true reaches
+`Event_0i39jej`.
+
+1. Deterministic process tests use importable CPT JSON with top-level
+   `processId` `{PROCESS_ID}` wherever the instruction format is sufficient,
+   plus Java only for orchestration JSON cannot express. They cover 100% of
+   reachable elements and sequence flows, both feedback outcomes, the retry
+   loop, the no-tool path, and all four tools.
+2. Point integration has one isolated JSON scenario per tool. Each starts the
+   process normally, activates exactly that tool through the AI Agent ad-hoc
+   subprocess, asserts it completed, and asserts the other tools and
+   `{FEEDBACK}` were not activated.
+3. Mocked/local E2E contains a named full-process outcome that reaches
+   {", ".join(sorted(TOOLS))}, rejects the first response with follow-up input,
+   then approves and completes. Assert the tool set, not tool order or prose.
+
+Every `testCases[].name` uses the Unicode em dash exactly as
+`<who/what> — <outcome>`; ASCII hyphens fail the gate. Required tests are offline,
+credential-free, and run under default `mvn test`; document optional live-dev
+execution separately. Apply leave-one-out analysis within each layer and
+explain valid cross-layer overlap.
+
+Every `.test.json` file must be one JSON object, never a top-level array:
+
+```json
+{{
+  "processId": "{PROCESS_ID}",
+  "testCases": [
+    {{
+      "name": "Who or what — named outcome",
+      "instructions": []
+    }}
+  ]
+}}
+```
+
+For each point-integration case, use these exact instruction shapes:
+
+```json
+[
+  {{
+    "type": "CREATE_PROCESS_INSTANCE",
+    "processDefinitionSelector": {{
+      "processDefinitionId": "{PROCESS_ID}"
+    }}
+  }},
+  {{
+    "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+    "jobSelector": {{
+      "jobType": "io.camunda.agenticai:aiagent:subprocess:2"
+    }},
+    "completionConditionFulfilled": false,
+    "activateElements": [{{"elementId": "TOOL_ID"}}]
+  }},
+  {{
+    "type": "COMPLETE_JOB",
+    "jobSelector": {{"elementId": "TOOL_ID"}},
+    "variables": {{"toolCallResult": {{}}}}
+  }},
+  {{
+    "type": "ASSERT_ELEMENT_INSTANCE",
+    "processInstanceSelector": {{
+      "processDefinitionId": "{PROCESS_ID}"
+    }},
+    "elementSelector": {{"elementId": "TOOL_ID"}},
+    "state": "IS_COMPLETED"
+  }},
+  {{
+    "type": "ASSERT_ELEMENT_INSTANCES",
+    "processInstanceSelector": {{
+      "processDefinitionId": "{PROCESS_ID}"
+    }},
+    "elementSelectors": [
+      {{"elementId": "OTHER_TOOL_ID"}},
+      {{"elementId": "{FEEDBACK}"}}
+    ],
+    "state": "IS_NOT_ACTIVATED"
+  }}
 ]
+```
+
+Every `ASSERT_ELEMENT_INSTANCE`, `ASSERT_ELEMENT_INSTANCES`, and
+`ASSERT_PROCESS_INSTANCE` instruction must include
+`processInstanceSelector.processDefinitionId: "{PROCESS_ID}"`; omitting it
+makes the entire JSON file unreadable by CPT.
+
+For full-process and point-integration cases, omit `startInstructions`
+entirely. A start instruction targeting `StartEvent_1` is invalid because
+start events are not supported instruction targets.
+
+Use this exact feedback instruction shape; `jobSelector` is invalid here:
+
+```json
+{{
+  "type": "COMPLETE_USER_TASK",
+  "userTaskSelector": {{"elementId": "{FEEDBACK}"}},
+  "variables": {{"userSatisfied": true}}
+}}
+```
+
+The E2E case must include element assertions for all four tools,
+at least two `COMPLETE_JOB_AD_HOC_SUB_PROCESS` instructions that drive the two
+agent turns, and one `COMPLETE_JOB` instruction for each selected tool. Each
+AHSP instruction selects the exact job type
+`io.camunda.agenticai:aiagent:subprocess:2` (not element ID `AI_Agent`). Each
+false completion must use an
+`activateElements` array containing the exact tool element IDs whose jobs are
+completed next; across the false completions, activate each of the four tools
+exactly once. The first false/true AHSP pair drives two tools and finishes the
+first turn; after feedback rejects that response, the second false/true pair
+drives the other two tools and finishes the retry turn. Include
+`COMPLETE_USER_TASK` first with `userSatisfied: false` and later `true`, then
+`ASSERT_PROCESS_INSTANCE` with `state: "IS_COMPLETED"`. Do not use
+`START_PROCESS`, top-level `processDefinitionId`, hyphen-only names, or empty
+placeholder Java tests. Before running Maven, validate every JSON file with a
+JSON parser and confirm its top-level `processId` and `testCases`.
+
+Every AHSP instruction uses this shape. `activateElements` contains objects,
+never bare strings, and is empty on a true completion:
+
+```json
+{{
+  "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+  "jobSelector": {{
+    "jobType": "io.camunda.agenticai:aiagent:subprocess:2"
+  }},
+  "completionConditionFulfilled": false,
+  "activateElements": [
+    {{"elementId": "ListUsers"}},
+    {{"elementId": "Search_Recipe"}}
+  ]
+}}
+```
+
+Put all generated `.test.json` files directly under
+`/workspace/test/src/test/resources/scenarios/`; `@TestCaseSource` does not
+recurse into subdirectories.
+
+Run the suite. After it passes, write `/workspace/report-summary.json` and:
+
+- an interactive HTML report with BPMN completed-element/taken-flow
+  highlighting and per-suite/per-scenario runs;
+- a JSON summary with top-level `processCoverage`, `integrationCoverage`,
+  `e2eOutcomes`, `suites`, and `redundancy`;
+- exact reachable/covered element and sequence-flow totals;
+- all four covered tool paths;
+- named E2E outcomes;
+- `redundancy.layers` entries for `deterministic`, `pointIntegration`, and
+  `e2e`, each with `leaveOneOutApplied: true` and
+  `redundantScenarios: []`, plus
+  `redundancy.crossLayerOverlapExplanation`.
+
+The JSON summary fields must use this exact shape and types:
+
+```json
+{{
+  "processCoverage": {{
+    "reachableElements": 1,
+    "coveredElements": 1,
+    "reachableSequenceFlows": 1,
+    "coveredSequenceFlows": 1,
+    "unreachableElements": []
+  }},
+  "integrationCoverage": {{
+    "coveredTools": {json.dumps(sorted(TOOLS))},
+    "totalPaths": 4
+  }},
+  "e2eOutcomes": ["Feedback journey — retry then approved outcome"],
+  "suites": [
+    {{"name": "deterministic", "runs": [{{"name": "scenario"}}]}},
+    {{"name": "point integration", "runs": [{{"name": "scenario"}}]}},
+    {{"name": "e2e", "runs": [{{"name": "scenario"}}]}}
+  ],
+  "redundancy": {{
+    "layers": {{
+      "deterministic": {{
+        "leaveOneOutApplied": true,
+        "redundantScenarios": []
+      }},
+      "pointIntegration": {{
+        "leaveOneOutApplied": true,
+        "redundantScenarios": []
+      }},
+      "e2e": {{
+        "leaveOneOutApplied": true,
+        "redundantScenarios": []
+      }}
+    }},
+    "crossLayerOverlapExplanation": "Each layer proves a different contract."
+  }}
+}}
+```
+
+Write the HTML report specifically to
+`/workspace/test/target/coverage-report/report.html`; it must contain
+`window.COVERAGE_DATA` with suite and run data. As soon as tests pass, print
+that exact absolute path. Do not stop before the implementation,
+passing offline run, machine report, and HTML report all exist.
+
+The task is not complete when Maven first passes. That only proves the runtime
+suite. After Maven passes, you must create the machine and HTML reports, run
+the full validator, and repair every failure. Before finishing, both commands
+must pass:
+
+```bash
+python3 /workspace/generate-report-summary.py
+python3 /workspace/validate-output.py
+mvn -B -o -f /workspace/test/pom.xml test
+```
+
+Run `python3 /workspace/validate-output.py` as soon as the three scenario files
+exist, before polishing documentation or adding any extra scenario. The early
+scenario-only command is:
+
+```bash
+python3 /workspace/validate-output.py --scenarios-only
+```
+
+It identifies malformed instructions before the Maven run. Run the no-argument
+validator only after the passing Maven run and generated reports; it validates
+every remaining required artifact and report field.
+Every `CREATE_PROCESS_INSTANCE` must include
+`processDefinitionSelector.processDefinitionId`; every
+`COMPLETE_USER_TASK` must select `User_Feedback`; every process assertion must
+select `{PROCESS_ID}`. Every element assertion also requires that same
+`processInstanceSelector`. A scenario cannot complete an active service task
+or the AI Agent merely by asserting it: drive it with `COMPLETE_JOB` or
+`COMPLETE_JOB_AD_HOC_SUB_PROCESS` first. Do not write coverage summaries or
+reports from predicted results; derive them only after Maven has passed.
+
+Once both validation commands pass, respond without a tool call with the
+absolute HTML report path and a brief test result. Do not append a final `echo`,
+file view, or status command.
+"""
 
 
 @task
@@ -601,15 +1241,23 @@ def camunda_process_test_spec(
 def camunda_process_test(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
     return Task(
-        dataset=SAMPLES,
+        dataset=[Sample(id=IMPLEMENTATION_SAMPLE, input=IMPLEMENTATION_PROMPT)],
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
-            cpt_scenario_shape(),
+            artifact_scorer(),
+            build_scorer(),
+            process_coverage_scorer(),
+            integration_path_scorer(),
+            e2e_scorer(),
+            isolation_scorer(),
+            redundancy_scorer(),
+            report_scorer(),
+            report_handoff_scorer(),
             assert_skill_loaded("camunda-process-test", gating=False),
         ],
-        sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),
+        sandbox=("docker", str(Path(__file__).with_name("compose.yaml"))),
         metadata=METADATA.model_dump(),
-        time_limit=300,
-        token_limit=120_000,
-        message_limit=40,
+        time_limit=3600,
+        token_limit=2_000_000,
+        message_limit=140,
     )
