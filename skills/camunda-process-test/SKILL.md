@@ -47,11 +47,29 @@ Node.js POM reads the environment variable and standard Java layouts do not need
 
 Before writing test code, create or update a Markdown test specification using [references/test-specification.md](references/test-specification.md). Prefer `TESTING.md` beside the process or its test harness.
 
-1. Inspect the BPMN and existing project artifacts.
-2. Draft the layered strategy, requirement traceability matrix, user-tunable coverage thresholds, realistic E2E catalogue, run commands, dependencies, and artifact links.
-3. Mark unresolved assumptions and decisions. Keep the specification status `DRAFT`.
-4. In interactive mode, present the specification to the user and iterate on requirements, scenarios, dependencies, and thresholds. **Do not implement tests until the user explicitly approves the plan.**
-5. Record the approval and agreed thresholds in the specification, then proceed. If the user requested planning only, stop after the approved specification.
+1. Inspect the BPMN, forms, decisions, integration boundaries, existing tests,
+   and project instructions.
+2. Select only applicable suites. Process tests are always required; segment
+   integration, process integration, and manual suites are conditional. A
+   process with no connectors, workers, agents, or cross-component outcome
+   must not receive irrelevant integration sections. Manual checks must reflect
+   actual human-observable behavior, such as user-task look and feel, or a
+   stated policy requirement.
+3. For each applicable suite, write `Verifies`, measurable `Required evidence`,
+   and `Mocks`/isolation boundaries followed by an `ID | Test | Guarantee`
+   table. Guarantees must be concrete enough to derive assertions.
+4. Add exact run workflows, required automated versus policy-required manual
+   gates, report locations/handoff, artifact links, live-worker or side-effect
+   limitations, and unresolved decisions. When a stronger native CPT assertion
+   is not editable/viewable in Test Studio, surface a focused choice between
+   assertion power, weaker business-visible evidence, or a hybrid. Record the
+   retained/reduced guarantee; never silently downgrade. Keep the status
+   `DRAFT`.
+5. In interactive mode, present the plan and iterate on guarantees, evidence
+   gates, isolation, manual policy, dependencies, and thresholds. **Do not
+   implement tests until the user explicitly approves the plan.**
+6. Record approval and agreed gates, then proceed. If the user requested
+   planning only, stop after the approved Markdown.
 
 The test suite must trace back to this specification. When later implementation evidence changes, update the requirement row and links rather than letting the Markdown drift.
 

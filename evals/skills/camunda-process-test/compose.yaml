@@ -18,9 +18,24 @@ services:
     command: ["sleep", "infinity"]
     init: true
     working_dir: /workspace
+    environment:
+      CAMUNDA_PROCESS_TEST_RUNTIME_MODE: remote
+      CAMUNDA_PROCESS_TEST_REMOTE_CLIENT_REST_ADDRESS: http://localhost:8080
+      CAMUNDA_PROCESS_TEST_REMOTE_CLIENT_GRPC_ADDRESS: http://localhost:26500
+      CAMUNDA_PROCESS_TEST_REMOTE_CLIENT_PREFER_REST_OVER_GRPC: "true"
+      CAMUNDA_PROCESS_TEST_REMOTE_CAMUNDA_MONITORING_API_ADDRESS: http://localhost:9600
     volumes:
       - workspace:/workspace
       - ./fixture:/fixture:ro
+      - ./fixture/TESTING.md:/workspace/TESTING.md:ro
+      - ./fixture/pom.xml:/workspace/test/pom.xml:ro
+      - ./fixture/ProcessTest.java:/workspace/test/src/test/java/io/camunda/tests/ProcessTest.java:ro
+      - ./fixture/TestApplication.java:/workspace/test/src/test/java/io/camunda/tests/TestApplication.java:ro
+      - ./fixture/ai-agent-chat-with-tools.bpmn:/workspace/test/src/test/resources/processes/ai-agent-chat-with-tools.bpmn:ro
+      - ./fixture/ai-agent-chat-initial-request.form:/workspace/test/src/test/resources/forms/ai-agent-chat-initial-request.form:ro
+      - ./fixture/ai-agent-chat-user-feedback.form:/workspace/test/src/test/resources/forms/ai-agent-chat-user-feedback.form:ro
+      - ./fixture/validate-output.py:/workspace/validate-output.py:ro
+      - ./fixture/generate-report-summary.py:/workspace/generate-report-summary.py:ro
     deploy:
       resources:
         limits:
@@ -36,8 +51,15 @@ services:
     command: ["sleep", "infinity"]
     init: true
     working_dir: /verifier-workspace
+    environment:
+      CAMUNDA_PROCESS_TEST_RUNTIME_MODE: remote
+      CAMUNDA_PROCESS_TEST_REMOTE_CLIENT_REST_ADDRESS: http://localhost:8080
+      CAMUNDA_PROCESS_TEST_REMOTE_CLIENT_GRPC_ADDRESS: http://localhost:26500
+      CAMUNDA_PROCESS_TEST_REMOTE_CLIENT_PREFER_REST_OVER_GRPC: "true"
+      CAMUNDA_PROCESS_TEST_REMOTE_CAMUNDA_MONITORING_API_ADDRESS: http://localhost:9600
     volumes:
       - workspace:/agent-workspace:ro
+      - ./fixture:/fixture:ro
     deploy:
       resources:
         limits:
