@@ -34,3 +34,12 @@ RUN --mount=type=bind,source=scenarios,target=/scenarios,ro \
     { find /scenarios -path '*/cpt-verifier/pom.xml' -print0; \
       find /skills    -path '*/cpt-verifier/pom.xml' -print0; } | \
         xargs -0 -I{} mvn -B -q -f {} dependency:go-offline
+
+# Surefire selects this provider dynamically after test compilation, so
+# dependency:go-offline does not discover it. Cache it without adding it to a
+# plugin dependency classloader, which would override the project's aligned
+# JUnit Platform.
+RUN mvn -B -q dependency:get \
+    -Dartifact=org.apache.maven.surefire:surefire-junit-platform:3.5.4 \
+    && mvn -B -q dependency:get \
+    -Dartifact=org.junit.platform:junit-platform-launcher:6.0.1
