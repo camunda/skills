@@ -1,6 +1,6 @@
 # Three-layer CPT strategy
 
-Use this structure when a process contains connectors, agent tools, or business outcomes that cannot be proved by routing coverage alone. Keep the artifacts separate, run all three mandatory layers with `mvn test`, and combine their evidence in one report.
+Use this structure when a process contains connectors, agent tools, or business outcomes that cannot be proved by routing coverage alone. Deterministic process tests are always required. Add point-integration and process-integration/E2E layers only when their contracts apply, keep their artifacts separate, and combine evidence from every selected layer in one report.
 
 | Layer | Contract | Required CI dependency |
 |---|---|---|
@@ -43,11 +43,11 @@ Run leave-one-out analysis independently per layer. Removing a scenario must los
 
 ## Combined report
 
-After `mvn test`, emit:
+After the selected automated suites run, emit:
 
 - total reachable process element and sequence-flow coverage;
-- connector/tool paths covered versus total;
-- E2E path count and named outcomes;
+- connector/tool paths covered versus total, when point-integration tests apply;
+- E2E path count and named outcomes, when process-integration/E2E tests apply;
 - per-suite and per-scenario/run coverage;
 - machine-readable coverage data;
 - interactive HTML with completed-element and taken-flow BPMN highlighting.

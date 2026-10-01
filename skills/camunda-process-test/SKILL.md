@@ -12,7 +12,7 @@ description: |
 
 Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
-Author and run Camunda Process Test suites for Camunda 8.8+ from a reviewed Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage gates, dependencies, and commands. For agentic or integration-heavy processes, separate deterministic process, segment-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
+Author and run Camunda Process Test suites for Camunda 8.8+ from a reviewed Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage gates, dependencies, and commands. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
 
 ## Prerequisites
 
@@ -49,7 +49,7 @@ Before writing test code, create or update a Markdown test specification using [
 
 1. Inspect the BPMN, forms, decisions, integration boundaries, existing tests,
    and project instructions.
-2. Select only applicable suites. Process tests are always required; segment
+2. Select only applicable suites. Process tests are always required; point
    integration, process integration, and manual suites are conditional. A
    process with no connectors, workers, agents, or cross-component outcome
    must not receive irrelevant integration sections. Manual checks must reflect
@@ -186,13 +186,13 @@ Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_
 
 **Surface the HTML report path to the user as soon as `mvn test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
 
-**Patch-loop on prediction misses — default behavior.** Set-cover planning in step 3 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
+**Patch-loop on prediction misses — default behavior.** Set-cover planning in step 4 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
 
 1. Classify the miss: element (visit it directly), or sequence flow (its source must be hit *and* the condition routing through it must be satisfied — usually a gateway branch the planner failed to attribute).
 2. Re-run greedy set-cover restricted to the remaining uncovered ids. Add the chosen candidates (often one) to the scenario file.
 3. For timer boundary events: use `INCREASE_TIME` with an ISO 8601 `duration` greater than the timer cycle (e.g. `"PT25H"` for `R/PT24H`). The boundary fires; the outgoing path's job is created; complete it with `COMPLETE_JOB`.
 4. For message boundary events: `PUBLISH_MESSAGE` instruction with matching name + correlationKey.
-5. Re-run step 5 (`mvn test`) → step 6. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
+5. Re-run step 6 (`mvn test`) → step 7. Each iteration should strictly reduce the uncovered set; if it does not, the planner's path prediction is wrong — fix the prediction logic in [references/coverage-strategy.md](references/coverage-strategy.md), do not paper over with more scenarios.
 
 Hard blockers that terminate the loop:
 
@@ -204,11 +204,11 @@ Do not declare the suite done while ids remain uncovered and no hard blocker app
 
 > **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios from source to confirm coverage in that case.
 
-Compare measured coverage with the **approved per-layer gates in the test specification**. Default a new deterministic process layer to 100% reachable BPMN element and sequence-flow coverage, but do not silently override an explicitly approved threshold. Explain any gap between the aspirational target and machine gate.
+Compare measured coverage with the **approved per-layer gates in the test specification**. The deterministic process layer requires 100% reachable BPMN element and sequence-flow coverage; approval governs additional layer gates and evidence, not a lower deterministic threshold. Treat unreachable elements as BPMN defects rather than reducing the denominator.
 
 ### 8. Verify no redundancy slipped through
 
-Set-cover planning in step 3 should produce a non-redundant suite by construction. Verify with a leave-one-out check against the runtime coverage data: for each scenario, compute the union of all *other* scenarios' covered ids; if removing the scenario loses zero ids, it is redundant and the planner has a bug — fix the planner, then drop the scenario.
+Set-cover planning in step 4 should produce a non-redundant suite by construction. Verify with a leave-one-out check against the runtime coverage data: for each scenario, compute the union of all *other* scenarios' covered ids; if removing the scenario loses zero ids, it is redundant and the planner has a bug — fix the planner, then drop the scenario.
 
 Also flag (cheap, do unconditionally):
 

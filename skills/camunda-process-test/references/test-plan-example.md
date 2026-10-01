@@ -14,32 +14,30 @@ The four test layers answer progressively broader questions: does the process ro
 | P-2 | `process/feedback-retry` | Rejected feedback retries and later approval completes. |
 | P-3 | `process/all-tools` | All four tools are reachable through the agent subprocess. |
 
-## Segment integration tests
+## Point integration tests
 
-- **Verifies:** The real agent prompt selects the expected tool behavior, and each connector path independently returns its documented stable shape.
-- **Required evidence:** All 5 Test Studio-visible agent scenarios complete the expected agent or tool element, and all 4 connector contracts pass.
-- **Mocks:** None. Agent-selection tests use the real agent and live tool workers; connector tests bypass the agent.
+- **Verifies:** Controlled agent outcomes select each intended tool behavior, and every connector path independently returns its documented stable shape.
+- **Required evidence:** All 5 controlled agent scenarios complete the expected agent or tool element, and all 4 local connector-contract tests pass.
+- **Mocks:** The model is replaced with controlled outcomes; connector dependencies use local stubs.
 
 | ID | Test | Guarantee |
 |---|---|---|
-| S-1 | `segment/agent-no-tool` | A direct-answer prompt completes the agent and exposes its response. Confirm no tool execution in the Test Studio run view. |
-| S-2 | `segment/agent-list-users` | A user-directory prompt completes the user-directory tool, then the instance is cancelled. |
-| S-3 | `segment/agent-search-recipe` | A recipe prompt completes the recipe-search tool, then the instance is cancelled. |
-| S-4 | `segment/agent-jokes-api` | A joke prompt completes the jokes tool, then the instance is cancelled. |
-| S-5 | `segment/agent-technology-products` | A technology-products prompt completes the technology-products tool, then the instance is cancelled. |
-| S-6 | `segment/connector-list-users` | The user-directory connector returns the documented user shape. |
-| S-7 | `segment/connector-search-recipe` | The recipe-search connector returns the documented recipe shape. |
-| S-8 | `segment/connector-jokes-api` | The jokes connector returns non-empty text. |
-| S-9 | `segment/connector-technology-products` | The technology-products connector returns the documented product shape. |
-
-**Limitation:** Test Studio can terminate after an element completes, not between agent selection and tool activation. The selected live tool therefore executes before cancellation. The visible assertions prove expected completion but do not reject additional tool activation or validate the generated tool inputs.
+| S-1 | `point-integration/agent-no-tool` | A controlled direct-answer outcome completes without activating a tool. |
+| S-2 | `point-integration/agent-list-users` | A controlled user-directory outcome activates only the user-directory tool. |
+| S-3 | `point-integration/agent-search-recipe` | A controlled recipe outcome activates only the recipe-search tool. |
+| S-4 | `point-integration/agent-jokes-api` | A controlled joke outcome activates only the jokes tool. |
+| S-5 | `point-integration/agent-technology-products` | A controlled product outcome activates only the technology-products tool. |
+| S-6 | `point-integration/connector-list-users` | The user-directory connector returns the documented user shape from a local stub. |
+| S-7 | `point-integration/connector-search-recipe` | The recipe-search connector returns the documented recipe shape from a local stub. |
+| S-8 | `point-integration/connector-jokes-api` | The jokes connector returns non-empty text from a local stub. |
+| S-9 | `point-integration/connector-technology-products` | The technology-products connector returns the documented product shape from a local stub. |
 
 ## Process integration tests
 
-- **Verifies:** A real agent selects the expected tool set, real connectors return usable results, and the complete process reaches the expected outcome.
+- **Verifies:** Controlled agent outcomes select the expected tool set, local connector stubs return usable results, and the complete process reaches the expected outcome.
 - **Required evidence:** 3/3 automated scenarios pass.
-- **Mocks:** None.
-- **Boundary:** These tests verify process behavior, not external-system impacts.
+- **Mocks:** Controlled agent outcomes and local connector stubs.
+- **Boundary:** These tests verify process behavior, not model reliability or external-system impacts.
 
 | ID | Test | Guarantee |
 |---|---|---|
@@ -49,7 +47,7 @@ The four test layers answer progressively broader questions: does the process ro
 
 Tool sets are unordered. Tests assert expected tool completion, result-variable existence, feedback topology, and terminal state, but not exact generated wording.
 
-**Limitation:** Test Studio only displays editable summaries for singular element assertions and basic variable assertions. The importable scenarios therefore prove that expected tools complete and result variables exist, but do not automatically reject additional tool activation or validate result shape with FEEL. The managed segment tests retain shape and isolation assertions; manual tests verify the human-facing tool choice.
+**Limitation:** Test Studio only displays editable summaries for singular element assertions and basic variable assertions. The importable scenarios therefore prove that expected tools complete and result variables exist, but do not automatically reject additional tool activation or validate result shape with FEEL. The managed point-integration tests retain shape and isolation assertions; optional live tests verify model selection and human-facing behavior.
 
 **Assertion strategy:** This plan prioritizes business visibility for importable live scenarios, accepting weaker Test Studio assertions such as checking that `toolCallResult` exists. Managed CPT tests retain stronger native assertions such as FEEL result-shape expressions. Do not silently weaken an assertion: choose and document whether a suite optimizes for CPT power or Test Studio visibility.
 
@@ -69,16 +67,18 @@ Do not judge exact wording or tool order. Repeating these checks to measure mode
 
 ## Run and inspect
 
-Prerequisites: Java 21+, Maven, a Docker-compatible runtime, an eligible Camunda 8.10 SaaS cluster, Camunda-provided LLM budget, and access to the public services.
+Required automated prerequisites: Java 21+, Maven, a Docker-compatible runtime, controlled agent fixtures, and local connector stubs. No network, credentials, SaaS cluster, or LLM budget is required.
 
-Run the process and segment-integration suites:
+Run the required process, point-integration, and process-integration suites:
 
 ```bash
 cd solutions/ai-agent-chat-with-tools/test
 mvn test
 ```
 
-Run all scenarios in `ai-agent-chat-with-tools.integration.test.json` as the required segment-integration gate and all scenarios in `ai-agent-chat-with-tools.test.json` as the required process-integration gate. Perform the policy-required manual tests separately.
+The default Maven lifecycle runs every required offline automated gate. Perform the policy-required manual tests separately.
+
+Optional live development: with an eligible Camunda SaaS cluster, LLM budget, and access to the public services, run the Test Studio scenarios under an explicit live profile. These runs assess model/tool-selection behavior and external connectivity; they do not replace the required offline gates.
 
 Reports:
 
@@ -92,8 +92,8 @@ Reports:
 
 - Source BPMN: `./ai-agent-chat-with-tools.bpmn`
 - Deterministic CPT scenarios: `./test/src/test/resources/test-cases/ai-agent-chat-with-tools.test.json`
-- Managed segment-integration tests: `./test/src/test/java/io/camunda/tests/LiveConnectorIntegrationTest.java`
-- Live segment-integration Test Studio scenarios: `./ai-agent-chat-with-tools.integration.test.json`
+- Managed point-integration tests: `./test/src/test/java/io/camunda/tests/LiveConnectorIntegrationTest.java`
+- Live point-integration Test Studio scenarios: `./ai-agent-chat-with-tools.integration.test.json`
 - Automated process-integration scenarios: `./ai-agent-chat-with-tools.test.json`
 - Solution prerequisites and test details: `./README.md`
 - [Camunda Process Test documentation](https://docs.camunda.io/docs/apis-tools/testing/getting-started/)

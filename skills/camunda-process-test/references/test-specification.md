@@ -10,13 +10,18 @@ established acceptance document. For a completed example, see
 
 ## Choose only applicable suites
 
+There is no one-size-fits-all test pyramid. The user must approve which
+contracts matter, what evidence proves them, which dependencies are real or
+mocked, and which manual checks are policy requirements before tests are
+created.
+
 Always include **Process tests**. Add another suite only when the process shape
 or requested outcome gives it a distinct contract:
 
 | Suite | Include when | Omit when |
 |---|---|---|
 | Process tests | Always: BPMN routing, reachability, decisions, and end states need deterministic evidence. | Never. |
-| Segment integration tests | The process invokes connectors, workers, agents, decisions, or other dependencies whose isolated contract or selection behavior needs proof. | The process has no integration boundary, or that boundary is fully tested outside this project and no process-side contract is requested. |
+| Point integration tests | The process invokes connectors, workers, agents, decisions, or other dependencies whose isolated contract or selection behavior needs proof. | The process has no integration boundary, or that boundary is fully tested outside this project and no process-side contract is requested. |
 | Process integration tests | A named business outcome depends on multiple real or production-like components working together. | Deterministic process tests prove the requested outcome and no cross-component behavior remains to verify. |
 | Manual tests | A policy, human judgment, visual/user-task experience, physical side effect, or live behavior cannot be fully automated. | Every required guarantee has reliable automated evidence and no policy requires manual acceptance. |
 
@@ -40,7 +45,7 @@ sentence under the strategy or run section.
 |---|---|---|
 | P-1 | `process/<outcome>` | <single observable guarantee> |
 
-## Segment integration tests
+## Point integration tests
 <!-- Include only when an isolated integration contract applies. -->
 
 - **Verifies:** <selection or stable dependency contract>
