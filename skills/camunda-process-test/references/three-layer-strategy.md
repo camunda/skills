@@ -26,7 +26,7 @@ Create one isolated scenario for every connector or tool path:
 4. Assert unrelated tools and feedback paths did not activate.
 5. Assert only a stable contract or shape, never exact volatile content.
 
-The required CI path uses a local stub, fake server, or connector/job mock. If a real unauthenticated or configured endpoint is useful during development, put it behind an explicit live profile and document it separately; it is never a required pass gate.
+When testing a connector or worker contract, run the production connector or worker against a local stub or fake server: mock the external dependency, not the integration under test. A connector/job mock can prove process behavior around an assumed result, but cannot prove the mocked component's implementation; label that narrower guarantee explicitly. Put live external endpoints behind an optional development profile, never a required CI gate.
 
 ## Process integration/E2E tests
 
@@ -39,7 +39,7 @@ The required CI path uses a local stub, fake server, or connector/job mock. If a
 
 ## Redundancy
 
-Run leave-one-out analysis independently per layer. Removing a scenario must lose either coverage or contract evidence. Cross-layer overlap is valid because process, integration, and business-outcome assertions have different isolation boundaries. Explain any deliberate diagnostic overlap within one layer.
+Run leave-one-out analysis independently within each selected layer, during both initial segment selection and pruning. A scenario is redundant only when removing it loses neither BPMN coverage nor evidence for a specified guarantee. Keep scenarios that prove distinct contracts, even when they visit the same IDs. Cross-layer overlap is valid because process, integration, and business-outcome assertions have different isolation boundaries. Explain any deliberate diagnostic overlap within one layer.
 
 ## Combined report
 

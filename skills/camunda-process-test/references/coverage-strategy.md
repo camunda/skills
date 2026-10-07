@@ -1,11 +1,11 @@
 # Coverage strategy — set-cover, 100% target
 
-A test segment is a slice of process execution between two points. The goal: pick the smallest set of segments whose combined coverage is every element and sequence flow in the BPMN. Plan first, author second. The CPT coverage report at `target/coverage-report/report.html` is the exit gate.
+A test segment is a slice of process execution between two points. The goal: pick a compact set of segments whose combined coverage is every element and sequence flow in the BPMN, while preserving evidence for every specified guarantee. Plan first, author second. The CPT coverage report at `target/coverage-report/report.html` is the exit gate.
 
 Two ideas drive the strategy:
 
 1. **Predict each candidate's coverage statically** by walking the BPMN forward from the segment's root through its targeted branch to its rejoin or end event. Set membership is known before any test runs.
-2. **Greedy set-cover** picks the smallest non-redundant subset. No "author then dedupe" — redundancy never gets authored.
+2. **Greedy set-cover** picks a compact subset, then retains any scenario that proves distinct specified contract evidence even if it adds no new IDs.
 
 ## Step 1 — parse the BPMN
 
@@ -51,7 +51,7 @@ while covered != universe:
 
 The happy-path candidate usually wins round 1 because it covers the spine. Subsequent rounds pick segments that uniquely add boundary events, alternate branches, or alternate rules.
 
-When two candidates share a root but exercise different failure modes (e.g. boundary fires vs. user task completes normally), greedy set-cover may pick only one. If diagnostic isolation matters more than minimality (you want failures to point at one cause), keep both — flag this as an explicit opt-out, not the default.
+Run leave-one-out analysis independently within each selected layer, during both initial segment selection and pruning. A candidate is redundant only when removing it loses neither BPMN coverage nor evidence for a specified guarantee. Keep candidates that prove distinct contracts even when they visit the same IDs. When two candidates share a root but exercise different failure modes (e.g. boundary fires vs. user task completes normally), keep both if either has distinct contract evidence or diagnostic isolation matters; explain intentional diagnostic overlap.
 
 ## Step 4 — print the plan
 
@@ -97,7 +97,9 @@ Author exactly this list.
 
 Run `mvn test`. For a Node.js layout, run it from `test/` with `NODE_RESOURCE_DIR` set as described in [setup.md](setup.md). Parse `target/coverage-report/report.html` (the page embeds the full dataset as a `window.COVERAGE_DATA` JSON literal — see SKILL.md for the extractor).
 
-If aggregate runtime coverage equals predicted coverage, done. If it does not, the gap is a **prediction miss** — the static walk for one of the chosen candidates did not match the engine's actual path. Common causes: gateway condition the parser couldn't evaluate, FEEL expression depending on a variable the planner did not set, non-interrupting boundary that creates a parallel branch the walker missed.
+Classify coverage runs by process and layer before evaluating gates. Compare each layer's runtime coverage only with its own prediction and specified gate; integration runs must not fill deterministic process gaps. A combined union across selected layers is presentation-only. Retain per-layer results in the machine-readable report. Include a regression case in the report checks where deterministic runs cover 3/5 ids and integration runs cover the other 2/5: combined coverage is 5/5, but the deterministic 100% gate fails.
+
+If a layer's runtime coverage differs from its prediction, the gap is a **prediction miss** — the static walk for one of the chosen candidates did not match the engine's actual path. Common causes: gateway condition the parser couldn't evaluate, FEEL expression depending on a variable the planner did not set, non-interrupting boundary that creates a parallel branch the walker missed.
 
 Treat misses as planner bugs, not just gaps to patch. Add the missing candidates to chosen, but also fix the prediction rule so the next BPMN does not hit the same miss.
 
@@ -131,7 +133,7 @@ Cross-links: **camunda-ai-agents** for the BPMN shape and tool-modelling rules; 
 
 ## Anti-patterns
 
-- **Author-then-dedupe.** Authoring one segment per uncovered element and pruning after the loop wastes Maven cycles and adds reviewer noise. Set-cover planning eliminates redundancy at the planning step.
+- **Author-then-dedupe.** Authoring one segment per uncovered element and pruning after the loop wastes Maven cycles and adds reviewer noise. Set-cover planning eliminates redundant coverage scenarios at the planning step; leave-one-out analysis must also preserve distinct specified contract evidence.
 - **Happy-path tail in every segment.** A secondary segment that runs through the entire happy path after rejoining doubles up coverage. End the segment at the first rejoin.
 - **Variable-value assertions instead of routing assertions.** A segment that asserts `amount == 750` after the gateway tests Jackson, not the gateway. Assert the element the gateway routed to.
 - **One scenario per DMN rule when the rule is on the chosen happy path.** Set-cover already credits the chosen rule. Add scenarios only for other rules.

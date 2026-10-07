@@ -1,5 +1,11 @@
 # AI Agent Chat With Tools test plan
 
+> **Illustrative proposal:** This repository does not contain the solution fixture
+> or test runner shown below. The artifact paths, Maven command, and report
+> locations are examples, not verified or passing evidence. Replace them with
+> the target project's actual files and confirm how each suite is run before
+> adopting this plan.
+
 The four test layers answer progressively broader questions: does the process route correctly, does each integration work in isolation, does the complete process reach its business outcome, and does a person observe the expected external behavior?
 
 ## Process tests
@@ -54,7 +60,7 @@ Tool sets are unordered. Tests assert expected tool completion, result-variable 
 ## Manual tests
 
 - **Verifies:** A person can complete the expected journeys and observe the expected behavior in the process and external systems.
-- **Required evidence:** 3/3 policy-required checks pass once.
+- **Required evidence:** Optional live-development checks; require them only when project policy says so.
 - **Mocks:** None.
 
 | ID | Test | Steps and pass condition |
@@ -67,16 +73,16 @@ Do not judge exact wording or tool order. Repeating these checks to measure mode
 
 ## Run and inspect
 
-Required automated prerequisites: Java 21+, Maven, a Docker-compatible runtime, controlled agent fixtures, and local connector stubs. No network, credentials, SaaS cluster, or LLM budget is required.
+Proposed automated prerequisites: Java 21+, Maven, a Docker-compatible runtime, controlled agent fixtures, and local connector stubs. Required offline runs should need no network, credentials, SaaS cluster, or LLM budget.
 
-Run the required process, point-integration, and process-integration suites:
+Proposed command for a target project that implements and loads these required offline suites in Maven (not run or verified by this skills repository):
 
 ```bash
 cd solutions/ai-agent-chat-with-tools/test
 mvn test
 ```
 
-The default Maven lifecycle runs every required offline automated gate. Perform the policy-required manual tests separately.
+The target project's default Maven lifecycle should run every required offline automated gate. Verify that its POM loads each suite before treating this command as a gate. Run optional live-development checks separately.
 
 Optional live development: with an eligible Camunda SaaS cluster, LLM budget, and access to the public services, run the Test Studio scenarios under an explicit live profile. These runs assess model/tool-selection behavior and external connectivity; they do not replace the required offline gates.
 
@@ -85,8 +91,9 @@ Reports:
 - Interactive coverage: `test/target/coverage-report/report.html`
 - Machine coverage: `test/target/coverage-report/report.json`
 - JUnit results: `test/target/surefire-reports/`
-- Automated process-integration results: Test Studio run history
-- Manual acceptance: policy checklist
+- Automated offline process-integration results: `test/target/surefire-reports/` (if the target project wires these suites into Maven)
+- Optional live Test Studio runs: Test Studio run history
+- Manual acceptance: policy checklist, only when project policy requires it
 
 ## Artifacts
 

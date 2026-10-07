@@ -1,18 +1,18 @@
 ---
 name: camunda-process-test
 description: |
-  Use this skill to author and run Camunda Process Test suites for 100% BPMN coverage. Use it for segment planning, `.test.json` scenarios, Java fallback tests, Maven test commands, coverage reports, and suite maintenance. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or build UI/E2E tests.
+  Use this skill to draft test plans, then author, run, and maintain Camunda Process Test suites. Covers deterministic BPMN coverage and applicable point-integration and process-integration/E2E tests. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or automate browser/UI tests.
 ---
 
 # Camunda Process Test
 
-**WORKFLOW SKILL**: specify requirements and acceptance criteria, get human approval, then plan segments, author scenarios, run the Maven test command, and close coverage gaps.
+**WORKFLOW SKILL**: specify requirements and acceptance criteria, plan segments, author scenarios, run the Maven test command, and close coverage gaps.
 
 ## DO NOT USE FOR:
 
 Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
-Author and run Camunda Process Test suites for Camunda 8.8+ from a reviewed Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage gates, dependencies, and commands. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
+Author and run Camunda Process Test suites for Camunda 8.8+ from a Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage gates, dependencies, and commands. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
 
 ## Prerequisites
 
@@ -37,15 +37,15 @@ Node.js POM reads the environment variable and standard Java layouts do not need
 ## Scope boundaries
 
 - **In scope**: BPMN reachability (every element visited at least once), gateway-branch selection, DMN rule selection, error-boundary firing, timer / escalation boundary firing, end-event selection.
-- **Process-test scope**: assertions are limited to reachability and routing. Do not write `ASSERT_VARIABLE` instructions on service-task output unless the variable is the FEEL input to a downstream gateway you also test.
-- **Integration-test scope**: assert stable connector/tool contracts (shape, status class, required fields), never volatile exact payloads or generated response wording.
+- **Deterministic process-test scope**: assertions are limited to reachability and routing. Do not assert service-task output unless the variable is the FEEL input to a downstream gateway you also test.
+- **Integration-test scope**: assert only contracts specified in the test plan, such as stable connector/tool shape, status class, or required fields. Never assert volatile exact payloads or generated response wording.
 - **Out of scope**: UI behavior, semantic answer quality, real LLM calls in the required CI path, and authenticated production dependencies.
 
 ## Workflow
 
-### 1. Specify and approve
+### 1. Specify requirements
 
-Before writing test code, create or update a Markdown test specification using [references/test-specification.md](references/test-specification.md). Prefer `TESTING.md` beside the process or its test harness.
+Before writing test code, create or update a Markdown test specification using [references/test-specification.md](references/test-specification.md). Prefer `TESTING.md` beside the process or its test harness; it records selected requirements, guarantees, evidence, and isolation boundaries in version control.
 
 1. Inspect the BPMN, forms, decisions, integration boundaries, existing tests,
    and project instructions.
@@ -63,13 +63,13 @@ Before writing test code, create or update a Markdown test specification using [
    limitations, and unresolved decisions. When a stronger native CPT assertion
    is not editable/viewable in Test Studio, surface a focused choice between
    assertion power, weaker business-visible evidence, or a hybrid. Record the
-   retained/reduced guarantee; never silently downgrade. Keep the status
-   `DRAFT`.
-5. In interactive mode, present the plan and iterate on guarantees, evidence
-   gates, isolation, manual policy, dependencies, and thresholds. **Do not
-   implement tests until the user explicitly approves the plan.**
-6. Record approval and agreed gates, then proceed. If the user requested
-   planning only, stop after the approved Markdown.
+   retained/reduced guarantee; never silently downgrade.
+5. In interactive mode, present the plan and ask focused questions about
+   unresolved choices that materially affect guarantees, evidence gates,
+   isolation, manual policy, dependencies, or thresholds.
+6. Record resolved requirements in the version-controlled plan. If the user
+   requested planning only, stop after producing the Markdown; otherwise
+   continue with implementation.
 
 The test suite must trace back to this specification. When later implementation evidence changes, update the requirement row and links rather than letting the Markdown drift.
 
@@ -118,7 +118,7 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 **Example:** for a gateway with `approved` and `rejected` flows, plan one segment per flow, predict the visited IDs through the next join, and keep the smallest set of segments that covers both branches and the shared end path.
 
-When the request includes connectors, agent tools, or whole-process business outcomes, first split the plan into the three independent layers in [references/three-layer-strategy.md](references/three-layer-strategy.md). Apply set-cover and leave-one-out redundancy checks **within** each layer; cross-layer overlap is expected because each layer proves a different contract.
+When the request includes connectors, agent tools, or whole-process business outcomes, use only the applicable layers selected in the test specification. Follow [references/three-layer-strategy.md](references/three-layer-strategy.md) for those layers. Apply set-cover and leave-one-out checks within each selected layer, preserving evidence for every specified guarantee. Cross-layer overlap is expected because each layer proves a different contract.
 
 ### 5. Author
 
@@ -143,6 +143,10 @@ When the run exits — pass or fail — proceed straight to step 7 and open the 
 ### 7. Coverage check — exit gate
 
 CPT emits a coverage report at `target/coverage-report/report.html` (per-process HTML; the page embeds the full coverage dataset in a `window.COVERAGE_DATA` JSON literal). Parse it:
+
+Classify runs by process and layer before evaluating gates. The union computed
+below is for combined presentation only; do not use it to evaluate an
+individual layer's gate.
 
 ```bash
 python3 - <<'PY'
@@ -204,7 +208,9 @@ Do not declare the suite done while ids remain uncovered and no hard blocker app
 
 > **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios from source to confirm coverage in that case.
 
-Compare measured coverage with the **approved per-layer gates in the test specification**. The deterministic process layer requires 100% reachable BPMN element and sequence-flow coverage; approval governs additional layer gates and evidence, not a lower deterministic threshold. Treat unreachable elements as BPMN defects rather than reducing the denominator.
+Classify coverage runs by process and layer before evaluating gates. Calculate each per-layer gate documented in the test specification only from runs assigned to that layer; never let integration runs fill gaps in deterministic process coverage. Retain the distinction in the machine-readable report. A combined union across selected layers may be shown for presentation, but is not a gate. Include a regression case where deterministic runs cover 3/5 ids and integration runs cover the other 2/5: combined coverage is 5/5, but the deterministic 100% gate fails.
+
+Compare measured coverage with the **per-layer gates in the test specification**. The deterministic process layer requires 100% reachable BPMN element and sequence-flow coverage; other layer gates are defined by their specified guarantees and evidence. Treat unreachable elements as BPMN defects rather than reducing the denominator.
 
 ### 8. Verify no redundancy slipped through
 
@@ -214,7 +220,7 @@ Also flag (cheap, do unconditionally):
 
 - Scenario names that do not match `<who/what> — <outcome>` (e.g. `"test1"`, `"happy"`).
 - Duplicated descriptions across scenarios.
-- `ASSERT_VARIABLE` instructions on variables that no gateway or DMN downstream consumes — data assertions are out of scope.
+- In deterministic process tests, variable assertions on values that no gateway or DMN downstream consumes — data assertions are out of scope there. Preserve specified integration or business-contract assertions even when their outputs do not drive downstream routing.
 
 ### 9. Report
 
@@ -227,7 +233,7 @@ Segments: 1 happy path + 5 secondary
 Duplicates flagged: 0
 ```
 
-For a three-layer suite, also report connector/tool path coverage, named E2E outcomes, and per-suite/per-scenario coverage. Produce machine-readable data and an interactive HTML report with BPMN element/sequence-flow highlighting. Keep required CI offline and credential-free; document live-dev commands separately.
+For every selected layer, report its specified coverage or contract gate and the corresponding evidence. Include connector/tool path coverage when point-integration tests apply, named E2E outcomes when process-integration/E2E tests apply, and per-suite/per-scenario coverage. Produce machine-readable data and an interactive HTML report with BPMN element/sequence-flow highlighting. Keep required CI offline and credential-free; document live-dev commands separately.
 
 ## Maintenance workflows for existing suites
 
@@ -242,7 +248,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
-- [test-specification.md](references/test-specification.md) — required Markdown plan, traceability matrix, tunable thresholds, realistic scenarios, approval gate, and maintenance rules
+- [test-specification.md](references/test-specification.md) — required Markdown plan, traceability matrix, tunable thresholds, realistic scenarios, and maintenance rules
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)

@@ -10,10 +10,9 @@ established acceptance document. For a completed example, see
 
 ## Choose only applicable suites
 
-There is no one-size-fits-all test pyramid. The user must approve which
-contracts matter, what evidence proves them, which dependencies are real or
-mocked, and which manual checks are policy requirements before tests are
-created.
+There is no one-size-fits-all test pyramid. The version-controlled test plan
+records which contracts matter, what evidence proves them, which dependencies
+are real or mocked, and which manual checks are policy requirements.
 
 Always include **Process tests**. Add another suite only when the process shape
 or requested outcome gives it a distinct contract:
@@ -103,14 +102,11 @@ Reports:
 - [Applicable test sources](...)
 - [Camunda Process Test documentation](https://docs.camunda.io/docs/apis-tools/testing/getting-started/)
 
-## Approval
+## Open decisions
 
-Status: DRAFT
-
-Open decisions: <business outcomes, dependencies, thresholds, manual policy>.
-
-Do not implement tests until the user approves the guarantees, evidence gates,
-isolation boundaries, and required checks.
+<Business outcomes, dependencies, thresholds, or manual policy that still need
+clarification. Resolve material choices with the user before relying on the
+plan to implement tests.>
 ```
 
 ## Writing guarantees that produce assertions
@@ -154,14 +150,18 @@ When a required guarantee needs a native CPT assertion that Test Studio cannot
 edit or display, stop and ask the user to choose:
 
 - **Assertion power:** keep the stronger native CPT assertion, such as
-  `ASSERT_VARIABLE` with a `satisfiesExpression`, and accept that the scenario
-  is managed outside Test Studio.
+  `ASSERT_VARIABLE` with a `satisfiesExpression` *(8.10+)* when the project's
+  CPT version supports it, and accept that the scenario is managed outside
+  Test Studio. On earlier versions, use a compatible Java assertion.
 - **Business visibility:** use a Test Studio-compatible assertion, such as
   `ASSERT_VARIABLES` for variable presence, and explicitly reduce the
   guarantee. Presence does not prove non-empty text, shape, exclusivity, or
   semantic quality.
 - **Hybrid:** keep visible importable scenarios for business review and add
-  stronger managed CPT tests for the full contract.
+  stronger managed CPT tests for the full contract. Files intended for Test
+  mode must include the top-level `processId`. Check the target Modeler
+  version, process shape, and supported instructions before promising import,
+  editing, or execution support.
 
 Record the selected strategy beside the affected suite in `TESTING.md`,
 including the retained or reduced guarantee and where each test runs. Never
@@ -169,18 +169,20 @@ silently downgrade an assertion or claim a shape/exclusivity guarantee from an
 existence check. Do not force this choice when every planned assertion is
 natively supported by both surfaces.
 
-## Interactive approval loop
+## Interactive planning
 
 1. Inspect the BPMN, forms, decisions, workers/connectors, and existing tests.
 2. Draft only the applicable suites.
 3. Present the guarantees, evidence gates, isolation boundaries, manual policy,
-   dependencies, and any native-CPT versus Test Studio assertion tradeoff.
-4. In interactive mode, ask one focused question at a time and revise the plan.
-5. Keep `Status: DRAFT` until the user explicitly approves it.
-6. Record `Status: APPROVED`, the agreed gates, and approver/date when
-   available; only then implement.
+   dependencies, unresolved choices, and any native-CPT versus Test Studio
+   assertion tradeoff.
+4. Ask one focused question at a time for unresolved choices that materially
+   affect guarantees, evidence, isolation, or required checks; revise the plan.
+5. Record resolved requirements in the version-controlled plan. Continue with
+   implementation when requested; if planning alone was requested, deliver the
+   plan and stop.
 
-If planning is the request, the approved Markdown is the deliverable.
+If planning is the request, the Markdown plan is the deliverable.
 
 ## Report handoff and maintenance
 
