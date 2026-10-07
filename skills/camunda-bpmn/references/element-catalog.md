@@ -162,7 +162,9 @@ DMN file must be deployed alongside the BPMN. `decisionId` matches `<decision id
 
 ### Exclusive Gateway (XOR)
 
-An exclusive gateway must have a safe fallback when its conditions are not exhaustive. This is especially important for binary or enum-style decisions: make the safer branch the `default` flow and add conditions only to the explicitly selected branch(es). A missing, unexpected, or mistyped value follows the fallback only when the other conditions evaluate to `false`; a FEEL evaluation error prevents the gateway from reaching its default flow. Guard or normalize comparisons when their input can have a missing or unexpected type. Do not add a redundant condition to the default flow; default flows are not evaluated.
+An exclusive gateway's default is a business decision. Configure it only when the request or existing process establishes the fallback; do not treat unknown inputs as approval or lower risk, or invent a rejection or review policy. Leave unspecified routing as a disclosed draft, or ask for the policy when executable routing is needed. With an agreed fallback, a missing, unexpected, or mistyped value reaches it only when the other conditions evaluate to `false`; a FEEL evaluation error prevents that. Guard or normalize comparisons according to the agreed invalid-input policy. Do not put a condition on the default flow.
+
+The following example assumes the user has established that unmatched approval results must be rejected:
 
 ```xml
 <bpmn:exclusiveGateway id="Gateway_Decision" name="Approved?" default="Flow_Reject">
@@ -177,7 +179,7 @@ An exclusive gateway must have a safe fallback when its conditions are not exhau
 <bpmn:sequenceFlow id="Flow_Reject" name="No" sourceRef="Gateway_Decision" targetRef="End_Rejected" />
 ```
 
-During review, inspect every exclusive gateway for a `default` flow. The `conditional-flows` lint rule catches missing conditions on non-default flows, but it does not make an all-conditional, no-default gateway safe for unmatched input.
+During review, inspect splitting gateways for agreed routing and unknown-input handling. The `conditional-flows` lint rule catches missing conditions on non-default flows, but does not establish business safety. An all-conditional gateway can raise an incident on unmatched input; disclose or resolve that risk without inventing a fallback.
 
 ### Parallel Gateway (AND)
 ```xml

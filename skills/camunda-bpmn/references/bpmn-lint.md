@@ -54,15 +54,14 @@ find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o
 ## Exclusive-gateway safety review
 
 The recommended lint rules do not identify every latent runtime failure. After
-linting, inspect each `bpmn:exclusiveGateway` and verify that its `default`
-attribute points to one of its outgoing sequence flows. This is required for
-binary and enum-style decisions unless the model deliberately proves that all
-possible values are exhaustive. Prefer a safe fallback branch, such as reject
-or manual review, and do not put a condition on the default flow.
+linting, inspect each splitting `bpmn:exclusiveGateway` for agreed conditions
+and an agreed policy for unknown input. A default is a business decision, not
+a required lint fix: do not choose approval, lower risk, rejection, or manual
+review without an established policy. If a default is configured, verify that
+it points to an outgoing flow and that the flow has no condition.
 
-An XOR whose outgoing flows all have conditions but which has no default can
-pass `conditional-flows` while still raising a `CONDITION_ERROR` when an input
-is missing, unexpected, or mistyped. Treat that shape as a lint review failure
-and add the default before considering the BPMN complete. A default flow does
-not suppress an error raised while evaluating another condition, so guard or
-normalize comparisons whose inputs can be missing or have an unexpected type.
+An all-conditional XOR without a default can pass `conditional-flows` but raise
+a `CONDITION_ERROR` on unmatched input. Disclose that risk in a draft; for an
+executable request, ask for the missing policy instead of inventing a fallback.
+A default does not suppress FEEL evaluation errors. Guard or normalize inputs
+only according to the agreed invalid-input policy.
