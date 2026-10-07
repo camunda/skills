@@ -18,15 +18,32 @@ Use this structure when a process contains connectors, agent tools, or business 
 
 ## Point integration tests
 
-Create one isolated scenario for every connector or tool path:
+Create the point-integration scenarios needed to prove the guarantees in the
+test plan. Do not require one scenario per connector/tool unless that is the
+chosen goal:
 
 1. Start immediately before the integration element.
 2. Stop at the earliest useful assertion boundary after it.
 3. Assert the intended element completed.
-4. Assert unrelated tools and feedback paths did not activate.
+4. If the plan requires proving that unrelated tools did not activate, first
+   wait for a positive checkpoint that shows the tool-selection window is
+   complete (for example, the agent turn has completed or moved to the next
+   modeled step). Only then assert absence. CPT's
+   `hasNotActivatedElements(...)` assertion does not wait; checking it before
+   that checkpoint can pass before a late tool activation.
 5. Assert only a stable contract or shape, never exact volatile content.
 
-When testing a connector or worker contract, run the production connector or worker against a local stub or fake server: mock the external dependency, not the integration under test. A connector/job mock can prove process behavior around an assumed result, but cannot prove the mocked component's implementation; label that narrower guarantee explicitly. Put live external endpoints behind an optional development profile, never a required CI gate.
+For each external dependency, ask whether the user wants to mock the
+integration, run the production integration against a local stub/fake service,
+or call the real service. Record the choice in the plan. A mock proves process
+behavior around an assumed result, not the integration's implementation. A
+local service exercises the production integration without an external call.
+Calling the real service needs an explicit network/credential/side-effect
+decision and is usually optional rather than a required CI gate.
+
+When a plan claims that no extra tool activated, include a delayed/late
+activation case when that race is possible, and verify the negative assertion
+is made only after the modeled selection window is complete.
 
 ## Process integration/E2E tests
 

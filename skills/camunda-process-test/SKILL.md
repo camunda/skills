@@ -12,7 +12,7 @@ description: |
 
 Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
-Author and run Camunda Process Test suites for Camunda 8.8+ from a Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage gates, dependencies, and commands. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
+Use this skill to describe and build Camunda Process Test suites for Camunda 8.8+ from a Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage goals, dependency choices, and commands. This is a greenfield test-planning workflow, not a Camunda 7-to-8 migration-parity validator. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
 
 ## Prerequisites
 
@@ -47,29 +47,24 @@ Node.js POM reads the environment variable and standard Java layouts do not need
 
 Before writing test code, create or update a Markdown test specification using [references/test-specification.md](references/test-specification.md). Prefer `TESTING.md` beside the process or its test harness; it records selected requirements, guarantees, evidence, and isolation boundaries in version control.
 
-1. Inspect the BPMN, forms, decisions, integration boundaries, existing tests,
-   and project instructions.
-2. Select only applicable suites. Process tests are always required; point
-   integration, process integration, and manual suites are conditional. A
-   process with no connectors, workers, agents, or cross-component outcome
-   must not receive irrelevant integration sections. Manual checks must reflect
-   actual human-observable behavior, such as user-task look and feel, or a
-   stated policy requirement.
-3. For each applicable suite, write `Verifies`, measurable `Required evidence`,
-   and `Mocks`/isolation boundaries followed by an `ID | Test | Guarantee`
-   table. Guarantees must be concrete enough to derive assertions.
-4. Add exact run workflows, required automated versus policy-required manual
-   gates, report locations/handoff, artifact links, live-worker or side-effect
-   limitations, and unresolved decisions. When a stronger native CPT assertion
-   is not editable/viewable in Test Studio, surface a focused choice between
-   assertion power, weaker business-visible evidence, or a hybrid. Record the
-   retained/reduced guarantee; never silently downgrade.
-5. In interactive mode, present the plan and ask focused questions about
-   unresolved choices that materially affect guarantees, evidence gates,
-   isolation, manual policy, dependencies, or thresholds.
-6. Record resolved requirements in the version-controlled plan. If the user
-   requested planning only, stop after producing the Markdown; otherwise
-   continue with implementation.
+1. Inspect the BPMN, forms, decisions, integrations, existing tests, and project
+   instructions.
+2. Before planning CPT remote execution, explain that it clears runtime data
+   between runs. Confirm the runtime is disposable and test-owned; otherwise
+   mark remote execution blocked. See the test-specification reference.
+3. Select applicable suites. Process tests are required; integration and manual
+   suites depend on the process and requested outcomes. Avoid irrelevant suites.
+4. For each suite, record what it verifies, measurable evidence, dependencies,
+   isolation, and an `ID | Test | Guarantee` table.
+5. For each external dependency, ask if unclear whether to mock the integration,
+   run it against a local service, or call the real service. Record what the
+   choice proves; do not assume real services are acceptable in CI.
+6. Record commands, evidence locations, manual gates, and side-effect limits.
+   If Test Studio cannot express a required CPT assertion, present the assertion
+   power, business visibility, or hybrid choice; never silently weaken it.
+7. Ask focused questions about unresolved choices that materially affect the
+   plan. Record the answers in the version-controlled plan.
+8. If planning alone was requested, stop; otherwise implement the plan.
 
 The test suite must trace back to this specification. When later implementation evidence changes, update the requirement row and links rather than letting the Markdown drift.
 
@@ -108,15 +103,15 @@ Follow [references/setup.md](references/setup.md): run the readiness preflight (
 
 ### 4. Plan segments (set-cover, not per-element)
 
-Plan the minimum number of segments **before** authoring anything. Apply [references/coverage-strategy.md](references/coverage-strategy.md):
+Plan the smallest useful set of segments **before** authoring anything. Apply [references/coverage-strategy.md](references/coverage-strategy.md) to the coverage goal recorded in the test specification:
 
 1. Parse the BPMN: `processId`, element IDs and types, gateway outgoing flows + conditions, error / timer / escalation boundaries, end events, called DMN decisions (`<zeebe:calledDecision decisionId="…">`) and the DMN rules inside them.
 2. **Enumerate candidate segments.** For every gateway branch, DMN rule, boundary event, and alternate end event, define one minimal candidate segment rooted at the nearest upstream decision point. For each candidate, **statically predict its full visited-element + sequence-flow set** by walking the BPMN forward from the root through the targeted branch to the next rejoin or end event.
-3. **Greedy set-cover.** Repeatedly pick the candidate whose predicted set covers the largest number of still-uncovered ids. Tie-break by shortest path (cheapest to author). Stop when the union covers every id.
+3. **Greedy set-cover.** Repeatedly pick the candidate whose predicted set covers the largest number of still-uncovered IDs. Tie-break by shortest path (cheapest to author). Stop when the specified coverage goal is met.
 4. **Diagnostic-isolation override (optional).** If two chosen segments share a root but exercise different failure modes (e.g. one fires a boundary event, the other completes the user task normally), keep both so a failure points at one cause cleanly. Apply only when the user is debugging a specific area; default is pure set-cover.
-5. Print the segment plan as a table: `segment name | root | predicted ids covered | end condition`. Authoring then implements exactly this list — no speculative scenarios that may be deduped later.
+5. Print the segment plan as a table: `segment name | root | predicted IDs covered | guarantee added | end condition`. A test earns its place by adding coverage or proving a distinct guarantee in the plan; do not keep a scenario that adds neither.
 
-**Example:** for a gateway with `approved` and `rejected` flows, plan one segment per flow, predict the visited IDs through the next join, and keep the smallest set of segments that covers both branches and the shared end path.
+**Example:** for a gateway with `approved` and `rejected` flows, plan segments that meet the chosen branch-coverage goal, predict visited IDs through the next join, and keep the smallest set that achieves that goal and any other guarantees in the plan.
 
 When the request includes connectors, agent tools, or whole-process business outcomes, use only the applicable layers selected in the test specification. Follow [references/three-layer-strategy.md](references/three-layer-strategy.md) for those layers. Apply set-cover and leave-one-out checks within each selected layer, preserving evidence for every specified guarantee. Cross-layer overlap is expected because each layer proves a different contract.
 
@@ -138,9 +133,9 @@ mvn test
 
 On failure, diagnose with [references/troubleshooting.md](references/troubleshooting.md). Distinguish **test problems** (variable typo, wrong element id, missing instruction) from **process problems** (wrong FEEL condition, wrong DMN rule, wrong error code). Fix the right side. Re-run. Stop after 3 repair cycles with no progress.
 
-When the run exits — pass or fail — proceed straight to step 7 and open the coverage report.
+When the run exits — pass or fail — proceed straight to step 7 and inspect the coverage report against the goals in the plan.
 
-### 7. Coverage check — exit gate
+### 7. Coverage check — compare with the plan
 
 CPT emits a coverage report at `target/coverage-report/report.html` (per-process HTML; the page embeds the full coverage dataset in a `window.COVERAGE_DATA` JSON literal). Parse it:
 
@@ -180,7 +175,7 @@ for s in data["suites"]:
             flows.update(c.get("takenSequenceFlows", []))
             total = c.get("totalElementCount", total)
 covered = len(el) + len(flows)
-print(f"coverage={covered}/{total}={100*covered/total:.2f}%")
+print(f"combined presentation coverage={covered}/{total}={100*covered/total:.2f}%")
 print("covered_elements:", sorted(el))
 print("covered_flows:", sorted(flows))
 PY
@@ -190,7 +185,7 @@ Diff against the BPMN element + sequenceFlow id list (`grep -oE 'id="[A-Za-z0-9_
 
 **Surface the HTML report path to the user as soon as `mvn test` exits — pass or fail.** The agent already verifies coverage from the JSON data above; the HTML report is for the user to inspect. Print the absolute path (`target/coverage-report/report.html`) in the final reply so they can open it themselves. In an interactive local session you may additionally offer to open it on their behalf (`open` on macOS, `xdg-open` on Linux, `start` on Windows) — do not run that unprompted in a sandboxed / remote environment where it has no effect.
 
-**Patch-loop on prediction misses — default behavior.** Set-cover planning in step 4 should reach 100% on the first authoring pass. When it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each uncovered id:
+**Patch-loop on prediction misses — when full coverage is a plan requirement.** When selected as the coverage goal, set-cover planning in step 4 should reach it on the first authoring pass. If it does not, the gap is a *prediction miss*: the static walk for some candidate did not match runtime behavior. For each required but uncovered ID:
 
 1. Classify the miss: element (visit it directly), or sequence flow (its source must be hit *and* the condition routing through it must be satisfied — usually a gateway branch the planner failed to attribute).
 2. Re-run greedy set-cover restricted to the remaining uncovered ids. Add the chosen candidates (often one) to the scenario file.
@@ -204,23 +199,23 @@ Hard blockers that terminate the loop:
 - An uncovered element is dead code (no inbound flow, or its inbound condition is unsatisfiable) — flag as a BPMN defect, point at camunda-bpmn, stop.
 - Test infrastructure failure repeats (Docker down, deploy parse error) — stop and route to [references/troubleshooting.md](references/troubleshooting.md).
 
-Do not declare the suite done while ids remain uncovered and no hard blocker applies.
+Do not report a selected coverage goal as met while IDs remain uncovered and no hard blocker applies.
 
 > **Note**: in early 8.9 SNAPSHOT releases the report generator may throw `IllegalStateException: Report resources not found` and skip the HTML output. Tests still pass. Walk the BPMN against scenarios from source to confirm coverage in that case.
 
-Classify coverage runs by process and layer before evaluating gates. Calculate each per-layer gate documented in the test specification only from runs assigned to that layer; never let integration runs fill gaps in deterministic process coverage. Retain the distinction in the machine-readable report. A combined union across selected layers may be shown for presentation, but is not a gate. Include a regression case where deterministic runs cover 3/5 ids and integration runs cover the other 2/5: combined coverage is 5/5, but the deterministic 100% gate fails.
+Classify coverage runs by process and layer before evaluating gates. Calculate each per-layer gate documented in the test specification only from runs assigned to that layer; never let integration runs fill gaps in deterministic process coverage. Retain the distinction in the machine-readable report. A combined union across selected layers may be shown for presentation, but is not a gate. When full deterministic coverage is a selected goal, include a regression check where deterministic runs cover 3/5 IDs and integration runs cover the other 2/5: combined coverage is 5/5, but the deterministic gate remains unmet.
 
-Compare measured coverage with the **per-layer gates in the test specification**. The deterministic process layer requires 100% reachable BPMN element and sequence-flow coverage; other layer gates are defined by their specified guarantees and evidence. Treat unreachable elements as BPMN defects rather than reducing the denominator.
+Compare measured coverage with the **per-layer goals in the test specification**. For new deterministic suites, propose 100% reachable BPMN element and sequence-flow coverage as a default, then record the chosen goal. Do not treat that goal as evidence of migration parity or override another test suite's stated purpose. Treat unreachable elements as BPMN defects rather than silently counting them as covered.
 
 ### 8. Verify no redundancy slipped through
 
-Set-cover planning in step 4 should produce a non-redundant suite by construction. Verify with a leave-one-out check against the runtime coverage data: for each scenario, compute the union of all *other* scenarios' covered ids; if removing the scenario loses zero ids, it is redundant and the planner has a bug — fix the planner, then drop the scenario.
+Verify the plan with a leave-one-out check. For each scenario, compare what the remaining scenarios prove against both the selected coverage goal and every guarantee in the plan. Keep the scenario if removing it loses needed coverage **or** leaves a planned guarantee without evidence. If it loses neither, it has not earned its place and should be removed. Two scenarios may cover the same IDs but prove different guarantees; retain both when both guarantees are in scope.
 
 Also flag (cheap, do unconditionally):
 
 - Scenario names that do not match `<who/what> — <outcome>` (e.g. `"test1"`, `"happy"`).
 - Duplicated descriptions across scenarios.
-- In deterministic process tests, variable assertions on values that no gateway or DMN downstream consumes — data assertions are out of scope there. Preserve specified integration or business-contract assertions even when their outputs do not drive downstream routing.
+- In deterministic routing tests, variable assertions on values that no gateway or DMN downstream consumes — data assertions are out of scope there. Preserve any distinct output or business-contract guarantee that the plan explicitly includes.
 
 ### 9. Report
 

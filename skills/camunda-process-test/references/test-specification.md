@@ -38,18 +38,34 @@ sentence under the strategy or run section.
 
 - **Verifies:** <routing and reachability guarantees>
 - **Required evidence:** <measurable automated gate>
-- **Mocks:** <external boundaries replaced, or "None">
+- **Dependencies:** <refer to the Dependency choices table below>
 
 | ID | Test | Guarantee |
 |---|---|---|
 | P-1 | `process/<outcome>` | <single observable guarantee> |
+
+## Dependency choices
+
+For each external dependency used by an automated suite, record the chosen
+boundary. Ask the user to choose when it is not already clear.
+
+| Dependency | Choice | Test setup and what the suite proves |
+|---|---|---|
+| <connector, worker, or service> | Mock / Local service / Real service | <what runs for real, what is replaced, and the guarantee> |
+
+- **Mock:** replace the connector/worker integration; proves process behavior
+  around an assumed result, not the integration implementation.
+- **Local service:** run the production integration against a local stub or
+  fake service; proves integration behavior without calling the real service.
+- **Real service:** call the actual external dependency; record credentials,
+  network, side effects, costs, and whether it is optional or a required gate.
 
 ## Point integration tests
 <!-- Include only when an isolated integration contract applies. -->
 
 - **Verifies:** <selection or stable dependency contract>
 - **Required evidence:** <measurable path/contract gate>
-- **Mocks:** <what is real and what is replaced>
+- **Dependencies:** <refer to the Dependency choices table below>
 
 | ID | Test | Guarantee |
 |---|---|---|
@@ -63,7 +79,7 @@ limitations when they apply.>
 
 - **Verifies:** <named whole-process outcome>
 - **Required evidence:** <measurable automated gate>
-- **Mocks:** <what is real and what is replaced>
+- **Dependencies:** <refer to the Dependency choices table below>
 - **Boundary:** <what this suite deliberately does not prove>
 
 | ID | Test | Guarantee |
@@ -75,7 +91,7 @@ limitations when they apply.>
 
 - **Verifies:** <human-observable behavior, such as user-task look and feel>
 - **Required evidence:** <policy-required checks and cadence>
-- **Mocks:** <what is real and what is replaced>
+- **Dependencies:** <what is real or simulated>
 
 | ID | Test | Steps and pass condition |
 |---|---|---|
@@ -107,6 +123,13 @@ Reports:
 <Business outcomes, dependencies, thresholds, or manual policy that still need
 clarification. Resolve material choices with the user before relying on the
 plan to implement tests.>
+
+## CPT runtime
+
+<For CPT remote mode, name the disposable, test-owned runtime. CPT clears its
+data between test runs. Never configure it against a shared cluster. If safe
+ownership cannot be confirmed, mark remote execution BLOCKED and do not run it.
+See [CPT remote runtime documentation](https://docs.camunda.io/docs/apis-tools/testing/configuration/#remote-runtime).>
 ```
 
 ## Writing guarantees that produce assertions
@@ -128,18 +151,25 @@ incidental tool order unless the plan identifies them as contractual.
 ## Evidence gates and isolation
 
 Use concrete totals or percentages derived from the process, not example
-numbers copied from another plan. New deterministic suites default to 100% of
-reachable BPMN elements and sequence flows. Report unreachable elements as BPMN
-defects instead of silently lowering the denominator.
+numbers copied from another plan. For a new deterministic suite, propose 100%
+of reachable BPMN elements and sequence flows as the default goal, then record
+the user's chosen goal. This skill describes the selected test suite; it does
+not establish Camunda 7-to-8 migration parity. Report unreachable elements
+separately instead of silently counting them as covered.
 
 For every suite:
 
 1. State the automated or policy-required evidence gate.
-2. Name mocked, local, live, and unavailable boundaries.
+2. For each external dependency, record whether the test mocks the integration,
+   runs it against a local service, or calls the real service. Ask the user
+   which they prefer when unclear.
 3. Separate required offline CI from optional live-development execution.
 4. State known races or side effects. Observing a live worker activation before
    cancellation does not guarantee the worker made no external request.
 5. Mark blocked, disabled, or unimplemented evidence honestly.
+6. If using CPT remote mode, identify a disposable, test-owned runtime. CPT
+   deletes runtime data between test runs; never run it against a shared
+   cluster. If safety is uncertain, mark execution blocked.
 
 Process completion alone is not enough evidence for a connector contract or
 business outcome.
@@ -172,13 +202,16 @@ natively supported by both surfaces.
 ## Interactive planning
 
 1. Inspect the BPMN, forms, decisions, workers/connectors, and existing tests.
-2. Draft only the applicable suites.
-3. Present the guarantees, evidence gates, isolation boundaries, manual policy,
-   dependencies, unresolved choices, and any native-CPT versus Test Studio
-   assertion tradeoff.
-4. Ask one focused question at a time for unresolved choices that materially
-   affect guarantees, evidence, isolation, or required checks; revise the plan.
-5. Record resolved requirements in the version-controlled plan. Continue with
+2. Before planning remote execution, explain CPT remote mode clears runtime
+   data between test runs; establish that any remote runtime is disposable and
+   test-owned, or mark that execution blocked.
+3. Draft only the applicable suites.
+4. Present the guarantees, evidence gates, isolation boundaries, manual policy,
+   dependency choices, unresolved decisions, and any native-CPT versus
+   Test Studio assertion tradeoff.
+5. Ask one focused question at a time, including the preferred boundary for
+   each external dependency when unclear; revise the plan.
+6. Record resolved requirements in the version-controlled plan. Continue with
    implementation when requested; if planning alone was requested, deliver the
    plan and stop.
 

@@ -20,6 +20,13 @@ The four test layers answer progressively broader questions: does the process ro
 | P-2 | `process/feedback-retry` | Rejected feedback retries and later approval completes. |
 | P-3 | `process/all-tools` | All four tools are reachable through the agent subprocess. |
 
+## Dependency choices
+
+| Dependency | Choice | Test setup and what the suite proves |
+|---|---|---|
+| Agent/model | Mock | Controlled outcomes exercise the selected tool paths without a live model. |
+| Connector services | Local service | Production connector templates run against local stubs; real public services are not called. |
+
 ## Point integration tests
 
 - **Verifies:** Controlled agent outcomes select each intended tool behavior, and every connector path independently returns its documented stable shape.
