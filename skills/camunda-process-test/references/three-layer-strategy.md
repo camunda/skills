@@ -1,12 +1,12 @@
 # Three-layer CPT strategy
 
-Use this structure when a process contains connectors, agent tools, or business outcomes that cannot be proved by routing coverage alone. Deterministic process tests are always required. Add point-integration and process-integration/E2E layers only when their contracts apply, keep their artifacts separate, and combine evidence from every selected layer in one report.
+Use this structure when a process contains connectors, agent tools, or business outcomes that cannot be proved by routing coverage alone. Deterministic process tests are always required. Add point-integration and whole-process business-outcome layers only when their contracts apply, keep their artifacts separate, and combine evidence from every selected layer in one report. These layers test the process runtime, not browser or UI behavior.
 
 | Layer | Contract | Required CI dependency |
 |---|---|---|
 | Deterministic process | BPMN reachability and routing | Mocked workers; no network or credentials |
 | Point integration | One connector/tool path in isolation | Local stub or mocked dependency |
-| Process integration/E2E | Named end-to-end business outcome | Local/mocked dependencies and controlled agent outcomes |
+| Whole-process outcome | Named business outcome across the process | Local/mocked dependencies and controlled agent outcomes |
 
 ## Deterministic process tests
 
@@ -45,7 +45,7 @@ When a plan claims that no extra tool activated, include a delayed/late
 activation case when that race is possible, and verify the negative assertion
 is made only after the modeled selection window is complete.
 
-## Process integration/E2E tests
+## Whole-process business-outcome tests
 
 - Name the expected business outcome.
 - Prefer one scenario per process end state.
@@ -64,7 +64,7 @@ After the selected automated suites run, emit:
 
 - total reachable process element and sequence-flow coverage;
 - connector/tool paths covered versus total, when point-integration tests apply;
-- E2E path count and named outcomes, when process-integration/E2E tests apply;
+- Whole-process path count and named outcomes, when that layer applies;
 - per-suite and per-scenario/run coverage;
 - machine-readable coverage data;
 - interactive HTML with completed-element and taken-flow BPMN highlighting.

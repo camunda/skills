@@ -1,7 +1,7 @@
 ---
 name: camunda-process-test
 description: |
-  Use this skill to draft test plans, then author, run, and maintain Camunda Process Test suites. Covers deterministic BPMN coverage and applicable point-integration and process-integration/E2E tests. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or automate browser/UI tests.
+  Use this skill to draft test plans, then author, run, and maintain Camunda Process Test suites. Covers deterministic BPMN coverage, connector/tool integration tests, and whole-process business-outcome tests. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or test UI/browser behavior.
 ---
 
 # Camunda Process Test
@@ -12,7 +12,7 @@ description: |
 
 Do not use this skill to author BPMN, DMN, FEEL, or forms, deploy to a live cluster, or test UI behavior. Route those tasks to **camunda-bpmn**, **camunda-dmn**, **camunda-feel**, **camunda-forms**, **camunda-process-mgmt**, or the relevant UI test framework.
 
-Use this skill to describe and build Camunda Process Test suites for Camunda 8.8+ from a Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage goals, dependency choices, and commands. This is a greenfield test-planning workflow, not a Camunda 7-to-8 migration-parity validator. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and process-integration/E2E suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md).
+Use this skill to describe and build Camunda Process Test suites for Camunda 8.8+ from a Markdown test specification. The specification is the source of truth for requirements, realistic outcomes, layer boundaries, coverage goals, dependency choices, and commands. This is a greenfield test-planning workflow, not a Camunda 7-to-8 migration-parity validator. For agentic or integration-heavy processes, choose among deterministic process, point-integration, and whole-process business-outcome suites as described in [references/three-layer-strategy.md](references/three-layer-strategy.md). These test the process runtime, not browser or UI behavior.
 
 ## Prerequisites
 
@@ -228,7 +228,7 @@ Segments: 1 happy path + 5 secondary
 Duplicates flagged: 0
 ```
 
-For every selected layer, report its specified coverage or contract gate and the corresponding evidence. Include connector/tool path coverage when point-integration tests apply, named E2E outcomes when process-integration/E2E tests apply, and per-suite/per-scenario coverage. Produce machine-readable data and an interactive HTML report with BPMN element/sequence-flow highlighting. Keep required CI offline and credential-free; document live-dev commands separately.
+For every selected layer, report its specified coverage or contract gate and the corresponding evidence. Include connector/tool path coverage when point-integration tests apply, named business outcomes when whole-process tests apply, and per-suite/per-scenario coverage. Produce machine-readable data and an interactive HTML report with BPMN element/sequence-flow highlighting. Keep required CI offline and credential-free; document live-dev commands separately.
 
 ## Maintenance workflows for existing suites
 
@@ -248,7 +248,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
 - [connectors-runtime.md](references/connectors-runtime.md) — enabling the Connectors runtime alongside Zeebe; WireMock pattern; inbound webhooks
-- [three-layer-strategy.md](references/three-layer-strategy.md) — deterministic process, point-integration, and mocked/local E2E suites for connector- and agent-heavy processes
+- [three-layer-strategy.md](references/three-layer-strategy.md) — deterministic process, point-integration, and mocked/local business-outcome suites for connector- and agent-heavy processes
 - [troubleshooting.md](references/troubleshooting.md) — failure diagnosis table (test problem vs. process problem)
 - [run-and-diagnose.md](references/run-and-diagnose.md) — test-run execution loop and failure-batch repair strategy
 - [evaluation.md](references/evaluation.md) — coverage-gap assessment and recommendation workflow
