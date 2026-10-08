@@ -52,6 +52,8 @@ Find the BPMN under test in priority order:
 
 Skip `target/`, `node_modules/`, `.git/`, `build/`. If multiple files match, list them and ask which to target.
 
+**Web Modeler scenario files.** After finding the BPMN, also scan the same resources directory for `* test scenarios.json` files (spaces in the name, no `.test.json` suffix). If found, follow [references/web-modeler-scenarios.md](references/web-modeler-scenarios.md) to run them as integration/E2E evidence. Do not treat them as a replacement for deterministic CPT tests when the test plan requires those; keep the two test layers in separate classes.
+
 Check `pom.xml` (or `test/pom.xml`) for `camunda-process-test-spring`. If missing, go to step 2.
 
 If scenarios already exist, run a drift check before editing tests:
@@ -90,7 +92,7 @@ Plan the minimum number of segments **before** authoring anything. Apply [refere
 
 For CPT 8.9+, write one entry inside `src/test/resources/scenarios/<processId>.test.json` using [references/authoring.md](references/authoring.md). For CPT 8.8, use the Java fallback described in that reference instead of `.test.json`. Naming: `"<who/what> — <outcome>"`. Assertions: `ASSERT_ELEMENT_INSTANCES` on the elements the segment must visit, `ASSERT_PROCESS_INSTANCE` only when the segment runs to an end event.
 
-For CPT 8.9+, use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), or assertions richer than the JSON instruction set offers. For CPT 8.8, Java tests are required because the instruction-based format is not available. See [references/test-context.md](references/test-context.md); Java tests are invisible to Web Modeler.
+For CPT 8.9+, use the Java fallback only when the segment needs Spring bean mocking, parameterized data tables, non-deterministic runtime races (`context.when().then()` *(8.9+)*), LLM behavioral quality assertions on agent output (8.9+), or assertions richer than the JSON instruction set offers. For CPT 8.8, Java tests are required because the instruction-based format is not available. See [references/test-context.md](references/test-context.md) and [references/judge-configuration.md](references/judge-configuration.md); Java tests are invisible to Web Modeler.
 
 ### 5. Run
 
@@ -204,6 +206,7 @@ These workflows are complementary: evaluate gaps first, implement new scenarios,
 ## References
 
 - [setup.md](references/setup.md) — Java, Maven, Docker prereqs; CPT dependency; test scaffold layout; Spring Boot 4.x pin
+- [web-modeler-scenarios.md](references/web-modeler-scenarios.md) — running Web Modeler-exported scenario files; cluster mode decision; ephemeral and remote templates; failsafe wiring and connectors bundle image version for any `*IT.java`
 - [coverage-strategy.md](references/coverage-strategy.md) — segment selection rules per BPMN element type, including ad-hoc subprocess tool activation
 - [authoring.md](references/authoring.md) — `.test.json` schema, full 8.9 instruction reference, Java fallback
 - [test-context.md](references/test-context.md) — `CamundaProcessTestContext` Java API surface (job/decision/child-process mocking, time control, conditional behavior)
