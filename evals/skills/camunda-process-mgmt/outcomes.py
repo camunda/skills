@@ -89,7 +89,9 @@ def process_instance_completed() -> Scorer:
                     continue
                 rid = row.get("bpmnProcessId") or row.get("Process ID")
                 state = str(row.get("state") or row.get("State") or "").upper()
-                key = str(row.get("key") or row.get("Process Instance Key") or "").strip()
+                key = str(
+                    row.get("key") or row.get("Process Instance Key") or ""
+                ).strip()
                 if rid == expected_process_id and state == "COMPLETED" and key:
                     instance_key = key
                     break
@@ -156,9 +158,7 @@ def process_instance_completed() -> Scorer:
             )
 
         state_value = (
-            data.get("state")
-            or data.get("State")
-            or data.get("processInstanceState")
+            data.get("state") or data.get("State") or data.get("processInstanceState")
         )
 
         normalized = str(state_value or "").upper()
@@ -193,7 +193,7 @@ SAMPLES = [
             "2) Start one instance of ProcessMgmtOutcome and capture its instance key\n"
             "3) Verify the instance reaches COMPLETED\n"
             "5) Save /workspace/process_mgmt_result.json with exactly: "
-            "{\"instanceKey\": \"<key>\"}\n"
+            '{"instanceKey": "<key>"}\n'
             "Do not run c8ctl bpmn lint and do not create /workspace/.bpmnlintrc; proceed directly with deploy/start/verify operations.\n"
             "Use --profile=local on mutating c8ctl commands."
         ),

@@ -98,9 +98,7 @@ def xor_gateway_structure_valid(path: str = "/workspace/process.bpmn") -> Scorer
         for candidate in process.iter(f"{{{BPMN_NS}}}exclusiveGateway"):
             gateway_id = candidate.get("id")
             outgoing_flows = [
-                flow
-                for flow in sequence_flows
-                if flow.get("sourceRef") == gateway_id
+                flow for flow in sequence_flows if flow.get("sourceRef") == gateway_id
             ]
             target_types = {
                 _task_type(elements.get(flow.get("targetRef")))
@@ -122,9 +120,7 @@ def xor_gateway_structure_valid(path: str = "/workspace/process.bpmn") -> Scorer
             gateway_id = gateway.get("id")
             default_id = gateway.get("default")
             outgoing_by_id = {
-                flow.get("id"): flow
-                for flow in outgoing_flows
-                if flow.get("id")
+                flow.get("id"): flow for flow in outgoing_flows if flow.get("id")
             }
             if default_id not in outgoing_by_id:
                 return Score(
@@ -142,7 +138,10 @@ def xor_gateway_structure_valid(path: str = "/workspace/process.bpmn") -> Scorer
                     explanation=f"default flow {default_id} must not have a condition",
                 )
 
-            if _task_type(elements.get(default_flow.get("targetRef"))) != "manual-approval":
+            if (
+                _task_type(elements.get(default_flow.get("targetRef")))
+                != "manual-approval"
+            ):
                 return Score(
                     value=0.0,
                     explanation=(
