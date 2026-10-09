@@ -79,9 +79,7 @@ def job_worker_outcome() -> Scorer:
             return Score(value=0.0, explanation=f"answer.json is not valid JSON: {exc}")
 
         if not isinstance(actual, dict):
-            return Score(
-                value=0.0, explanation="answer.json must contain a JSON object"
-            )
+            return Score(value=0.0, explanation="answer.json must contain a JSON object")
 
         expected = ((state.metadata or {}).get("expected") or {}).copy()
         if not expected:
