@@ -31,9 +31,9 @@ SAMPLES = [
             "Create one DMN 1.3 decision table in a file named decision.dmn. "
             "Use decision id shippingMethod, name 'Shipping Method', hit policy UNIQUE. "
             "One input: packageWeight (number). One output: method (string). "
-            'Rules (mutually exclusive): packageWeight < 2 -> "LETTER"; '
-            '2 <= packageWeight <= 20 -> "PARCEL"; '
-            'packageWeight > 20 -> "FREIGHT".' + SAVE
+            "Rules (mutually exclusive): packageWeight < 2 -> \"LETTER\"; "
+            "2 <= packageWeight <= 20 -> \"PARCEL\"; "
+            "packageWeight > 20 -> \"FREIGHT\"." + SAVE
         ),
         metadata={"check": "shipping-method-unique"},
     ),
@@ -43,8 +43,7 @@ SAMPLES = [
             "Create one DMN 1.3 decision table in a file named decision.dmn. "
             "Use decision id totalDiscount, name 'Total Discount', hit policy COLLECT with SUM aggregation. "
             "Inputs: customerType (string), amount (number). Output: discount (number). "
-            'Rules: customerType = "VIP" -> 10; amount > 1000 -> 5; amount > 5000 -> 15.'
-            + SAVE
+            "Rules: customerType = \"VIP\" -> 10; amount > 1000 -> 5; amount > 5000 -> 15." + SAVE
         ),
         metadata={"check": "discount-collect-sum"},
     ),
@@ -131,9 +130,7 @@ def dmn_outcome() -> Scorer:
         check = (state.metadata or {}).get("check")
         if check == "shipping-method-unique":
             if decision.attrib.get("id") != "shippingMethod":
-                return Score(
-                    value=0.0, explanation="expected decision id shippingMethod"
-                )
+                return Score(value=0.0, explanation="expected decision id shippingMethod")
             if table.attrib.get("hitPolicy") != "UNIQUE":
                 return Score(value=0.0, explanation="expected hitPolicy UNIQUE")
             if _input_names(table) != ("packageWeight",):
@@ -159,9 +156,7 @@ def dmn_outcome() -> Scorer:
 
         if check == "discount-collect-sum":
             if decision.attrib.get("id") != "totalDiscount":
-                return Score(
-                    value=0.0, explanation="expected decision id totalDiscount"
-                )
+                return Score(value=0.0, explanation="expected decision id totalDiscount")
             if table.attrib.get("hitPolicy") != "COLLECT":
                 return Score(value=0.0, explanation="expected hitPolicy COLLECT")
             if table.attrib.get("aggregation") != "SUM":
@@ -172,7 +167,7 @@ def dmn_outcome() -> Scorer:
                     explanation="expected input expressions customerType, amount",
                 )
             expected = {
-                (('"VIP"', "-"), "10"),
+                (("\"VIP\"", "-"), "10"),
                 (("-", "> 1000"), "5"),
                 (("-", "> 5000"), "15"),
             }

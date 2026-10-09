@@ -90,8 +90,7 @@ def rest_connector_configured() -> Scorer:
         start_events = process.findall("./bpmn:startEvent", NS)
         end_events = process.findall("./bpmn:endEvent", NS)
         start = next(
-            (e for e in start_events if e.attrib.get("name") == "Request received"),
-            None,
+            (e for e in start_events if e.attrib.get("name") == "Request received"), None
         )
         end = next((e for e in end_events if e.attrib.get("name") == "Done"), None)
         if start is None or end is None:
@@ -128,8 +127,7 @@ def rest_connector_configured() -> Scorer:
         )
         if task_definition is None:
             return Score(
-                value=0.0,
-                explanation="missing zeebe:taskDefinition on Task_FetchWeather",
+                value=0.0, explanation="missing zeebe:taskDefinition on Task_FetchWeather"
             )
 
         io_inputs = {
@@ -164,19 +162,18 @@ def rest_connector_configured() -> Scorer:
                 explanation=f"missing/incorrect inputs: {missing_inputs}",
                 metadata={"found_inputs": io_inputs, "found_headers": headers},
             )
-        result_variable = headers.get("resultVariable") or io_inputs.get(
-            "resultVariable"
-        )
+        result_variable = headers.get("resultVariable") or io_inputs.get("resultVariable")
         result_expression = headers.get("resultExpression") or io_inputs.get(
             "resultExpression"
         )
         missing_headers = {}
         if _norm(result_variable).lstrip("=") != "weatherResponse":
             missing_headers["resultVariable"] = "weatherResponse"
-        if _norm(result_expression) != "={forecast:response.body.properties.forecast}":
-            missing_headers["resultExpression"] = (
-                "={forecast: response.body.properties.forecast}"
-            )
+        if (
+            _norm(result_expression)
+            != "={forecast:response.body.properties.forecast}"
+        ):
+            missing_headers["resultExpression"] = "={forecast: response.body.properties.forecast}"
         if missing_headers:
             return Score(
                 value=0.0,
