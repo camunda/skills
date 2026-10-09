@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -190,6 +191,166 @@ Do not implement tests before implementation approval.
 """
 
 
+def _integration_case(tool: str) -> dict:
+    inactive = sorted((_outcomes.TOOLS - {tool}) | {_outcomes.FEEDBACK})
+    return {
+        "name": f"{tool} — stable point integration contract",
+        "instructions": [
+            {
+                "type": "CREATE_PROCESS_INSTANCE",
+                "processDefinitionSelector": {
+                    "processDefinitionId": _outcomes.PROCESS_ID
+                },
+            },
+            {
+                "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+                "jobSelector": {"jobType": "io.camunda.agenticai:aiagent:subprocess:2"},
+                "completionConditionFulfilled": False,
+                "activateElements": [{"elementId": tool}],
+            },
+            {
+                "type": "COMPLETE_JOB",
+                "jobSelector": {"elementId": tool},
+                "variables": {"toolCallResult": {}},
+            },
+            {
+                "type": "ASSERT_ELEMENT_INSTANCE",
+                "elementSelector": {"elementId": tool},
+                "state": "IS_COMPLETED",
+            },
+            {
+                "type": "ASSERT_ELEMENT_INSTANCES",
+                "elementSelectors": [{"elementId": value} for value in inactive],
+                "state": "IS_NOT_ACTIVATED",
+            },
+        ],
+    }
+
+
+def _implementation_state(*, omit_tool: str | None = None) -> SimpleNamespace:
+    integration_cases = [
+        _integration_case(tool) for tool in sorted(_outcomes.TOOLS - {omit_tool})
+    ]
+    e2e = {
+        "name": "Feedback journey — retry then approved outcome",
+        "instructions": [
+            {
+                "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+                "jobSelector": {"elementId": "AI_Agent"},
+                "completionConditionFulfilled": False,
+            },
+            {
+                "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+                "jobSelector": {"elementId": "AI_Agent"},
+                "completionConditionFulfilled": True,
+            },
+            {
+                "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+                "jobSelector": {"elementId": "AI_Agent"},
+                "completionConditionFulfilled": False,
+            },
+            {
+                "type": "COMPLETE_JOB_AD_HOC_SUB_PROCESS",
+                "jobSelector": {"elementId": "AI_Agent"},
+                "completionConditionFulfilled": True,
+            },
+            *[
+                {
+                    "type": "COMPLETE_JOB",
+                    "jobSelector": {"elementId": tool},
+                }
+                for tool in sorted(_outcomes.TOOLS)
+            ],
+            *[
+                {
+                    "type": "ASSERT_ELEMENT_INSTANCE",
+                    "elementSelector": {"elementId": tool},
+                    "state": "IS_COMPLETED",
+                }
+                for tool in sorted(_outcomes.TOOLS)
+            ],
+            {
+                "type": "COMPLETE_USER_TASK",
+                "variables": {"userSatisfied": False},
+            },
+            {
+                "type": "COMPLETE_USER_TASK",
+                "variables": {"userSatisfied": True},
+            },
+            {"type": "ASSERT_PROCESS_INSTANCE", "state": "IS_COMPLETED"},
+        ],
+    }
+    summary = {
+        "processCoverage": {
+            "reachableElements": 10,
+            "coveredElements": 10,
+            "reachableSequenceFlows": 9,
+            "coveredSequenceFlows": 9,
+            "unreachableElements": [],
+        },
+        "integrationCoverage": {
+            "coveredTools": sorted(_outcomes.TOOLS),
+            "totalPaths": 4,
+        },
+        "e2eOutcomes": ["retry then approved"],
+        "suites": [
+            {"name": "deterministic", "runs": [{}]},
+            {"name": "point integration", "runs": [{}]},
+            {"name": "e2e", "runs": [{}]},
+        ],
+        "redundancy": {
+            "layers": {
+                layer: {
+                    "leaveOneOutApplied": True,
+                    "redundantScenarios": [],
+                }
+                for layer in ("deterministic", "pointIntegration", "e2e")
+            },
+            "crossLayerOverlapExplanation": "Each layer proves a different contract.",
+        },
+    }
+    artifacts = {
+        _outcomes.SPEC_PATH: "# Test specification\n\nStatus: APPROVED",
+        "/workspace/process.bpmn": '<bpmn:process id="ai-agent-chat-with-tools"/>',
+        "/workspace/test/pom.xml": "<project/>",
+        "/workspace/test/README.md": (
+            "deterministic; point-integration; E2E; optional live-dev profile"
+        ),
+        "/workspace/test/process.test.json": json.dumps(
+            {
+                "processId": _outcomes.PROCESS_ID,
+                "testCases": [
+                    {
+                        "name": "Direct answer — no tools required",
+                        "instructions": [],
+                    }
+                ],
+            }
+        ),
+        "/workspace/test/integration.test.json": json.dumps(
+            {"processId": _outcomes.PROCESS_ID, "testCases": integration_cases}
+        ),
+        "/workspace/test/e2e.test.json": json.dumps(
+            {"processId": _outcomes.PROCESS_ID, "testCases": [e2e]}
+        ),
+        "/workspace/test/target/coverage-summary.json": json.dumps(summary),
+        "/workspace/test/target/coverage-report/report.html": (
+            "<script>window.COVERAGE_DATA={completedElements:[]}</script>"
+        ),
+    }
+    return SimpleNamespace(
+        store={"artifacts": artifacts},
+        messages=[
+            SimpleNamespace(
+                role="assistant",
+                content=("Report: /workspace/test/target/coverage-report/report.html"),
+                tool_calls=[],
+            )
+        ],
+        sample_id=_outcomes.IMPLEMENTATION_SAMPLE,
+    )
+
+
 def test_complete_markdown_spec_passes() -> None:
     assert _score(_complete_spec()) == 1.0
 
@@ -265,19 +426,87 @@ def test_overall_score_weights_required_above_optional() -> None:
     assert score.metadata == {"required": 1.0, "optional": 1.0}
 
 
-def test_task_registers_three_spec_samples_without_changing_scenario_task() -> None:
+def test_complete_three_layer_artifacts_pass_static_scorers() -> None:
+    state = _implementation_state()
+
+    for factory in (
+        _outcomes.artifact_scorer,
+        _outcomes.process_coverage_scorer,
+        _outcomes.integration_path_scorer,
+        _outcomes.e2e_scorer,
+        _outcomes.isolation_scorer,
+        _outcomes.redundancy_scorer,
+        _outcomes.report_scorer,
+        _outcomes.report_handoff_scorer,
+    ):
+        assert asyncio.run(factory()(state, None)).value == 1.0, factory.__name__
+
+
+def test_point_integration_requires_every_canonical_tool() -> None:
+    state = _implementation_state(omit_tool="Jokes_API")
+
+    assert asyncio.run(_outcomes.integration_path_scorer()(state, None)).value == 0.0
+
+
+def test_report_handoff_rejects_placeholder_path() -> None:
+    state = _implementation_state()
+    state.messages[0].content = "Report: /workspace/...report...html"
+
+    assert asyncio.run(_outcomes.report_handoff_scorer()(state, None)).value == 0.0
+
+
+def test_report_handoff_ignores_path_in_user_prompt() -> None:
+    state = _implementation_state()
+    state.messages = [
+        SimpleNamespace(
+            role="user",
+            content="Print /workspace/test/target/coverage-report/report.html",
+            tool_calls=[],
+        )
+    ]
+
+    assert asyncio.run(_outcomes.report_handoff_scorer()(state, None)).value == 0.0
+
+
+def test_scorers_apply_only_to_their_stage() -> None:
+    spec_state = SimpleNamespace(
+        store={"artifacts": {_outcomes.SPEC_PATH: _complete_spec()}},
+        messages=[],
+        sample_id=_outcomes.SPEC_SAMPLE,
+    )
+    implementation_state = _implementation_state()
+
+    assert (
+        asyncio.run(_outcomes.artifact_scorer()(spec_state, None)).metadata[
+            "not_applicable"
+        ]
+        is True
+    )
+    assert (
+        asyncio.run(
+            _outcomes.test_spec_complete()(implementation_state, None)
+        ).metadata["not_applicable"]
+        is True
+    )
+
+
+def test_task_requests_spec_then_approved_implementation() -> None:
     spec_task = _outcomes.camunda_process_test_spec()
-    scenario_task = _outcomes.camunda_process_test()
+    implementation_task = _outcomes.camunda_process_test()
 
     assert [sample.id for sample in spec_task.dataset] == [
         "agentic-test-specification",
         "connector-user-task-test-specification",
         "simple-user-task-test-specification",
     ]
-    assert [sample.id for sample in scenario_task.dataset] == [
-        "invoice-approval-two-outcomes"
+    assert [sample.id for sample in implementation_task.dataset] == [
+        "agentic-three-layer-suite"
     ]
     assert "write only `/workspace/TESTING.md`" in spec_task.dataset[0].input
+    assert "approved `/fixture/TESTING.md`" in implementation_task.dataset[0].input
     assert str(spec_task.sandbox.config).endswith(
         "camunda-process-test/compose-spec.yaml"
+    )
+    assert str(implementation_task.sandbox.config).endswith(
+        "camunda-process-test/compose.yaml"
     )
