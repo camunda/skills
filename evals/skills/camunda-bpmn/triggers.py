@@ -24,6 +24,14 @@ def trigger_eval() -> Task:
                 "xor-safe-default",
                 "Model an approve/reject exclusive gateway so an unexpected or missing decision safely follows a default reject branch instead of causing a runtime incident.",
             ),
+            Positive(
+                "connectors-repo-bpmn-fixture",
+                "In camunda/connectors, edit the BPMN integration-test fixture: add a timer boundary event to the service task and an escalation end event.",
+            ),
+            Positive(
+                "explicit-bpmn-in-connectors-repo",
+                "/camunda-bpmn In camunda/connectors, create a BPMN example process with a start event, a connector service task, and an end event.",
+            ),
         ],
         negative=[
             Negative(
@@ -35,6 +43,16 @@ def trigger_eval() -> Task:
                 "deploy-and-start",
                 "Deploy my process to the cluster and start a new instance with the variables orderAmount=500 and region=EU.",
                 should_load=["camunda-process-mgmt"],
+            ),
+            Negative(
+                "connectors-post-review-fixes",
+                "Repository: camunda/connectors. We are editing Java-driven/generated AI Agent v2 element templates and Groovy generation scripts. "
+                "The PR review found duplicated backend metadata and tests, plus review-readiness gaps. Address these issues.",
+            ),
+            Negative(
+                "connectors-publish-template-pr",
+                "In camunda/connectors, the Java metadata and Groovy generation-script changes for AI Agent v2 element templates are complete. "
+                "Create a PR describing the provider-selection UI behavior and the generator tests.",
             ),
         ],
     )

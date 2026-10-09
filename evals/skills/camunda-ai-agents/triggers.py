@@ -20,12 +20,21 @@ def trigger_eval() -> Task:
                 "tool-loop-agent",
                 "I want an AI agent in my process that picks which tool to call at runtime and loops until it's done.",
             ),
+            Positive(
+                "connectors-repo-agent-bpmn-example",
+                "In camunda/connectors, model a BPMN example using the AI Agent Sub-process connector: an ad-hoc subprocess with KB-search and customer-data tools.",
+            ),
         ],
         negative=[
             Negative(
                 "deterministic-rules",
                 "I have fixed business rules mapping package weight and region to a shipping method.",
                 should_load=["camunda-dmn"],
+            ),
+            Negative(
+                "connectors-agent-template-generator",
+                "In camunda/connectors, update the Java-driven AI Agent v2 element templates and Groovy generation scripts to add provider steps and conditional UI fields. "
+                "Simplify duplicated backend metadata and generator tests flagged in the PR review.",
             ),
         ],
     )

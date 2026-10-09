@@ -69,6 +69,23 @@ Two gating scorers, both must hit **1.0**:
 **The lever is the skill `description`.** Edit it, re-run, watch the number. If
 routing is actually fine and the *assertion* is wrong, relax the sample.
 
+### Repository/task routing regressions
+
+The `camunda-bpmn`, `camunda-ai-agents`, and `camunda-connectors-development`
+triggers include `camunda/connectors` repository context. Java connector
+metadata, generated AI Agent element templates, Groovy generator scripts, and
+PR/review requests must not be mistaken for BPMN authoring or applying an OOTB
+connector merely because they mention templates or UI fields. Positive controls
+retain actual BPMN fixture/example authoring in the same repository and explicit
+applicable skill invocation; these are task boundaries, not a repository ban.
+
+Run the three targets with `make run-trigger-evals SKILL=<name>`. These tests
+cover only the tracked catalog: user-installed publishing/review skills such as
+`bpmn-io-create-pr` are not distributed here or included by the trigger harness.
+They therefore do **not** cover that skill's rejected invocation, nor do they
+forbid applicable general connector PR/review workflows. The installed skill's
+source owner must add the equivalent regression to its own routing evals.
+
 ## Reading an outcome result
 
 ```bash

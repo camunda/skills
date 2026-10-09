@@ -13,6 +13,11 @@ def trigger_eval() -> Task:
         Path(__file__).parent.name,
         # Hide the meta-router (camunda-development) so this tests the leaf skill.
         excluded_skills=["camunda-development"],
+        also_run_when_changed=[
+            "camunda-bpmn",
+            "camunda-ai-agents",
+            "camunda-connectors",
+        ],
         positive=[
             Positive(
                 "reusable-outbound",
@@ -21,6 +26,26 @@ def trigger_eval() -> Task:
             Positive(
                 "custom-inbound-webhook",
                 "Our payments vendor pushes settlement events to a webhook with a custom HMAC scheme; each event should start a process. Build the connector.",
+            ),
+            Positive(
+                "connectors-java-template-generation",
+                "In camunda/connectors, implement provider steps for AI Agent v2 element templates through Java connector metadata and Groovy generation scripts. "
+                "Update the generator tests for conditional UI fields and prepare the implementation for PR review.",
+                should_not_load=[
+                    "camunda-bpmn",
+                    "camunda-ai-agents",
+                    "camunda-connectors",
+                ],
+            ),
+            Positive(
+                "explicit-connector-development-review-fixes",
+                "/camunda-connectors-development In camunda/connectors, address the PR review issues in our Java connector metadata and Groovy element-template generator: "
+                "simplify duplicated backend metadata and tests and resolve review-readiness gaps.",
+                should_not_load=[
+                    "camunda-bpmn",
+                    "camunda-ai-agents",
+                    "camunda-connectors",
+                ],
             ),
         ],
         negative=[
