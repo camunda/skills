@@ -11,6 +11,7 @@ Instruction-based CPT format (8.9+). Each `.test.json` file is loaded by `@TestC
 ```json
 {
   "$schema": "https://camunda.com/json-schema/cpt-test-cases/8.9/schema.json",
+  "processId": "<processId>",
   "testCases": [
     {
       "name": "<who/what> — <outcome>",
@@ -23,7 +24,7 @@ Instruction-based CPT format (8.9+). Each `.test.json` file is loaded by `@TestC
 }
 ```
 
-Place at `src/test/resources/scenarios/<processId>.test.json`. One file per process; many `testCases[]` per file.
+Place at `src/test/resources/scenarios/<processId>.test.json`. One file per process; many `testCases[]` per file. Include the top-level `processId` when the file is intended for Test mode; it is required there to display the cases for the BPMN process.
 
 ## Naming
 
@@ -302,7 +303,7 @@ Resolves a matching incident; if the incident is on a job, retries are increased
 
 Optional `elementSelector` (local scope), `variableNames` (existence-only check).
 
-> Only assert variables that feed a downstream gateway or DMN — see [§ What not to write](#what-not-to-write).
+> In deterministic process tests, assert only variables that feed a downstream gateway or DMN — see [§ What not to write](#what-not-to-write). Integration and business-contract tests may assert specified output contracts that do not drive routing.
 
 ### `ASSERT_USER_TASK`
 
@@ -370,13 +371,15 @@ A segment that rejoins the happy path does **not** need to assert every downstre
 
 ## What not to write
 
-- `ASSERT_VARIABLE` on a service-task output variable. Out of scope — CPT covers routing, not data correctness.
+- In deterministic process tests, `ASSERT_VARIABLE` on a service-task output that no gateway or DMN consumes. Data assertions are out of scope for that layer; preserve specified integration or business-contract assertions.
 - Repeated complete-the-final-task tail across every segment. If a segment rejoins the happy path before the tail, end the segment there.
 - Copy-paste assertions whose values come from FEEL inside the process. The process already evaluates the FEEL; asserting the same value tests the test, not the process.
 
 ## Schema-version reminder
 
 The `$schema` URL pins the CPT instruction grammar version. If you upgrade CPT in `pom.xml`, update the schema URL to match — older URLs may reject newer instruction types.
+
+`ASSERT_VARIABLE` with `satisfiesExpression` requires CPT 8.10+. Check the project's CPT version before using it; on earlier versions, use a compatible Java assertion.
 
 ---
 
