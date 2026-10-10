@@ -27,6 +27,10 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8",
+    "c8ctl": ">=3.0.0"
+  },
   "limitations": [
     "Live process operations require a reachable and authorized Camunda 8.8+ cluster plus an installed c8ctl CLI."
   ],

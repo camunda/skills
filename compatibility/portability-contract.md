@@ -22,7 +22,7 @@ surface:
 | Field or behavior | Authority |
 | --- | --- |
 | `skills/<name>/SKILL.md` package layout, `name`, `description`, and supported frontmatter | Agent Skills specification |
-| `skillDirectory`, `skillName`, `status`, `agentSkillsSpec`, `harnesses`, `limitations`, and `differences` in `portability.json` | Repository policy |
+| `skillDirectory`, `skillName`, `status`, `agentSkillsSpec`, `harnesses`, `requires`, `limitations`, and `differences` in `portability.json` | Repository policy |
 | `skills-index.json`, `audit.json`, and their cross-file consistency rules | Repository policy |
 | Discovery, activation fixture, result assertions, adapter modes, and live-integration reporting | Repository policy |
 
@@ -85,6 +85,10 @@ fields:
       "status": "adapter-required",
       "differences": ["The host supplies discovery and tool invocation adapters."]
     }
+  },
+  "requires": {
+    "camunda": ">=8.8",
+    "c8ctl": ">=3.0.0"
   },
   "limitations": ["A Camunda 8 cluster is required for live c8ctl operations."],
   "differences": ["Tool names and credential setup can vary by harness."]
