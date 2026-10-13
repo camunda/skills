@@ -41,6 +41,11 @@ The ad-hoc subprocess must be configured as parallel multi-instance with these e
 
 Add a `bpmn:adHocSubProcess` input mapping that declares `toolCallResult` as a local variable (leave **Variable assignment value** blank). This makes each multi-instance iteration's `toolCallResult` local to that iteration and prevents interference between concurrent tool calls.
 
+**With the v2 Task template** *(8.10+)* the template does not manage this sub-process, so also set two things by hand:
+
+- Extension property `io.camunda.agenticai.toolContainer` = `true` on the ad-hoc subprocess. Without it, Modeler agent tooling (lint, autofill) is unavailable for it.
+- `completedAt: now()` in the **Output element**: `={id: toolCall._meta.id, name: toolCall._meta.name, content: toolCallResult, completedAt: now()}`. Without it, the connector stamps results with its own processing time, which can be later than actual completion for slow or parallel tools.
+
 ## Configure the AI Agent service task
 
 Apply the AI Agent **Task** element template (different from the Sub-process variant template — search for both via `c8ctl element-template search "ai agent"`). Set:
