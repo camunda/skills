@@ -100,7 +100,10 @@ c8ctl element-template apply -i <id> AgentTools process.bpmn \
 
 The template handles `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindings, default input mappings, and the model-provider-specific fields — they change across template versions, don't hand-code them.
 
-Supported providers — v1: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint). v2 `provider.type`: `anthropic`, `bedrock`, `openai`, `google-gemini`, `custom`; Azure/Foundry, Vertex AI, and OpenAI-compatible are backends of those.
+Supported providers:
+
+- v1 `provider.type`: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
+- v2 `provider.type`: `anthropic`, `bedrock`, `openai`, `google-gemini`, `custom`. Azure/Foundry, Vertex AI, and OpenAI-compatible are backends of these.
 
 ## The BPMN Shape
 
@@ -206,7 +209,7 @@ Which fields the result context contains depends on the response settings (examp
 - `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.format.parseJson=true`.
 - `agent.context` — when `data.response.includeAgentContext=true`. Needed for the Response Interaction pattern below.
 
-**Provider × `format=json` compat (v1 provider names).** Only OpenAI and Google Vertex AI support `data.response.format.type=json` natively. For Anthropic, Amazon Bedrock, Azure OpenAI, and OpenAI-compatible providers, use `format=text` + `parseJson=true` and read `agent.responseJson`.
+**Provider × `format=json` compat.** Per the current docs (v2 templates): OpenAI supports `data.response.format.type=json` natively (JSON mode; a schema gives structured outputs). Anthropic and AWS Bedrock support it only with a `data.response.format.schema`. For other providers, support varies — if unsupported, use `format=text` + `data.response.format.parseJson=true` and read `agent.responseJson`.
 
 **Schema is a FEEL context literal.** When `format=json`, `data.response.format.schema` is `feel: required` — write it as `={ type: "object", properties: { ... } }`, not a quoted JSON string.
 
