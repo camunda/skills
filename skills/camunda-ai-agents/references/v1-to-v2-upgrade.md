@@ -193,9 +193,7 @@ Both routes (c8ctl and manual):
    | Task | `CONNECTOR_AI_AGENT_TYPE` | `CONNECTOR_AI_AGENT_TASK_TYPE` |
    | Sub-process | `CONNECTOR_AI_AGENT_JOB_WORKER_TYPE` | `CONNECTOR_AI_AGENT_SUBPROCESS_TYPE` |
 
-3. **Custom Java extensions** (custom conversation store or chat model, Self-Managed/hybrid) — Java APIs changed in 8.10; see the [breaking changes](https://github.com/camunda/connectors/blob/main/connectors/agentic-ai/docs/breaking-changes.md).
-4. **Deploy to non-production first.** Test a representative prompt and tool-call path; confirm authentication, endpoint, and model behavior before promoting.
-5. **Running instances are unaffected.** Already-deployed definitions and their instances keep executing on the v1 job worker until a new version with the v2 template is deployed.
+3. **Running instances are unaffected.** Already-deployed definitions and their instances keep executing on the v1 job worker until a new version with the v2 template is deployed.
 
 v2 templates write `zeebe:agentDefinition` on the element automatically — no configuration needed.
 
