@@ -165,7 +165,7 @@ v1 **Endpoint** has no Modeler equivalent (no custom backend for Gemini).
 
 Both routes (c8ctl and manual):
 
-1. **Task variant only** — c8ctl and the v2 Task template do not touch the tools ad-hoc sub-process. Fix it by hand:
+1. **Task variant only** — neither the Task templates nor c8ctl manage the tools ad-hoc sub-process, so the two additions v2 expects (and v1 did not) must be made by hand:
    - Add extension property `io.camunda.agenticai.toolContainer` = `true` on the ad-hoc sub-process. Without it, Modeler agent tooling (lint, autofill) is unavailable for it.
    - Add `completedAt: now()` to the multi-instance **Output element**:
 
