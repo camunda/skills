@@ -3,11 +3,11 @@ name: camunda-ai-agents
 description: |
   Use this skill to model and configure AI agents in Camunda 8 BPMN using the AI Agent Sub-process connector — an LLM driver applied to an ad-hoc subprocess with tools as BPMN activities.
 
-  Use for: shaping the ad-hoc subprocess that hosts the agent, defining tools as service/script/user tasks or sub-processes, declaring LLM-supplied parameters via fromAi(), writing system/user prompt FEEL strings, wiring toolCallResult outputs, setting model and call limits, enabling multi-turn agent context, debugging tool-call resolution.
+  Use for: shaping the ad-hoc subprocess that hosts the agent, defining tools as service/script/user tasks or sub-processes, declaring LLM-supplied parameters via fromAi(), writing system/user prompt FEEL strings, wiring toolCallResult outputs, setting model and call limits, enabling multi-turn agent context, debugging tool-call resolution, choosing between v1 and v2 AI Agent element templates and upgrading v1 elements to v2.
 
   Do not use for: the older AI Agent Task variant (see references/ai-agent-task.md), or generic BPMN authoring outside the agent host (use camunda-bpmn).
 
-  **Workflow skill** — model the agent host, its tools, prompts, and limits. Covers c8ctl element-template apply for the AI Agent connector template.
+  **Workflow skill** — model the agent host, its tools, prompts, and limits. Covers c8ctl element-template apply and update for the AI Agent connector template.
 ---
 
 # Camunda AI Agent
@@ -52,6 +52,22 @@ references.
 - [Tool Definitions](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-tool-definitions/) — how tool name, description, and `inputSchema` are derived
 - [`fromAi()` FEEL function](https://docs.camunda.io/docs/components/modeler/feel/builtin-functions/feel-built-in-functions-miscellaneous/#fromaivalue)
 
+## Template Generations: v1 and v2
+
+Camunda 8.10 introduced **v2** AI Agent element templates (ID suffix `.v2`, e.g. `io.camunda.connectors.agenticai.ai-agent-subprocess.v2`) *(8.10+)* and deprecated **v1** (e.g. `io.camunda.connectors.agenticai.aiagent.jobworker.v1`). They are separate templates with separate job types. v1 keeps working but gets no new provider capabilities.
+
+v2 adds reasoning/thinking settings, prompt caching, decoupled provider + backend choices (e.g. Anthropic on AWS Bedrock Mantle or Foundry), and a custom chat model provider.
+
+- **New agent, 8.10+ cluster**: v2.
+- **Cluster below 8.10, or Desktop Modeler below 5.51.0**: v1 — v2 needs an 8.10 engine and shows as **Not found** in older Modeler.
+- **Existing v1 element, 8.10+ cluster**: switch only for a v2-only capability or to leave a deprecated template; no forced migration. To stay on v1, `c8ctl element-template update <v1-id> process.bpmn` (no `--to`) moves elements to the newest v1 version.
+
+Switching takes effect per redeploy: running instances keep executing on the v1 job worker.
+
+`c8ctl element-template search "ai agent"` returns both generations. The provider `--set` paths in the apply example below are v1-shaped; v2 nests credentials under `backend.<type>` (e.g. `provider.anthropic.backend.anthropic.apiKey`) — read `c8ctl element-template get-properties <id>` for the chosen template.
+
+To migrate v1 → v2, read [references/v1-to-v2-upgrade.md](references/v1-to-v2-upgrade.md).
+
 ## Applying the AI Agent Connector
 
 An ad-hoc subprocess alone is not an AI agent. Apply the AI Agent **Sub-process**
@@ -84,7 +100,7 @@ c8ctl element-template apply -i <id> AgentTools process.bpmn \
 
 The template handles `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindings, default input mappings, and the model-provider-specific fields — they change across template versions, don't hand-code them.
 
-Supported providers: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
+Supported providers — v1: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint). v2 `provider.type`: `anthropic`, `bedrock`, `openai`, `google-gemini`, `custom`; Azure/Foundry, Vertex AI, and OpenAI-compatible are backends of those.
 
 ## The BPMN Shape
 
@@ -190,7 +206,7 @@ Which fields the result context contains depends on the response settings (examp
 - `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.parseJson=true`.
 - `agent.context` — when `data.response.includeAgentContext=true`. Needed for the Response Interaction pattern below.
 
-**Provider × `format=json` compat.** Only OpenAI and Google Vertex AI support `data.response.format.type=json` natively. For Anthropic, Amazon Bedrock, Azure OpenAI, and OpenAI-compatible providers, use `format=text` + `parseJson=true` and read `agent.responseJson`.
+**Provider × `format=json` compat (v1 provider names).** Only OpenAI and Google Vertex AI support `data.response.format.type=json` natively. For Anthropic, Amazon Bedrock, Azure OpenAI, and OpenAI-compatible providers, use `format=text` + `parseJson=true` and read `agent.responseJson`.
 
 **Schema is a FEEL context literal.** When `format=json`, `data.response.format.schema` is `feel: required` — write it as `={ type: "object", properties: { ... } }`, not a quoted JSON string.
 
@@ -248,4 +264,5 @@ Lint catches structural BPMN problems but does not validate connector-template i
 For detailed reference material, read from `references/`:
 - [tool-modeling.md](references/tool-modeling.md) — worked XML for the four tool shapes (REST connector, script task, user task, sub-flow), including async-callback sub-flows
 - [fromai.md](references/fromai.md) — full `fromAi()` signature, all calling variants (positional, named, enum schemas, optional params, multi-call JSON bodies)
+- [v1-to-v2-upgrade.md](references/v1-to-v2-upgrade.md) — moving v1 elements to the v2 templates with `c8ctl element-template update`: ID pairs, dry-run/report workflow, recipe vs manual provider mapping, post-upgrade steps
 - [ai-agent-task.md](references/ai-agent-task.md) — the older Task variant (audit/intercept every tool call) — niche use only
