@@ -34,13 +34,20 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
    c8ctl element-template sync
    ```
 
-2. Preview. `--dry-run` writes nothing and exits 1 if an element would fail or the write would need `--allow-lossy`:
+2. Preview with `--json`. `--dry-run` writes nothing and exits 1 if an element would fail or the write would need `--allow-lossy`:
 
    ```bash
-   c8ctl element-template update <v1-id> process.bpmn --to <v2-id> --dry-run
+   c8ctl element-template update <v1-id> process.bpmn --to <v2-id> --dry-run --json
    ```
 
-3. Read the report per element. Markers: `+` new, `~` changed, `>` moved, `-` dropped. Recipe-driven values show `set by recipe`; recipe notes (e.g. prompt caching turned on) are printed too.
+3. Read `results[]` per element. Prefer the JSON over the text report: it is structured and does not need scraping markers.
+   - `recipe`: `{source, used, refusal}` — whether a migration recipe ran, and why not (`refusal`).
+   - `lossless`, `requiresAuthorization`: `requiresAuthorization: true` means the write needs `--allow-lossy`.
+   - `counts` and `report.{added,changed,moved,dropped,kept}`: each entry has `key`, `label`, `groupLabel`, `value`; added entries also carry `source` (e.g. `default`).
+   - `report.notes`: recipe notes, e.g. prompt caching turned on.
+   - `summary`: `{updated, skipped, unchanged, failed, dropped, blocked}`. `failed > 0` or `blocked > 0` means nothing would be written.
+
+   Without `--json`, the text report shows the same data with markers `+` new, `~` changed, `>` moved, `-` dropped.
 4. Write:
 
    ```bash
@@ -55,8 +62,8 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
 
 The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It is what moves provider fields across the redesign.
 
-- Report shows `>` moved values or `set by recipe` → recipe is active.
-- Report says `no recipe: values carried over by key` and shows no `>` / `set by recipe` → cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** are dropped (secret values print as `[REDACTED]`). Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
+- `recipe.used` is `true` (text report: `>` moved values or `set by recipe`) → recipe is active.
+- `recipe.source` is `none` and `used` is `false` (text report: `no recipe: values carried over by key`) → cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
 - v1 elements on an older v1 version: c8ctl first moves them to the newest v1, then to v2. When the recipe cannot be used for an element, the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
 - `--map <from>=<to>` moves one binding's value per element when no recipe covers it.
 
@@ -78,7 +85,7 @@ c8ctl element-template edit -i <element-id> process.bpmn \
 Omit `--to`. c8ctl moves each element to the newest v1 version compatible with the file's execution platform version. The element keeps the v1 job type; the report flags the template as deprecated and names the v2 target.
 
 ```bash
-c8ctl element-template update <v1-id> process.bpmn --dry-run
+c8ctl element-template update <v1-id> process.bpmn --dry-run --json
 ```
 
 Re-run with `--in-place` to write.
