@@ -203,7 +203,7 @@ The agent writes its output to a single context variable named by the connector'
 Which fields the result context contains depends on the response settings (examples below use the default `agent`):
 
 - `agent.responseText` — when `data.response.format.type=text` (the default).
-- `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.parseJson=true`.
+- `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.format.parseJson=true`.
 - `agent.context` — when `data.response.includeAgentContext=true`. Needed for the Response Interaction pattern below.
 
 **Provider × `format=json` compat (v1 provider names).** Only OpenAI and Google Vertex AI support `data.response.format.type=json` natively. For Anthropic, Amazon Bedrock, Azure OpenAI, and OpenAI-compatible providers, use `format=text` + `parseJson=true` and read `agent.responseJson`.
