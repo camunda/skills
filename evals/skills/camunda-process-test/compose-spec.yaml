@@ -1,0 +1,16 @@
+services:
+  default:
+    image: camunda-skills-evals-with-c8ctl:latest
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+
+volumes:
+  workspace:
