@@ -13,7 +13,7 @@ Leave it off when:
 - The connector requires secrets the test environment can't provide (production API keys, customer credentials).
 - The test runs in CI on every commit — the Connectors container adds ~200MB image pull and ~10s startup per cold run.
 
-When skipping the runtime, replace the connector with `context.mockJobWorker(jobType)` (Java) or `MOCK_JOB_WORKER_COMPLETE_JOB` *(8.9+ JSON)* — same result, no container.
+When the connector implementation is not under test, replace it with `context.mockJobWorker(jobType)` (Java) or `MOCK_JOB_WORKER_COMPLETE_JOB` *(8.9+ JSON)* to test process behavior around an assumed result without the container. This does not prove the connector's request, response handling, or mapping. To test that contract, run the production connector against a local stub or fake server and mock only the external dependency.
 
 ## Enabling
 
@@ -100,4 +100,4 @@ Inbound startup is asynchronous — the connector may need a beat to register it
 
 - **Hard-coded URLs in the BPMN that point at `localhost:<fixed port>`.** Wrong twice: localhost from inside the Connectors container is the container, not the test host; and the fixed port can collide in CI. Use a `{{secrets.…}}` reference plus `host.testcontainers.internal` for host-bound services.
 - **Real third-party endpoints in CI.** Costs money, flakes on rate limits, and embeds external availability into your test signal.
-- **Asserting `hasVariable("health", "UP")` to verify the connector itself works.** That tests the upstream stub, not your process — make the assertion about the BPMN element being completed, not the data it produced (see SKILL.md § Scope boundaries).
+- **Asserting only element completion to verify the connector itself works.** That proves process behavior, not the connector's contract. For connector-contract tests, assert the specified stable response shape or status as well as completion; for deterministic process tests, keep assertions to routing and reachability (see SKILL.md § Scope boundaries).
