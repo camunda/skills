@@ -101,11 +101,11 @@ Prerequisites are a supported GitHub Copilot CLI installation and GitHub authent
 
 ```bash
 copilot plugin marketplace add camunda/skills
-copilot plugin install camunda-skills@camunda
+copilot plugin install camunda-skills@camunda-skills
 copilot plugin list
 ```
 
-The marketplace is registered as `camunda`; install the `camunda-skills` plugin from that marketplace.
+The marketplace is registered as `camunda-skills`, matching the Claude Code marketplace name. If you registered it earlier as `camunda`, run `copilot plugin uninstall camunda-skills@camunda` and `copilot plugin marketplace remove camunda`, then run the commands above.
 
 Start Copilot from the project directory with `copilot`. In the session, run `/plugin list` to verify the plugin, then invoke `camunda-bpmn` in your prompt. For a small useful example:
 
