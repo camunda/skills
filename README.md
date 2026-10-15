@@ -97,14 +97,15 @@ Not every operation needs a cluster. Reading or editing `SKILL.md`, BPMN/XML, DM
 
 ### GitHub Copilot CLI
 
-Prerequisites are a supported GitHub Copilot CLI installation and GitHub authentication. Workflows that use c8ctl require Node.js 22.18.0+; workflows that touch a Camunda cluster additionally require either a local cluster or an already configured remote profile. Install Copilot CLI using the [GitHub installation instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli), then install this plugin directly from GitHub:
+Prerequisites are a supported GitHub Copilot CLI installation and GitHub authentication. Workflows that use c8ctl require Node.js 22.18.0+; workflows that touch a Camunda cluster additionally require either a local cluster or an already configured remote profile. Install Copilot CLI using the [GitHub installation instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli). Direct repository installs are deprecated, so register this repository's marketplace and install the plugin:
 
 ```bash
-copilot plugin install camunda/skills
+copilot plugin marketplace add camunda/skills
+copilot plugin install camunda-skills@camunda-skills
 copilot plugin list
 ```
 
-Installing directly does not require registering a marketplace. This also avoids a name collision if a marketplace named `camunda` is already registered.
+The marketplace is named `camunda-skills` to avoid collisions with other marketplaces registered as `camunda`.
 
 Start Copilot from the project directory with `copilot`. In the session, run `/plugin list` to verify the plugin, then invoke `camunda-bpmn` in your prompt. For a small useful example:
 
