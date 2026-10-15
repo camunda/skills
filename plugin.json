@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "camunda-skills",
+  "name": "camunda",
   "description": "Official Camunda 8 development skills for AI coding agents.",
   "version": "1.0.0",
   "author": {

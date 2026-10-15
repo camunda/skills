@@ -101,11 +101,11 @@ Prerequisites are a supported GitHub Copilot CLI installation and GitHub authent
 
 ```bash
 copilot plugin marketplace add camunda/skills
-copilot plugin install camunda-skills@camunda-skills
+copilot plugin install camunda@camunda
 copilot plugin list
 ```
 
-The marketplace is registered as `camunda-skills`, matching the Claude Code marketplace name. If you registered it earlier as `camunda`, run `copilot plugin uninstall camunda-skills@camunda` and `copilot plugin marketplace remove camunda`, then run the commands above.
+The marketplace and the plugin are both named `camunda`, as in Claude Code. If you installed the earlier `camunda-skills@camunda` plugin, run `copilot plugin uninstall camunda-skills@camunda` and `copilot plugin marketplace update camunda`, then install `camunda@camunda`.
 
 Start Copilot from the project directory with `copilot`. In the session, run `/plugin list` to verify the plugin, then invoke `camunda-bpmn` in your prompt. For a small useful example:
 
@@ -121,8 +121,10 @@ The Claude marketplace/plugin path remains supported:
 
 ```bash
 claude plugin marketplace add camunda/skills
-claude plugin install camunda-skills@camunda-skills
+claude plugin install camunda@camunda
 ```
+
+If you installed the earlier `camunda-skills@camunda-skills` plugin, run `claude plugin uninstall camunda-skills@camunda-skills` and `claude plugin marketplace remove camunda-skills`, then run the commands above.
 
 For a local clone, copy a skill directory into the agent's skill lookup path, or load the full repository for a session:
 
