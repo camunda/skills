@@ -23,6 +23,10 @@ def trigger_eval() -> Task:
         ],
         negative=[
             Negative(
+                "web-app-form",
+                "Build a signup form in our React app with email and password validation.",
+            ),
+            Negative(
                 "feel-default",
                 "Write the FEEL expression that computes the number of days between two date variables.",
                 should_load=["camunda-feel"],

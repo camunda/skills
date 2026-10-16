@@ -22,8 +22,16 @@ def trigger_eval() -> Task:
                 "collect-hit-policy",
                 "Set up a decision table that returns all matching discounts for an order, not just the first one.",
             ),
+            Positive(
+                "unnamed-business-owned-rules",
+                "Our discount rules (customer tier, order size, region) change every quarter and the pricing team wants to maintain them without a code release. How should we implement them?",
+            ),
         ],
         negative=[
+            Negative(
+                "rules-in-code",
+                "Write a Python function that returns the shipping cost for a parcel weight using three price bands.",
+            ),
             Negative(
                 "llm-routing",
                 "I want an LLM to decide whether to escalate a support ticket and dynamically pick which tool to call.",

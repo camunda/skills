@@ -27,6 +27,10 @@ def trigger_eval() -> Task:
         ],
         negative=[
             Negative(
+                "app-code-condition",
+                "Write a JavaScript function that returns true when the order total is over 1000 or the customer is new.",
+            ),
+            Negative(
                 "install-cli",
                 "I need a CLI to talk to my Camunda 8 cluster — how do I set it up?",
                 should_load=["camunda-c8ctl"],
