@@ -1,7 +1,7 @@
 ---
 name: camunda-c8ctl
 description: |
-  Use this skill when someone needs a Camunda 8 cluster to work against — run one locally to try a process, connect to SaaS or Self-Managed, switch profiles, or set local connector secrets — and before other skills run c8ctl. Installs and configures c8ctl, the Camunda 8 CLI.
+  Use this skill when someone needs a Camunda 8 cluster to work against — run one locally to try a process, connect to SaaS or Self-Managed, switch profiles, or set local connector secrets — and before other skills run c8ctl. Installs and configures c8ctl, the Camunda 8 CLI. Not for databases or other local services.
 ---
 
 # Camunda c8ctl CLI
