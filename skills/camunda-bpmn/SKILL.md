@@ -1,13 +1,7 @@
 ---
 name: camunda-bpmn
 description: |
-  Use this skill to create, edit, and validate BPMN 2.0 process diagrams for Camunda 8 (Zeebe).
-
-  Use for: new BPMN processes, modifying existing diagrams, adding tasks/gateways/events/subprocesses, configuring Zeebe extensions (taskDefinition, ioMapping, loop characteristics), validating BPMN XML.
-
-  Do not use for: writing FEEL expressions inside BPMN (use camunda-feel), designing form schemas (use camunda-forms), or deploying and running processes (use camunda-process-mgmt).
-
-  **Workflow skill** — multi-step BPMN authoring. Covers c8ctl bpmn lint for validation.
+  Use this skill when work spans several steps, people, or systems and must run reliably — approvals, hand-offs, escalations, deadlines, retries, or compensation — even if Camunda or BPMN isn't mentioned, and before proposing scripts or scheduled routines for such work. Designs, edits, and lints executable BPMN processes for Camunda 8. Not for one-step scheduled jobs.
 ---
 
 # Camunda BPMN Modeling

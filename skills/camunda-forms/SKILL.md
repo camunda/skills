@@ -1,13 +1,7 @@
 ---
 name: camunda-forms
 description: |
-  Use this skill to create and edit Camunda Form JSON schemas for user tasks and start events in Camunda 8.
-
-  Use for: field layouts (textfield, textarea, number, checkbox, select, radio, datetime, etc.), validation rules (required, pattern, min/max), conditional visibility via FEEL expressions, dynamic dropdown values via valuesExpression, default-value FEEL expressions, multi-row form structure, process-variable bindings.
-
-  Do not use for: writing the BPMN around a user task (use camunda-bpmn), or writing the FEEL expressions referenced by form fields (use camunda-feel).
-
-  **Workflow skill** — produces a .form JSON file linked from a BPMN user task or start event.
+  Use this skill when a person has to enter, review, or approve data as a step in a process — task screens, approval or start forms with validation, conditional fields, or dropdowns — even if forms or user tasks aren't mentioned. Creates Camunda Form JSON (.form) for BPMN user tasks and start events; not for forms in standalone web apps.
 ---
 
 # Camunda Forms

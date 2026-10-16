@@ -1,13 +1,7 @@
 ---
 name: camunda-process-mgmt
 description: |
-  Use this skill to deploy BPMN, DMN, and form resources to a Camunda 8 cluster and operate live processes via c8ctl.
-
-  Use for: deploying resources, starting process instances, inspecting running instances, listing or searching definitions and incidents, resolving incidents, completing user tasks, publishing correlation messages, cancelling instances, debugging stuck processes.
-
-  Do not use for: authoring the BPMN, DMN, or form content itself (use camunda-bpmn, camunda-feel, camunda-forms), or installing and configuring c8ctl itself (use camunda-c8ctl).
-
-  **Workflow skill** — operate a live cluster end-to-end. Covers c8ctl deploy, run, watch, list pi, search inc, complete ut, resolve inc, publish msg, cancel pi.
+  Use this skill when a modeled process has to run or be operated — deploy it, start it with test data, find where a case is or why it's stuck, resolve incidents, complete tasks, publish messages, or cancel — even if Camunda or c8ctl isn't mentioned. Operates Camunda 8 clusters with c8ctl; it does not author models.
 ---
 
 # Camunda Process Management

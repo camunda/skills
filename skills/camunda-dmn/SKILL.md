@@ -1,13 +1,7 @@
 ---
 name: camunda-dmn
 description: |
-  Use this skill to author and validate DMN (Decision Model and Notation) decisions for Camunda 8 — decision tables and literal expressions inside a Decision Requirements Diagram (DRD).
-
-  Use for: creating or editing `.dmn` files, picking the right hit policy, wiring a business rule task in BPMN to a DMN decision, validating decisions structurally (`npx dmnlint`) and behaviourally (CPT preferred, deploy fallback).
-
-  Do not use for: writing FEEL syntax in detail (use camunda-feel), modelling the BPMN around a business rule task (use camunda-bpmn), authoring CPT test scenarios (use camunda-process-test).
-
-  **Workflow skill** — author the decision, lint it, run it.
+  Use this skill when the business, not developers, should own decision rules — eligibility, risk, routing, discounts, approval limits — changing them without a code release or auditing which rule fired, even if DMN or decision tables aren't mentioned. Authors and validates DMN decision tables for Camunda 8. Not for rules coded as a function.
 ---
 
 # Camunda DMN
