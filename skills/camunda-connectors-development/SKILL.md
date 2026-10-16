@@ -1,13 +1,7 @@
 ---
 name: camunda-connectors-development
 description: |
-  Use this skill to build a custom Camunda 8 connector — outbound or inbound — when the OOTB catalog doesn't cover the integration. Two paths: a JSON-only element template on a protocol connector (no Java), or a Java connector via the Connectors SDK with annotation-driven template generation.
-
-  Use for: choosing Path A (JSON-only protocol-connector template) vs Path B (custom Java); element template JSON; `OutboundConnectorProvider` + `@Operation` for outbound; `InboundConnectorExecutable` for webhook / subscription / polling inbound; SPI vs Spring-Bean registration; SaaS / SM / Hybrid hosting; element-template-generator Maven plugin.
-
-  Do not use for: applying an OOTB connector (use camunda-connectors), worker-vs-connector decisions (use camunda-development), or job-worker handlers (use camunda-job-workers).
-
-  **Workflow skill** — pick a path, write the template (and Java if Path B), register, host. Java 17+ on Path B.
+  Use this skill when no pre-built connector fits and processes need a reusable integration — a proprietary or internal API, custom auth, a shared retry policy, or an inbound webhook, subscription, or poller that starts processes. Builds custom Camunda 8 connectors as a JSON template on a protocol connector or in Java with the Connectors SDK.
 ---
 
 # Camunda Connectors Development

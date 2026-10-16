@@ -1,9 +1,7 @@
 ---
 name: camunda-development
 description: |
-  Use this skill FIRST for any Camunda 8 integration or BPMN step that talks to another system — Slack, REST/HTTPS, webhooks, Kafka, S3, internal microservices, AI/LLM agents. The right implementation can't be read off the request's keywords (a "webhook" might be an OOTB connector or a custom inbound one; "LLM" a custom worker or the AI Agent connector); this skill weighs the full requirements (reusability, throughput, in-process state, transport, decision style) and hands off to camunda-connectors, camunda-connectors-development, camunda-job-workers, or camunda-ai-agents.
-
-  Do not use for the actual build — switch to the focused skill it points to.
+  Use this skill first when a process step must call or receive from another system — an API, Slack, Kafka, a webhook, an internal service, or an LLM — and it is still open whether to use a connector, a job worker, or an AI agent, even if those terms aren't mentioned. Weighs the requirements, then hands off.
 ---
 
 # Camunda Development

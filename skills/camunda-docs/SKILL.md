@@ -1,7 +1,7 @@
 ---
 name: camunda-docs
 description: |
-  Use this skill to retrieve current Camunda 8 documentation from docs.camunda.io. Use it for version-specific FEEL functions, BPMN extension attributes, REST endpoints, release requirements, and feature availability. It chooses MCP, Algolia, or llms.txt retrieval and cites source URLs. Do not use it to author BPMN, DMN, forms, connectors, or process operations.
+  Use this skill when an answer depends on version-specific Camunda 8 details — FEEL functions, BPMN or Zeebe attributes, REST endpoints, release requirements, feature availability — and must be checked against the official docs. Retrieves and cites current docs.camunda.io pages. Do not use it to author BPMN, DMN, forms, or connectors, or to operate processes.
 ---
 
 # Camunda Docs Lookup
