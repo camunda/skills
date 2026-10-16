@@ -27,6 +27,9 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8"
+  },
   "limitations": [
     "Current Camunda behavior depends on network access to the official documentation source or a current local cache."
   ],
