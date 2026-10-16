@@ -1,0 +1,202 @@
+# Upgrading AI Agent Templates: v1 → v2
+
+Move AI Agent elements from the legacy (v1) element templates to the v2 templates *(8.10+)*. v1 and v2 are **separate templates**, not versions of one template — the move is a template swap, not a version bump. Source of truth: [Upgrade AI Agent element templates](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-upgrade/). Whether to switch at all is decided in `SKILL.md` § "Template Generations: v1 and v2".
+
+## Prerequisites
+
+- c8ctl ≥ 4.4.0 (first release with `element-template update`).
+- `modeler:executionPlatformVersion` on the BPMN file is `8.10.0` or later. c8ctl does not change it — set it first.
+- Manual route only: Desktop Modeler 5.51.0+ (earlier versions show v2 as **Not found**).
+
+## Template ID pairs
+
+| Element | v1 (`<v1-id>`) | v2 (`<v2-id>`) |
+| :-- | :-- | :-- |
+| Sub-process | `io.camunda.connectors.agenticai.aiagent.jobworker.v1` | `io.camunda.connectors.agenticai.ai-agent-subprocess.v2` |
+| Task | `io.camunda.connectors.agenticai.aiagent.v1` | `io.camunda.connectors.agenticai.ai-agent-task.v2` |
+| Sub-process (hybrid) | `io.camunda.connectors.agenticai.aiagent.jobworker.v1-hybrid` | `io.camunda.connectors.agenticai.ai-agent-subprocess.v2-hybrid` |
+| Task (hybrid) | `io.camunda.connectors.agenticai.aiagent.v1-hybrid` | `io.camunda.connectors.agenticai.ai-agent-task.v2-hybrid` |
+
+Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid stays hybrid.
+
+## Upgrade with c8ctl
+
+`update` selects elements by **v1 template ID**, one ID per command. A file with both Sub-process and Task elements needs one run per v1 ID.
+
+| Command | Updates |
+| :-- | :-- |
+| `update <v1-id> process.bpmn --to <v2-id>` | Every element using `<v1-id>`, any version. Other templates untouched. |
+| `update <v1-id> <element-id> process.bpmn --to <v2-id>` | One element. Fails if it does not use `<v1-id>`. |
+
+1. Refresh the cache so c8ctl has the newest v2 template and its migration recipe:
+
+   ```bash
+   c8ctl element-template sync
+   ```
+
+2. Preview with `--json`. `--dry-run` writes nothing and exits 1 if an element would fail or the write would need `--allow-lossy`:
+
+   ```bash
+   c8ctl element-template update <v1-id> process.bpmn --to <v2-id> --dry-run --json
+   ```
+
+3. Read `results[]` per element. Prefer the JSON over the text report: it is structured and does not need scraping markers.
+   - `recipe`: `{source, used, refusal}` — whether a migration recipe ran, and why not (`refusal`).
+   - `lossless`, `requiresAuthorization`: `requiresAuthorization: true` means the write needs `--allow-lossy`.
+   - `counts` and `report.{added,changed,moved,dropped,kept}`: each entry has `key`, `label`, `groupLabel`, `value`; added entries also carry `source` (e.g. `default`).
+   - `report.notes`: recipe notes, e.g. prompt caching turned on.
+   - `summary`: `{updated, skipped, unchanged, failed, dropped, blocked}`. `failed > 0` or `blocked > 0` means nothing would be written.
+
+   Without `--json`, the text report shows the same data with markers `+` new, `~` changed, `>` moved, `-` dropped.
+4. Write:
+
+   ```bash
+   c8ctl element-template update <v1-id> process.bpmn --to <v2-id> --in-place
+   ```
+
+   c8ctl writes once, and only if **every** selected element migrates. Dropped values block the write unless `--allow-lossy` is passed.
+5. Repeat steps 2–4 for the other v1 ID, if the file has one.
+6. Run `c8ctl bpmn lint process.bpmn`, then the post-upgrade steps below.
+
+### Recipe present or not
+
+The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It is what moves provider fields across the redesign.
+
+- `recipe.used` is `true` (text report: `>` moved values or `set by recipe`) → recipe is active.
+- `recipe.source` is `none` and `used` is `false` (text report: `no recipe: values carried over by key`) → cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
+- v1 elements on an older v1 version: c8ctl first moves them to the newest v1, then to v2. When the recipe cannot be used for an element, the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
+- `--map <from>=<to>` moves one binding's value per element when no recipe covers it.
+
+### `--allow-lossy` discipline
+
+Pass it only after reading every dropped value in the report. Afterwards set each dropped value on the v2 element. Never ask the user for a secret value — use the user-confirmed `{{secrets.NAME}}` reference.
+
+Set values with `edit` (changes bindings that already hold a value, never resets the rest):
+
+```bash
+c8ctl element-template edit -i <element-id> process.bpmn \
+  --set 'provider.anthropic.backend.anthropic.apiKey={{secrets.NAME}}'
+```
+
+`edit` cannot create a binding whose gating condition was never met — e.g. after switching `provider.anthropic.backend.type`, the new backend's fields do not exist yet. Use `apply -i <v2-id> <element-id> process.bpmn --set …` there, and repeat every dropdown you want to keep (re-apply resets dropdowns to the template default). Verify v2 property paths with `c8ctl element-template get-properties <v2-id>` — they nest under `backend.<type>` and differ from v1 (v1 `provider.anthropic.authentication.apiKey` → v2 `provider.anthropic.backend.anthropic.apiKey`).
+
+### Staying on v1: update to the newest v1 version
+
+Omit `--to`. c8ctl moves each element to the newest v1 version compatible with the file's execution platform version. The element keeps the v1 job type; the report flags the template as deprecated and names the v2 target.
+
+```bash
+c8ctl element-template update <v1-id> process.bpmn --dry-run --json
+```
+
+Re-run with `--in-place` to write.
+
+## Provider mapping
+
+Provider and backend are now decoupled. Unlisted fields carry over under the same label. "Recipe" = what `update` does when the recipe is active; "Manual" = what remains.
+
+### Anthropic (v1 Anthropic → v2 Anthropic)
+
+Carry over: API key, Timeout, Model, Maximum tokens, Temperature, top P, top K. New with no v1 equivalent: **Effort**, **Thinking mode**, **Enable prompt caching**; OAuth 2.0 client credentials on the custom backend.
+
+| v1 Endpoint | v2 backend |
+| :-- | :-- |
+| Microsoft Foundry (`*.azure.com`, `*.azure.us`, `*.azure.cn`) | **Microsoft Foundry (Azure)**, **API endpoint** (API key auth, v1 API key). Remove trailing `/anthropic/v1` or `/v1`; v2 adds `/anthropic` if missing and appends `/v1/messages`. |
+| Any other | **Custom / compatible endpoint**, **API endpoint**. Remove trailing `/v1`; v2 appends `/v1/messages`. |
+
+- Recipe: picks the backend from the endpoint, copies the endpoint **unchanged**, turns on prompt caching; Effort and Thinking mode stay at model default.
+- Manual: strip the trailing path segment from the endpoint.
+
+### AWS Bedrock
+
+v1 Bedrock Converse was often used for Claude. Choose by model family:
+
+- **Claude** → v2 **Anthropic** provider + **AWS Bedrock Mantle** backend (keeps reasoning and prompt caching).
+- **Other families** (Nova, Llama, Mistral, …) → v2 **AWS Bedrock Converse**, the direct replacement.
+
+Both targets: Authentication, Timeout, Maximum tokens, Temperature, top P carry over; Region → **AWS region**; Endpoint → **Custom endpoint**. Converse also carries Model and gains **Enable prompt caching**.
+
+Mantle specifics:
+
+- **Custom endpoint** needs the full Mantle base URL **including `/anthropic`** (e.g. `https://your-vpce-host/anthropic`), a different shape than the Bedrock Runtime endpoint.
+- **Model** uses Anthropic's model ID scheme, not the AWS Bedrock model ID. Check the [Claude models overview](https://docs.anthropic.com/en/docs/about-claude/models/all-models).
+- Mantle needs a different IAM policy than Bedrock Runtime. Tell the user to update it before migrating, else the first model call fails with an authentication or permission error.
+
+- Recipe: keeps **every** element on Bedrock Converse and turns on prompt caching.
+- Manual: for Claude models, switch the provider to Anthropic + Mantle after the upgrade.
+
+### Azure OpenAI (→ v2 OpenAI, backend Microsoft Foundry)
+
+Carry over: API key auth, Timeout, Temperature, top P.
+
+| v1 | v2 |
+| :-- | :-- |
+| Endpoint | API endpoint |
+| Client credentials (Client ID, Client secret, Tenant ID, Authority host) | Entra ID: Client credentials (same fields) |
+| Model deployment name | Model |
+| Maximum tokens | Max output tokens (Responses API) or Max completion tokens (Chat Completions API) |
+
+New: **Entra ID: Managed identity** (Hybrid/Self-Managed only), **Entra ID scope**, **Effort**. With multiple connector replicas, each replica acquires and caches its own Entra ID token.
+
+- Recipe: sets **API** to **Chat Completions**; moves Maximum tokens → Max completion tokens.
+- Manual: for the **Responses** API, change **API** and enter the value in **Max output tokens**.
+
+### OpenAI (→ v2 OpenAI, backend OpenAI API)
+
+Carry over: API key, Organization ID, Project ID, Timeout, Model, Temperature, top P. Maximum completion tokens → Max completion tokens (Chat Completions) or Max output tokens (Responses). v1 always used Chat Completions; v2 defaults **API** to **Responses**. New: **Effort**.
+
+- Recipe: sets **API** to **Chat Completions**.
+- Manual: for **Responses**, change **API** and enter the value in **Max output tokens**.
+
+### OpenAI-compatible (→ v2 OpenAI, backend Custom / compatible endpoint)
+
+Carry over: API endpoint, Headers, Query parameters, Timeout, Model, Temperature, top P. Maximum completion tokens → Max completion tokens / Max output tokens; Custom parameters → **Body properties**. v2 appends `/chat/completions` or `/responses` to **API endpoint** — check the resulting path. New: OAuth 2.0 client credentials.
+
+The v1 **API key** field becomes an **Authentication** selector. An `Authorization` header in v1 **Headers** took precedence over the API key:
+
+- `Bearer <token>` → **API key**, token without the `Bearer` prefix; remove the header from **Headers**.
+- Other scheme (`Basic …`) → keep the header, select **None**.
+- No such header → **API key** with the v1 value; **None** if neither header nor key was set.
+
+- Recipe: sets **API** to **Chat Completions**; selects **API key** if the v1 API key has a value, else **None**. It does **not** read an `Authorization` header.
+- Manual: apply the header rules above; for **Responses**, change **API**.
+
+### Google Vertex AI (→ v2 Google Gemini, backend Enterprise Agent Platform (Vertex AI))
+
+Carry over: Project ID, Region, Authentication, Model, Temperature, top P, top K. Maximum output tokens → **Maximum tokens**. New: **Thinking budget** / **Thinking level**, and a **Google Gemini API** backend that needs no Google Cloud project.
+
+v1 **Endpoint** has no Modeler equivalent (no custom backend for Gemini).
+
+- Recipe: moves a custom Endpoint into a hidden v2 field. The connector uses it at runtime; Modeler neither shows nor edits it.
+
+## Post-upgrade steps
+
+Both routes (c8ctl and manual):
+
+1. **Task variant only** — neither the Task templates nor c8ctl manage the tools ad-hoc sub-process, so the two additions v2 expects (and v1 did not) must be made by hand:
+   - Add extension property `io.camunda.agenticai.toolContainer` = `true` on the ad-hoc sub-process. Without it, Modeler agent tooling (lint, autofill) is unavailable for it.
+   - Add `completedAt: now()` to the multi-instance **Output element**:
+
+     ```feel
+     {
+       id: toolCall._meta.id,
+       name: toolCall._meta.name,
+       content: toolCallResult,
+       completedAt: now()
+     }
+     ```
+
+     Without `completedAt`, the connector stamps tool results with its own processing time, which can be later than actual completion for slow or parallel tools.
+2. **Job type overrides** — if job types are overridden by env vars (hybrid), the v1 variables do not apply to v2 job workers. Set the v2 variables and point the template at the same custom type. Keep the v1 variables while v1 definitions are deployed or running.
+
+   | Element | v1 variable | v2 variable |
+   | :-- | :-- | :-- |
+   | Task | `CONNECTOR_AI_AGENT_TYPE` | `CONNECTOR_AI_AGENT_TASK_TYPE` |
+   | Sub-process | `CONNECTOR_AI_AGENT_JOB_WORKER_TYPE` | `CONNECTOR_AI_AGENT_SUBPROCESS_TYPE` |
+
+3. **Running instances are unaffected.** Already-deployed definitions and their instances keep executing on the v1 job worker until a new version with the v2 template is deployed.
+
+v2 templates write `zeebe:agentDefinition` on the element automatically — no configuration needed.
+
+## Manual route (Modeler)
+
+Open the process in Camunda Hub or Desktop Modeler 5.51.0+, set the execution version to 8.10+, **Change element** to the v2 AI Agent Task / Sub-process template, and re-enter provider config from the mapping above. Tools, memory, limits, response, and error handling are conceptually unchanged; re-check values that need re-entry.

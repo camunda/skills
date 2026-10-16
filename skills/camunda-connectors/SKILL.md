@@ -7,7 +7,7 @@ description: |
 
   Do not use for: writing free-form REST calls in service tasks (this skill is specifically for templated connectors), or modelling the BPMN structure itself (use camunda-bpmn).
 
-  **Workflow skill** — discover, inspect, then apply. Covers c8ctl element-template search, info, get-properties, apply, get, sync.
+  **Workflow skill** — discover, inspect, then apply. Covers c8ctl element-template search, info, get-properties, apply, update, get, sync.
 ---
 
 # Camunda Connectors
@@ -18,6 +18,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl element-template` commands
 - **Local OOTB catalog synced** — run `c8ctl element-template sync` **once** before using `search`, `info`, `get-properties`, `get`, or `apply` with an OOTB template ID. Re-run (optionally with `--prune`) to pick up upstream changes. Applying a template from a local file path or `https://` URL bypasses the cache and does not require sync.
+- **c8ctl ≥ 4.4.0** for `element-template update`.
 - **c8ctl ≥ 3.2.0** for `--engine-version` on discovery commands and `--set` FEEL auto-`=`. If a command or flag is unavailable, ask the user to upgrade: `npm install -g @camunda8/cli`
 
 ## Cross-References
@@ -124,6 +125,23 @@ Note the `string(userId)` wrapper — `userId` is a number and FEEL does not aut
 **Defaults bake in.** `apply` materializes every active property with a default into the BPMN — `<zeebe:input>`, `<zeebe:output>`, `<zeebe:taskHeaders>`, and `<zeebe:property>` entries — not just the keys you `--set`. The defaults are captured at apply time — if the template later ships a new default, this BPMN keeps the old value.
 
 **Re-apply.** Omitted `--set` keys keep their current XML value, so single-property re-applies don't disturb the rest. Exception: dropdowns reset to the template default on every re-apply.
+
+### Updating Elements to a Newer Template — `update` *(c8ctl 4.4.0+)*
+
+`update` moves elements that already carry a template to a newer version of it (or to another template via `--to <id>[@<n>]`, path, or URL), carrying values across and reporting each change. Prefer it over re-running `apply` on a new catalog version — `apply` resets dropdowns.
+
+```bash
+c8ctl element-template update <template-id> process.bpmn --dry-run             # preview, writes nothing
+c8ctl element-template update <template-id> [<element-id>] process.bpmn -i     # write: all matching elements, or one
+```
+
+- **Selection.** `<template-id>` is the template in use today; one ID per command. Without an element ID, every element on it (any version) is updated; with one, only that element, and it must use `<template-id>`.
+- **Target.** Default: latest version compatible with the BPMN's `executionPlatformVersion`; `sync` first.
+- **Values.** Same-key values carry over. A value the target binds under another key moves only via a migration recipe in the target (`metadata.migratesFrom`), `--recipe <file>`, or `--map <from>=<to>`; the rest is reported.
+- **Report.** Per element: `+` new, `~` changed, `>` moved, `-` dropped, plus recipe notes. Add `--json` to get it structured (`results[].report`, `recipe`, `requiresAuthorization`, `summary`) — prefer it when an agent consumes the report. `no recipe: values carried over by key` is normal for a version bump, a warning for a cross-template move.
+- **Safety.** The file is written once, only if **every** selected element migrates. `--dry-run` exits 1 if one would fail or the write needs `--allow-lossy` — pass it only after reading every dropped value.
+
+Per-connector recipes are not covered here yet; for the AI Agent v1 → v2 move, see **camunda-ai-agents**.
 
 ### Result Mapping — `resultVariable` and `resultExpression`
 
