@@ -1,7 +1,7 @@
 ---
 name: camunda-job-workers
 description: |
-  Use this skill when writing the code that performs an automated step of a process — a Java, Spring Boot, or TypeScript handler that completes, fails with retries, or raises a business error — even if job workers aren't mentioned. Implements Camunda 8 job workers for a service task type. Not for generic HTTP client or retry code.
+  Use this skill when writing the code behind an automated step of a BPMN process — a Java, Spring Boot, or TypeScript handler bound to a service task that completes the job, fails it, or throws a BPMN error — even if job workers aren't mentioned. Implements Camunda 8 job workers. Not for generic HTTP client, retry, or backoff code.
 ---
 
 # Camunda Job Workers

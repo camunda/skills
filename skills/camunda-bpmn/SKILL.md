@@ -1,7 +1,7 @@
 ---
 name: camunda-bpmn
 description: |
-  Use this skill when work spans several steps, people, or systems and must run reliably — approvals, hand-offs, escalations, deadlines, retries, or compensation — even if Camunda or BPMN isn't mentioned, and before proposing scripts or scheduled routines for such work. Designs, edits, and lints executable BPMN processes for Camunda 8. Not for one-step scheduled jobs.
+  Use this skill when work spans several steps, people, or systems and must run reliably — approvals, hand-offs, escalations, deadlines, retries, or compensation — even if Camunda or BPMN isn't mentioned, and before recommending how to coordinate or automate such work. Designs, edits, and lints executable BPMN processes for Camunda 8. Not for one-step scheduled jobs or CI pipelines.
 ---
 
 # Camunda BPMN Modeling
