@@ -48,6 +48,8 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
    - `summary`: `{updated, skipped, unchanged, failed, dropped, blocked}`. `failed > 0` or `blocked > 0` means nothing would be written.
 
    Without `--json`, the text report shows the same data with markers `+` new, `~` changed, `>` moved, `-` dropped.
+
+   Compare the result with the Recipe / Manual notes in [Provider mapping](#provider-mapping).
 4. Write:
 
    ```bash
@@ -113,7 +115,7 @@ v1 Bedrock Converse was often used for Claude. Choose by model family:
 - **Claude** → v2 **Anthropic** provider + **AWS Bedrock Mantle** backend (keeps reasoning and prompt caching).
 - **Other families** (Nova, Llama, Mistral, …) → v2 **AWS Bedrock Converse**, the direct replacement.
 
-Both targets: Authentication, Timeout, Maximum tokens, Temperature, top P carry over; Region → **AWS region**; Endpoint → **Custom endpoint**. Converse also carries Model and gains **Enable prompt caching**.
+Both targets: Authentication, Timeout, Model, Maximum tokens, Temperature, top P carry over; Region → **AWS region**; Endpoint → **Custom endpoint**. Converse gains **Enable prompt caching**.
 
 Mantle specifics:
 
