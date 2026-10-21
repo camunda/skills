@@ -80,9 +80,9 @@ c8ctl element-template edit -i <element-id> process.bpmn \
 
 `edit` cannot create a binding whose gating condition was never met — e.g. after switching `provider.anthropic.backend.type`, the new backend's fields do not exist yet. Use `apply -i <v2-id> <element-id> process.bpmn --set …` there, and repeat every dropdown you want to keep (re-apply resets dropdowns to the template default). Verify v2 property paths with `c8ctl element-template get-properties <v2-id>` — they nest under `backend.<type>` and differ from v1 (v1 `provider.anthropic.authentication.apiKey` → v2 `provider.anthropic.backend.anthropic.apiKey`).
 
-### Staying on v1: update to the newest v1 version
+### Stopgap: update within v1
 
-Run `c8ctl element-template sync` first, then omit `--to`. c8ctl moves each element to the newest v1 version compatible with the file's execution platform version. The element keeps the v1 job type; the report flags the template as deprecated and names the v2 target.
+Upgrading to v2 is the intended path; v1 is deprecated. If the upgrade must wait, v1 elements can still move to the newest v1 version. Run `c8ctl element-template sync` first, then omit `--to`. c8ctl moves each element to the newest v1 version compatible with the file's execution platform version. The element keeps the v1 job type; the report flags the template as deprecated and names the v2 target.
 
 ```bash
 c8ctl element-template update <v1-id> process.bpmn --dry-run --json

@@ -54,13 +54,13 @@ references.
 
 ## Template Generations: v1 and v2
 
-Camunda 8.10 introduced **v2** AI Agent element templates (ID suffix `.v2`, e.g. `io.camunda.connectors.agenticai.ai-agent-subprocess.v2`) *(8.10+)* and deprecated **v1** (e.g. `io.camunda.connectors.agenticai.aiagent.jobworker.v1`). They are separate templates with separate job types. v1 keeps working but gets no new provider capabilities.
+Camunda 8.10 introduced **v2** AI Agent element templates (ID suffix `.v2`, e.g. `io.camunda.connectors.agenticai.ai-agent-subprocess.v2`) *(8.10+)* and deprecated **v1** (e.g. `io.camunda.connectors.agenticai.aiagent.jobworker.v1`). They are separate templates with separate job types. v1 keeps working for now but is deprecated and gets no new provider capabilities.
 
 v2 adds reasoning/thinking settings, prompt caching, decoupled provider + backend choices (e.g. Anthropic on AWS Bedrock Mantle or Foundry), and a custom chat model provider.
 
 - **New agent, 8.10+ cluster**: v2.
 - **Cluster below 8.10, or Desktop Modeler below 5.51.0**: v1 — v2 needs an 8.10 engine and shows as **Not found** in older Modeler.
-- **Existing v1 element, 8.10+ cluster**: switch only for a v2-only capability or to leave a deprecated template; no forced migration. To stay on v1, `c8ctl element-template sync` then `c8ctl element-template update <v1-id> process.bpmn` (no `--to`) moves elements to the newest v1 version.
+- **Existing v1 element, 8.10+ cluster**: upgrade to v2 — v1 is deprecated. v1 keeps working, so the upgrade can wait; updating within v1 (no `--to`) is only a stopgap, see the reference.
 
 Switching takes effect per redeploy: running instances keep executing on the v1 job worker.
 
