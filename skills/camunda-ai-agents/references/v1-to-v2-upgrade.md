@@ -4,7 +4,7 @@ Move AI Agent elements from the legacy (v1) element templates to the v2 template
 
 ## Prerequisites
 
-- c8ctl ≥ 4.4.0 (first release with `element-template update`).
+- c8ctl ≥ 4.6.0.
 - `modeler:executionPlatformVersion` on the BPMN file is `8.10.0` or later. c8ctl does not change it — set it first.
 - Manual route only: Desktop Modeler 5.51.0+ (earlier versions show v2 as **Not found**).
 
@@ -64,7 +64,7 @@ The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It 
 
 - `recipe.used` is `true` (text report: `>` moved values or `set by recipe`) → recipe is active.
 - `recipe.source` is `none` and `used` is `false` (text report: `no recipe: values carried over by key`) → cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
-- v1 elements on an older v1 version: c8ctl first moves them to the newest v1, then to v2. When the recipe cannot be used for an element, the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
+- The recipe accepts only v1 template version 12 or later. For an older element, c8ctl first updates it to v1 version 12, then applies the recipe; the report shows this step. When the recipe cannot be used for an element (`recipe.refusal`; a stale cache is a common cause — `sync` and retry), the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
 - `--map <from>=<to>` moves one binding's value per element when no recipe covers it.
 
 ### `--allow-lossy` discipline
@@ -82,7 +82,7 @@ c8ctl element-template edit -i <element-id> process.bpmn \
 
 ### Staying on v1: update to the newest v1 version
 
-Omit `--to`. c8ctl moves each element to the newest v1 version compatible with the file's execution platform version. The element keeps the v1 job type; the report flags the template as deprecated and names the v2 target.
+Run `c8ctl element-template sync` first, then omit `--to`. c8ctl moves each element to the newest v1 version compatible with the file's execution platform version. The element keeps the v1 job type; the report flags the template as deprecated and names the v2 target.
 
 ```bash
 c8ctl element-template update <v1-id> process.bpmn --dry-run --json

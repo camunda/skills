@@ -18,7 +18,7 @@ Browse and configure pre-built Camunda connectors using element templates. Apply
 
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl element-template` commands
 - **Local OOTB catalog synced** — run `c8ctl element-template sync` **once** before using `search`, `info`, `get-properties`, `get`, or `apply` with an OOTB template ID. Re-run (optionally with `--prune`) to pick up upstream changes. Applying a template from a local file path or `https://` URL bypasses the cache and does not require sync.
-- **c8ctl ≥ 4.4.0** for `element-template update`.
+- **c8ctl ≥ 4.6.0** for `element-template update`.
 - **c8ctl ≥ 3.2.0** for `--engine-version` on discovery commands and `--set` FEEL auto-`=`. If a command or flag is unavailable, ask the user to upgrade: `npm install -g @camunda8/cli`
 
 ## Cross-References
@@ -126,7 +126,7 @@ Note the `string(userId)` wrapper — `userId` is a number and FEEL does not aut
 
 **Re-apply.** Omitted `--set` keys keep their current XML value, so single-property re-applies don't disturb the rest. Exception: dropdowns reset to the template default on every re-apply.
 
-### Updating Elements to a Newer Template — `update` *(c8ctl 4.4.0+)*
+### Updating Elements to a Newer Template — `update` *(c8ctl 4.6.0+)*
 
 `update` moves elements that already carry a template to a newer version of it (or to another template via `--to <id>[@<n>]`, path, or URL), carrying values across and reporting each change. Prefer it over re-running `apply` on a new catalog version — `apply` resets dropdowns.
 

@@ -60,7 +60,7 @@ v2 adds reasoning/thinking settings, prompt caching, decoupled provider + backen
 
 - **New agent, 8.10+ cluster**: v2.
 - **Cluster below 8.10, or Desktop Modeler below 5.51.0**: v1 — v2 needs an 8.10 engine and shows as **Not found** in older Modeler.
-- **Existing v1 element, 8.10+ cluster**: switch only for a v2-only capability or to leave a deprecated template; no forced migration. To stay on v1, `c8ctl element-template update <v1-id> process.bpmn` (no `--to`) moves elements to the newest v1 version.
+- **Existing v1 element, 8.10+ cluster**: switch only for a v2-only capability or to leave a deprecated template; no forced migration. To stay on v1, `c8ctl element-template sync` then `c8ctl element-template update <v1-id> process.bpmn` (no `--to`) moves elements to the newest v1 version.
 
 Switching takes effect per redeploy: running instances keep executing on the v1 job worker.
 
