@@ -41,10 +41,16 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
    ```
 
 3. Read `results[]` per element. Prefer the JSON over the text report: it is structured and does not need scraping markers.
-   - `recipe`: `{source, used, refusal}` — whether a migration recipe ran, and why not (`refusal`).
+   - `recipe`: `{source, owner, used, refusal}` — whether a migration recipe ran (`source` is `embedded` or `none`), and why not (`refusal`).
    - `lossless`, `requiresAuthorization`: `requiresAuthorization: true` means the write needs `--allow-lossy`.
-   - `counts` and `report.{added,changed,moved,dropped,kept}`: each entry has `key`, `label`, `groupLabel`, `value`; added entries also carry `source` (e.g. `default`).
-   - `report.notes`: recipe notes, e.g. prompt caching turned on.
+   - `counts`: entry count per report category.
+   - `report`: each category has its own entry shape. Every entry identifies a field by `key`, `label` and `groupLabel`.
+     - `added`: field + `value`, `valueName`, `source` (`recipe`, `map` or `default`).
+     - `dropped`: field + `value`, `valueName`. These are the values that block the write.
+     - `changed`: field + `valueChange` (`from`, `to`, `fromName`, `toName`) + `source`.
+     - `moved`: `from` and `to` fields (the old and new binding) + `value`, `valueName`, `source` (`recipe` or `map`), and `valueChange` when the value was rewritten on the way.
+     - `kept`: field only, no value.
+     - `notes`: recipe notes as `{level, message}`, e.g. prompt caching turned on, or an endpoint to fix by hand. Read the warnings.
    - `summary`: `{updated, skipped, unchanged, failed, dropped, blocked}`. `failed > 0` or `blocked > 0` means nothing would be written.
 
    Without `--json`, the text report shows the same data with markers `+` new, `~` changed, `>` moved, `-` dropped.
@@ -64,8 +70,8 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
 
 The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It is what moves provider fields across the redesign.
 
-- `recipe.used` is `true` (text report: `>` moved values or `set by recipe`) → recipe is active.
-- `recipe.source` is `none` and `used` is `false` (text report: `no recipe: values carried over by key`) → cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
+- `recipe.used` is `true` and `recipe.source` is `embedded` (text report: `>` moved values or `set by recipe`) → recipe is active. This is the expected case.
+- `recipe.source` is `none` and `used` is `false` (text report: `no recipe: values carried over by key`) → the cached v2 template has no recipe, usually a stale cache. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
 - The recipe accepts only v1 template version 12 or later. For an older element, c8ctl first updates it to v1 version 12, then applies the recipe; the report shows this step. When the recipe cannot be used for an element (`recipe.refusal`; a stale cache is a common cause — `sync` and retry), the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
 - `--map <from>=<to>` moves one binding's value per element when no recipe covers it.
 
@@ -73,14 +79,16 @@ The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It 
 
 Pass it only after reading every dropped value in the report. Afterwards set each dropped value on the v2 element. Never ask the user for a secret value — use the user-confirmed `{{secrets.NAME}}` reference.
 
-Set values with `edit` (changes bindings that already hold a value, never resets the rest):
+Set values with `edit`. It does not re-apply the template, so it never resets other values, including hidden ones:
 
 ```bash
 c8ctl element-template edit -i <element-id> process.bpmn \
   --set 'provider.anthropic.backend.anthropic.apiKey={{secrets.NAME}}'
 ```
 
-`edit` cannot create a binding whose gating condition was never met — e.g. after switching `provider.anthropic.backend.type`, the new backend's fields do not exist yet. Use `apply -i <v2-id> <element-id> process.bpmn --set …` there, and repeat every dropdown you want to keep (re-apply resets dropdowns to the template default). Verify v2 property paths with `c8ctl element-template get-properties <v2-id>` — they nest under `backend.<type>` and differ from v1 (v1 `provider.anthropic.authentication.apiKey` → v2 `provider.anthropic.backend.anthropic.apiKey`).
+`edit` processes `--set` arguments in order, and a property whose condition depends on another is created once that selector is set. Put selectors first: to switch the Anthropic backend and fill its fields in one command, set `provider.anthropic.backend.type` first, then the backend's `authentication.type`, then its endpoint and API key. A dependent property set before its selector fails with "Set the property its condition depends on first". Avoid `apply --set` here: re-applying resets dropdowns and hidden properties to the template default.
+
+Verify v2 property paths with `c8ctl element-template get-properties <v2-id>` — they nest under `backend.<type>` and differ from v1 (v1 `provider.anthropic.authentication.apiKey` → v2 `provider.anthropic.backend.anthropic.apiKey`).
 
 ### Stopgap: update within v1
 

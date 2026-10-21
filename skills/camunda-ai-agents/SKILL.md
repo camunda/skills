@@ -102,8 +102,8 @@ The template handles `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindin
 
 Supported providers:
 
-- v1 `provider.type`: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
-- v2 `provider.type`: `anthropic`, `bedrock`, `openai`, `google-gemini`, `custom`. Azure/Foundry, Vertex AI, and OpenAI-compatible are backends of these.
+- v1 `provider.type`: `anthropic`, `bedrock`, `azureOpenAi`, `google-vertex-ai`, `openai`, `openaiCompatible`.
+- v2 `provider.type`: `anthropic`, `bedrock`, `openai`, `google-gemini`, `mistral`, `custom`. Azure/Foundry, Vertex AI, and OpenAI-compatible are backends of these.
 
 ## The BPMN Shape
 
