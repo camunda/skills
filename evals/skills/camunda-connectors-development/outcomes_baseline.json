@@ -4,14 +4,14 @@
     "samples": {
       "path-a-template-specialization": {
         "tokens": {
-          "input": 8,
-          "cache_write": 6200,
-          "cache_read": 21500,
-          "output": 1500
+          "input": 7,
+          "cache_write": 6179,
+          "cache_read": 57044,
+          "output": 2555
         },
-        "turns": 4,
-        "tool_calls": 3,
-        "duration_s": 52
+        "turns": 5,
+        "tool_calls": 4,
+        "duration_s": 64
       }
     }
   }

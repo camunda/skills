@@ -1,13 +1,7 @@
 ---
 name: camunda-connectors
 description: |
-  Use this skill to browse, configure, and apply pre-built Camunda connectors (REST, Slack, Kafka, AWS, etc.) via element templates (also known as connector templates).
-
-  Use for: discovering available connector templates, inspecting their properties, applying a template to a service task or message event, configuring input mappings (URLs, request bodies, secrets) and result expressions, understanding the element template schema, debugging connector configuration in BPMN.
-
-  Do not use for: writing free-form REST calls in service tasks (this skill is specifically for templated connectors), or modelling the BPMN structure itself (use camunda-bpmn).
-
-  **Workflow skill** — discover, inspect, then apply. Covers c8ctl element-template search, info, get-properties, apply, get, sync.
+  Use this skill when a process step should call a common service without custom code — REST, Slack, email, Kafka, AWS, Salesforce, and similar — even if connectors aren't mentioned. Finds, configures, and applies Camunda 8's pre-built connector templates to BPMN elements with c8ctl. Not for building new connectors; use camunda-connectors-development.
 ---
 
 # Camunda Connectors

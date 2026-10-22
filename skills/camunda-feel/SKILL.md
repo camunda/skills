@@ -1,13 +1,7 @@
 ---
 name: camunda-feel
 description: |
-  Use this skill to write, debug, evaluate, and validate FEEL (Friendly Enough Expression Language) expressions for Camunda 8 — the expression language Zeebe uses in BPMN, DMN, and Camunda Forms.
-
-  Use for: gateway conditions and conditional sequence flows; service-task input/output mappings; timer durations and cycles (ISO 8601 PT.../R...); DMN input/output entries; Camunda Form validation rules and conditional visibility; connector result and error expressions; list filters, projections, and quantifiers; date and duration arithmetic; type coercion (number-to-string); null-safe access; debugging FEEL_RESOLUTION_ERROR or "Can't add 'N' to ..." warnings.
-
-  Do not use for: writing the BPMN XML around expressions (use camunda-bpmn) or designing form structure (use camunda-forms).
-
-  **Utility skill** — FEEL is reused inside BPMN, DMN, forms, and connector configuration. Covers c8ctl feel evaluate for validating expressions.
+  Use this skill when writing or fixing an expression in a BPMN process, DMN decision, or Camunda form: gateway conditions, input and output mappings, timer durations and cycles, date math, list operations, null checks, or FEEL errors. Writes and evaluates FEEL for Camunda 8. Not for application code in JavaScript, Java, Python, or other languages.
 ---
 
 # Camunda FEEL Expressions

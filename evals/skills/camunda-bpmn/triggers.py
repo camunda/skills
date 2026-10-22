@@ -24,8 +24,16 @@ def trigger_eval() -> Task:
                 "xor-safe-default",
                 "Model an approve/reject exclusive gateway so an unexpected or missing decision safely follows a default reject branch instead of causing a runtime incident.",
             ),
+            Positive(
+                "unnamed-multi-party-process",
+                "Our vendor onboarding goes through legal review, a security questionnaire and procurement sign-off before someone creates the vendor in SAP. It all runs on spreadsheets and email and things keep falling through the cracks. How should we run this going forward?",
+            ),
         ],
         negative=[
+            Negative(
+                "one-step-cron",
+                "Set up a nightly cron job that deletes files older than 7 days from /tmp/uploads.",
+            ),
             Negative(
                 "install-cli",
                 "Install the c8ctl CLI and point it at my running cluster.",

@@ -1,13 +1,7 @@
 ---
 name: camunda-job-workers
 description: |
-  Use this skill to implement Camunda 8 job workers in Java, Camunda Spring Boot, or TypeScript — handler code that activates jobs from a service task, runs business logic, and completes, fails, or throws a BPMN error.
-
-  Use for: choosing between camunda-client-java, the Camunda Spring Boot Starter, and `@camunda8/orchestration-cluster-api`; wiring a `@JobWorker` method or `createJobWorker(...)` call to a BPMN `zeebe:taskDefinition type`; signalling complete / fail / BPMN error; idempotency, retries, back-off, auto-complete; Spring Boot 4 vs 3 starter on Camunda 8.9+.
-
-  Do not use for: deciding worker-vs-connector (use camunda-development), authoring the BPMN task (use camunda-bpmn), configuring an OOTB connector (use camunda-connectors), or building a custom connector (use camunda-connectors-development).
-
-  **Workflow skill** — pick an SDK, declare a handler against a `zeebe:taskDefinition type`, handle complete / fail / BPMN-error cases. Java, Spring, and TypeScript on Camunda 8.8+.
+  Use this skill when writing the code behind an automated step of a BPMN process — a Java, Spring Boot, or TypeScript handler bound to a service task that completes the job, fails it, or throws a BPMN error — even if job workers aren't mentioned. Implements Camunda 8 job workers. Not for generic HTTP client, retry, or backoff code.
 ---
 
 # Camunda Job Workers
