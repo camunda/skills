@@ -209,7 +209,7 @@ Which fields the result context contains depends on the response settings (examp
 - `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.format.parseJson=true`.
 - `agent.context` — when `data.response.includeAgentContext=true`. Needed for the Response Interaction pattern below.
 
-**Provider × `format=json` compat.** Per the current docs (v2 templates): OpenAI supports `data.response.format.type=json` natively (JSON mode; a schema gives structured outputs). Anthropic and AWS Bedrock support it only with a `data.response.format.schema`. For other providers, support varies — if unsupported, use `format=text` + `data.response.format.parseJson=true` and read `agent.responseJson`.
+**Provider × `format=json` compat.** OpenAI supports `data.response.format.type=json` natively (JSON mode; a schema gives structured outputs). Anthropic and AWS Bedrock support it only with a `data.response.format.schema`. For other providers, and for v1 templates, use `format=text` + `data.response.format.parseJson=true` and read `agent.responseJson`.
 
 **Schema is a FEEL context literal.** When `format=json`, `data.response.format.schema` is `feel: required` — write it as `={ type: "object", properties: { ... } }`, not a quoted JSON string.
 

@@ -40,22 +40,14 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
    c8ctl element-template update <v1-id> process.bpmn --to <v2-id> --dry-run --json
    ```
 
-3. Read `results[]` per element. Prefer the JSON over the text report: it is structured and does not need scraping markers.
-   - `recipe`: `{source, owner, used, refusal}` — whether a migration recipe ran (`source` is `embedded` or `none`), and why not (`refusal`).
-   - `lossless`, `requiresAuthorization`: `requiresAuthorization: true` means the write needs `--allow-lossy`.
-   - `counts`: entry count per report category.
-   - `report`: each category has its own entry shape. Every entry identifies a field by `key`, `label` and `groupLabel`.
-     - `added`: field + `value`, `valueName`, `source` (`recipe`, `map` or `default`).
-     - `dropped`: field + `value`, `valueName`. These are the values that block the write.
-     - `changed`: field + `valueChange` (`from`, `to`, `fromName`, `toName`) + `source`.
-     - `moved`: `from` and `to` fields (the old and new binding) + `value`, `valueName`, `source` (`recipe` or `map`), and `valueChange` when the value was rewritten on the way.
-     - `kept`: field only, no value.
-     - `notes`: recipe notes as `{level, message}`, e.g. prompt caching turned on, or an endpoint to fix by hand. Read the warnings.
-   - `summary`: `{updated, skipped, unchanged, failed, dropped, blocked}`. `failed > 0` or `blocked > 0` means nothing would be written.
+3. Read `results[]` per element. Decide on:
+   - `recipe`: `source` is `embedded` when the target template carries a migration recipe, `none` when not; `refusal` says why a recipe was not used.
+   - `requiresAuthorization`: `true` means the write needs `--allow-lossy`.
+   - `report.dropped`: values that would be lost.
+   - `report.notes`: recipe notes, each with a `level`. Act on warnings.
+   - `summary`: `failed > 0` or `blocked > 0` means nothing would be written.
 
-   Without `--json`, the text report shows the same data with markers `+` new, `~` changed, `>` moved, `-` dropped.
-
-   Compare the result with the Recipe / Manual notes in [Provider mapping](#provider-mapping).
+   The other report categories (`added`, `moved`, `changed`, `kept`) describe themselves per entry; see the [c8ctl docs](https://github.com/camunda/c8ctl/tree/main/default-plugins/element-template) for the full shape. Compare the result with the manual notes in [Provider mapping](#provider-mapping).
 4. Write:
 
    ```bash
@@ -70,8 +62,8 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
 
 The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It is what moves provider fields across the redesign.
 
-- `recipe.used` is `true` and `recipe.source` is `embedded` (text report: `>` moved values or `set by recipe`) → recipe is active. This is the expected case.
-- `recipe.source` is `none` and `used` is `false` (text report: `no recipe: values carried over by key`) → the cached v2 template has no recipe, usually a stale cache. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
+- `recipe.source` is `embedded` → recipe is active. This is the expected case.
+- `recipe.source` is `none`, or the update fails with `destination "input:provider.type" violates choice constraint` → the cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and update c8ctl, then dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
 - The recipe accepts only v1 template version 12 or later. For an older element, c8ctl first updates it to v1 version 12, then applies the recipe; the report shows this step. When the recipe cannot be used for an element (`recipe.refusal`; a stale cache is a common cause — `sync` and retry), the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
 - `--map <from>=<to>` moves one binding's value per element when no recipe covers it.
 
@@ -182,20 +174,7 @@ v1 **Endpoint** has no Modeler equivalent (no custom backend for Gemini).
 
 Both routes (c8ctl and manual):
 
-1. **Task variant only** — neither the Task templates nor c8ctl manage the tools ad-hoc sub-process, so the two additions v2 expects (and v1 did not) must be made by hand:
-   - Add extension property `io.camunda.agenticai.toolContainer` = `true` on the ad-hoc sub-process. Without it, Modeler agent tooling (lint, autofill) is unavailable for it.
-   - Add `completedAt: now()` to the multi-instance **Output element**:
-
-     ```feel
-     {
-       id: toolCall._meta.id,
-       name: toolCall._meta.name,
-       content: toolCallResult,
-       completedAt: now()
-     }
-     ```
-
-     Without `completedAt`, the connector stamps tool results with its own processing time, which can be later than actual completion for slow or parallel tools.
+1. **Task variant only** — set the two additions the v2 Task template expects on the tools ad-hoc sub-process (`io.camunda.agenticai.toolContainer` and `completedAt: now()` in the Output element). Neither the template nor c8ctl sets them; see `ai-agent-task.md`, "Configure the multi-instance ad-hoc subprocess".
 2. **Job type overrides** — if job types are overridden by env vars (hybrid), the v1 variables do not apply to v2 job workers. Set the v2 variables and point the template at the same custom type. Keep the v1 variables while v1 definitions are deployed or running.
 
    | Element | v1 variable | v2 variable |

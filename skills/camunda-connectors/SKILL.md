@@ -138,7 +138,7 @@ c8ctl element-template update <template-id> [<element-id>] process.bpmn -i     #
 - **Selection.** `<template-id>` is the template in use today; one ID per command. Without an element ID, every element on it (any version) is updated; with one, only that element, and it must use `<template-id>`.
 - **Target.** Default: latest version compatible with the BPMN's `executionPlatformVersion`; `sync` first.
 - **Values.** Same-key values carry over. A value the target binds under another key moves only via a migration recipe in the target (`metadata.migratesFrom`), `--recipe <file>`, or `--map <from>=<to>`; the rest is reported.
-- **Report.** Per element: `+` new, `~` changed, `>` moved, `-` dropped, plus recipe notes. Add `--json` to get it structured (`results[].report`, `recipe`, `requiresAuthorization`, `summary`) — prefer it when an agent consumes the report. `no recipe: values carried over by key` is normal for a version bump, a warning for a cross-template move.
+- **Report.** Markers: `+` new, `~` changed, `>` moved, `-` dropped, plus recipe notes. `--json` gives the structured form; prefer it for agents.
 - **Safety.** The file is written once, only if **every** selected element migrates. `--dry-run` exits 1 if one would fail or the write needs `--allow-lossy` — pass it only after reading every dropped value.
 
 Per-connector recipes are not covered here yet; for the AI Agent v1 → v2 move, see **camunda-ai-agents**.
