@@ -109,17 +109,21 @@ BPMN files can be large. Follow these rules:
 
 ### Lint loop — structural exit gate
 
-A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing structural step of every BPMN task — generation, modification, refactor, or merge.
+A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero errors AND zero warnings. Treat this as the closing structural step of every BPMN task — generation, modification, refactor, template apply, or merge — whichever skill made the change.
+
+`c8ctl bpmn lint` runs the same rule engine and Camunda ruleset as Camunda Modeler (`@camunda/linting`: `bpmnlint` + the version-matched `bpmnlint-plugin-camunda-compat` config), plus the stricter `bpmnlint:recommended` rules. Message wording differs from Modeler's.
+
+**Precondition — declare the target version.** The Camunda ruleset is selected from `modeler:executionPlatformVersion` on `<bpmn:definitions>`. Without it, lint silently runs only the generic rules — a service task with no `<zeebe:taskDefinition>` passes. Set it to the target cluster version (e.g. `8.8.0`) before linting. `c8ctl --dry-run bpmn lint <file>` prints the resolved config; it must include a `camunda-compat/camunda-cloud-*` entry.
 
 1. Run the linter against the file you touched:
 
    ```bash
-   c8ctl bpmn lint <path-to-touched-file.bpmn>
+   c8ctl bpmn lint --json <path-to-touched-file.bpmn>
    ```
 
-   `c8ctl bpmn lint` auto-detects the Camunda execution platform version from the BPMN file and applies sensible Camunda defaults. If a `.bpmnlintrc` is present in the project, it is used instead. Stdin also works: `cat process.bpmn | c8ctl bpmn lint`.
+   The exit code is non-zero **only for errors** — warnings exit 0. Loop on the JSON `errorCount` and `warningCount`, not the exit code. Each `issues[]` entry carries `elementId`, `message`, `category`, and `rule`; key fixes on `elementId` + `message` (for Camunda-ruleset issues `rule` can hold the element's name instead of the rule id). If a `.bpmnlintrc` is present in the project, it replaces the auto-detected config. Stdin also works: `cat process.bpmn | c8ctl bpmn lint --json`.
 
-2. If output is non-empty, fix every reported issue and run the linter again. Common categories:
+2. If either count is non-zero, fix every reported issue with targeted edits and run the linter again. Common categories:
    - **no-overlapping-elements** — adjust DI coordinates per [references/layout-rules.md](references/layout-rules.md) spacing rules
    - **fake-join** — make join gateways match their fork type (XOR forks → XOR joins, AND forks → AND joins)
    - **label-required** — name every labeled element
@@ -128,7 +132,9 @@ A BPMN edit is **not structurally done** until `c8ctl bpmn lint` reports zero er
    - **gateway safety** — inspect every exclusive gateway for a `default` flow. `conditional-flows` does not replace this review: a gateway can have a condition on every outgoing flow and still have no fallback for an unmatched value.
    - **superfluous-gateway** — drop pass-through gateways with one in, one out
 
-3. Loop until the linter is clean. Do not declare the task structurally done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
+3. Loop until both counts are zero. Do not declare the task structurally done while warnings remain — silently-failing BPMN deploys to the cluster and surfaces as runtime incidents.
+
+4. **Bound the loop.** If the same issue survives three fix attempts, or fixes keep trading one issue for another, stop and report the remaining issues and what you tried to the user. Don't rewrite the whole file or suppress the rule just to get to green.
 
 If a warning is genuinely a false positive, suppress it explicitly in a project-level `.bpmnlintrc` and flag the suppression in your final message — never silently ignore.
 

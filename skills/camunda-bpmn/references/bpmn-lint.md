@@ -15,11 +15,11 @@ find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o
 
 ## Run + fix loop
 
-1. Run `c8ctl bpmn lint` on each target file.
-2. Parse each report line by extracting these fields (without assuming exact spacing): `elementId`, `severity`, `message`, `ruleId`.
+1. Run `c8ctl bpmn lint --json` on each target file.
+2. Read `errorCount` and `warningCount` (the exit code is non-zero only for errors). For each `issues[]` entry use `elementId`, `category`, and `message`; `rule` may hold the element name for Camunda-ruleset issues.
 3. Apply targeted XML edits for each issue (never whole-file rewrites).
 4. Re-run lint on the same target set.
-5. Repeat until all files are clean.
+5. Repeat until every file reports zero errors and zero warnings. If an issue survives three fix attempts, stop and report it instead of looping further.
 
 ## `bpmnlint:recommended` rule map
 

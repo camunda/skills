@@ -56,12 +56,12 @@ Deploy an entire directory (recursive):
 c8ctl deploy ./my-project
 ```
 
-Pre-deploy checks (recommended):
+Pre-deploy checks:
 
-1. Lint BPMN before deployment:
+1. Lint BPMN before deployment. Do not deploy a file that reports errors — fix it via the BPMN lint loop (see **camunda-bpmn**) and re-lint until clean:
 
    ```bash
-   c8ctl bpmn lint process.bpmn
+   c8ctl bpmn lint --json process.bpmn
    ```
 
 2. Validate DMN and form files if present (see **camunda-dmn** and **camunda-forms** workflows), then deploy only the resources that are ready.

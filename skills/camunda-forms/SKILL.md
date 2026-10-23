@@ -21,7 +21,7 @@ Create Camunda Form JSON schemas for user tasks and start events in Camunda 8.8+
 
 ### Form Basics
 
-Camunda Forms are JSON files with `.form` extension (not `.json`). Link to BPMN user tasks via the form's `id` field, which must match the `formId` attribute on `<zeebe:formDefinition formId="..."/>` inside the user task. The user task itself must also include `<zeebe:userTask/>` (the Camunda user task implementation). Don't link via the older `formKey` attribute — that's the deprecated job-worker user task, removed in Camunda 8.10. See **camunda-bpmn** § Form Definition for the BPMN side.
+Camunda Forms are JSON files with `.form` extension (not `.json`). Link to BPMN user tasks via the form's `id` field, which must match the `formId` attribute on `<zeebe:formDefinition formId="..."/>` inside the user task. The user task itself must also include `<zeebe:userTask/>` (the Camunda user task implementation). Don't link via the older `formKey` attribute — that's the deprecated job-worker user task, removed in Camunda 8.10. See **camunda-bpmn** § Form Definition for the BPMN side; if you edited the BPMN, run its lint loop until clean.
 
 ### Form Structure
 
