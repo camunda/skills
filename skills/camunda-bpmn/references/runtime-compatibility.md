@@ -20,7 +20,7 @@ c8ctl --dry-run bpmn lint --json <file.bpmn>   # config.extends must include plu
 c8ctl bpmn lint --json <file.bpmn>
 ```
 
-Without the `camunda-compat` entry (no `modeler:executionPlatformVersion`), none of the compatibility categories below are checked.
+Without the `camunda-compat` entry (no `modeler:executionPlatformVersion`), none of the compatibility categories below are checked. If the dry-run output lacks `"dryRun": true`, c8ctl is older than 3.1.0 and ignores `--dry-run` — ask the user to upgrade.
 
 ## Fix loop
 

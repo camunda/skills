@@ -12,7 +12,7 @@ Create and edit executable BPMN 2.0 processes for Camunda 8.8+. Generates valid 
 
 - Camunda 8.8+ cluster (local via c8run, SaaS, or Self-Managed)
 - c8ctl CLI installed and configured (`c8ctl add profile`) — provides `c8ctl bpmn lint`
-- **c8ctl ≥ 3.2.0** for `bpmn format`. If the command is unavailable, ask the user to upgrade: `npm install -g @camunda8/cli`
+- **c8ctl ≥ 3.1.0** for the lint loop's ruleset check (`--dry-run` config report) and **≥ 3.2.0** for `bpmn format`. If either is unavailable, ask the user to upgrade: `npm install -g @camunda8/cli`
 
 ## Cross-References
 
@@ -119,7 +119,9 @@ A BPMN edit is **not structurally done** until it is **lint-clean**: the Camunda
    c8ctl --dry-run bpmn lint --json <file.bpmn>
    ```
 
-   `config.extends` must include a `plugin:camunda-compat/camunda-cloud-*` entry. If it doesn't, set `modeler:executionPlatformVersion` to the target cluster version (e.g. `8.8.0`) — or, if a project `.bpmnlintrc` replaced the auto-detected config, make it extend that entry — and re-check. Do this for every file, including existing ones you didn't author.
+   First check the output is a dry-run report (`"dryRun": true` with a `config` key). c8ctl < 3.1.0 ignores `--dry-run` and prints a normal lint result instead — that says nothing about the ruleset, so stop and ask the user to upgrade (`npm install -g @camunda8/cli`); don't edit the BPMN or `.bpmnlintrc` to satisfy the check.
+
+   Then `config.extends` must include a `plugin:camunda-compat/camunda-cloud-*` entry. If it doesn't, set `modeler:executionPlatformVersion` to the target cluster version (e.g. `8.8.0`) — or, if a project `.bpmnlintrc` replaced the auto-detected config, make it extend that entry — and re-check. Do this for every file, including existing ones you didn't author.
 
 2. Run the linter against the file:
 
