@@ -73,6 +73,8 @@ Default to `UNIQUE`. Use `FIRST` for hard-then-soft semantics (e.g. "blocklist f
 
 `<zeebe:calledDecision>` also accepts `bindingType` — `latest` (default), `deployment`, `versionTag`. See **camunda-bpmn** for the binding-type table; `deployment` is the right choice when BPMN and DMN are co-deployed.
 
+If you edited the BPMN, run the BPMN lint loop (see **camunda-bpmn**) on it until clean — `dmnlint` does not check the BPMN side.
+
 ## FEEL inside DMN
 
 DMN uses FEEL in `inputExpression`, `inputEntry` (unary tests), `outputEntry`, and `literalExpression`. Unlike BPMN, **no `=` prefix** — every `text` element is parsed as FEEL.
