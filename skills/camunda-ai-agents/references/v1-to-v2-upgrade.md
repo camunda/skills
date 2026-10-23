@@ -4,7 +4,8 @@ Move AI Agent elements from the legacy (v1) element templates to the v2 template
 
 ## Prerequisites
 
-- c8ctl ≥ 4.6.0.
+- c8ctl ≥ 4.6.1. Earlier versions sync templates without the v1 → v2 migration recipe.
+- Template catalog synced with `c8ctl element-template sync` (step 1 below), so the cache holds the v2 template and its recipe.
 - `modeler:executionPlatformVersion` on the BPMN file is `8.10.0` or later. c8ctl does not change it — set it first.
 - Manual route only: Desktop Modeler 5.51.0+ (earlier versions show v2 as **Not found**).
 
@@ -63,7 +64,7 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
 The migration recipe ships inside the v2 template (`metadata.migratesFrom`). It is what moves provider fields across the redesign.
 
 - `recipe.source` is `embedded` → recipe is active. This is the expected case.
-- `recipe.source` is `none`, or the update fails with `destination "input:provider.type" violates choice constraint` → the cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Run `c8ctl element-template sync` and update c8ctl, then dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
+- `recipe.source` is `none`, or the update fails with `destination "input:provider.type" violates choice constraint` → the cached v2 template has no recipe. Only same-key values carry over; provider-specific values such as the Anthropic **Endpoint** and **API key** appear in `report.dropped`. Secret values and their keys print as `[REDACTED]` — identify them by `label`. Update c8ctl to 4.6.1 or later, run `c8ctl element-template sync`, then dry-run again. If there is still no recipe, do not write with `--allow-lossy` as a shortcut: re-enter the provider config by hand from the mapping below, or supply a recipe via `--recipe <file>`.
 - The recipe accepts only v1 template version 12 or later. For an older element, c8ctl first updates it to v1 version 12, then applies the recipe; the report shows this step. When the recipe cannot be used for an element (`recipe.refusal`; a stale cache is a common cause — `sync` and retry), the report gives the reason, only same-key values copy, and the write requires `--allow-lossy`.
 - `--map <from>=<to>` moves one binding's value per element when no recipe covers it.
 
