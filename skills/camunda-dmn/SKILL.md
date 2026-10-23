@@ -1,7 +1,7 @@
 ---
 name: camunda-dmn
 description: |
-  Use this skill when the business, not developers, should own decision rules — eligibility, risk, routing, discounts — changing them without a code release or auditing which rule fired, even if DMN or decision tables aren't mentioned. Authors and validates DMN decision tables for Camunda 8. Not for rules written as code in Python, Java, JavaScript, or other languages.
+  Use this skill when decision rules — eligibility, risk, routing, discounts — should live outside application code, so the business changes them without a release or audit which rule fired, even if DMN or decision tables aren't mentioned. Authors and validates DMN decision tables for Camunda 8. Not for rules written as code in Python, Java, JavaScript, or other languages.
 ---
 
 # Camunda DMN
