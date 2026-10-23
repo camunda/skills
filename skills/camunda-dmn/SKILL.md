@@ -94,7 +94,7 @@ Two layers — run both before declaring a file done.
 npx --yes dmnlint path/to/decision.dmn
 ```
 
-For directory-wide work, discover `.dmn` files recursively first (skip `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`), then lint each discovered file. Keep a fix loop open: lint → targeted XML edits → re-lint until the set is clean.
+For directory-wide work, discover `.dmn` files recursively first (skip `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`), then lint each discovered file. Keep a fix loop open: lint → targeted XML edits → re-lint until the set is clean. If the same issue survives three fix attempts, stop and report it to the user instead of rewriting the file or disabling the rule.
 
 Common rules: `label-required` (add a `name`), `no-duplicate-requirements` (drop the duplicate `informationRequirement` edge). See [references/dmnlint.md](references/dmnlint.md) for the full rule → fix mapping.
 

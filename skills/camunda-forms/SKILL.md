@@ -209,9 +209,15 @@ Generate complete `.form` JSON files. Ensure:
 - `layout.row` values increment sequentially (`row_0`, `row_1`, ...)
 - Metadata fields are present and correct
 
-### Schema Validation Loop (Lint Before Deploy)
+### Schema Validation Loop — completion gate
 
-After creating or editing `.form` files, validate them against the official Camunda form schema before presenting or deploying them. Use `ajv` with the `ajv-errors` plugin directly. The official schema permits component extension properties, so the helper below also rejects the known invalid component shapes (`value`, `type: "submit"`, and a button `key`). A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
+A form edit is **not done** until `node validate-form.cjs <file>` prints `Valid ✓` (exit 0) for every `.form` file you created or edited. Treat this as the closing step of every form task, before presenting or deploying anything:
+
+1. Validate each touched file (setup below).
+2. If it fails, fix every reported error with targeted JSON edits (see the keyword table), then validate again. The helper stops at the schema errors before checking component shapes, so a fixed file can surface new errors on the next run — keep looping.
+3. Loop until every file passes. If the same error survives three fix attempts, stop and report the remaining errors and what you tried to the user instead of rewriting the form.
+
+Validate against the official Camunda form schema using `ajv` with the `ajv-errors` plugin directly. The official schema permits component extension properties, so the helper below also rejects the known invalid component shapes (`value`, `type: "submit"`, and a button `key`). A plain `ajv-cli` invocation fails on this schema because it uses the `errorMessage` keyword; if you use `ajv-cli`, load `ajv-errors` via `--require`. Run all commands from the **project root**:
 
 ```bash
 npm install --save-dev ajv ajv-errors @bpmn-io/form-json-schema@1.18.0
@@ -258,7 +264,7 @@ EOF
 node validate-form.cjs path/to/form.form
 ```
 
-For multiple forms (including nested directories), loop over every file and collect all failures before exiting:
+For multiple forms (including nested directories), loop over every file and collect all failures before exiting; fix and re-run until it exits 0:
 
 ```bash
 failed=0
