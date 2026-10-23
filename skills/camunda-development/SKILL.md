@@ -92,7 +92,7 @@ When a process spans multiple service tasks, user tasks, and business-rule tasks
    - forms
    - BPMN execution wiring updates
 4. Run domain validation loops:
-   - BPMN: `c8ctl bpmn lint` (and compatibility checks as needed)
+   - BPMN: the lint loop until lint-clean (see **camunda-bpmn**)
    - DMN: `npx --yes dmnlint` (structural) + FEEL/hit-policy test execution (see **camunda-dmn**)
    - Forms: JSON schema validity — required fields, `schemaVersion`, component `key` uniqueness (see **camunda-forms**)
 5. Run a cross-artifact wiring audit before deployment:

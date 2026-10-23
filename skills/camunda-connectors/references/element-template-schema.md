@@ -82,7 +82,7 @@ Resulting BPMN (the `data:image/svg+xml;base64,...` icon blob is elided here for
 </bpmn:serviceTask>
 ```
 
-Validate with `c8ctl bpmn lint process.bpmn` after applying.
+After applying, run the BPMN lint loop (see **camunda-bpmn**) until the BPMN is lint-clean.
 
 ## Multi-line FEEL context literal values
 

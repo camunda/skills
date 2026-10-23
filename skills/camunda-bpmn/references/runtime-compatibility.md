@@ -13,20 +13,22 @@ Use this before deploy/test runs against a real Camunda 8 runtime.
 - **Single file**: run lint on the file directly.
 - **Directory**: use the discovery workflow in [bpmn-lint.md](bpmn-lint.md) to recursively find target `.bpmn` files (including the shared skip-directory list), then lint each discovered file.
 
-Then run:
+Then, for each discovered file, confirm the Camunda ruleset applies and lint it:
 
 ```bash
-c8ctl bpmn lint <file.bpmn>
+c8ctl --dry-run bpmn lint --json <file.bpmn>   # config.extends must include plugin:camunda-compat/camunda-cloud-*
+c8ctl bpmn lint --json <file.bpmn>
 ```
 
-for each discovered file.
+Without the `camunda-compat` entry (no `modeler:executionPlatformVersion`), none of the compatibility categories below are checked.
 
 ## Fix loop
 
-1. Lint target files.
-2. Apply targeted BPMN XML fixes for each reported issue.
-3. Re-lint the same target set.
-4. Repeat until all files are clean.
+1. Confirm the Camunda ruleset applies to every target file; set `modeler:executionPlatformVersion` where it doesn't.
+2. Lint target files.
+3. Apply targeted BPMN XML fixes for each reported issue.
+4. Re-lint the same target set.
+5. Repeat until every file reports zero errors and zero warnings.
 
 ## Common compatibility categories
 

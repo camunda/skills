@@ -12,7 +12,7 @@ The same pattern works for specialising any OOTB connector (not just protocol on
 
 1. **Discover the base template.** `c8ctl element-template search "<keyword>"` to find the protocol connector (e.g. *REST Outbound*), then `c8ctl element-template get <id>` to fetch its JSON. This is the starting point — every property, binding, and default is already shaped correctly for the underlying job worker.
 2. **Author the customised template.** Copy the fetched JSON into a new file under `resources/element-templates/` (or wherever your project stores templates). Give it a new `id` and `name`. Hide infrastructure properties (`"type": "Hidden"`), pre-fill them with FEEL, and group what remains into custom groups. You can also *add* new domain-specific inputs that map — via FEEL on the existing properties — to the data contract the underlying job worker expects (e.g. a `country` input that feeds into a hidden URL `=concat("https://.../", country)`).
-3. **Validate.** Run `c8ctl element-template apply -i <template> <element-id> <bpmn>` against a test BPMN to confirm the bindings produce the expected XML, and run `c8ctl bpmn lint` on the result.
+3. **Validate.** Run `c8ctl element-template apply -i <template> <element-id> <bpmn>` against a test BPMN to confirm the bindings produce the expected XML, then run the BPMN lint loop (see **camunda-bpmn**) on the result until it is lint-clean.
 4. **Hand off.** The `.json` file is the deliverable. The user uploads it to their Modeler project (SaaS) or drops it under `resources/element-templates/` (Desktop) to apply it to elements.
 
 ## Hiding infrastructure properties
@@ -216,7 +216,7 @@ The JSON schema linked via `$schema` lets any JSON-schema-aware editor flag malf
 c8ctl element-template apply -i my-template.json <element-id> <bpmn-file>
 ```
 
-Omit `-i` to print the result to stdout, include `-i` to write back. Confirms the binding writes the expected `zeebe:taskDefinition` + `zeebe:input` + `zeebe:taskHeaders` XML. Follow with `c8ctl bpmn lint` on the resulting BPMN.
+Omit `-i` to print the result to stdout, include `-i` to write back. Confirms the binding writes the expected `zeebe:taskDefinition` + `zeebe:input` + `zeebe:taskHeaders` XML. Follow with the BPMN lint loop (see **camunda-bpmn**) on the resulting BPMN.
 
 ## Where to look next
 
