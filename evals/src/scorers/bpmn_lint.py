@@ -34,6 +34,8 @@ async def _c8ctl_json(sb, args: list[str]) -> tuple[dict | None, dict]:
 def _lint_problem(dry_run: dict | None, lint: dict | None) -> str | None:
     if dry_run is None:
         return "c8ctl bpmn lint --dry-run produced no JSON"
+    if dry_run.get("dryRun") is not True:
+        return "c8ctl ignored --dry-run (needs >= 3.1.0); cannot confirm the Camunda ruleset"
     extends = (dry_run.get("config") or {}).get("extends") or []
     if not any(CAMUNDA_RULESET in entry for entry in extends):
         return (

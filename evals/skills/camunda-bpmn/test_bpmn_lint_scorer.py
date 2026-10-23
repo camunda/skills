@@ -50,15 +50,18 @@ class FakeSandbox:
 
     ``workspace_rc`` stands in for a ``.bpmnlintrc`` in the default working
     directory: any c8ctl call not run from ``/`` sees its relaxed results.
+    ``ignores_dry_run`` mimics c8ctl < 3.1.0, which lints for real on ``--dry-run``.
     """
 
     def __init__(
         self,
         files: dict[str, tuple[dict, dict | str]],
         workspace_rc: tuple[dict, dict] | None = None,
+        ignores_dry_run: bool = False,
     ) -> None:
         self.files = files
         self.workspace_rc = workspace_rc
+        self.ignores_dry_run = ignores_dry_run
 
     async def exec(self, cmd: list[str], cwd: str | None = None, **_: object):
         if cmd[0] == "find":
@@ -66,7 +69,7 @@ class FakeSandbox:
         dry_run, lint = self.files[cmd[-1]]
         if self.workspace_rc and cwd != "/":
             dry_run, lint = self.workspace_rc
-        if "--dry-run" in cmd:
+        if "--dry-run" in cmd and not self.ignores_dry_run:
             return _result(0, json.dumps({"dryRun": True, "config": dry_run}))
         if isinstance(lint, str):
             return _result(1, "", lint)
@@ -120,6 +123,18 @@ def test_workspace_bpmnlintrc_cannot_relax_the_rules(
     )
 
     assert _score(monkeypatch, sandbox).value == 0.0
+
+
+def test_c8ctl_that_ignores_dry_run_is_reported_as_too_old(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox = FakeSandbox({PATH: (WITH_CAMUNDA, CLEAN)}, ignores_dry_run=True)
+
+    score = _score(monkeypatch, sandbox)
+
+    assert score.value == 0.0
+    assert "3.1.0" in score.explanation
+    assert "executionPlatformVersion" not in score.explanation
 
 
 def test_unparseable_lint_output_fails(monkeypatch: pytest.MonkeyPatch) -> None:
