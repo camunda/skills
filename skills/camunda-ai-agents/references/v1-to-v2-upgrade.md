@@ -95,7 +95,7 @@ Re-run with `--in-place` to write.
 
 ## Provider mapping
 
-Provider and backend are now decoupled. Unlisted fields carry over under the same label. "Recipe" = what `update` does when the recipe is active; "Manual" = what remains.
+Provider and backend are now decoupled. Unlisted fields carry over under the same label. `update` maps the provider fields through the migration recipe; the report shows the result. Act on `report.notes` and `report.dropped`. The steps below are what the update leaves to you.
 
 ### Anthropic (v1 Anthropic → v2 Anthropic)
 
@@ -106,8 +106,7 @@ Carry over: API key, Timeout, Model, Maximum tokens, Temperature, top P, top K. 
 | Microsoft Foundry (`*.azure.com`, `*.azure.us`, `*.azure.cn`) | **Microsoft Foundry (Azure)**, **API endpoint** (API key auth, v1 API key). Remove trailing `/anthropic/v1` or `/v1`; v2 adds `/anthropic` if missing and appends `/v1/messages`. |
 | Any other | **Custom / compatible endpoint**, **API endpoint**. Remove trailing `/v1`; v2 appends `/v1/messages`. |
 
-- Recipe: picks the backend from the endpoint, copies the endpoint **unchanged**, turns on prompt caching; Effort and Thinking mode stay at model default.
-- Manual: strip the trailing path segment from the endpoint.
+The update copies the endpoint unchanged: strip the trailing path segment yourself.
 
 ### AWS Bedrock
 
@@ -124,8 +123,7 @@ Mantle specifics:
 - **Model** uses Anthropic's model ID scheme, not the AWS Bedrock model ID. Check the [Claude models overview](https://docs.anthropic.com/en/docs/about-claude/models/all-models).
 - Mantle needs a different IAM policy than Bedrock Runtime. Tell the user to update it before migrating, else the first model call fails with an authentication or permission error.
 
-- Recipe: keeps **every** element on Bedrock Converse and turns on prompt caching.
-- Manual: for Claude models, switch the provider to Anthropic + Mantle after the upgrade.
+The update keeps every element on Bedrock Converse. For Claude models, switch the provider to Anthropic + Mantle afterwards.
 
 ### Azure OpenAI (→ v2 OpenAI, backend Microsoft Foundry)
 
@@ -140,15 +138,13 @@ Carry over: API key auth, Timeout, Temperature, top P.
 
 New: **Entra ID: Managed identity** (Hybrid/Self-Managed only), **Entra ID scope**, **Effort**. With multiple connector replicas, each replica acquires and caches its own Entra ID token.
 
-- Recipe: sets **API** to **Chat Completions**; moves Maximum tokens → Max completion tokens.
-- Manual: for the **Responses** API, change **API** and enter the value in **Max output tokens**.
+For the **Responses** API, change **API** after the update and enter the value in **Max output tokens**.
 
 ### OpenAI (→ v2 OpenAI, backend OpenAI API)
 
 Carry over: API key, Organization ID, Project ID, Timeout, Model, Temperature, top P. Maximum completion tokens → Max completion tokens (Chat Completions) or Max output tokens (Responses). v1 always used Chat Completions; v2 defaults **API** to **Responses**. New: **Effort**.
 
-- Recipe: sets **API** to **Chat Completions**.
-- Manual: for **Responses**, change **API** and enter the value in **Max output tokens**.
+For **Responses**, change **API** after the update and enter the value in **Max output tokens**.
 
 ### OpenAI-compatible (→ v2 OpenAI, backend Custom / compatible endpoint)
 
@@ -160,16 +156,13 @@ The v1 **API key** field becomes an **Authentication** selector. An `Authorizati
 - Other scheme (`Basic …`) → keep the header, select **None**.
 - No such header → **API key** with the v1 value; **None** if neither header nor key was set.
 
-- Recipe: sets **API** to **Chat Completions**; selects **API key** if the v1 API key has a value, else **None**. It does **not** read an `Authorization` header.
-- Manual: apply the header rules above; for **Responses**, change **API**.
+The update does not read an `Authorization` header: apply the header rules above. For **Responses**, change **API**.
 
 ### Google Vertex AI (→ v2 Google Gemini, backend Enterprise Agent Platform (Vertex AI))
 
 Carry over: Project ID, Region, Authentication, Model, Temperature, top P, top K. Maximum output tokens → **Maximum tokens**. New: **Thinking budget** / **Thinking level**, and a **Google Gemini API** backend that needs no Google Cloud project.
 
 v1 **Endpoint** has no Modeler equivalent (no custom backend for Gemini).
-
-- Recipe: moves a custom Endpoint into a hidden v2 field. The connector uses it at runtime; Modeler neither shows nor edits it.
 
 ## Post-upgrade steps
 
