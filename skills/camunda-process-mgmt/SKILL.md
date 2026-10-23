@@ -56,12 +56,13 @@ Deploy an entire directory (recursive):
 c8ctl deploy ./my-project
 ```
 
-Pre-deploy checks (recommended):
+Pre-deploy checks:
 
-1. Lint BPMN before deployment:
+1. Every BPMN resource must be lint-clean before deployment — Camunda ruleset applied, zero errors, zero warnings. Run the full BPMN lint loop (see **camunda-bpmn**) on each one, including existing files you didn't edit. A zero-issue `c8ctl bpmn lint` report alone is not enough: without `modeler:executionPlatformVersion` it skips the Camunda rules.
 
    ```bash
-   c8ctl bpmn lint process.bpmn
+   c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
+   c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
    ```
 
 2. Validate DMN and form files if present (see **camunda-dmn** and **camunda-forms** workflows), then deploy only the resources that are ready.
@@ -304,7 +305,7 @@ c8ctl get inc <key> --json
 
 ### Troubleshooting
 
-**Deployment fails** — Run `c8ctl bpmn lint process.bpmn` first (see **camunda-bpmn**). Most deploy errors are caught by the linter pre-deploy.
+**Deployment fails** — Run the BPMN lint loop first (see **camunda-bpmn**). Most deploy errors are caught by the linter pre-deploy, provided the Camunda ruleset applies.
 
 **Process won't start** — Verify the process ID matches a deployed definition (`c8ctl list pd`). Check required input variables.
 

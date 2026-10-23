@@ -82,7 +82,7 @@ The `<template>` argument can be:
 ```bash
 c8ctl element-template apply <id> <element> process.bpmn | diff process.bpmn -    # preview the diff
 c8ctl element-template apply <id> <element> process.bpmn > new-process.bpmn       # write to a different file
-c8ctl element-template apply <id> <element> process.bpmn | c8ctl bpmn lint        # apply and lint in one pipeline
+c8ctl element-template apply <id> <element> process.bpmn | c8ctl bpmn lint        # quick preview lint — not the lint loop
 ```
 
 Apply writes `zeebe:modelerTemplate`, `zeebe:modelerTemplateVersion`, `zeebe:modelerTemplateIcon`, `zeebe:taskDefinition`, the **entire `zeebe:ioMapping` block (inputs *and* outputs)**, and the `zeebe:taskHeaders` onto the element. All of those must stay consistent — `apply` owns them. In particular, custom `<zeebe:output>` mappings hand-added to a connector element will be wiped on the next `apply` — put downstream extraction on a separate activity, or on the next flow element's `<zeebe:ioMapping>` (end events accept it too).
@@ -179,7 +179,12 @@ Resulting BPMN (the `data:image/svg+xml;base64,...` icon blob is elided here for
 </bpmn:serviceTask>
 ```
 
-After applying, validate with `c8ctl bpmn lint process.bpmn`.
+After applying, run the BPMN lint loop (see **camunda-bpmn**) until the BPMN is lint-clean. `apply` succeeding is not evidence the BPMN is clean.
+
+```bash
+c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
+c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
+```
 
 ### Common Pitfalls
 

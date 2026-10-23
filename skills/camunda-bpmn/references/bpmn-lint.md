@@ -15,11 +15,11 @@ find <target-dir> -type d \( -name .git -o -name node_modules -o -name target -o
 
 ## Run + fix loop
 
-1. Run `c8ctl bpmn lint` on each target file.
-2. Parse each report line by extracting these fields (without assuming exact spacing): `elementId`, `severity`, `message`, `ruleId`.
+1. Run `c8ctl --dry-run bpmn lint --json` on each target file and confirm `config.extends` includes a `plugin:camunda-compat/camunda-cloud-*` entry. No `"dryRun": true` in the output means c8ctl < 3.1.0, which ignores `--dry-run` — ask the user to upgrade rather than editing anything. If the entry is missing, set `modeler:executionPlatformVersion` on `<bpmn:definitions>` first — otherwise the Camunda rules don't run and a zero-issue report proves nothing.
+2. Run `c8ctl bpmn lint --json` on each target file. Read `errorCount` and `warningCount` (the exit code is non-zero only for errors). For each `issues[]` entry use `elementId`, `category`, and `message`; `rule` may hold the element name for Camunda-ruleset issues.
 3. Apply targeted XML edits for each issue (never whole-file rewrites).
 4. Re-run lint on the same target set.
-5. Repeat until all files are clean.
+5. Repeat until the Camunda ruleset applies to every file and every file reports zero errors and zero warnings. If an issue survives three fix attempts, stop and report it instead of looping further.
 
 ## `bpmnlint:recommended` rule map
 
