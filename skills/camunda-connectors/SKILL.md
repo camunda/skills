@@ -181,6 +181,11 @@ Resulting BPMN (the `data:image/svg+xml;base64,...` icon blob is elided here for
 
 After applying, run the BPMN lint loop (see **camunda-bpmn**) until the BPMN is lint-clean. `apply` succeeding is not evidence the BPMN is clean.
 
+```bash
+c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
+c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
+```
+
 ### Common Pitfalls
 
 - **`<bpmn:documentation>` is not settable via `--set`.** It's a separate BPMN child element, not a template property — hand-edit it in after `apply`. Matters most when a connector is used as a **camunda-ai-agents** tool.
