@@ -14,10 +14,11 @@ Sample ids are auto-prefixed ``pos-`` / ``neg-`` from their group.
 
 Routing is a single structured-output call: the model gets the skill catalog
 (the same ``<available_skills>`` block the ``skill`` tool discloses) plus the
-prompt and returns the skill names it would load — no agent, no tools, no
-sandbox, no skill content read. ``excluded_skills`` drops skills from that
-catalog (used to hide the meta-router ``camunda-development`` from the leaf
-skills it routes to, so their trigger doesn't just re-test the router).
+prompt and returns a one-sentence reasoning followed by the skill names it
+would load — no agent, no tools, no sandbox, no skill content read.
+``excluded_skills`` drops skills from that catalog (used to hide the
+meta-router ``camunda-development`` from the leaf skills it routes to, so
+their trigger doesn't just re-test the router).
 """
 
 from __future__ import annotations
@@ -75,8 +76,9 @@ ROUTED_KEY = "routed_skills"
 INSTRUCTIONS = (
     "The following skills provide specialized instructions for specific tasks. "
     "Given the task, decide which skill(s) you would load to handle it, judging "
-    "relevance from each description. Do not solve the task — return only the "
-    "names of the skills you would load, or an empty list if none apply."
+    "relevance from each description, including any exclusions it states. Do not "
+    "solve the task. First give a one-sentence reasoning, then the names of the "
+    "skills you would load, or an empty list if none apply."
 )
 
 
@@ -103,13 +105,18 @@ def route(excluded: list[str]) -> Solver:
                 strict=True,
                 json_schema=JSONSchema(
                     type="object",
+                    # ``reasoning`` comes first so the model weighs the
+                    # descriptions (and their exclusions) before committing to
+                    # skill names; without it, greedy decoding under the strict
+                    # enum emits the first lexical match.
                     properties={
+                        "reasoning": JSONSchema(type="string"),
                         "skills": JSONSchema(
                             type="array",
                             items=JSONSchema(type="string", enum=names),
                         )
                     },
-                    required=["skills"],
+                    required=["reasoning", "skills"],
                     additionalProperties=False,
                 ),
             )
