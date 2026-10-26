@@ -13,6 +13,8 @@ on:
       - "uv.lock"
       - ".python-version"
       - "plugin.json"
+      - "version.txt"
+      - ".release-please-manifest.json"
       - ".claude-plugin/**"
       - ".github/plugin/**"
       - ".github/workflows/compatibility.yml"
@@ -38,3 +40,5 @@ jobs:
         run: uv run pytest compatibility
       - name: Run compatibility contract gate
         run: make compatibility-check
+      - name: Check plugin manifest version consistency
+        run: make version-check

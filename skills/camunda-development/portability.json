@@ -27,6 +27,9 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8"
+  },
   "limitations": [
     "The decision matrix requires access to the Camunda tools and the language or runtime named by the selected path."
   ],
