@@ -2,6 +2,7 @@
 name: camunda-ai-agents
 description: |
   Use this skill when an LLM should act inside a business process — choosing tools or next steps, calling systems, handing off to people — with guardrails, human review, or an audit trail, even if Camunda isn't mentioned, and before hand-coding an agent loop. Models Camunda 8 AI Agent sub-processes: tools as BPMN tasks, fromAi() parameters, prompts, and limits.
+  Also covers v1/v2 element-template selection and upgrading v1 elements to v2.
 ---
 
 # Camunda AI Agent
@@ -46,6 +47,22 @@ references.
 - [Tool Definitions](https://docs.camunda.io/docs/components/connectors/out-of-the-box-connectors/agentic-ai-aiagent-tool-definitions/) — how tool name, description, and `inputSchema` are derived
 - [`fromAi()` FEEL function](https://docs.camunda.io/docs/components/modeler/feel/builtin-functions/feel-built-in-functions-miscellaneous/#fromaivalue)
 
+## Template Generations: v1 and v2
+
+Camunda 8.10 introduced **v2** AI Agent element templates (ID suffix `.v2`, e.g. `io.camunda.connectors.agenticai.ai-agent-subprocess.v2`) *(8.10+)* and deprecated **v1** (e.g. `io.camunda.connectors.agenticai.aiagent.jobworker.v1`). They are separate templates with separate job types. v1 keeps working for now but is deprecated and gets no new provider capabilities.
+
+v2 adds reasoning/thinking settings, prompt caching, decoupled provider + backend choices (e.g. Anthropic on AWS Bedrock Mantle or Foundry), and a custom chat model provider.
+
+- **New agent, 8.10+ cluster**: v2.
+- **Cluster below 8.10, or Desktop Modeler below 5.51.0**: v1 — v2 needs an 8.10 engine and shows as **Not found** in older Modeler.
+- **Existing v1 element, 8.10+ cluster**: upgrade to v2 — v1 is deprecated. v1 keeps working, so the upgrade can wait; updating within v1 (no `--to`) is only a stopgap, see the reference.
+
+Switching takes effect per redeploy: running instances keep executing on the v1 job worker.
+
+`c8ctl element-template search "ai agent"` returns both generations. The provider `--set` paths in the apply example below are v1-shaped; v2 nests credentials under `backend.<type>` (e.g. `provider.anthropic.backend.anthropic.apiKey`) — read `c8ctl element-template get-properties <id>` for the chosen template.
+
+To migrate v1 → v2, read [references/v1-to-v2-upgrade.md](references/v1-to-v2-upgrade.md).
+
 ## Applying the AI Agent Connector
 
 An ad-hoc subprocess alone is not an AI agent. Apply the AI Agent **Sub-process**
@@ -78,7 +95,10 @@ c8ctl element-template apply -i <id> AgentTools process.bpmn \
 
 The template handles `zeebe:taskDefinition`, the `zeebe:adHoc` collection bindings, default input mappings, and the model-provider-specific fields — they change across template versions, don't hand-code them.
 
-Supported providers: `anthropic`, `bedrock`, `azure-openai`, `vertex-ai`, `openai`, plus OpenAI-compatible (custom endpoint).
+Supported providers:
+
+- v1 `provider.type`: `anthropic`, `bedrock`, `azureOpenAi`, `google-vertex-ai`, `openai`, `openaiCompatible`.
+- v2 `provider.type`: `anthropic`, `bedrock`, `openai`, `google-gemini`, `mistral`, `custom`. Azure/Foundry, Vertex AI, and OpenAI-compatible are backends of these.
 
 ## The BPMN Shape
 
@@ -181,10 +201,10 @@ The agent writes its output to a single context variable named by the connector'
 Which fields the result context contains depends on the response settings (examples below use the default `agent`):
 
 - `agent.responseText` — when `data.response.format.type=text` (the default).
-- `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.parseJson=true`.
+- `agent.responseJson` — when `format=json`, or when `format=text` with `data.response.format.parseJson=true`.
 - `agent.context` — when `data.response.includeAgentContext=true`. Needed for the Response Interaction pattern below.
 
-**Provider × `format=json` compat.** Only OpenAI and Google Vertex AI support `data.response.format.type=json` natively. For Anthropic, Amazon Bedrock, Azure OpenAI, and OpenAI-compatible providers, use `format=text` + `parseJson=true` and read `agent.responseJson`.
+**Provider × `format=json` compat.** OpenAI supports `data.response.format.type=json` natively (JSON mode; a schema gives structured outputs). Anthropic and AWS Bedrock support it only with a `data.response.format.schema`. For other providers, and for v1 templates, use `format=text` + `data.response.format.parseJson=true` and read `agent.responseJson`.
 
 **Schema is a FEEL context literal.** When `format=json`, `data.response.format.schema` is `feel: required` — write it as `={ type: "object", properties: { ... } }`, not a quoted JSON string.
 
@@ -242,4 +262,5 @@ Lint catches structural BPMN problems but does not validate connector-template i
 For detailed reference material, read from `references/`:
 - [tool-modeling.md](references/tool-modeling.md) — worked XML for the four tool shapes (REST connector, script task, user task, sub-flow), including async-callback sub-flows
 - [fromai.md](references/fromai.md) — full `fromAi()` signature, all calling variants (positional, named, enum schemas, optional params, multi-call JSON bodies)
+- [v1-to-v2-upgrade.md](references/v1-to-v2-upgrade.md) — moving v1 elements to the v2 templates with `c8ctl element-template update`: ID pairs, dry-run/report workflow, recipe vs manual provider mapping, post-upgrade steps
 - [ai-agent-task.md](references/ai-agent-task.md) — the older Task variant (audit/intercept every tool call) — niche use only
