@@ -25,6 +25,10 @@ def trigger_eval() -> Task:
         ],
         negative=[
             Negative(
+                "generic-http-retry",
+                "Add retries with exponential backoff to this RestTemplate call in our Spring service.",
+            ),
+            Negative(
                 "ootb-rest",
                 "Call a public REST API with no auth from a service task — nothing custom.",
                 should_load=["camunda-connectors"],

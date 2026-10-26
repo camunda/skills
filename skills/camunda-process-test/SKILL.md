@@ -1,7 +1,7 @@
 ---
 name: camunda-process-test
 description: |
-  Use this skill to author and run Camunda Process Test suites for 100% BPMN coverage. Use it for segment planning, `.test.json` scenarios, Java fallback tests, Maven test commands, coverage reports, and suite maintenance. Do not use it to author BPMN, DMN, FEEL, or forms, deploy live processes, or build UI/E2E tests.
+  Use this skill when a process needs automated tests before go-live or after a change — every path, error, and timeout, with full coverage — even if Camunda Process Test isn't mentioned. Plans, writes, and runs CPT suites (.test.json scenarios or Java) with Maven. Not for end-to-end, UI, or Tasklist click-through tests, unit tests of classes, authoring models, or deploying.
 ---
 
 # Camunda Process Test

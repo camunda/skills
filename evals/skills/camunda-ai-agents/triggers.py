@@ -20,8 +20,16 @@ def trigger_eval() -> Task:
                 "tool-loop-agent",
                 "I want an AI agent in my process that picks which tool to call at runtime and loops until it's done.",
             ),
+            Positive(
+                "unnamed-llm-in-process",
+                "Support tickets should be triaged by an LLM that can look up the customer and search the knowledge base, then either answer or hand off to a human, and we need an audit trail of every step it took.",
+            ),
         ],
         negative=[
+            Negative(
+                "plain-llm-call",
+                "Call the OpenAI API from my Python script to summarise a PDF.",
+            ),
             Negative(
                 "deterministic-rules",
                 "I have fixed business rules mapping package weight and region to a shipping method.",
