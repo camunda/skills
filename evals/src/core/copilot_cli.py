@@ -151,7 +151,11 @@ def parse_usage(usage: dict, result: dict, requested_model: str) -> dict:
         }
     details = usage.get("tokenDetails") or {}
 
-    def tokens(key: str) -> int:
+    def tokens(key: str) -> int | None:
+        # No tokenDetails (an interrupted run's checkpoint has none): unknown,
+        # not zero — a zero would drag the matrix's token medians down.
+        if not details:
+            return None
         return int((details.get(key) or {}).get("tokenCount") or 0)
 
     nano = usage.get("totalNanoAiu")

@@ -206,5 +206,7 @@ def test_interrupted_session_keeps_partial_telemetry(monkeypatch):
     assert record["status"] == "interrupted" and record["partial"] is True
     assert record["ai_credits"] == 2.5 and record["premium_requests"] == 1
     assert record["agent_duration_s"] >= 0
+    # The checkpoint carries no token split: unknown, not zero.
+    assert set(record["tokens"].values()) == {None}
     # The lint run before the interruption is in the transcript.
     assert lint_attempts(state.messages).attempts_to_clean == 1

@@ -193,8 +193,11 @@ Per cell, over every sample×epoch run:
   runs that ever got clean. Read post-hoc from the transcript
   (`evals/src/core/lint_attempts.py`); `—` where the agent never validates.
   `--dry-run` ruleset checks don't count, and one tool call is one attempt. Only
-  executed invocations count (heredoc bodies and quoted text are ignored), and a
-  run whose result is missing or unrecognised is `unknown`, never clean.
+  executed invocations count — matched on the tool actually run, so heredoc
+  bodies, quoted text, and package installs (`npm install dmnlint`) aren't runs.
+  A call running several validators is one attempt, clean only if all are; a
+  run whose result is missing or unrecognised is `unknown`, never clean. The
+  overall column pools every run's attempts before taking the median.
 - **Cost** — median Copilot **AI credits** per run (what the org is billed;
   differs ~40× between the cheapest and most expensive models), premium
   requests, and the token split (I/CW/CR/O), from `--usage-output-file`.
@@ -218,7 +221,8 @@ fewer models/epochs.
 **Re-runs.** Re-running failed jobs is safe: the matrix keeps only the newest log
 per eval × model, and the artifact is overwritten. A run interrupted by a time
 limit still records its transcript and the credits spent so far (from Copilot's
-usage checkpoints, flagged `partial` in the JSON).
+usage checkpoints). Its tokens are unknown and left out of token medians; the
+report counts such runs and marks affected cost cells `†`.
 
 ## Credentials & secrets
 

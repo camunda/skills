@@ -147,7 +147,7 @@ class TestLintMatchingReviewCases:
 
     def test_heredoc_then_real_run_counts_once(self):
         runs = self._runs(self.HELPER + "\nnode validate-form.cjs a.form", "Valid ✓")
-        assert [(r.validator, r.verdict) for r in runs] == [("form", "clean")]
+        assert [(r.validators, r.verdict) for r in runs] == [(("form",), "clean")]
 
     def test_quoted_mentions_are_not_runs(self):
         assert self._runs('echo "next: c8ctl bpmn lint --json p.bpmn"') == []
@@ -155,7 +155,7 @@ class TestLintMatchingReviewCases:
     def test_dry_run_does_not_hide_real_lint_in_same_call(self):
         cmd = "c8ctl --dry-run bpmn lint --json p.bpmn && c8ctl bpmn lint --json p.bpmn"
         runs = self._runs(cmd, '{"dryRun": true}\n' + BPMN_DIRTY)
-        assert [(r.validator, r.verdict) for r in runs] == [("bpmn", "dirty")]
+        assert [(r.validators, r.verdict) for r in runs] == [(("bpmn",), "dirty")]
 
     def test_dmn_failures_and_missing_results_are_unknown(self):
         cmd = "npx --yes dmnlint d.dmn"
@@ -183,6 +183,34 @@ class TestLintMatchingReviewCases:
             self._runs(cmd, "<shellId: 0 completed with exit code 2>")[0].verdict
             == "unknown"
         )
+
+    def test_package_install_is_not_a_run(self):
+        ok = "<shellId: 0 completed with exit code 0>"
+        assert self._runs("npm install --no-save dmnlint", ok) == []
+        assert self._runs("npm i -g @camunda8/cli && echo done", ok) == []
+        assert self._runs("pnpm add dmnlint", ok) == []
+
+    def test_wrapped_invocations_are_runs(self):
+        for cmd in (
+            "npx --yes dmnlint d.dmn",
+            "npx -p dmnlint dmnlint d.dmn",
+            "npm exec -- dmnlint d.dmn",
+            "CI=1 ./node_modules/.bin/dmnlint d.dmn",
+            "cd /workspace && (dmnlint d.dmn)",
+        ):
+            assert [r.validators for r in self._runs(cmd, "")] == [("dmn",)], cmd
+        runs = self._runs("npx @camunda8/cli bpmn lint --json p.bpmn", BPMN_CLEAN)
+        assert [r.validators for r in runs] == [("bpmn",)]
+
+    def test_every_validator_in_a_call_must_be_clean(self):
+        cmd = "c8ctl bpmn lint --json p.bpmn; node validate-form.cjs p.form"
+        dirty_form = BPMN_CLEAN + '\n[{"instancePath": "", "keyword": "required"}]'
+        [run] = self._runs(cmd, dirty_form)
+        assert run.validators == ("bpmn", "form") and run.verdict == "dirty"
+        [run] = self._runs(cmd, BPMN_CLEAN + "\nValid ✓")
+        assert run.verdict == "clean"
+        msgs = _turn(NS(id="m1", arguments={"command": cmd}), dirty_form)
+        assert lint_attempts(msgs).by_validator() == {"bpmn": 1, "form": 1}
 
     def test_form_failure_beats_earlier_success(self):
         out = 'Valid ✓\n[{"instancePath": "/components/0", "keyword": "required"}]'
@@ -345,3 +373,45 @@ def test_retried_job_keeps_only_newest_log():
     cells = aggregate([r for log in kept for r in collect_runs(log)])
     sonnet = next(c for c in cells if c["model"] == "claude-sonnet-5.5")
     assert (sonnet["runs"], sonnet["passed"]) == (1, 1)
+
+
+def test_partial_usage_tokens_are_unknown_not_zero():
+    partial = {**_copilot(credits=5.0), "partial": True}
+    partial["tokens"] = {f: None for f in partial["tokens"]}
+    runs = collect_runs(
+        _log(
+            [
+                _sample("a", 1, copilot=_copilot(credits=1.0)),
+                _sample("a", 2, copilot=_copilot(credits=3.0)),
+                _sample("a", 3, copilot=partial),
+            ]
+        )
+    )
+    [cell] = aggregate(runs)
+    # Medians over the two complete runs only (150 I+O each), not dragged to 0.
+    assert cell["tokens_median"]["io"] == 150
+    assert cell["tokens_median"]["input"] == 100
+    assert cell["partial_usage_runs"] == 1
+    # Checkpoint credits still count.
+    assert cell["ai_credits"]["median"] == 3.0
+    md = render_markdown([cell], ["claude-sonnet-5.5"])
+    assert "†" in md and "1 run(s) were interrupted" in md
+
+
+def test_overall_lint_median_is_pooled_across_evals():
+    one = _transcript((_call("c8ctl bpmn lint --json p.bpmn"), BPMN_CLEAN))
+    nine = _transcript(
+        *[(_call("c8ctl bpmn lint --json p.bpmn"), BPMN_DIRTY)] * 8,
+        (_call("c8ctl bpmn lint --json p.bpmn"), BPMN_CLEAN),
+    )
+    runs = collect_runs(
+        _log([_sample("a", e, messages=one, copilot=_copilot()) for e in (1, 2, 3)])
+    ) + collect_runs(
+        _log([_sample("b", 1, messages=nine, copilot=_copilot())], task="camunda_dmn")
+    )
+    cells = aggregate(runs)
+    assert sorted(c["lint"]["median_attempts"] for c in cells) == [1, 9]
+    overall = render_markdown(cells, ["claude-sonnet-5.5"]).split("### Pass rate")[0]
+    row = next(line for line in overall.splitlines() if line.startswith("| claude"))
+    # Pooled runs [1, 1, 1, 9] -> median 1; a median of medians would give 5.
+    assert row.split("|")[3].strip() == "1"

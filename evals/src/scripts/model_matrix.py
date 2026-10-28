@@ -120,8 +120,11 @@ def collect_runs(log) -> list[dict]:
         lint = lint_attempts(getattr(sample, "messages", None) or [])
         if copilot:
             model = copilot.get("requested_model") or log_model
+            # Missing measurements stay None (excluded from medians), never 0.
+            raw_tokens = copilot.get("tokens") or {}
             tokens = {
-                f: float((copilot.get("tokens") or {}).get(f, 0)) for f in USAGE_FIELDS
+                f: None if raw_tokens.get(f) is None else float(raw_tokens[f])
+                for f in USAGE_FIELDS
             }
             duration = copilot.get("agent_duration_s")
         else:
@@ -143,6 +146,7 @@ def collect_runs(log) -> list[dict]:
                     None if skill is None else score_to_float(skill.value) >= 1.0
                 ),
                 "tokens": tokens,
+                "partial_usage": bool(copilot.get("partial")),
                 "ai_credits": copilot.get("ai_credits"),
                 "premium_requests": copilot.get("premium_requests"),
                 "duration_s": duration
@@ -168,6 +172,12 @@ def _med(values: list) -> float | None:
 def _sum(values: list) -> float | None:
     values = [v for v in values if v is not None]
     return sum(values) if values else None
+
+
+def _add(tokens: dict, fields) -> float | None:
+    """Sum of token fields, or None if any is unknown."""
+    values = [tokens.get(f) for f in fields]
+    return None if any(v is None for v in values) else sum(values)
 
 
 def _rate(flags: list) -> float | None:
@@ -197,10 +207,14 @@ def aggregate(runs: list[dict]) -> list[dict]:
                 "samples": len({r["sample_id"] for r in rs}),
                 "passed": sum(r["passed"] for r in rs),
                 "errored": sum(r["errored"] for r in rs),
+                # Interrupted runs: credits from usage checkpoints, tokens unknown.
+                "partial_usage_runs": sum(r["partial_usage"] for r in rs),
                 "pass_rate": sum(r["passed"] for r in rs) / len(rs),
                 "skill_load_rate": _rate([r["skill_loaded"] for r in rs]),
                 "lint": {
                     "applicable_runs": len(linted),
+                    # Per-run distribution, so cross-eval medians can be pooled.
+                    "attempts": [r["lint_attempts"] for r in linted],
                     "median_attempts": _med([r["lint_attempts"] for r in linted]),
                     "max_attempts": max(
                         (r["lint_attempts"] for r in linted), default=None
@@ -214,10 +228,8 @@ def aggregate(runs: list[dict]) -> list[dict]:
                 },
                 "tokens_median": {
                     **{f: _med([r["tokens"][f] for r in rs]) for f in USAGE_FIELDS},
-                    "io": _med(
-                        [r["tokens"]["input"] + r["tokens"]["output"] for r in rs]
-                    ),
-                    "total": _med([sum(r["tokens"].values()) for r in rs]),
+                    "io": _med([_add(r["tokens"], ("input", "output")) for r in rs]),
+                    "total": _med([_add(r["tokens"], USAGE_FIELDS) for r in rs]),
                 },
                 "ai_credits": {
                     "median": _med([r["ai_credits"] for r in rs]),
@@ -302,16 +314,14 @@ def _overall(cells: list[dict], models: list[str]) -> list[str]:
         cs = [c for c in cells if c["model"] == m]
         runs = sum(c["runs"] for c in cs)
         passed = sum(c["passed"] for c in cs)
-        lint_meds = [
-            c["lint"]["median_attempts"]
-            for c in cs
-            if c["lint"]["median_attempts"] is not None
-        ]
+        # Median over the pooled per-run attempts, not a median of per-eval
+        # medians (which over-weights evals with few validating runs).
+        pooled = [a for c in cs for a in c["lint"]["attempts"] if a is not None]
         rows.append(
             [
                 m,
                 f"{passed / runs:.0%} ({passed}/{runs})" if runs else "—",
-                _num(median(lint_meds)) if lint_meds else "—",
+                _num(median(pooled)) if pooled else "—",
                 _credits(_sum([c["ai_credits"]["total"] for c in cs])),
                 _num(_sum([c["premium_requests"]["total"] for c in cs])),
                 _dur(_sum([c["duration_s"]["total"] for c in cs])),
@@ -330,6 +340,18 @@ def _overall(cells: list[dict], models: list[str]) -> list[str]:
     )
 
 
+def _partial_note(cells: list[dict]) -> list[str]:
+    n = sum(c["partial_usage_runs"] for c in cells)
+    if not n:
+        return []
+    return [
+        f"_{n} run(s) were interrupted before Copilot wrote final usage: their "
+        "credits come from the last usage checkpoint and their tokens are "
+        "unknown (excluded from token medians). Marked `†` below._",
+        "",
+    ]
+
+
 def render_markdown(cells: list[dict], models: list[str]) -> str:
     if not cells:
         return "## Model comparison\n\n_No outcome-eval logs found._\n"
@@ -346,6 +368,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
         "",
         *_overall(cells, models),
         "",
+        *_partial_note(cells),
         "### Pass rate",
         "",
         "Runs where every gating scorer passed (errors count as fails). The "
@@ -368,7 +391,9 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
         "### Cost",
         "",
         "Median Copilot AI credits per run, with median input+output tokens. "
-        "Premium requests are in the detail tables.",
+        "Premium requests are in the detail tables. `†` = includes interrupted "
+        "runs whose tokens are unknown (excluded from token medians) and whose "
+        "credits come from Copilot's last usage checkpoint.",
         "",
         *_grid(
             cells,
@@ -376,6 +401,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
             lambda c: (
                 f"{_credits(c['ai_credits']['median'])} cr · "
                 f"{_tok(c['tokens_median']['io'])} I+O"
+                + (" †" if c["partial_usage_runs"] else "")
             ),
         ),
         "",
@@ -402,6 +428,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
                     m,
                     f"{c['passed']}/{c['runs']}",
                     str(c["errored"]),
+                    str(c["partial_usage_runs"]),
                     _pct(c["skill_load_rate"]),
                     _cell_lint(c),
                     "/".join(_tok(t[f]) for f in USAGE_FIELDS),
@@ -418,6 +445,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
                     "model",
                     "passed",
                     "errored",
+                    "partial usage",
                     "skill loaded",
                     "lint attempts",
                     "tokens I/CW/CR/O",

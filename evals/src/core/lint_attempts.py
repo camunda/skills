@@ -15,8 +15,10 @@ validator the skills prescribe as their closing gate:
 
 Only *executed* invocations count: heredoc bodies and quoted strings (e.g. the
 helper's own ``Usage: node validate-form.cjs`` line, an ``echo`` of a command)
-are stripped before matching, and the command is matched per shell segment, so
-a ``--dry-run`` check doesn't hide a real lint in the same tool call.
+are stripped before matching, and each shell segment is matched on the tool it
+*executes* (after ``npx``/``npm exec``/env-var wrappers) — so ``npm install
+dmnlint`` isn't a run, and a ``--dry-run`` check doesn't hide a real lint in the
+same tool call.
 
 Each run is classified ``clean`` / ``dirty`` / ``unknown`` from its output and,
 where the harness reports it, the exit code. Failure evidence is checked before
@@ -24,7 +26,8 @@ success markers, and a missing result or unrecognised output is ``unknown`` —
 never silently clean.
 ``attempts_to_clean`` counts runs up to and including the first clean one; if
 no run is ever clean it's the total run count and ``reached_clean`` is False.
-One tool call is one attempt, even if its command validates several files.
+One tool call is one attempt, even if its command validates several files or
+runs several validators; it's clean only if every validator in it is clean.
 """
 
 from __future__ import annotations
@@ -37,16 +40,9 @@ from typing import Literal
 Validator = Literal["bpmn", "dmn", "form"]
 Verdict = Literal["clean", "dirty", "unknown"]
 
-# Each pattern is matched against one executed shell segment (quotes and
-# heredoc bodies already stripped).
-_SEGMENT_VALIDATORS: tuple[tuple[Validator, re.Pattern[str]], ...] = (
-    ("bpmn", re.compile(r"\bc8ctl\b.*\bbpmn\s+lint\b")),
-    # The command token only — not `.dmnlintrc`.
-    ("dmn", re.compile(r"(?<![\w.:-])dmnlint(?=[\s)]|$)")),
-    ("form", re.compile(r"\bnode\s+(?:\S*/)?validate-form\.cjs\b")),
-)
 # Inline validation: the schema reference lives inside the quoted script, so
-# this is matched before quotes are stripped (heredocs are still removed).
+# this is matched before quotes are stripped (heredocs are still removed); the
+# segment must also *execute* `node -e` (see `_validators_in_segment`).
 _INLINE_FORM = re.compile(
     r"\bnode\s+(?:-e|--eval)\s+(['\"])[\s\S]*?@bpmn-io/form-json-schema[\s\S]*?\1"
 )
@@ -56,13 +52,32 @@ _HEREDOC = re.compile(
 )
 _QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
 _SEPARATORS = re.compile(r"&&|\|\||[;&|\n]")
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
+# Leading words that run the next word as the command.
+_PREFIXES = {
+    "time",
+    "sudo",
+    "exec",
+    "command",
+    "env",
+    "nohup",
+    "do",
+    "then",
+    "else",
+    "!",
+}
+# Package runners: `<runner> [flags] <tool> ...`; flags that take a value.
+_RUNNERS = {"npx", "pnpx", "bunx"}
+_RUNNER_VALUE_FLAGS = {"-p", "--package", "-c", "--call"}
 
 _COMMAND_KEYS = ("input", "command", "cmd")
 
 
 @dataclass
 class ValidatorRun:
-    validator: Validator
+    """One tool call: every validator it executed, and their combined verdict."""
+
+    validators: tuple[Validator, ...]
     verdict: Verdict
     command: str
 
@@ -94,7 +109,8 @@ class LintAttempts:
     def by_validator(self) -> dict[str, int]:
         counts: dict[str, int] = {}
         for r in self.runs:
-            counts[r.validator] = counts.get(r.validator, 0) + 1
+            for v in r.validators:
+                counts[v] = counts.get(v, 0) + 1
         return counts
 
 
@@ -106,18 +122,76 @@ def _command_of(arguments: dict) -> str | None:
     return None
 
 
-def _match_validator(command: str) -> Validator | None:
+def _argv(segment: str) -> list[str]:
+    """The executed command's argv: leading `(`/`{`, env assignments, prefix
+    words, and package-runner wrappers (`npx`, `npm exec`, `pnpm dlx`, ...)
+    removed, so `argv[0]` is the tool actually run."""
+    tokens = segment.replace("(", " ").replace("{", " ").split()
+    i = 0
+    while i < len(tokens) and (tokens[i] in _PREFIXES or _ENV_ASSIGN.match(tokens[i])):
+        i += 1
+    tokens = tokens[i:]
+    if not tokens:
+        return []
+    head = tokens[0].rsplit("/", 1)[-1]
+    rest = tokens[1:]
+    if head in ("npm", "pnpm", "yarn", "bun") and rest[:1] in (
+        ["exec"],
+        ["x"],
+        ["dlx"],
+    ):
+        head, rest = "npx", rest[1:]
+    if head in _RUNNERS:
+        j = 0
+        while j < len(rest) and rest[j].startswith("-"):
+            if rest[j] == "--":
+                j += 1
+                break
+            j += 2 if rest[j] in _RUNNER_VALUE_FLAGS else 1
+        return rest[j:]
+    return tokens
+
+
+def _validators_in_segment(segment: str, inline_form: bool) -> list[Validator]:
+    argv = _argv(segment)
+    if not argv:
+        return []
+    exe = argv[0].rsplit("/", 1)[-1]
+    if exe == "c8ctl" or argv[0].startswith("@camunda8/cli"):
+        words = argv[1:]
+        is_lint = any(words[k : k + 2] == ["bpmn", "lint"] for k in range(len(words)))
+        return ["bpmn"] if is_lint and not _DRY_RUN.search(segment) else []
+    if exe == "dmnlint":
+        return ["dmn"]
+    if exe == "node":
+        args = argv[1:]
+        if inline_form and any(a in ("-e", "--eval") for a in args):
+            return ["form"]
+        script = next((a for a in args if not a.startswith("-")), "")
+        if script.rsplit("/", 1)[-1] == "validate-form.cjs":
+            return ["form"]
+    return []
+
+
+def _match_validators(command: str) -> tuple[Validator, ...]:
+    """Every validator the command executes, in order, de-duplicated."""
     text = _HEREDOC.sub("<<HEREDOC", command)
-    if _INLINE_FORM.search(text):
-        return "form"
+    inline_form = bool(_INLINE_FORM.search(text))
+    found: list[Validator] = []
     for segment in _SEPARATORS.split(_QUOTED.sub("''", text)):
-        for name, pattern in _SEGMENT_VALIDATORS:
-            if not pattern.search(segment):
-                continue
-            if name == "bpmn" and _DRY_RUN.search(segment):
-                continue
-            return name
-    return None
+        for v in _validators_in_segment(segment, inline_form):
+            if v not in found:
+                found.append(v)
+    return tuple(found)
+
+
+def _combine(verdicts: list[Verdict]) -> Verdict:
+    """One attempt is clean only if every validator in it is clean."""
+    if "dirty" in verdicts:
+        return "dirty"
+    if verdicts and all(v == "clean" for v in verdicts):
+        return "clean"
+    return "unknown"
 
 
 def _message_text(msg) -> str:
@@ -233,7 +307,7 @@ def lint_attempts(messages) -> LintAttempts:
             if call_id:
                 results[call_id] = _message_text(msg)
 
-    pending: list[tuple[Validator, str, list[str | None]]] = []
+    pending: list[tuple[tuple[Validator, ...], str, list[str | None]]] = []
     window_open = False  # whether `read` output still belongs to the last run
     for msg in messages or []:
         for tc in getattr(msg, "tool_calls", None) or []:
@@ -244,21 +318,22 @@ def lint_attempts(messages) -> LintAttempts:
                     pending[-1][2].append(output)
                 continue
             command = _command_of(arguments)
-            validator = _match_validator(command) if command else None
-            if validator is None:
+            validators = _match_validators(command) if command else ()
+            if not validators:
                 if command is not None:
                     window_open = False
                 continue
-            pending.append((validator, command, [output]))
+            pending.append((validators, command, [output]))
             window_open = True
 
     runs = []
-    for v, cmd, outs in pending:
+    for validators, cmd, outs in pending:
         if outs[0] is None:
             verdict: Verdict = "unknown"
         else:
-            verdict = _CLASSIFIERS[v]("\n".join(o for o in outs if o is not None))
-        runs.append(ValidatorRun(v, verdict, cmd))
+            output = "\n".join(o for o in outs if o is not None)
+            verdict = _combine([_CLASSIFIERS[v](output) for v in validators])
+        runs.append(ValidatorRun(validators, verdict, cmd))
     return LintAttempts(runs=runs)
 
 
