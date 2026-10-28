@@ -57,7 +57,12 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
 
    c8ctl writes once, and only if **every** selected element migrates. Dropped values block the write unless `--allow-lossy` is passed.
 5. Repeat steps 2–4 for the other v1 ID, if the file has one.
-6. Run `c8ctl bpmn lint process.bpmn`, then the post-upgrade steps below.
+6. Run the BPMN lint loop (see **camunda-bpmn**) until the process is lint-clean, then the post-upgrade steps below:
+
+   ```bash
+   c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
+   c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
+   ```
 
 ### Recipe present or not
 
