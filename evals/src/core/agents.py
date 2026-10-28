@@ -16,7 +16,7 @@ from inspect_ai.tool import (
 )
 from inspect_swe import claude_code
 
-AgentKind = Literal["react", "claude_code"]
+AgentKind = Literal["react", "claude_code", "copilot_cli"]
 
 WORKSPACE_RULES = """\
 /workspace is the only path you share with the user — anything you save
@@ -70,4 +70,12 @@ def build_agent(
             # agent loops or halts without producing artifacts.
             disallowed_tools=["ExitPlanMode"],
         )
-    raise ValueError(f"unknown agent: {kind!r} (expected 'react' or 'claude_code')")
+    if kind == "copilot_cli":
+        # Imported lazily: only the model-comparison workflow uses it.
+        from core.copilot_cli import copilot_cli
+
+        # Copilot ends its own turn; there is no submit() to toggle.
+        return copilot_cli(skill_dirs=list(skill_dirs), system_prompt=WORKSPACE_RULES)
+    raise ValueError(
+        f"unknown agent: {kind!r} (expected 'react', 'claude_code' or 'copilot_cli')"
+    )

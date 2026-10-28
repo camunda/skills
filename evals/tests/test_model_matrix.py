@@ -1,0 +1,263 @@
+"""Unit tests for the model-comparison pieces: lint-attempt extraction, the
+``--models`` matrix specs, and the ``evals-model-matrix`` aggregation."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace as NS
+
+from core.lint_attempts import lint_attempts
+from core.registry import EvalTarget
+from scripts.build_matrix import build_model_specs, parse_models
+from scripts.model_matrix import aggregate, collect_runs, render_markdown
+
+_ids = iter(range(10_000))
+
+
+def _call(command: str | None = None, **arguments):
+    if command is not None:
+        arguments = {"action": "type_submit", "input": command, **arguments}
+    call_id = f"c{next(_ids)}"
+    return NS(id=call_id, arguments=arguments)
+
+
+def _turn(call, output: str) -> list:
+    return [
+        NS(role="assistant", tool_calls=[call], text=""),
+        NS(role="tool", tool_call_id=call.id, text=output),
+    ]
+
+
+def _transcript(*turns) -> list:
+    msgs = []
+    for call, output in turns:
+        msgs += _turn(call, output)
+    return msgs
+
+
+BPMN_DIRTY = '{"errorCount": 1, "warningCount": 2, "issues": []}'
+BPMN_CLEAN = '{"errorCount": 0, "warningCount": 0, "issues": []}'
+
+
+class TestLintAttempts:
+    def test_counts_runs_until_first_clean(self):
+        msgs = _transcript(
+            (_call("c8ctl bpmn lint --json process.bpmn"), BPMN_DIRTY),
+            (_call("sed -i 's/a/b/' process.bpmn"), ""),
+            (_call("c8ctl bpmn lint --json process.bpmn"), BPMN_CLEAN),
+            (_call("c8ctl bpmn lint --json process.bpmn"), BPMN_CLEAN),
+        )
+        res = lint_attempts(msgs)
+        assert res.attempts_to_clean == 2
+        assert res.reached_clean
+        assert res.by_validator() == {"bpmn": 3}
+
+    def test_never_clean_counts_all_runs(self):
+        msgs = _transcript(
+            (_call("c8ctl bpmn lint --json p.bpmn"), BPMN_DIRTY),
+            (_call("c8ctl bpmn lint --json p.bpmn"), BPMN_DIRTY),
+        )
+        res = lint_attempts(msgs)
+        assert res.attempts_to_clean == 2
+        assert not res.reached_clean
+
+    def test_dry_run_and_unrelated_commands_ignored(self):
+        msgs = _transcript(
+            (_call("c8ctl --dry-run bpmn lint --json p.bpmn"), '{"dryRun": true}'),
+            (_call('echo \'{"extends": "dmnlint:recommended"}\' > .dmnlintrc'), ""),
+            (_call("cat > validate-form.cjs << 'EOF'\n...\nEOF"), ""),
+            (_call("ls /workspace"), "p.bpmn"),
+        )
+        res = lint_attempts(msgs)
+        assert not res.applicable
+        assert res.attempts_to_clean is None
+
+    def test_read_output_folds_into_previous_run(self):
+        msgs = _transcript(
+            (_call("c8ctl bpmn lint --json p.bpmn"), ""),
+            (_call(action="read"), BPMN_CLEAN),
+        )
+        assert lint_attempts(msgs).attempts_to_clean == 1
+
+    def test_read_after_other_command_not_folded(self):
+        msgs = _transcript(
+            (_call("c8ctl bpmn lint --json p.bpmn"), BPMN_DIRTY),
+            (_call("cat p.bpmn"), ""),
+            (_call(action="read"), BPMN_CLEAN),
+        )
+        assert not lint_attempts(msgs).reached_clean
+
+    def test_dmn_and_form_validators(self):
+        msgs = _transcript(
+            (
+                _call("npx --yes dmnlint decision.dmn"),
+                "decision.dmn\n  D1  error  Element is missing label/name  label-required\n\n"
+                "✖ 1 problem (1 error, 0 warnings)",
+            ),
+            (_call("npx --yes dmnlint decision.dmn"), ""),
+            (_call("node validate-form.cjs review.form"), '[{"keyword": "required"}]'),
+            (_call("node validate-form.cjs review.form"), "Valid ✓"),
+        )
+        res = lint_attempts(msgs)
+        assert res.by_validator() == {"dmn": 2, "form": 2}
+        assert [r.verdict for r in res.runs] == ["dirty", "clean", "dirty", "clean"]
+        assert res.attempts_to_clean == 2
+
+    def test_inline_form_schema_validation(self):
+        # Shape observed from claude-sonnet-5.5 under Copilot CLI.
+        cmd = (
+            "cd /tmp && npm i ajv @bpmn-io/form-json-schema@1.18.0 >/dev/null 2>&1; "
+            "node -e \"const s=require('@bpmn-io/form-json-schema'); console.log(v(d))\""
+        )
+        msgs = _transcript(
+            (
+                NS(id="f1", arguments={"command": cmd}),
+                "false\n<shellId: 0 completed with exit code 0>",
+            ),
+            (
+                NS(id="f2", arguments={"command": cmd}),
+                "true\n<shellId: 1 completed with exit code 0>",
+            ),
+        )
+        res = lint_attempts(msgs)
+        assert res.by_validator() == {"form": 2}
+        assert res.attempts_to_clean == 2 and res.reached_clean
+
+    def test_bash_tool_command_key(self):
+        call = NS(id="b1", arguments={"command": "c8ctl bpmn lint --json p.bpmn"})
+        assert lint_attempts(_turn(call, BPMN_CLEAN)).attempts_to_clean == 1
+
+
+class TestModelSpecs:
+    def _targets(self):
+        return [
+            EvalTarget(
+                id="skill:camunda-bpmn",
+                kind="outcome",
+                skills=["camunda-bpmn"],
+                path="skills/camunda-bpmn/outcomes.py",
+            ),
+            EvalTarget(
+                id="trigger:camunda-bpmn",
+                kind="trigger",
+                skills=["camunda-bpmn"],
+                path="skills/camunda-bpmn/triggers.py",
+                task="trigger_eval",
+            ),
+        ]
+
+    def test_parse_models(self):
+        assert parse_models(" a/x, b/y ,a/x\nc/z ") == ["a/x", "b/y", "c/z"]
+        assert parse_models("") == []
+
+    def test_outcome_x_model_with_epochs(self):
+        specs = build_model_specs(
+            self._targets(), ["anthropic/claude-a", "anthropic/claude-b"], epochs=3
+        )
+        assert [s["model"] for s in specs] == [
+            "anthropic/claude-a",
+            "anthropic/claude-b",
+        ]
+        assert all(s["arm"] == "with_skill" for s in specs)
+        assert all("-T agent=copilot_cli" in s["targs"] for s in specs)
+        assert all("--epochs 3" in s["limit"] for s in specs)
+        assert specs[0]["slug"] == "skill-camunda-bpmn-anthropic-claude-a"
+        assert len({s["slug"] for s in specs}) == len(specs)
+
+
+def _sample(sid, epoch, *, passed=True, messages=(), error=None, copilot=None):
+    return NS(
+        id=sid,
+        epoch=epoch,
+        error=error,
+        total_time=300.0,
+        model_usage={},
+        store={"copilot": copilot} if copilot is not None else {},
+        messages=list(messages),
+        scores={
+            "gate": NS(value=1.0 if passed else 0.0, metadata={}),
+            "assert_skill_loaded": NS(value=0.0, metadata={"gating": False}),
+        },
+    )
+
+
+def _copilot(model="claude-sonnet-5.5", credits=2.0, duration=60.0):
+    return {
+        "requested_model": model,
+        "model": model,
+        "models_used": [model],
+        "ai_credits": credits,
+        "premium_requests": 1,
+        "tokens": {
+            "input": 100,
+            "cache_write": 1000,
+            "cache_read": 10_000,
+            "output": 50,
+        },
+        "agent_duration_s": duration,
+    }
+
+
+def _log(samples, task="camunda_bpmn", copilot_model="claude-sonnet-5.5"):
+    return NS(
+        eval=NS(
+            model="none/none",
+            task=task,
+            task_args={"arm": "with_skill", "agent": "copilot_cli"},
+            metadata={"copilot_model": copilot_model},
+        ),
+        samples=samples,
+    )
+
+
+class TestAggregation:
+    def test_collect_and_aggregate(self):
+        lint_msgs = _transcript(
+            (_call("c8ctl bpmn lint --json p.bpmn"), BPMN_DIRTY),
+            (_call("c8ctl bpmn lint --json p.bpmn"), BPMN_CLEAN),
+        )
+        log = _log(
+            [
+                _sample("a", 1, messages=lint_msgs, copilot=_copilot(credits=2.0)),
+                _sample("a", 2, passed=False, copilot=_copilot(credits=4.0)),
+                # Errored before Copilot ran: no record, grouped via log metadata.
+                _sample("b", 1, error="boom"),
+            ]
+        )
+        runs = collect_runs(log)
+        assert [r["passed"] for r in runs] == [True, False, False]
+        assert {r["model"] for r in runs} == {"claude-sonnet-5.5"}
+        # Agent time, not sample time, when Copilot recorded it.
+        assert runs[0]["duration_s"] == 60.0
+        assert runs[2]["duration_s"] == 300.0
+
+        [cell] = aggregate(runs)
+        assert cell["eval"] == "camunda-bpmn"
+        assert (cell["runs"], cell["samples"], cell["passed"], cell["errored"]) == (
+            3,
+            2,
+            1,
+            1,
+        )
+        assert cell["lint"]["applicable_runs"] == 1
+        assert cell["lint"]["median_attempts"] == 2
+        assert cell["lint"]["clean_rate"] == 1.0
+        assert cell["ai_credits"] == {"median": 3.0, "total": 6.0}
+        assert cell["premium_requests"]["total"] == 2
+
+        md = render_markdown([cell], ["claude-sonnet-5.5"])
+        assert "33% (1/3)" in md
+        assert "2 (100% clean)" in md
+        assert "3.00 cr" in md
+
+    def test_column_per_model_and_triggers_skipped(self):
+        assert collect_runs(_log([_sample("a", 1)], task="trigger_camunda_bpmn")) == []
+        runs = collect_runs(_log([_sample("a", 1, copilot=_copilot("gpt-6.1-sol"))]))
+        runs += collect_runs(
+            _log([_sample("a", 1, copilot=_copilot("gemini-4-argon"))])
+        )
+        cells = aggregate(runs)
+        assert sorted(c["model"] for c in cells) == ["gemini-4-argon", "gpt-6.1-sol"]
+        md = render_markdown(cells, ["gpt-6.1-sol", "gemini-4-argon"])
+        header = next(line for line in md.splitlines() if line.startswith("| eval"))
+        # Columns follow the requested --models order, not alphabetical.
+        assert header.index("gpt-6.1-sol") < header.index("gemini-4-argon")

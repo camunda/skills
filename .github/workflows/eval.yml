@@ -55,7 +55,7 @@ jobs:
       - run: uv sync --frozen
 
       - name: Run pytest
-        run: uv run pytest evals/skills
+        run: uv run pytest evals/skills evals/tests
 
   detect:
     name: Detect affected targets
@@ -231,8 +231,8 @@ jobs:
         run: zstd -dc /tmp/sandbox-images/sandbox-images.tar.zst | docker load
 
       - name: Run eval
-        # Single model via EVAL_MODEL. For a multi-model sweep, add a `model`
-        # axis to the matrix include built in `detect`. ANTHROPIC_API_KEY is
+        # Single model via EVAL_MODEL. For a multi-model comparison, run
+        # eval-models.yml instead. ANTHROPIC_API_KEY is
         # read by Inspect on the runner; the sandbox bridge proxies model calls
         # back to it (the container carries no credential). Point EVAL_MODEL
         # elsewhere + swap the key if running another provider.

@@ -50,7 +50,10 @@ agent=`): `react` (the default, with the tools above) and `claude_code`, the
 `inspect_swe` Claude Code bridge. CI pins `react`; a full cross-harness matrix
 is deferred, and `claude_code` truncates the skill catalog past ~3 skills
 (unreliable for the routing signal these evals lean on), so `react` stays the
-default.
+default. A third, `copilot_cli`, runs the sample through GitHub Copilot CLI in
+the sandbox (model from `COPILOT_MODEL`, not `--model`) and replays its events
+into the transcript; it powers the model comparison matrix (see
+[`ci.md`](ci.md#model-comparison-matrix)) and ignores `submit`.
 
 **How the agent stops (`submit`).** Two intentional modes, picked per eval — not
 an inconsistency to unify. The axis is **completion semantics**, not
