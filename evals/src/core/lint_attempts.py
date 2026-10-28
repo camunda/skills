@@ -10,9 +10,18 @@ validator the skills prescribe as their closing gate:
 - ``bpmn`` — ``c8ctl bpmn lint`` (``--dry-run`` ruleset checks are excluded:
   they report config, not issues)
 - ``dmn``  — ``dmnlint``
-- ``form`` — ``validate-form.cjs``
+- ``form`` — ``node validate-form.cjs``, or an inline ``node -e`` script
+  validating against ``@bpmn-io/form-json-schema``
 
-Each run is classified ``clean`` / ``dirty`` / ``unknown`` from its output.
+Only *executed* invocations count: heredoc bodies and quoted strings (e.g. the
+helper's own ``Usage: node validate-form.cjs`` line, an ``echo`` of a command)
+are stripped before matching, and the command is matched per shell segment, so
+a ``--dry-run`` check doesn't hide a real lint in the same tool call.
+
+Each run is classified ``clean`` / ``dirty`` / ``unknown`` from its output and,
+where the harness reports it, the exit code. Failure evidence is checked before
+success markers, and a missing result or unrecognised output is ``unknown`` —
+never silently clean.
 ``attempts_to_clean`` counts runs up to and including the first clean one; if
 no run is ever clean it's the total run count and ``reached_clean`` is False.
 One tool call is one attempt, even if its command validates several files.
@@ -28,22 +37,25 @@ from typing import Literal
 Validator = Literal["bpmn", "dmn", "form"]
 Verdict = Literal["clean", "dirty", "unknown"]
 
-_VALIDATORS: tuple[tuple[Validator, re.Pattern[str]], ...] = (
-    ("bpmn", re.compile(r"\bc8ctl\b[^|;&\n]*\bbpmn\s+lint\b")),
-    # The command token only — not `.dmnlintrc` or `"dmnlint:recommended"`.
-    ("dmn", re.compile(r"(?<![\w.:-])dmnlint(?=[\s;|&)]|$)")),
-    # Executed by node — writing the helper (`cat > validate-form.cjs`) isn't a run.
-    # The skill's helper — not writing it (`cat > validate-form.cjs`) — or an
-    # inline node script validating against the same form JSON schema.
-    (
-        "form",
-        re.compile(
-            r"\bnode\s+(?:\S*/)?validate-form\.cjs\b"
-            r"|\bnode\b[^\n]*\s-e\b[\s\S]*@bpmn-io/form-json-schema"
-        ),
-    ),
+# Each pattern is matched against one executed shell segment (quotes and
+# heredoc bodies already stripped).
+_SEGMENT_VALIDATORS: tuple[tuple[Validator, re.Pattern[str]], ...] = (
+    ("bpmn", re.compile(r"\bc8ctl\b.*\bbpmn\s+lint\b")),
+    # The command token only — not `.dmnlintrc`.
+    ("dmn", re.compile(r"(?<![\w.:-])dmnlint(?=[\s)]|$)")),
+    ("form", re.compile(r"\bnode\s+(?:\S*/)?validate-form\.cjs\b")),
+)
+# Inline validation: the schema reference lives inside the quoted script, so
+# this is matched before quotes are stripped (heredocs are still removed).
+_INLINE_FORM = re.compile(
+    r"\bnode\s+(?:-e|--eval)\s+(['\"])[\s\S]*?@bpmn-io/form-json-schema[\s\S]*?\1"
 )
 _DRY_RUN = re.compile(r"--dry-run\b")
+_HEREDOC = re.compile(
+    r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.DOTALL
+)
+_QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+_SEPARATORS = re.compile(r"&&|\|\||[;&|\n]")
 
 _COMMAND_KEYS = ("input", "command", "cmd")
 
@@ -95,12 +107,16 @@ def _command_of(arguments: dict) -> str | None:
 
 
 def _match_validator(command: str) -> Validator | None:
-    for name, pattern in _VALIDATORS:
-        if not pattern.search(command):
-            continue
-        if name == "bpmn" and _DRY_RUN.search(command):
-            return None
-        return name
+    text = _HEREDOC.sub("<<HEREDOC", command)
+    if _INLINE_FORM.search(text):
+        return "form"
+    for segment in _SEPARATORS.split(_QUOTED.sub("''", text)):
+        for name, pattern in _SEGMENT_VALIDATORS:
+            if not pattern.search(segment):
+                continue
+            if name == "bpmn" and _DRY_RUN.search(segment):
+                continue
+            return name
     return None
 
 
@@ -130,6 +146,24 @@ _TOOL_FAILURE = re.compile(
 )
 
 
+# Copilot CLI's bash tool appends the exit status to every result.
+_EXIT_TRAILER = re.compile(r"<shellId:[^>]*?exit code (\d+)\s*>")
+_SHELL_TRAILER = re.compile(r"<shellId:[^>]*>")
+_GENERIC_FAILURE = re.compile(
+    r"permission denied|EACCES|ENOENT|^\s*error:|Traceback \(most recent call",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _exit_code(output: str) -> int | None:
+    codes = _EXIT_TRAILER.findall(output)
+    return int(codes[-1]) if codes else None
+
+
+def _body(output: str) -> str:
+    return _SHELL_TRAILER.sub("", output).strip()
+
+
 def _classify_bpmn(output: str) -> Verdict:
     errors = [int(m) for m in _ERROR_COUNT.findall(output)]
     warnings = [int(m) for m in _WARNING_COUNT.findall(output)]
@@ -144,33 +178,41 @@ def _classify_bpmn(output: str) -> Verdict:
 
 
 def _classify_dmn(output: str) -> Verdict:
-    if _TOOL_FAILURE.search(output):
-        return "unknown"
+    # Diagnostics first: they establish a dirty result whatever else happened.
     if "✖" in output or _ESLINT_ROW.search(output):
         return "dirty"
     problems = _PROBLEM_SUMMARY.findall(output)
     if problems:
         return "clean" if all(int(p) == 0 for p in problems) else "dirty"
-    # dmnlint is silent on success.
-    return "clean"
-
-
-_SHELL_TRAILER = re.compile(r"<shellId:[^>]*>")
+    if _TOOL_FAILURE.search(output) or _GENERIC_FAILURE.search(output):
+        return "unknown"
+    code = _exit_code(output)
+    if code is not None:
+        # dmnlint: 0 clean, 1 lint issues, >1 tool failure.
+        return {0: "clean", 1: "dirty"}.get(code, "unknown")
+    # dmnlint is silent on success; with no exit status, only an empty result
+    # counts as clean.
+    return "clean" if not _body(output) else "unknown"
 
 
 def _classify_form(output: str) -> Verdict:
-    if "Valid ✓" in output and "FAILED" not in output:
-        return "clean"
-    if _TOOL_FAILURE.search(output):
-        return "unknown"
+    # Failure signals before the success marker: a multi-file call can print
+    # `Valid ✓` for one file and Ajv errors for the next.
     if "FAILED" in output or '"instancePath"' in output or '"keyword"' in output:
         return "dirty"
-    # Inline `ajv.validate(...)` scripts commonly print the bare boolean.
-    bare = _SHELL_TRAILER.sub("", output).strip().lower()
-    if bare in ("true", "valid"):
+    if _TOOL_FAILURE.search(output) or _GENERIC_FAILURE.search(output):
+        return "unknown"
+    code = _exit_code(output)
+    if code not in (None, 0):
+        return "dirty" if code == 1 else "unknown"
+    if "Valid ✓" in output:
         return "clean"
-    if bare.startswith(("false", "invalid")):
+    # Inline `ajv.validate(...)` scripts commonly print the bare boolean.
+    lines = [ln.strip().lower() for ln in _body(output).splitlines() if ln.strip()]
+    if lines and any(ln.startswith(("false", "invalid")) for ln in lines):
         return "dirty"
+    if lines and all(ln in ("true", "valid") for ln in lines):
+        return "clean"
     return "unknown"
 
 
@@ -191,14 +233,14 @@ def lint_attempts(messages) -> LintAttempts:
             if call_id:
                 results[call_id] = _message_text(msg)
 
-    pending: list[tuple[Validator, str, list[str]]] = []
+    pending: list[tuple[Validator, str, list[str | None]]] = []
     window_open = False  # whether `read` output still belongs to the last run
     for msg in messages or []:
         for tc in getattr(msg, "tool_calls", None) or []:
             arguments = tc.arguments or {}
-            output = results.get(tc.id, "")
+            output = results.get(tc.id)  # None: the call never returned
             if arguments.get("action") == "read":
-                if window_open:
+                if window_open and output is not None:
                     pending[-1][2].append(output)
                 continue
             command = _command_of(arguments)
@@ -210,12 +252,14 @@ def lint_attempts(messages) -> LintAttempts:
             pending.append((validator, command, [output]))
             window_open = True
 
-    return LintAttempts(
-        runs=[
-            ValidatorRun(v, _CLASSIFIERS[v]("\n".join(outs)), cmd)
-            for v, cmd, outs in pending
-        ]
-    )
+    runs = []
+    for v, cmd, outs in pending:
+        if outs[0] is None:
+            verdict: Verdict = "unknown"
+        else:
+            verdict = _CLASSIFIERS[v]("\n".join(o for o in outs if o is not None))
+        runs.append(ValidatorRun(v, verdict, cmd))
+    return LintAttempts(runs=runs)
 
 
 def to_json(attempts: LintAttempts) -> dict:

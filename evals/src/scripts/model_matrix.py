@@ -32,6 +32,7 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
+from collections.abc import Iterable
 from pathlib import Path
 from statistics import median
 
@@ -77,6 +78,32 @@ def _inspect_tokens(sample, model: str | None) -> dict[str, float]:
 def _log_metadata(log) -> dict:
     eval_meta = getattr(log, "eval", None)
     return (getattr(eval_meta, "metadata", None) or {}) if eval_meta else {}
+
+
+def log_key(log) -> tuple[str, str, str]:
+    """(eval, model, arm) — one job of the model-comparison matrix."""
+    return (
+        eval_name(log) or "(unknown)",
+        _log_metadata(log).get("copilot_model") or model_id(log) or "(unknown)",
+        task_arg(log, "arm", "with_skill") or "with_skill",
+    )
+
+
+def select_latest(named_logs: Iterable[tuple[str, object]]) -> list[object]:
+    """Newest log per ``log_key``.
+
+    The workflow merges every attempt's per-job log artifact, so a re-run job
+    leaves two logs for the same eval×model×arm; counting both would double
+    its samples and mix stale failures into the rates. Logs are timestamp-
+    prefixed, so the greatest filename is the latest run (as in
+    ``scripts.summarize``). Cells that weren't re-run keep their only log.
+    """
+    latest: dict[tuple[str, str, str], tuple[str, object]] = {}
+    for name, log in named_logs:
+        key = log_key(log)
+        if key not in latest or name > latest[key][0]:
+            latest[key] = (name, log)
+    return [log for _, log in sorted(latest.values(), key=lambda v: v[0])]
 
 
 def collect_runs(log) -> list[dict]:
@@ -421,13 +448,15 @@ def main() -> None:
     parser.add_argument("--out-json", type=Path, default=None)
     args = parser.parse_args()
 
-    runs: list[dict] = []
+    named_logs: list[tuple[str, object]] = []
     for info in list_eval_logs(args.log_dir):
         try:
-            log = read_eval_log(info)
+            named_logs.append((info.name, read_eval_log(info)))
         except Exception as e:  # a corrupt log shouldn't sink the whole matrix
             print(f"warning: skipping {info.name}: {e}", file=sys.stderr)
-            continue
+
+    runs: list[dict] = []
+    for log in select_latest(named_logs):
         runs.extend(collect_runs(log))
 
     cells = aggregate(runs)

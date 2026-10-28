@@ -192,7 +192,9 @@ Per cell, over every sample×epoch run:
   `@bpmn-io/form-json-schema`) until the first clean result, plus the share of
   runs that ever got clean. Read post-hoc from the transcript
   (`evals/src/core/lint_attempts.py`); `—` where the agent never validates.
-  `--dry-run` ruleset checks don't count, and one tool call is one attempt.
+  `--dry-run` ruleset checks don't count, and one tool call is one attempt. Only
+  executed invocations count (heredoc bodies and quoted text are ignored), and a
+  run whose result is missing or unrecognised is `unknown`, never clean.
 - **Cost** — median Copilot **AI credits** per run (what the org is billed;
   differs ~40× between the cheapest and most expensive models), premium
   requests, and the token split (I/CW/CR/O), from `--usage-output-file`.
@@ -207,9 +209,16 @@ few, so treat small differences as noise.
 `request_configuration` tool that Copilot can't see, so its
 `configuration_requested` samples aren't comparable under Copilot.
 
-**Cost of a run.** Roughly *outcome targets × models × epochs* full agent runs —
-a full default run is ~14 × 5 × 3 = 210 Copilot sessions. Start with `target`
-and fewer models/epochs.
+**Cost of a run.** Copilot starts one session per dataset sample per epoch, so a
+run is *Σ samples of the selected targets × models × epochs* sessions — not
+targets. The outcome evals hold ~33 samples today (camunda-development alone has
+7), so a full default run is ~33 × 5 × 3 ≈ 500 sessions. Start with `target` and
+fewer models/epochs.
+
+**Re-runs.** Re-running failed jobs is safe: the matrix keeps only the newest log
+per eval × model, and the artifact is overwritten. A run interrupted by a time
+limit still records its transcript and the credits spent so far (from Copilot's
+usage checkpoints, flagged `partial` in the JSON).
 
 ## Credentials & secrets
 

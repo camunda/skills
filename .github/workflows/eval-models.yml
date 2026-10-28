@@ -11,7 +11,7 @@ name: 🧪 Model comparison matrix
 # the org policy "Allow use of Copilot CLI billed to the organization"; usage is
 # billed to the org.
 #
-# Cost scales with targets × models × epochs — narrow with `target` for a
+# Cost scales with dataset samples × models × epochs — narrow with `target` for a
 # partial run. Manual-only for now; uncomment the schedule to run monthly.
 on:
   workflow_dispatch:
@@ -199,3 +199,5 @@ jobs:
             evals/model-matrix/
             evals/logs/
           retention-days: 90
+          # run_id is stable across re-runs; replace the earlier attempt's matrix.
+          overwrite: true

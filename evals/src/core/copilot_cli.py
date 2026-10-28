@@ -25,6 +25,7 @@ import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+import anyio
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ModelOutput
 from inspect_ai.tool import ToolCall
@@ -42,6 +43,8 @@ STDERR_FILE = "/tmp/copilot-stderr.txt"
 
 # Wall-clock cap for one Copilot run; the task's own time_limit still applies.
 RUN_TIMEOUT_S = 3600
+# Upper bound on post-run telemetry recovery (runs shielded from cancellation).
+COLLECT_TIMEOUT_S = 60
 
 
 def _skill_files(skill_dirs: Sequence[Path]) -> Iterable[tuple[str, bytes]]:
@@ -72,6 +75,7 @@ def parse_events(lines: Iterable[str]) -> tuple[list, str, dict]:
     functions: dict[str, str] = {}
     final = ""
     result: dict = {}
+    checkpoint: dict = {}
     for line in lines:
         line = line.strip()
         if not line:
@@ -122,13 +126,29 @@ def parse_events(lines: Iterable[str]) -> tuple[list, str, dict]:
                     function=functions.get(call_id),
                 )
             )
+        elif kind == "session.usage_checkpoint":
+            checkpoint = data
         elif kind == "result":
-            result = event
+            result = dict(event)
+    if checkpoint and not result.get("usage_checkpoint"):
+        result = {**result, "usage_checkpoint": checkpoint}
     return messages, final, result
 
 
 def parse_usage(usage: dict, result: dict, requested_model: str) -> dict:
-    """Normalise ``--usage-output-file`` JSON (+ the ``result`` event)."""
+    """Normalise ``--usage-output-file`` JSON (+ the ``result`` event).
+
+    The usage file is written only when the session ends. If it's missing (an
+    interrupted run), fall back to the last ``session.usage_checkpoint`` event
+    for credits/premium requests and flag the record ``partial``.
+    """
+    partial = not usage
+    if partial:
+        cp = result.get("usage_checkpoint") or {}
+        usage = {
+            "totalNanoAiu": cp.get("totalNanoAiu"),
+            "totalPremiumRequestCost": cp.get("totalPremiumRequests"),
+        }
     details = usage.get("tokenDetails") or {}
 
     def tokens(key: str) -> int:
@@ -153,6 +173,7 @@ def parse_usage(usage: dict, result: dict, requested_model: str) -> dict:
         )
         / 1000,
         "exit_code": result.get("exitCode"),
+        "partial": partial,
     }
 
 
@@ -225,29 +246,26 @@ def copilot_cli(skill_dirs: Sequence[Path] = (), system_prompt: str = "") -> Age
         await sb.write_file(PROMPT_FILE, _prompt_text(state, system_prompt))
 
         started = time.monotonic()
-        run = await raw.exec(
-            ["bash", "-lc", _copilot_command(model)],
-            cwd="/workspace",
-            env={
-                TOKEN_ENV: token,
-                "COPILOT_SKILLS_DIRS": SKILLS_ROOT if skill_dirs else "",
-            },
-            timeout=RUN_TIMEOUT_S,
-        )
-        record["agent_duration_s"] = time.monotonic() - started
-
-        messages, final, result = parse_events(
-            (await _read_or_empty(raw, EVENTS_FILE)).splitlines()
-        )
-        state.messages.extend(messages)
-        state.output = ModelOutput.from_content(model=f"copilot/{model}", content=final)
-
+        run = None
         try:
-            usage = json.loads(await _read_or_empty(raw, USAGE_FILE) or "{}")
-        except json.JSONDecodeError:
-            usage = {}
-        record.update(parse_usage(usage, result, model))
-        store().set("copilot", record)
+            run = await raw.exec(
+                ["bash", "-lc", _copilot_command(model)],
+                cwd="/workspace",
+                env={
+                    TOKEN_ENV: token,
+                    "COPILOT_SKILLS_DIRS": SKILLS_ROOT if skill_dirs else "",
+                },
+                timeout=RUN_TIMEOUT_S,
+            )
+        finally:
+            # Recover whatever the session left — even when the exec raised or
+            # the sample's time limit cancelled it — so credits already spent
+            # still reach the matrix. Shielded (bounded) so cancellation can't
+            # abort the cleanup; the original exception then propagates.
+            record["agent_duration_s"] = time.monotonic() - started
+            record["status"] = "completed" if run is not None else "interrupted"
+            with anyio.move_on_after(COLLECT_TIMEOUT_S, shield=True):
+                await _collect(raw, state, record, model)
 
         if run.returncode != 0:
             stderr = (await _read_or_empty(raw, STDERR_FILE))[-500:]
@@ -255,6 +273,24 @@ def copilot_cli(skill_dirs: Sequence[Path] = (), system_prompt: str = "") -> Age
         return state
 
     return execute
+
+
+async def _collect(
+    raw: SandboxEnvironment, state: AgentState, record: dict, model: str
+) -> None:
+    """Replay events into the transcript and record usage, tolerating missing
+    or truncated files (an interrupted session writes no usage file)."""
+    messages, final, result = parse_events(
+        (await _read_or_empty(raw, EVENTS_FILE)).splitlines()
+    )
+    state.messages.extend(messages)
+    state.output = ModelOutput.from_content(model=f"copilot/{model}", content=final)
+    try:
+        usage = json.loads(await _read_or_empty(raw, USAGE_FILE) or "{}")
+    except json.JSONDecodeError:
+        usage = {}
+    record.update(parse_usage(usage, result, model))
+    store().set("copilot", record)
 
 
 async def _read_or_empty(sb: SandboxEnvironment, path: str) -> str:

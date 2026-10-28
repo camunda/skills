@@ -141,3 +141,70 @@ def test_command_keeps_token_out_of_shell_and_quotes_model():
     assert "--secret-env-vars=COPILOT_GITHUB_TOKEN" in cmd
     assert "'claude-sonnet-5.5; rm -rf /'" in cmd
     assert "--no-ask-user" in cmd and "--output-format json" in cmd
+
+
+def test_interrupted_session_keeps_partial_telemetry(monkeypatch):
+    """A timeout mid-run still replays events and records checkpoint credits."""
+    import anyio
+    import pytest
+    from inspect_ai.agent import AgentState
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.util import ExecResult
+
+    import core.copilot_cli as cc
+
+    partial_events = "\n".join(
+        [json.dumps(EVENTS[4]), json.dumps(EVENTS[5])]
+        + [
+            json.dumps(
+                {
+                    "type": "session.usage_checkpoint",
+                    "data": {"totalNanoAiu": 2_500_000_000, "totalPremiumRequests": 1},
+                }
+            ),
+            '{"type": "assistant.mess',  # truncated mid-write
+        ]
+    )
+
+    class FakeSandbox:
+        def as_type(self, _cls):
+            return self
+
+        async def exec(self, cmd, **kwargs):
+            if "--version" in cmd[-1]:
+                return ExecResult(True, 0, "GitHub Copilot CLI 9.9.9.", "")
+            raise TimeoutError("sample time limit")
+
+        async def write_file(self, path, data):
+            pass
+
+        async def read_file(self, path, text=True):
+            if path == cc.EVENTS_FILE:
+                return partial_events
+            raise FileNotFoundError(path)
+
+    class FakeStore(dict):
+        def set(self, key, value):
+            self[key] = value
+
+    fake_store = FakeStore()
+    monkeypatch.setattr(cc, "sandbox", lambda: FakeSandbox())
+    monkeypatch.setattr(cc, "store", lambda: fake_store)
+    monkeypatch.setenv(cc.MODEL_ENV, "gpt-6.1-sol")
+    monkeypatch.setenv(cc.TOKEN_ENV, "test-token")
+
+    agent = cc.copilot_cli(skill_dirs=[], system_prompt="rules")
+    state = AgentState(messages=[ChatMessageUser(content="go")])
+
+    async def run():
+        with pytest.raises(TimeoutError):
+            await agent(state)
+
+    anyio.run(run)
+
+    record = fake_store["copilot"]
+    assert record["status"] == "interrupted" and record["partial"] is True
+    assert record["ai_credits"] == 2.5 and record["premium_requests"] == 1
+    assert record["agent_duration_s"] >= 0
+    # The lint run before the interruption is in the transcript.
+    assert lint_attempts(state.messages).attempts_to_clean == 1

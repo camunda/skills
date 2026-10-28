@@ -127,6 +127,69 @@ class TestLintAttempts:
         assert lint_attempts(_turn(call, BPMN_CLEAN)).attempts_to_clean == 1
 
 
+class TestLintMatchingReviewCases:
+    """Regression cases from the PR #130 review."""
+
+    HELPER = (
+        "cat > validate-form.cjs << 'EOF'\n"
+        "const file = process.argv[2];\n"
+        "if (!file) { console.error('Usage: node validate-form.cjs <path>'); "
+        "process.exit(1); }\n"
+        "EOF"
+    )
+
+    def _runs(self, command, output="", call_id=None):
+        call = NS(id=call_id or f"r{next(_ids)}", arguments={"command": command})
+        return lint_attempts(_turn(call, output)).runs
+
+    def test_helper_heredoc_is_not_a_run(self):
+        assert self._runs(self.HELPER) == []
+
+    def test_heredoc_then_real_run_counts_once(self):
+        runs = self._runs(self.HELPER + "\nnode validate-form.cjs a.form", "Valid ✓")
+        assert [(r.validator, r.verdict) for r in runs] == [("form", "clean")]
+
+    def test_quoted_mentions_are_not_runs(self):
+        assert self._runs('echo "next: c8ctl bpmn lint --json p.bpmn"') == []
+
+    def test_dry_run_does_not_hide_real_lint_in_same_call(self):
+        cmd = "c8ctl --dry-run bpmn lint --json p.bpmn && c8ctl bpmn lint --json p.bpmn"
+        runs = self._runs(cmd, '{"dryRun": true}\n' + BPMN_DIRTY)
+        assert [(r.validator, r.verdict) for r in runs] == [("bpmn", "dirty")]
+
+    def test_dmn_failures_and_missing_results_are_unknown(self):
+        cmd = "npx --yes dmnlint d.dmn"
+        assert (
+            self._runs(cmd, "sh: 1: dmnlint: Permission denied")[0].verdict == "unknown"
+        )
+        assert self._runs(cmd, "some unexpected banner")[0].verdict == "unknown"
+        # No tool result at all (the call never returned).
+        msgs = [
+            NS(role="assistant", tool_calls=[NS(id="x1", arguments={"command": cmd})])
+        ]
+        assert lint_attempts(msgs).runs[0].verdict == "unknown"
+
+    def test_dmn_exit_code_evidence(self):
+        cmd = "npx --yes dmnlint d.dmn"
+        assert (
+            self._runs(cmd, "<shellId: 0 completed with exit code 0>")[0].verdict
+            == "clean"
+        )
+        assert (
+            self._runs(cmd, "<shellId: 0 completed with exit code 1>")[0].verdict
+            == "dirty"
+        )
+        assert (
+            self._runs(cmd, "<shellId: 0 completed with exit code 2>")[0].verdict
+            == "unknown"
+        )
+
+    def test_form_failure_beats_earlier_success(self):
+        out = 'Valid ✓\n[{"instancePath": "/components/0", "keyword": "required"}]'
+        cmd = "node validate-form.cjs a.form; node validate-form.cjs b.form"
+        assert self._runs(cmd, out)[0].verdict == "dirty"
+
+
 class TestModelSpecs:
     def _targets(self):
         return [
@@ -261,3 +324,24 @@ class TestAggregation:
         header = next(line for line in md.splitlines() if line.startswith("| eval"))
         # Columns follow the requested --models order, not alphabetical.
         assert header.index("gpt-6.1-sol") < header.index("gemini-4-argon")
+
+
+def test_retried_job_keeps_only_newest_log():
+    from scripts.model_matrix import select_latest
+
+    old = _log([_sample("a", 1, passed=False, copilot=_copilot())])
+    new = _log([_sample("a", 1, passed=True, copilot=_copilot())])
+    other = _log(
+        [_sample("a", 1, copilot=_copilot("gpt-6.1-sol"))], copilot_model="gpt-6.1-sol"
+    )
+    kept = select_latest(
+        [
+            ("logs/2026-10-29T01-00_camunda-bpmn_x.eval", old),
+            ("logs/2026-10-29T02-00_camunda-bpmn_y.eval", new),
+            ("logs/2026-10-29T01-30_camunda-bpmn_z.eval", other),
+        ]
+    )
+    assert kept == [other, new]
+    cells = aggregate([r for log in kept for r in collect_runs(log)])
+    sonnet = next(c for c in cells if c["model"] == "claude-sonnet-5.5")
+    assert (sonnet["runs"], sonnet["passed"]) == (1, 1)
