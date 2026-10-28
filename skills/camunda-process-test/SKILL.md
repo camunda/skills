@@ -26,7 +26,7 @@ Node.js POM reads the environment variable and standard Java layouts do not need
 
 ## Cross-References
 
-- **camunda-bpmn**: Run `c8ctl bpmn lint` on the process under test before authoring scenarios — failing lints surface as deploy-time `@TestDeployment` failures.
+- **camunda-bpmn**: Run the lint loop on the process under test before authoring scenarios — failing lints surface as deploy-time `@TestDeployment` failures.
 - **camunda-feel**: Use when a gateway condition or DMN entry is unclear; FEEL semantics drive which segment hits which branch.
 - **camunda-dmn**: Use when a DMN decision is the unit under test — CPT exercises it via the calling business rule task; pair with `npx dmnlint` for structural checks.
 - **camunda-job-workers**: Use when the handler code that backs a service task is itself under test — CPT drives BPMN reachability; worker unit tests drive handler behaviour.

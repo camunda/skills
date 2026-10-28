@@ -73,6 +73,8 @@ Default to `UNIQUE`. Use `FIRST` for hard-then-soft semantics (e.g. "blocklist f
 
 `<zeebe:calledDecision>` also accepts `bindingType` — `latest` (default), `deployment`, `versionTag`. See **camunda-bpmn** for the binding-type table; `deployment` is the right choice when BPMN and DMN are co-deployed.
 
+If you edited the BPMN, run the BPMN lint loop (see **camunda-bpmn**) on it until clean — `dmnlint` does not check the BPMN side.
+
 ## FEEL inside DMN
 
 DMN uses FEEL in `inputExpression`, `inputEntry` (unary tests), `outputEntry`, and `literalExpression`. Unlike BPMN, **no `=` prefix** — every `text` element is parsed as FEEL.
@@ -92,7 +94,7 @@ Two layers — run both before declaring a file done.
 npx --yes dmnlint path/to/decision.dmn
 ```
 
-For directory-wide work, discover `.dmn` files recursively first (skip `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`), then lint each discovered file. Keep a fix loop open: lint → targeted XML edits → re-lint until the set is clean.
+For directory-wide work, discover `.dmn` files recursively first (skip `.git`, `node_modules`, `target`, `build`, `.gradle`, `.mvn`, `.idea`, `.settings`, `.snapshots`), then lint each discovered file. Keep a fix loop open: lint → targeted XML edits → re-lint until the set is clean. If the same issue survives three fix attempts, stop and report it to the user instead of rewriting the file or disabling the rule.
 
 Common rules: `label-required` (add a `name`), `no-duplicate-requirements` (drop the duplicate `informationRequirement` edge). See [references/dmnlint.md](references/dmnlint.md) for the full rule → fix mapping.
 
