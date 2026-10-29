@@ -19,7 +19,7 @@ on:
       models:
         description: "Comma-separated Copilot CLI model ids (as accepted by copilot --model)"
         type: string
-        default: "claude-sonnet-5.5,claude-opus-5.5,claude-haiku-5.5,gpt-6.1-sol,gemini-4-argon"
+        default: "claude-sonnet-5,claude-opus-5,gpt-5.6-sol,gemini-3.8-flash"
       epochs:
         description: "Epochs per sample (repeat runs for stable medians)"
         type: number
@@ -40,7 +40,7 @@ concurrency:
 
 env:
   # Defaults for scheduled runs, where `inputs` is empty.
-  MODELS: ${{ inputs.models || 'claude-sonnet-5.5,claude-opus-5.5,claude-haiku-5.5,gpt-6.1-sol,gemini-4-argon' }}
+  MODELS: ${{ inputs.models || 'claude-sonnet-5,claude-opus-5,gpt-5.6-sol,gemini-3.8-flash' }}
   EPOCHS: ${{ inputs.epochs || 3 }}
   # Fixed LLM judge (Inspect, via ANTHROPIC_API_KEY) for the model_graded_qa
   # scorer in camunda-development, so every Copilot model is graded alike.
