@@ -153,9 +153,14 @@ comparison matrix → Run workflow**):
 
 | Input | Default | Meaning |
 |---|---|---|
-| `models` | `claude-sonnet-5.5,claude-opus-5.5,claude-haiku-5.5,gpt-6.1-sol,gemini-4-argon` | comma-separated Copilot model ids (`copilot --model`) — the matrix columns |
+| `models` | `claude-sonnet-5,claude-opus-5,gpt-5.6-sol,gemini-3.8-flash` | comma-separated Copilot model ids (`copilot --model`) — the matrix columns |
 | `epochs` | `3` | repeat runs per sample, for steadier medians |
 | `target` | _(all)_ | substring of the target path, e.g. `camunda-bpmn`, for a partial run |
+
+The default `models` are picked from what the **job token** can use (checked
+2026-10-29 — newer ids such as `claude-sonnet-5.5` were available to personal
+seats but not to org-billed CLI usage). The *Check Copilot models* step's job
+summary lists the current catalogue when you need to refresh them.
 
 **Model ids are per token.** The job token is billed to the org and governed
 by the org's Copilot model policy, so its catalogue can differ from a personal
@@ -231,7 +236,7 @@ few, so treat small differences as noise.
 **Cost of a run.** Copilot starts one session per dataset sample per epoch, so a
 run is *Σ samples of the selected targets × models × epochs* sessions — not
 targets. The outcome evals hold ~33 samples today (camunda-development alone has
-7), so a full default run is ~33 × 5 × 3 ≈ 500 sessions. Start with `target` and
+7), so a full default run is ~33 × 4 × 3 ≈ 400 sessions. Start with `target` and
 fewer models/epochs.
 
 **Re-runs.** Re-running failed jobs is safe: the matrix keeps only the newest log
