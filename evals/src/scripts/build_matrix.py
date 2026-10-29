@@ -107,7 +107,8 @@ def build_model_specs(
 ) -> list[dict]:
     """One entry per outcome target × Copilot model, ``with_skill`` arm only.
 
-    Triggers are skipped (routing isn't what the model comparison measures).
+    Triggers are skipped (routing isn't what the model comparison measures),
+    as are outcome evals that opt out via ``EvalMetadata(model_matrix=False)``.
     ``model`` is a Copilot CLI model id (``copilot --model``), exported to the
     agent as ``COPILOT_MODEL`` — not an Inspect ``--model``.
     Concurrency mirrors ``build_specs`` but is capped at
@@ -117,7 +118,7 @@ def build_model_specs(
     """
     specs: list[dict] = []
     for t in targets:
-        if t.kind == "trigger":
+        if t.kind == "trigger" or not t.model_matrix:
             continue
         slug = t.id.replace(":", "-")
         base_targs = _base_targs(t)

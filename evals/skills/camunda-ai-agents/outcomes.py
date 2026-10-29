@@ -38,7 +38,13 @@ from inspect_swe import claude_code
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
-METADATA = EvalMetadata(skills=["camunda-ai-agents"], max_sandboxes=1)
+METADATA = EvalMetadata(
+    skills=["camunda-ai-agents"],
+    max_sandboxes=1,
+    # Most samples gate on the host-side `request_configuration` tool, which
+    # the Copilot CLI agent can't see — scores would measure the harness.
+    model_matrix=False,
+)
 
 BPMN_PATH = "/workspace/process.bpmn"
 

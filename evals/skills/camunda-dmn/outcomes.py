@@ -96,6 +96,17 @@ def _validate_common(root: ET.Element) -> str | None:
     return None
 
 
+# Lint with the scorer's own config, from a scratch directory: dmnlint reads
+# `.dmnlintrc` from its cwd, and agents often create one to lint and then
+# delete it as cleanup — the gate must not depend on that file. The config is
+# the one camunda-dmn prescribes.
+DMNLINT_WITH_SCORER_CONFIG = (
+    'd="$(mktemp -d)" && cd "$d" && '
+    """printf '{ "extends": "dmnlint:recommended" }' > .dmnlintrc && """
+    "npx --yes dmnlint /workspace/decision.dmn"
+)
+
+
 @scorer(metrics=[mean(), stderr()])
 def dmn_outcome() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
@@ -113,9 +124,7 @@ def dmn_outcome() -> Scorer:
         if common_error:
             return Score(value=0.0, explanation=common_error)
 
-        lint = await sb.exec(
-            ["npx", "--yes", "dmnlint", "/workspace/decision.dmn"], timeout=60
-        )
+        lint = await sb.exec(["bash", "-c", DMNLINT_WITH_SCORER_CONFIG], timeout=90)
         if lint.returncode != 0:
             return Score(
                 value=0.0,
