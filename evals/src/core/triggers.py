@@ -114,7 +114,7 @@ def route(excluded: list[str]) -> Solver:
                         "skills": JSONSchema(
                             type="array",
                             items=JSONSchema(type="string", enum=names),
-                        )
+                        ),
                     },
                     required=["reasoning", "skills"],
                     additionalProperties=False,

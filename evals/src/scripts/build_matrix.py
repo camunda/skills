@@ -81,6 +81,11 @@ def build_specs(targets: list[EvalTarget], compare: bool) -> list[dict]:
 
 # Per-job concurrent Copilot sessions in model-comparison mode.
 MODEL_MAX_SANDBOXES = 4
+# Tasks size `message_limit` for Inspect-driven agents. Copilot runs its own
+# loop and its transcript is replayed afterwards, so the task limit would only
+# truncate that replay (and abort telemetry collection). The time limit still
+# bounds the session.
+MODEL_MESSAGE_LIMIT = 100_000
 
 
 def _model_slug(model: str) -> str:
@@ -130,7 +135,8 @@ def build_model_specs(
                     "model": model,
                     "sandbox": True,
                     "limit": (
-                        f"--max-sandboxes {n} --max-samples {n} --epochs {epochs}"
+                        f"--max-sandboxes {n} --max-samples {n} --epochs {epochs} "
+                        f"--message-limit {MODEL_MESSAGE_LIMIT}"
                     ),
                     "display": "plain",
                 }

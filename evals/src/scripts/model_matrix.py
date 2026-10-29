@@ -171,6 +171,8 @@ def collect_runs(log) -> list[dict]:
                 "passed": _sample_passed(sample, gating),
                 "errored": bool(getattr(sample, "error", None)),
                 "error": error_summary(sample),
+                # Inspect limit that ended the sample (time, message, ...).
+                "limit": getattr(getattr(sample, "limit", None), "type", None),
                 "skill_loaded": (
                     None if skill is None else score_to_float(skill.value) >= 1.0
                 ),
@@ -240,6 +242,9 @@ def aggregate(runs: list[dict]) -> list[dict]:
                 # truncate only for display.
                 "error_counts": dict(
                     Counter(r["error"] for r in rs if r["error"]).most_common()
+                ),
+                "limit_hits": dict(
+                    Counter(r["limit"] for r in rs if r["limit"]).most_common()
                 ),
                 # Interrupted runs: credits from usage checkpoints, tokens unknown.
                 "partial_usage_runs": sum(r["partial_usage"] for r in rs),
@@ -435,6 +440,21 @@ def _errors_section(cells: list[dict], models: list[str]) -> list[str]:
     ]
 
 
+def _limit_note(cells: list[dict]) -> list[str]:
+    hits: Counter = Counter()
+    for c in cells:
+        hits.update(c["limit_hits"])
+    if not hits:
+        return []
+    kinds = ", ".join(f"{k}: {n}" for k, n in hits.most_common())
+    return [
+        f"> [!NOTE]\n> **{sum(hits.values())} run(s) were stopped by an Inspect "
+        f"limit** ({kinds}) and scored on whatever they had produced. See the "
+        "*limits hit* column in the detail tables.",
+        "",
+    ]
+
+
 def _partial_note(cells: list[dict]) -> list[str]:
     n = sum(c["partial_usage_runs"] for c in cells)
     if not n:
@@ -460,6 +480,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
         "significant.",
         "",
         *_error_banner(cells),
+        *_limit_note(cells),
         "### Overall",
         "",
         *_overall(cells, models),
@@ -526,6 +547,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
                     f"{c['passed']}/{c['runs']}",
                     str(c["errored"]),
                     str(c["partial_usage_runs"]),
+                    ", ".join(f"{k} {n}" for k, n in c["limit_hits"].items()) or "0",
                     _pct(c["skill_load_rate"]),
                     _cell_lint(c),
                     "/".join(_tok(t[f]) for f in USAGE_FIELDS),
@@ -543,6 +565,7 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
                     "passed",
                     "errored",
                     "partial usage",
+                    "limits hit",
                     "skill loaded",
                     "lint attempts",
                     "tokens I/CW/CR/O",
