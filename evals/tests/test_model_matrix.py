@@ -316,16 +316,21 @@ class TestModelSpecs:
         ]
         assert all(s["arm"] == "with_skill" for s in specs)
         assert all("-T agent=copilot_cli" in s["targs"] for s in specs)
+        # Task message limits are sized for Inspect-driven agents; lifted here.
+        assert all("--message-limit 100000" in s["limit"] for s in specs)
         assert all("--epochs 3" in s["limit"] for s in specs)
         assert specs[0]["slug"] == "skill-camunda-bpmn-anthropic-claude-a"
         assert len({s["slug"] for s in specs}) == len(specs)
 
 
-def _sample(sid, epoch, *, passed=True, messages=(), error=None, copilot=None):
+def _sample(
+    sid, epoch, *, passed=True, messages=(), error=None, copilot=None, limit=None
+):
     return NS(
         id=sid,
         epoch=epoch,
         error=error,
+        limit=NS(type=limit) if limit else None,
         total_time=300.0,
         model_usage={},
         store={"copilot": copilot} if copilot is not None else {},
@@ -639,3 +644,27 @@ def test_errors_table_escapes_pipes_but_json_keeps_raw_message():
     assert "command failed: a \\| b" in row
     # Model / errored / message: the escaped pipe doesn't add a column.
     assert len(row.replace("\\|", "").strip("|").split("|")) == 3
+
+
+def test_limit_hits_are_counted_and_flagged():
+    runs = collect_runs(
+        _log(
+            [
+                _sample("a", 1, copilot=_copilot(), limit="message"),
+                _sample("a", 2, copilot=_copilot(), limit="time", passed=False),
+                _sample("a", 3, copilot=_copilot()),
+            ]
+        )
+    )
+    [cell] = aggregate(runs)
+    assert cell["limit_hits"] == {"message": 1, "time": 1}
+    # Limits aren't errors: no error banner, but a note and a detail column.
+    md = render_markdown([cell], ["claude-sonnet-5.5"])
+    assert "2 run(s) were stopped by an Inspect limit** (message: 1, time: 1)" in md
+    assert "errored (" not in md
+    detail = next(
+        line
+        for line in md.splitlines()
+        if line.startswith("| claude-sonnet-5.5 ") and "message 1, time 1" in line
+    )
+    assert detail

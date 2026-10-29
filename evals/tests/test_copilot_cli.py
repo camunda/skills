@@ -210,3 +210,61 @@ def test_interrupted_session_keeps_partial_telemetry(monkeypatch):
     assert set(record["tokens"].values()) == {None}
     # The lint run before the interruption is in the transcript.
     assert lint_attempts(state.messages).attempts_to_clean == 1
+
+
+def test_usage_survives_a_failing_transcript_replay(monkeypatch):
+    """Seen in CI: replaying a long Gemini session tripped the task's message
+    limit mid-collection and lost the usage. Usage is now stored first."""
+    import anyio
+    import pytest
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.util import ExecResult
+
+    import core.copilot_cli as cc
+
+    class FakeSandbox:
+        def as_type(self, _cls):
+            return self
+
+        async def exec(self, cmd, **kwargs):
+            out = "GitHub Copilot CLI 9.9.9." if "--version" in cmd[-1] else ""
+            return ExecResult(True, 0, out, "")
+
+        async def write_file(self, path, data):
+            pass
+
+        async def read_file(self, path, text=True):
+            if path == cc.EVENTS_FILE:
+                return "\n".join(json.dumps(e) for e in EVENTS)
+            if path == cc.USAGE_FILE:
+                return json.dumps(USAGE)
+            raise FileNotFoundError(path)
+
+    class FakeStore(dict):
+        def set(self, key, value):
+            self[key] = value
+
+    class LimitedMessages(list):
+        def extend(self, _items):
+            raise RuntimeError("message limit exceeded")
+
+    class State:
+        messages = LimitedMessages([ChatMessageUser(content="go")])
+        output = None
+
+    fake_store = FakeStore()
+    monkeypatch.setattr(cc, "sandbox", lambda: FakeSandbox())
+    monkeypatch.setattr(cc, "store", lambda: fake_store)
+    monkeypatch.setenv(cc.MODEL_ENV, "gemini-3.8-flash")
+    monkeypatch.setenv(cc.TOKEN_ENV, "test-token")
+    state = State()
+
+    async def run():
+        with pytest.raises(RuntimeError, match="message limit"):
+            await cc.copilot_cli(skill_dirs=[], system_prompt="r")(state)
+
+    anyio.run(run)
+    record = fake_store["copilot"]
+    assert record["ai_credits"] == USAGE["totalNanoAiu"] / 1e9
+    assert record["transcript_messages"] == 5
+    assert state.output.completion == "DONE"

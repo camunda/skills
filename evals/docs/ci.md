@@ -169,6 +169,13 @@ and continues unverified. `auto` is always accepted. To check locally with
 your own token: `COPILOT_GITHUB_TOKEN=$(gh auth token) uv run
 evals-copilot-models --check <ids>`.
 
+**Inspect limits.** Tasks size `message_limit` for Inspect-driven agents;
+Copilot runs its own loop and its transcript is replayed afterwards, so model
+mode lifts the message limit (`--message-limit 100000`) — otherwise a long
+session's replay would be cut short. The task's `time_limit` still applies.
+Runs stopped by any Inspect limit are counted in a note at the top of the
+report and a *limits hit* column, and scored on what they produced.
+
 **Failures are loud.** If runs error (an agent or sandbox failure rather than a
 wrong answer), the summary opens with a banner and an **Errors** table of the
 most common message per model, fully errored models get a warning annotation,

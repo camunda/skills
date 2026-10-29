@@ -282,19 +282,25 @@ def copilot_cli(skill_dirs: Sequence[Path] = (), system_prompt: str = "") -> Age
 async def _collect(
     raw: SandboxEnvironment, state: AgentState, record: dict, model: str
 ) -> None:
-    """Replay events into the transcript and record usage, tolerating missing
-    or truncated files (an interrupted session writes no usage file)."""
+    """Record usage, then replay events into the transcript, tolerating missing
+    or truncated files (an interrupted session writes no usage file).
+
+    Usage and the final output are stored *before* the replay: appending
+    messages can raise (e.g. an Inspect message limit), and the credits a
+    session spent must survive that.
+    """
     messages, final, result = parse_events(
         (await _read_or_empty(raw, EVENTS_FILE)).splitlines()
     )
-    state.messages.extend(messages)
-    state.output = ModelOutput.from_content(model=f"copilot/{model}", content=final)
     try:
         usage = json.loads(await _read_or_empty(raw, USAGE_FILE) or "{}")
     except json.JSONDecodeError:
         usage = {}
     record.update(parse_usage(usage, result, model))
+    record["transcript_messages"] = len(messages)
     store().set("copilot", record)
+    state.output = ModelOutput.from_content(model=f"copilot/{model}", content=final)
+    state.messages.extend(messages)
 
 
 async def _read_or_empty(sb: SandboxEnvironment, path: str) -> str:
