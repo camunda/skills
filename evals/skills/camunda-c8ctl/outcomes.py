@@ -40,11 +40,24 @@ BASE_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-base.yaml"))
 WITH_C8CTL_SANDBOX = ("docker", str(SANDBOXES_DIR / "compose-with-c8ctl.yaml"))
 
 
+# Resolve c8ctl as a fresh login shell would after the agent's install. The
+# agent user can't write the system npm prefix, so a valid install often goes
+# to a user prefix (`npm config set prefix ~/.npm-global`) with PATH extended
+# in ~/.bashrc — which non-interactive shells never read. npm's configured
+# prefix is the authoritative location for `npm install -g`.
+RESOLVE_C8CTL = (
+    'PATH="$(npm config get prefix 2>/dev/null)/bin:$HOME/.npm-global/bin:'
+    '$HOME/.local/bin:$PATH"; '
+    "command -v c8ctl && c8ctl --version"
+)
+
+
 @scorer(metrics=[mean(), stderr()])
 def c8ctl_outcome() -> Scorer:
     """Dispatch scorer keyed on ``state.metadata['check']``:
 
-    - ``installed``: ``c8ctl --version`` exits 0.
+    - ``installed``: ``c8ctl --version`` exits 0, with ``c8ctl`` resolved on
+      ``PATH`` plus npm's configured global prefix (``RESOLVE_C8CTL``).
     - ``topology``: ``/workspace/topology.json`` exists and is valid JSON.
     - ``users``: ``/workspace/users.json`` exists and is valid JSON.
     """
@@ -54,12 +67,13 @@ def c8ctl_outcome() -> Scorer:
         sb = sandbox()
 
         if check == "installed":
-            result = await sb.exec(["c8ctl", "--version"], timeout=10)
+            result = await sb.exec(["bash", "-c", RESOLVE_C8CTL], timeout=30)
             if result.returncode == 0:
+                where, _, version = result.stdout.strip().partition("\n")
                 return Score(
                     value=1.0,
-                    explanation=f"c8ctl --version → {result.stdout.strip()}",
-                    metadata={"version_output": result.stdout},
+                    explanation=f"{where} --version → {version.strip()}",
+                    metadata={"version_output": version, "path": where},
                 )
             return Score(
                 value=0.0,

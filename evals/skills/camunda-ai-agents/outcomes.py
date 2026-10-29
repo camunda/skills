@@ -108,6 +108,24 @@ def _build_evaluator_agent(
             cwd="/workspace",
             disallowed_tools=["ExitPlanMode"],
         )
+    if agent == "copilot_cli":
+        # The tool reaches Copilot as an MCP server via Inspect's sandbox
+        # bridge, as it does for Claude Code above.
+        from core.copilot_cli import copilot_cli
+
+        return copilot_cli(
+            skill_dirs=list(skill_dirs),
+            system_prompt=WORKSPACE_RULES,
+            bridged_tools=(
+                [
+                    BridgedToolsSpec(
+                        name="configuration", tools=[request_configuration()]
+                    )
+                ]
+                if include_configuration_tool
+                else None
+            ),
+        )
     if agent != "react":
         return build_agent(agent, skill_dirs, submit=False)
     return react(
@@ -312,6 +330,18 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     return score
 
 
+def _is_configuration_request(name: str) -> bool:
+    """The tool under each harness's name: react calls it directly; bridged
+    MCP tools are prefixed with the server name — Claude Code as
+    ``mcp__configuration__request_configuration``, Copilot CLI as
+    ``configuration-request_configuration``."""
+    return name in {
+        "request_configuration",
+        "mcp__configuration__request_configuration",
+        "configuration-request_configuration",
+    }
+
+
 @scorer(metrics=[mean(), stderr()])
 def configuration_requested() -> Scorer:
     """Verify that incomplete provider configuration stops BPMN authoring."""
@@ -331,11 +361,7 @@ def configuration_requested() -> Scorer:
         requested = [
             (index, arguments)
             for index, (name, arguments) in enumerate(calls)
-            if name
-            in {
-                "request_configuration",
-                "mcp__configuration__request_configuration",
-            }
+            if _is_configuration_request(name)
         ]
         pre_request_calls = calls[: requested[0][0]] if len(requested) == 1 else []
         performed_work = any(name.lower() != "skill" for name, _ in pre_request_calls)

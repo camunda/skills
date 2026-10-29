@@ -37,6 +37,13 @@ class EvalMetadata(BaseModel):
     and concurrent JVMs starve each other. Raise it for self-contained evals
     (e.g. judge-only, no cluster) to parallelize the rollouts."""
 
+    model_matrix: bool = True
+    """Whether ``eval-models.yml`` includes this eval in the model comparison.
+    Set ``False`` only when the eval depends on something the Copilot CLI agent
+    can't reproduce, so its scores would reflect the harness rather than the
+    model. Host-side Inspect tools are *not* such a case: pass them to
+    ``copilot_cli(bridged_tools=...)`` (see camunda-ai-agents)."""
+
     @property
     def excluded_skills(self) -> list[str] | Literal["all"]:
         """The resolved without-skill exclusion (defaults to ``skills``)."""

@@ -22,11 +22,18 @@ import json
 import os
 import shlex
 import time
+from contextlib import AsyncExitStack
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import anyio
-from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    BridgedToolsSpec,
+    agent,
+    sandbox_agent_bridge,
+)
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ModelOutput
 from inspect_ai.tool import ToolCall
 from inspect_ai.util import SandboxEnvironment, sandbox, store
@@ -40,6 +47,7 @@ EVENTS_FILE = "/tmp/copilot-events.jsonl"
 USAGE_FILE = "/tmp/copilot-usage.json"
 PROMPT_FILE = "/tmp/copilot-prompt.md"
 STDERR_FILE = "/tmp/copilot-stderr.txt"
+MCP_CONFIG_FILE = "/tmp/copilot-mcp.json"
 
 # Wall-clock cap for one Copilot run; the task's own time_limit still applies.
 RUN_TIMEOUT_S = 3600
@@ -181,7 +189,23 @@ def parse_usage(usage: dict, result: dict, requested_model: str) -> dict:
     }
 
 
-def _copilot_command(model: str) -> str:
+def mcp_config(servers) -> dict:
+    """Copilot ``--additional-mcp-config`` JSON for Inspect's bridged-tool MCP
+    servers (``MCPServerConfigHTTP``: name, type, url, headers)."""
+    return {
+        "mcpServers": {
+            s.name: {
+                "type": s.type,
+                "url": s.url,
+                **({"headers": s.headers} if s.headers else {}),
+                "tools": ["*"],
+            }
+            for s in servers
+        }
+    }
+
+
+def _copilot_command(model: str, mcp_config_file: str | None = None) -> str:
     flags = [
         "--model", model,
         "--allow-all",
@@ -192,6 +216,7 @@ def _copilot_command(model: str) -> str:
         "--usage-output-file", USAGE_FILE,
         f"--secret-env-vars={TOKEN_ENV}",
         "--log-level", "none",
+        *(["--additional-mcp-config", f"@{mcp_config_file}"] if mcp_config_file else []),
     ]  # fmt: skip
     return (
         f'copilot -p "$(cat {PROMPT_FILE})" {shlex.join(flags)} '
@@ -224,10 +249,21 @@ async def _ensure_cli(sb: SandboxEnvironment) -> str:
 
 
 @agent
-def copilot_cli(skill_dirs: Sequence[Path] = (), system_prompt: str = "") -> Agent:
-    """Run the sample through GitHub Copilot CLI in the default sandbox."""
+def copilot_cli(
+    skill_dirs: Sequence[Path] = (),
+    system_prompt: str = "",
+    bridged_tools: Sequence[BridgedToolsSpec] | None = None,
+) -> Agent:
+    """Run the sample through GitHub Copilot CLI in the default sandbox.
+
+    ``bridged_tools`` exposes host-side Inspect tools to Copilot as MCP
+    servers inside the sandbox (Inspect's sandbox agent bridge — the same
+    mechanism ``inspect_swe``'s Claude Code agent uses). Copilot's own model
+    calls still go to GitHub; the bridge only serves the tools.
+    """
 
     skill_dirs = list(skill_dirs)
+    bridged_tools = list(bridged_tools or [])
 
     async def execute(state: AgentState) -> AgentState:
         model = os.environ.get(MODEL_ENV)
@@ -249,27 +285,17 @@ def copilot_cli(skill_dirs: Sequence[Path] = (), system_prompt: str = "") -> Age
             await raw.write_file(path, data)
         await sb.write_file(PROMPT_FILE, _prompt_text(state, system_prompt))
 
-        started = time.monotonic()
-        run = None
-        try:
-            run = await raw.exec(
-                ["bash", "-lc", _copilot_command(model)],
-                cwd="/workspace",
-                env={
-                    TOKEN_ENV: token,
-                    "COPILOT_SKILLS_DIRS": SKILLS_ROOT if skill_dirs else "",
-                },
-                timeout=RUN_TIMEOUT_S,
-            )
-        finally:
-            # Recover whatever the session left — even when the exec raised or
-            # the sample's time limit cancelled it — so credits already spent
-            # still reach the matrix. Shielded (bounded) so cancellation can't
-            # abort the cleanup; the original exception then propagates.
-            record["agent_duration_s"] = time.monotonic() - started
-            record["status"] = "completed" if run is not None else "interrupted"
-            with anyio.move_on_after(COLLECT_TIMEOUT_S, shield=True):
-                await _collect(raw, state, record, model)
+        async with AsyncExitStack() as stack:
+            mcp_file = None
+            if bridged_tools:
+                bridge = await stack.enter_async_context(
+                    sandbox_agent_bridge(state, bridged_tools=bridged_tools)
+                )
+                mcp_file = MCP_CONFIG_FILE
+                await sb.write_file(
+                    mcp_file, json.dumps(mcp_config(bridge.mcp_server_configs))
+                )
+            run = await _run(raw, state, record, model, token, skill_dirs, mcp_file)
 
         if run.returncode != 0:
             stderr = (await _read_or_empty(raw, STDERR_FILE))[-500:]
@@ -277,6 +303,39 @@ def copilot_cli(skill_dirs: Sequence[Path] = (), system_prompt: str = "") -> Age
         return state
 
     return execute
+
+
+async def _run(
+    raw: SandboxEnvironment,
+    state: AgentState,
+    record: dict,
+    model: str,
+    token: str,
+    skill_dirs: list[Path],
+    mcp_file: str | None,
+):
+    started = time.monotonic()
+    run = None
+    try:
+        run = await raw.exec(
+            ["bash", "-lc", _copilot_command(model, mcp_file)],
+            cwd="/workspace",
+            env={
+                TOKEN_ENV: token,
+                "COPILOT_SKILLS_DIRS": SKILLS_ROOT if skill_dirs else "",
+            },
+            timeout=RUN_TIMEOUT_S,
+        )
+    finally:
+        # Recover whatever the session left — even when the exec raised or
+        # the sample's time limit cancelled it — so credits already spent
+        # still reach the matrix. Shielded (bounded) so cancellation can't
+        # abort the cleanup; the original exception then propagates.
+        record["agent_duration_s"] = time.monotonic() - started
+        record["status"] = "completed" if run is not None else "interrupted"
+        with anyio.move_on_after(COLLECT_TIMEOUT_S, shield=True):
+            await _collect(raw, state, record, model)
+    return run
 
 
 async def _collect(

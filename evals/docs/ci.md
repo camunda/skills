@@ -56,7 +56,7 @@ to stop):
 ## Target selection
 
 No tiers. `evals-list --json` emits one entry per target —
-`{id, kind, skills, path, task, args, max_sandboxes}` — where `id` is e.g.
+`{id, kind, skills, path, task, args, max_sandboxes, model_matrix}` — where `id` is e.g.
 `trigger:camunda-feel`, `skill:camunda-feel`, or `scenario:rocket-launch`, and
 `kind` is `trigger | outcome`.
 
@@ -236,14 +236,18 @@ No pass/fail gate and no baselines (both are model-specific); failing samples
 are data. There's no automatic recommendation — read the matrix. Samples are
 few, so treat small differences as noise.
 
-**Known limitation.** `camunda-ai-agents` offers react agents a host-side
-`request_configuration` tool that Copilot can't see, so its
-`configuration_requested` samples aren't comparable under Copilot.
+**Eval-defined tools.** Host-side Inspect tools reach Copilot as MCP servers
+via Inspect's sandbox agent bridge (`copilot_cli(bridged_tools=...)`, passed to
+the CLI with `--additional-mcp-config`) — the same mechanism the Claude Code
+agent uses. `camunda-ai-agents` relies on this for its `request_configuration`
+tool, which Copilot names `configuration-request_configuration`. An eval whose
+scores would still measure the harness rather than the model can opt out with
+`EvalMetadata(model_matrix=False)`.
 
 **Cost of a run.** Copilot starts one session per dataset sample per epoch, so a
 run is *Σ samples of the selected targets × models × epochs* sessions — not
-targets. The outcome evals hold ~33 samples today (camunda-development alone has
-7), so a full default run is ~33 × 4 × 3 ≈ 400 sessions. Start with `target` and
+targets. The matrix's outcome evals hold ~33 samples today (camunda-development
+alone has 7), so a full default run is ~33 × 4 × 3 ≈ 400 sessions. Start with `target` and
 fewer models/epochs.
 
 **Re-runs.** Re-running failed jobs is safe: the matrix keeps only the newest log

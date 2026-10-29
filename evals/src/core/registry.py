@@ -42,6 +42,7 @@ class EvalTarget:
     task: str | None = None  # explicit @task name, if any
     args: dict[str, str] = field(default_factory=dict)
     max_sandboxes: int = 1  # --max-sandboxes for outcome evals (from METADATA)
+    model_matrix: bool = True  # included in eval-models.yml (from METADATA)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -52,6 +53,7 @@ class EvalTarget:
             "task": self.task,
             "args": self.args,
             "max_sandboxes": self.max_sandboxes,
+            "model_matrix": self.model_matrix,
         }
 
 
@@ -105,6 +107,7 @@ def _outcome_targets(base: Path, scope: str) -> list[EvalTarget]:
                 skills=meta.skills if meta.skills == "all" else list(meta.skills),
                 path=_rel(outcomes_py),
                 max_sandboxes=meta.max_sandboxes,
+                model_matrix=meta.model_matrix,
             )
         )
     return targets
