@@ -39,9 +39,10 @@ class EvalMetadata(BaseModel):
 
     model_matrix: bool = True
     """Whether ``eval-models.yml`` includes this eval in the model comparison.
-    Set ``False`` when the eval depends on something the Copilot CLI agent
-    can't reproduce (e.g. a host-side Inspect tool), so its scores would
-    reflect the harness rather than the model."""
+    Set ``False`` only when the eval depends on something the Copilot CLI agent
+    can't reproduce, so its scores would reflect the harness rather than the
+    model. Host-side Inspect tools are *not* such a case: pass them to
+    ``copilot_cli(bridged_tools=...)`` (see camunda-ai-agents)."""
 
     @property
     def excluded_skills(self) -> list[str] | Literal["all"]:
