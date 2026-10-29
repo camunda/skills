@@ -77,10 +77,12 @@ jobs:
           status=$?
           set -e
           cat models.md >> "$GITHUB_STEP_SUMMARY"
+          # 2 = requested ids unavailable (fail); anything else non-zero means
+          # the check itself couldn't complete, so warn and run unverified.
           case $status in
             0) ;;
-            3) echo "::warning::Couldn't read the Copilot model catalogue with the job token; continuing unverified." ;;
-            *) echo "::error::Requested models aren't available to the job token — see the job summary for the enabled ids."; exit 1 ;;
+            2) echo "::error::Requested models aren't available to the job token — see the job summary for the enabled ids."; exit 1 ;;
+            *) echo "::warning::Couldn't verify Copilot models with the job token (exit $status); continuing unverified." ;;
           esac
 
       - id: matrix

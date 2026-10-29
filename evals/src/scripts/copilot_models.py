@@ -11,14 +11,16 @@ Writes a Markdown table of the chat models and their policy state to stdout.
 
     evals-copilot-models [--check m1,m2,...]
 
-Exit codes: 0 all requested models available (or no ``--check``); 1 some
+Exit codes: 0 all requested models available (or no ``--check``); 2 some
 requested models unavailable; 3 the catalogue couldn't be read (the caller may
-proceed unverified).
+proceed unverified). "Unavailable" deliberately isn't 1 — the exit code of any
+uncaught exception — so a crash can't masquerade as missing models.
 """
 
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import sys
@@ -29,6 +31,8 @@ from scripts.build_matrix import parse_models
 
 MODELS_URL = "https://api.githubcopilot.com/models"
 TOKEN_ENV = "COPILOT_GITHUB_TOKEN"
+EXIT_UNAVAILABLE = 2
+EXIT_UNREADABLE = 3
 # The catalogue differs by integration (without this, Gemini models are
 # omitted); send Copilot CLI's so the list matches what `copilot --model` sees.
 INTEGRATION_ID = "copilot-developer-cli"
@@ -97,14 +101,15 @@ def main() -> None:
     token = os.environ.get(TOKEN_ENV)
     if not token:
         print(f"{TOKEN_ENV} is not set", file=sys.stderr)
-        sys.exit(3)
+        sys.exit(EXIT_UNREADABLE)
     try:
         models = fetch_models(token)
-    # OSError covers URLError, timeouts, and connection resets while reading
-    # the response; ValueError covers malformed JSON. All mean "unverified".
-    except (OSError, ValueError) as e:
-        print(f"could not read the Copilot model catalogue: {e}", file=sys.stderr)
-        sys.exit(3)
+    # OSError covers URLError, timeouts, and connection resets; HTTPException
+    # covers protocol errors such as a truncated body (IncompleteRead);
+    # ValueError covers malformed JSON. All mean "unverified".
+    except (OSError, http.client.HTTPException, ValueError) as e:
+        print(f"could not read the Copilot model catalogue: {e!r}", file=sys.stderr)
+        sys.exit(EXIT_UNREADABLE)
 
     print(render(models, requested))
     missing = check(requested, selectable(models))
@@ -114,7 +119,7 @@ def main() -> None:
             f"Available: {', '.join(sorted(selectable(models)))}",
             file=sys.stderr,
         )
-        sys.exit(1)
+        sys.exit(EXIT_UNAVAILABLE)
 
 
 if __name__ == "__main__":
