@@ -193,8 +193,11 @@ Per cell, over every sample×epoch run:
   runs that ever got clean. Read post-hoc from the transcript
   (`evals/src/core/lint_attempts.py`); `—` where the agent never validates.
   `--dry-run` ruleset checks don't count, and one tool call is one attempt. Only
-  executed invocations count — matched on the tool actually run, so heredoc
-  bodies, quoted text, and package installs (`npm install dmnlint`) aren't runs.
+  executed invocations count — matched on the tool actually run (through
+  `xargs`, `find -exec`, and `npx`/`npm exec` wrappers), so heredoc bodies,
+  quoted text, and package installs (`npm install dmnlint`) aren't runs. Output
+  delivered later via Copilot's `read_bash` is attributed to the run that
+  started it.
   A call running several validators is one attempt, clean only if all are; a
   run whose result is missing or unrecognised is `unknown`, never clean. The
   overall column pools every run's attempts before taking the median.

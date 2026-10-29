@@ -127,6 +127,49 @@ class TestLintAttempts:
         assert lint_attempts(_turn(call, BPMN_CLEAN)).attempts_to_clean == 1
 
 
+class TestCopilotReadBashContinuations:
+    """Copilot's bash returns long-running output later via read_bash."""
+
+    def _bash(self, call_id, command, output, **extra):
+        return NS(
+            id=call_id, function="bash", arguments={"command": command, **extra}
+        ), output
+
+    def _read(self, call_id, shell_id, output):
+        return NS(
+            id=call_id,
+            function="read_bash",
+            arguments={"shellId": shell_id, "delay": 10},
+        ), output
+
+    def test_delayed_clean_result_via_reported_shell_id(self):
+        msgs = _transcript(
+            self._bash(
+                "c1", "npx --yes dmnlint d.dmn", "<shellId: 4 is still running>"
+            ),
+            self._bash("c2", "ls", "d.dmn\n<shellId: 5 completed with exit code 0>"),
+            self._read("c3", "4", "<shellId: 4 completed with exit code 0>"),
+        )
+        [run] = lint_attempts(msgs).runs
+        assert run.verdict == "clean"
+
+    def test_delayed_dirty_result_via_explicit_shell_id(self):
+        msgs = _transcript(
+            self._bash("c1", "c8ctl bpmn lint --json p.bpmn", "", shellId="lint"),
+            self._read("c2", "lint", BPMN_DIRTY),
+        )
+        assert lint_attempts(msgs).runs[0].verdict == "dirty"
+
+    def test_read_of_unrelated_shell_is_ignored(self):
+        msgs = _transcript(
+            self._bash(
+                "c1", "npx --yes dmnlint d.dmn", "<shellId: 4 is still running>"
+            ),
+            self._read("c2", "9", "<shellId: 9 completed with exit code 0>"),
+        )
+        assert lint_attempts(msgs).runs[0].verdict == "unknown"
+
+
 class TestLintMatchingReviewCases:
     """Regression cases from the PR #130 review."""
 
@@ -201,6 +244,27 @@ class TestLintMatchingReviewCases:
             assert [r.validators for r in self._runs(cmd, "")] == [("dmn",)], cmd
         runs = self._runs("npx @camunda8/cli bpmn lint --json p.bpmn", BPMN_CLEAN)
         assert [r.validators for r in runs] == [("bpmn",)]
+
+    def test_documented_dmn_directory_pipeline(self):
+        # Verbatim from skills/camunda-dmn/references/dmnlint.md.
+        cmd = (
+            r"find path/to/dir -type d \( -name .git -o -name node_modules -o -name "
+            r"target -o -name build -o -name .gradle -o -name .mvn -o -name .idea "
+            r"-o -name .settings -o -name .snapshots \) -prune -o -type f -name "
+            r"'*.dmn' -print0 | xargs -0 -n1 npx --yes dmnlint"
+        )
+        [run] = self._runs(cmd, "<shellId: 0 completed with exit code 0>")
+        assert (run.validators, run.verdict) == (("dmn",), "clean")
+
+    def test_other_runner_wrappers(self):
+        for cmd in (
+            "ls *.dmn | xargs -n 1 -P 4 dmnlint",
+            "find . -name '*.dmn' -exec npx --yes dmnlint {} \\;",
+            "find . -name '*.form' -execdir node validate-form.cjs {} +",
+        ):
+            assert len(self._runs(cmd, "")) == 1, cmd
+        # xargs feeding something else isn't a run.
+        assert self._runs("ls | xargs -n1 cat", "") == []
 
     def test_every_validator_in_a_call_must_be_clean(self):
         cmd = "c8ctl bpmn lint --json p.bpmn; node validate-form.cjs p.form"

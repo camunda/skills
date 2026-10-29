@@ -16,14 +16,16 @@ validator the skills prescribe as their closing gate:
 Only *executed* invocations count: heredoc bodies and quoted strings (e.g. the
 helper's own ``Usage: node validate-form.cjs`` line, an ``echo`` of a command)
 are stripped before matching, and each shell segment is matched on the tool it
-*executes* (after ``npx``/``npm exec``/env-var wrappers) — so ``npm install
-dmnlint`` isn't a run, and a ``--dry-run`` check doesn't hide a real lint in the
-same tool call.
+*executes* (after ``xargs``, ``find -exec``, ``npx``/``npm exec`` and env-var
+wrappers) — so ``npm install dmnlint`` isn't a run, and a ``--dry-run`` check
+doesn't hide a real lint in the same tool call.
 
 Each run is classified ``clean`` / ``dirty`` / ``unknown`` from its output and,
 where the harness reports it, the exit code. Failure evidence is checked before
 success markers, and a missing result or unrecognised output is ``unknown`` —
-never silently clean.
+never silently clean. Output that arrives after the call returns (react's
+``action="read"``, Copilot's ``read_bash(shellId)``) is folded into the run that
+started the command; a Copilot result without an exit code is still running.
 ``attempts_to_clean`` counts runs up to and including the first clean one; if
 no run is ever clean it's the total run count and ``reached_clean`` is False.
 One tool call is one attempt, even if its command validates several files or
@@ -69,6 +71,12 @@ _PREFIXES = {
 # Package runners: `<runner> [flags] <tool> ...`; flags that take a value.
 _RUNNERS = {"npx", "pnpx", "bunx"}
 _RUNNER_VALUE_FLAGS = {"-p", "--package", "-c", "--call"}
+# xargs options whose value is a separate token (`-n 1`, not `-n1`).
+_XARGS_VALUE_FLAGS = {
+    "-n", "-L", "-P", "-I", "-d", "-s", "-a", "-E",
+    "--max-args", "--max-lines", "--max-procs", "--delimiter",
+    "--arg-file", "--eof", "--max-chars",
+}  # fmt: skip
 
 _COMMAND_KEYS = ("input", "command", "cmd")
 
@@ -123,33 +131,52 @@ def _command_of(arguments: dict) -> str | None:
 
 
 def _argv(segment: str) -> list[str]:
-    """The executed command's argv: leading `(`/`{`, env assignments, prefix
-    words, and package-runner wrappers (`npx`, `npm exec`, `pnpm dlx`, ...)
-    removed, so `argv[0]` is the tool actually run."""
+    """The executed command's argv, so `argv[0]` is the tool actually run.
+
+    Removes leading `(`/`{`, env assignments and prefix words, then unwraps
+    command runners — `xargs [opts]`, `find ... -exec/-execdir`, and package
+    runners (`npx`, `npm exec`, `pnpm dlx`, ...) — repeatedly, since they nest
+    (`... | xargs -0 -n1 npx --yes dmnlint`).
+    """
     tokens = segment.replace("(", " ").replace("{", " ").split()
-    i = 0
-    while i < len(tokens) and (tokens[i] in _PREFIXES or _ENV_ASSIGN.match(tokens[i])):
-        i += 1
-    tokens = tokens[i:]
-    if not tokens:
-        return []
-    head = tokens[0].rsplit("/", 1)[-1]
-    rest = tokens[1:]
-    if head in ("npm", "pnpm", "yarn", "bun") and rest[:1] in (
-        ["exec"],
-        ["x"],
-        ["dlx"],
-    ):
-        head, rest = "npx", rest[1:]
-    if head in _RUNNERS:
-        j = 0
-        while j < len(rest) and rest[j].startswith("-"):
-            if rest[j] == "--":
-                j += 1
-                break
-            j += 2 if rest[j] in _RUNNER_VALUE_FLAGS else 1
-        return rest[j:]
+    for _ in range(5):  # bounded: wrappers nest a few levels at most
+        i = 0
+        while i < len(tokens) and (
+            tokens[i] in _PREFIXES or _ENV_ASSIGN.match(tokens[i])
+        ):
+            i += 1
+        tokens = tokens[i:]
+        if not tokens:
+            return []
+        head = tokens[0].rsplit("/", 1)[-1]
+        rest = tokens[1:]
+        if head == "xargs":
+            tokens = _skip_options(rest, _XARGS_VALUE_FLAGS)
+        elif head == "find" and any(t in ("-exec", "-execdir") for t in rest):
+            k = next(i for i, t in enumerate(rest) if t in ("-exec", "-execdir"))
+            tokens = [t for t in rest[k + 1 :] if t not in ("}", "\\", ";", "+")]
+        elif head in ("npm", "pnpm", "yarn", "bun") and rest[:1] in (
+            ["exec"],
+            ["x"],
+            ["dlx"],
+        ):
+            tokens = _skip_options(rest[1:], _RUNNER_VALUE_FLAGS)
+        elif head in _RUNNERS:
+            tokens = _skip_options(rest, _RUNNER_VALUE_FLAGS)
+        else:
+            return tokens
     return tokens
+
+
+def _skip_options(tokens: list[str], value_flags: set[str]) -> list[str]:
+    """Drop leading options (and the separate values of ``value_flags``)."""
+    j = 0
+    while j < len(tokens) and tokens[j].startswith("-"):
+        if tokens[j] == "--":
+            j += 1
+            break
+        j += 2 if tokens[j] in value_flags else 1
+    return tokens[j:]
 
 
 def _validators_in_segment(segment: str, inline_form: bool) -> list[Validator]:
@@ -264,6 +291,9 @@ def _classify_dmn(output: str) -> Verdict:
     if code is not None:
         # dmnlint: 0 clean, 1 lint issues, >1 tool failure.
         return {0: "clean", 1: "dirty"}.get(code, "unknown")
+    if _SHELL_TRAILER.search(output):
+        # A Copilot shell trailer without an exit code: still running.
+        return "unknown"
     # dmnlint is silent on success; with no exit status, only an empty result
     # counts as clean.
     return "clean" if not _body(output) else "unknown"
@@ -293,12 +323,25 @@ def _classify_form(output: str) -> Verdict:
 _CLASSIFIERS = {"bpmn": _classify_bpmn, "dmn": _classify_dmn, "form": _classify_form}
 
 
+_SHELL_ID = re.compile(r"shellId:\s*([\w.-]+)")
+
+
+def _shell_id(arguments: dict, output: str | None) -> str | None:
+    """Copilot's bash names its shell via the ``shellId`` argument, or reports
+    the assigned id in the result (``<shellId: 3 ...>``)."""
+    if arguments.get("shellId") is not None:
+        return str(arguments["shellId"])
+    m = _SHELL_ID.search(output or "")
+    return m.group(1) if m else None
+
+
 def lint_attempts(messages) -> LintAttempts:
     """Extract validator runs from a sample's message history.
 
-    ``bash_session`` (the react agent's shell) may return a command's output
-    across follow-up ``read`` calls, so their results are folded into the
-    preceding validator run before it's classified.
+    A command's output can arrive after its call returns: react's
+    ``bash_session`` via follow-up ``action="read"`` calls, Copilot CLI's
+    ``bash`` via ``read_bash(shellId=...)``. Those results are folded into the
+    validator run that started the command before it's classified.
     """
     results: dict[str, str] = {}
     for msg in messages or []:
@@ -309,6 +352,7 @@ def lint_attempts(messages) -> LintAttempts:
 
     pending: list[tuple[tuple[Validator, ...], str, list[str | None]]] = []
     window_open = False  # whether `read` output still belongs to the last run
+    shell_owner: dict[str, int] = {}  # Copilot shellId -> index in `pending`
     for msg in messages or []:
         for tc in getattr(msg, "tool_calls", None) or []:
             arguments = tc.arguments or {}
@@ -317,14 +361,24 @@ def lint_attempts(messages) -> LintAttempts:
                 if window_open and output is not None:
                     pending[-1][2].append(output)
                 continue
+            if (getattr(tc, "function", "") or "").lower() == "read_bash":
+                owner = shell_owner.get(str(arguments.get("shellId")))
+                if owner is not None and output is not None:
+                    pending[owner][2].append(output)
+                continue
             command = _command_of(arguments)
             validators = _match_validators(command) if command else ()
+            shell_id = _shell_id(arguments, output)
             if not validators:
                 if command is not None:
                     window_open = False
+                    # A reused shell id now belongs to the newer command.
+                    shell_owner.pop(shell_id or "", None)
                 continue
             pending.append((validators, command, [output]))
             window_open = True
+            if shell_id:
+                shell_owner[shell_id] = len(pending) - 1
 
     runs = []
     for validators, cmd, outs in pending:
