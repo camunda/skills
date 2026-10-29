@@ -1,0 +1,8 @@
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      # `copilot-requests` is a real permission scope (it lets the GitHub
+      # Copilot CLI authenticate with the built-in GITHUB_TOKEN), but it is
+      # newer than actionlint's hard-coded scope list. Remove once actionlint
+      # knows the scope.
+      - 'unknown permission scope "copilot-requests"'

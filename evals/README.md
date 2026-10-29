@@ -31,10 +31,10 @@ evals/
 ├── skills/<skill>/        # triggers.py (routing) and, where one exists, outcomes.py
 ├── scenarios/<id>/        # cross-skill outcome evals (e.g. rocket-launch)
 └── src/
-    ├── core/              # paths, metadata schema, registry, metrics, trigger builder
+    ├── core/              # paths, metadata schema, registry, metrics, agents (incl. Copilot CLI), lint attempts, trigger builder
     ├── scorers/           # cluster, cpt, feel, bpmn_lint, transcript
     ├── solvers/           # collect_artifacts
-    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regenerate-baseline, evals-extract-artifacts
+    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regenerate-baseline, evals-extract-artifacts, evals-model-matrix
 ```
 
 ## Docs
@@ -42,4 +42,4 @@ evals/
 - **Concepts** (the model: two kinds, sandbox, arms, baseline) →
   [`docs/concepts.md`](docs/concepts.md)
 - **Runbook** (run · interpret · add · maintain) → [`docs/runbook.md`](docs/runbook.md)
-- **CI** (labels · PR comment · baselines · secrets) → [`docs/ci.md`](docs/ci.md)
+- **CI** (labels · PR comment · baselines · model matrix · secrets) → [`docs/ci.md`](docs/ci.md)

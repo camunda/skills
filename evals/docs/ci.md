@@ -28,6 +28,7 @@ the local loop see [`runbook.md`](runbook.md); for the model see
 | `eval.yml` | PR changes to skill/eval/harness paths, or the Actions tab (`evals:run-all` / `evals:compare` labels optional) | Affected (or all) targets; posts the PR comment. **Non-blocking.** |
 | `eval-nightly.yml` | `workflow_dispatch` only (cron re-enabled in a follow-up) | Every target; uploads logs as artifacts |
 | `eval-baseline.yml` | `evals:regenerate-baselines` label, or the Actions tab | Re-runs outcome evals, regenerates baselines, commits them to the branch |
+| `eval-models.yml` | `workflow_dispatch` only (monthly cron commented out) | Outcome evals × several Copilot models via Copilot CLI; renders the [model comparison matrix](#model-comparison-matrix). **Informational, no gate.** |
 
 Auto-runs come from `pull_request` path filters; labels are optional refinements
 for scope/arms. `workflow_dispatch` still requires write access. Because the
@@ -142,6 +143,90 @@ names the assertion). Reproduce locally with the matching `make run-trigger-eval
 SKILL=<name>` / `make run-outcome-evals TARGET=<dir>` — same image, compose, and
 prompts, modulo model non-determinism (`--epochs 3` to check flake).
 
+## Model comparison matrix
+
+`eval-models.yml` answers "which model should we recommend for which skill?". It
+runs the outcome evals through **GitHub Copilot CLI** — the harness users
+actually run the skills in — once per Copilot model, so one enterprise licence
+covers Claude, GPT, and Gemini models. Run it from the Actions tab (**🧪 Model
+comparison matrix → Run workflow**):
+
+| Input | Default | Meaning |
+|---|---|---|
+| `models` | `claude-sonnet-5.5,claude-opus-5.5,claude-haiku-5.5,gpt-6.1-sol,gemini-4-argon` | comma-separated Copilot model ids (`copilot --model`) — the matrix columns |
+| `epochs` | `3` | repeat runs per sample, for steadier medians |
+| `target` | _(all)_ | substring of the target path, e.g. `camunda-bpmn`, for a partial run |
+
+Copilot retires model ids; a stale id fails that column's jobs immediately
+(`Model "…" from --model flag is not available`) without spending credits.
+Check the current ids with `/models` in an interactive `copilot` session.
+
+**How it runs.** `evals-build-matrix --models … --epochs …` emits one job per
+outcome target × model with `-T agent=copilot_cli` (`evals/src/core/copilot_cli.py`).
+Per sample, that agent installs Copilot CLI in the sandbox (`COPILOT_CLI_VERSION`
+repo variable, default `latest`), copies in the arm's skills
+(`COPILOT_SKILLS_DIRS`), runs `copilot -p --model <id> --allow-all --no-ask-user
+--output-format json`, and replays its event stream into the Inspect transcript —
+so the existing scorers and verifier phase are unchanged. Inspect runs with
+`--model none`; only the LLM judge (camunda-development) calls a model through
+Inspect, pinned to `EVAL_MODEL` via `--model-role grader=…`.
+
+**Auth.** The run job's own `GITHUB_TOKEN` with `permissions: copilot-requests:
+write` — no PAT or stored secret (the same pattern as `camunda/sdk-infra`'s agent
+workflows). Requires the org policy *Allow use of Copilot CLI billed to the
+organization*; usage is billed to the org. The token is job-scoped and expires
+with the job. It reaches the sandbox only through an exec the eval log doesn't
+record, and `--secret-env-vars` strips it from the agent's shell and redacts it
+from output, so it never appears in the uploaded logs. `actionlint` doesn't know
+the `copilot-requests` scope yet; `.github/actionlint.yaml` suppresses that.
+
+**Output.** The job summary and the `model-matrix-<run-id>` artifact
+(`model-matrix.md`, `model-matrix.json`, raw `.eval` logs; 90-day retention).
+Per cell, over every sample×epoch run:
+
+- **Pass rate** — every gating scorer passed; errored samples count as fails.
+  The detail tables add **skill loaded** — how often the model loaded the skill
+  under test (some models skip skills and then fail on schema details).
+- **Linter attempts** — median validator runs (`c8ctl bpmn lint`, `dmnlint`,
+  `node validate-form.cjs` or an inline `node -e` check against
+  `@bpmn-io/form-json-schema`) until the first clean result, plus the share of
+  runs that ever got clean. Read post-hoc from the transcript
+  (`evals/src/core/lint_attempts.py`); `—` where the agent never validates.
+  `--dry-run` ruleset checks don't count, and one tool call is one attempt. Only
+  executed invocations count — matched on the tool actually run (through
+  `xargs`, `find -exec`, and `npx`/`npm exec` wrappers), so heredoc bodies,
+  quoted text, and package installs (`npm install dmnlint`) aren't runs. Output
+  delivered later via Copilot's `read_bash` is attributed to the run that
+  started it.
+  A call running several validators is one attempt, clean only if all are; a
+  run whose result is missing or unrecognised is `unknown`, never clean. The
+  overall column pools every run's attempts before taking the median.
+- **Cost** — median Copilot **AI credits** per run (what the org is billed;
+  differs ~40× between the cheapest and most expensive models), premium
+  requests, and the token split (I/CW/CR/O), from `--usage-output-file`.
+- **Time** — median Copilot session wall-clock (excludes CLI install, sandbox
+  setup, and scoring; runner-noisy).
+
+No pass/fail gate and no baselines (both are model-specific); failing samples
+are data. There's no automatic recommendation — read the matrix. Samples are
+few, so treat small differences as noise.
+
+**Known limitation.** `camunda-ai-agents` offers react agents a host-side
+`request_configuration` tool that Copilot can't see, so its
+`configuration_requested` samples aren't comparable under Copilot.
+
+**Cost of a run.** Copilot starts one session per dataset sample per epoch, so a
+run is *Σ samples of the selected targets × models × epochs* sessions — not
+targets. The outcome evals hold ~33 samples today (camunda-development alone has
+7), so a full default run is ~33 × 5 × 3 ≈ 500 sessions. Start with `target` and
+fewer models/epochs.
+
+**Re-runs.** Re-running failed jobs is safe: the matrix keeps only the newest log
+per eval × model, and the artifact is overwritten. A run interrupted by a time
+limit still records its transcript and the credits spent so far (from Copilot's
+usage checkpoints). Its tokens are unknown and left out of token medians; the
+report counts such runs and marks affected cost cells `†`.
+
 ## Credentials & secrets
 
 The model id is configuration. CI defaults to `anthropic/claude-sonnet-4-6`
@@ -171,9 +256,9 @@ and swap the credential env in the run step.
 Deferred follow-ups — opened as PRs when their trigger fires, not pre-fabricated:
 
 - **Re-enable the nightly cron** (currently `workflow_dispatch`-only).
-- **Multi-model matrix** — add a `model` axis to the run matrix.
-- **Cross-harness matrix** — run the suite under multiple agent loops once an
-  Inspect bridge for a CLI harness exists.
+- **Monthly model matrix** — uncomment the `schedule` in `eval-models.yml`.
+- **Cross-harness matrix** — compare `react` and `copilot_cli` on the same
+  model (both agent loops now exist).
 - **Assertion-hygiene check** — flag always-pass / always-fail scorers.
 - **A/B comparison** between skill versions; **static-export Inspect view** to
   GitHub Pages.
