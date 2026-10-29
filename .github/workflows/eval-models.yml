@@ -50,6 +50,9 @@ jobs:
   detect:
     name: Enumerate targets × models
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      copilot-requests: write
     outputs:
       specs: ${{ steps.matrix.outputs.specs }}
     steps:
@@ -60,6 +63,27 @@ jobs:
           enable-cache: true
 
       - run: uv sync --frozen
+
+      # Copilot rejects an unavailable model only once a session starts, so a
+      # bad id would fan out into jobs that each fail in seconds. The catalogue
+      # depends on the token: the job token is org-billed and org-policy
+      # governed, so ids that work for a personal sign-in may not work here.
+      - name: Check Copilot models
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          uv run evals-copilot-models --check "$MODELS" > models.md
+          status=$?
+          set -e
+          cat models.md >> "$GITHUB_STEP_SUMMARY"
+          # 2 = requested ids unavailable (fail); anything else non-zero means
+          # the check itself couldn't complete, so warn and run unverified.
+          case $status in
+            0) ;;
+            2) echo "::error::Requested models aren't available to the job token — see the job summary for the enabled ids."; exit 1 ;;
+            *) echo "::warning::Couldn't verify Copilot models with the job token (exit $status); continuing unverified." ;;
+          esac
 
       - id: matrix
         env:
@@ -183,15 +207,29 @@ jobs:
           merge-multiple: true
 
       - name: Render matrix
+        # Fails the job (after publishing the summary) when every run errored,
+        # so a broken run can't pass as a table of 0% cells.
         run: |
           mkdir -p evals/logs evals/model-matrix
+          set +e
           uv run evals-model-matrix --log-dir evals/logs/ --models "$MODELS" \
             --out-md evals/model-matrix/model-matrix.md \
             --out-json evals/model-matrix/model-matrix.json \
-            || printf '_Model matrix generation failed — see job logs._\n' > evals/model-matrix/model-matrix.md
+            --fail-if-all-errored
+          status=$?
+          set -e
+          if [ ! -s evals/model-matrix/model-matrix.md ]; then
+            printf '_Model matrix generation failed — see job logs._\n' > evals/model-matrix/model-matrix.md
+          fi
           cat evals/model-matrix/model-matrix.md >> "$GITHUB_STEP_SUMMARY"
+          case $status in
+            0) ;;
+            2) echo "::error::Every run errored — see the Errors section of the job summary."; exit 1 ;;
+            *) echo "::error::Model matrix generation failed (exit $status)."; exit 1 ;;
+          esac
 
       - name: Upload matrix + logs
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: model-matrix-${{ github.run_id }}

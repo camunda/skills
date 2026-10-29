@@ -21,6 +21,7 @@ evals-summarize = "scripts.summarize:main"
 evals-extract-artifacts = "scripts.extract_artifacts:main"
 evals-pass-fail = "scripts.pass_fail:main"
 evals-model-matrix = "scripts.model_matrix:main"
+evals-copilot-models = "scripts.copilot_models:main"
 
 [dependency-groups]
 dev = [

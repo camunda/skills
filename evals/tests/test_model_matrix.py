@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+
 from types import SimpleNamespace as NS
 
 from core.lint_attempts import lint_attempts
@@ -479,3 +481,161 @@ def test_overall_lint_median_is_pooled_across_evals():
     row = next(line for line in overall.splitlines() if line.startswith("| claude"))
     # Pooled runs [1, 1, 1, 9] -> median 1; a median of medians would give 5.
     assert row.split("|")[3].strip() == "1"
+
+
+def test_errors_are_summarised_and_flagged():
+    from scripts.model_matrix import error_summary, model_errors
+
+    err = NS(
+        message='RuntimeError(\'copilot exited 1: Error: Model "x" from --model '
+        "flag is not available.\\n')"
+    )
+    assert error_summary(NS(error=err)) == (
+        'copilot exited 1: Error: Model "x" from --model flag is not available.'
+    )
+    assert error_summary(NS(error=None)) is None
+
+    bad = [_sample("a", e, error=err) for e in (1, 2)]
+    cells = aggregate(collect_runs(_log(bad)))
+    md = render_markdown(cells, ["claude-sonnet-5.5"])
+    assert "Every run errored (2/2)" in md
+    assert "### Errors" in md and "not available" in md
+    assert (
+        model_errors(cells, ["claude-sonnet-5.5"])["claude-sonnet-5.5"]["errored"] == 2
+    )
+
+    mixed = cells + aggregate(
+        collect_runs(
+            _log(
+                [_sample("a", 1, copilot=_copilot("gpt-6.1-sol"))],
+                copilot_model="gpt-6.1-sol",
+            )
+        )
+    )
+    md = render_markdown(mixed, ["claude-sonnet-5.5", "gpt-6.1-sol"])
+    assert "2 of 3 runs errored" in md
+
+
+def test_no_error_section_when_nothing_errored():
+    cells = aggregate(collect_runs(_log([_sample("a", 1, copilot=_copilot())])))
+    md = render_markdown(cells, ["claude-sonnet-5.5"])
+    assert "### Errors" not in md and "errored (" not in md
+
+
+def test_model_top_error_ranks_full_counts_across_evals():
+    # Reviewer's case: per eval, three eval-specific errors x4 and a shared
+    # timeout x3. Truncating each eval to its top 3 would drop the timeout,
+    # though its 6 occurrences make it the model's most common error.
+    from scripts.model_matrix import model_errors
+
+    def errored(task, msgs):
+        samples, epoch = [], 0
+        for msg, n in msgs:
+            for _ in range(n):
+                epoch += 1
+                samples.append(_sample("s", epoch, error=NS(message=msg)))
+        return collect_runs(_log(samples, task=task))
+
+    runs = errored(
+        "camunda_bpmn", [("bpmn-a", 4), ("bpmn-b", 4), ("bpmn-c", 4), ("timeout", 3)]
+    ) + errored(
+        "camunda_dmn", [("dmn-a", 4), ("dmn-b", 4), ("dmn-c", 4), ("timeout", 3)]
+    )
+    cells = aggregate(runs)
+    assert all(c["error_counts"]["timeout"] == 3 for c in cells)
+    top = model_errors(cells, ["claude-sonnet-5.5"])["claude-sonnet-5.5"]["top"]
+    assert top == [("timeout", 6)]
+
+
+class TestCliExitCodes:
+    """`evals-model-matrix --fail-if-all-errored` end to end, logs mocked."""
+
+    def _main(self, monkeypatch, tmp_path, logs, extra=()):
+        import sys
+
+        import inspect_ai.log
+
+        from scripts import model_matrix
+
+        infos = [NS(name=f"logs/2026-10-29T0{i}-00_x.eval") for i in range(len(logs))]
+        by_name = {info.name: log for info, log in zip(infos, logs)}
+        monkeypatch.setattr(inspect_ai.log, "list_eval_logs", lambda _d: infos)
+        monkeypatch.setattr(inspect_ai.log, "read_eval_log", lambda i: by_name[i.name])
+        md, js = tmp_path / "m.md", tmp_path / "m.json"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["evals-model-matrix", "--log-dir", "x", "--out-md", str(md),
+             "--out-json", str(js), *extra],
+        )  # fmt: skip
+        try:
+            model_matrix.main()
+            code = 0
+        except SystemExit as e:
+            code = e.code
+        return code, md, js
+
+    def _err(self):
+        return NS(message="RuntimeError('copilot exited 1: boom')")
+
+    def test_all_errored_exits_2_after_writing_outputs(self, monkeypatch, tmp_path):
+        logs = [
+            _log(
+                [_sample("a", 1, error=self._err()), _sample("a", 2, error=self._err())]
+            )
+        ]
+        code, md, js = self._main(
+            monkeypatch, tmp_path, logs, ["--fail-if-all-errored"]
+        )
+        assert code == 2
+        assert "Every run errored (2/2)" in md.read_text()
+        assert json.loads(js.read_text())["cells"][0]["errored"] == 2
+
+    def test_mixed_and_successful_runs_exit_normally(self, monkeypatch, tmp_path):
+        mixed = [
+            _log(
+                [
+                    _sample("a", 1, error=self._err()),
+                    _sample("a", 2, copilot=_copilot()),
+                ]
+            )
+        ]
+        ok = [_log([_sample("a", 1, copilot=_copilot())])]
+        for logs in (mixed, ok):
+            code, md, js = self._main(
+                monkeypatch, tmp_path, logs, ["--fail-if-all-errored"]
+            )
+            assert code == 0 and md.exists() and js.exists()
+
+    def test_flag_off_never_fails(self, monkeypatch, tmp_path):
+        logs = [_log([_sample("a", 1, error=self._err())])]
+        code, _, _ = self._main(monkeypatch, tmp_path, logs)
+        assert code == 0
+
+
+def test_error_summary_preserves_non_ascii_and_escapes():
+    from scripts.model_matrix import error_summary
+
+    def summary(message):
+        return error_summary(NS(error=NS(message=message)))
+
+    assert summary("RuntimeError('cannot open café.dmn — invalid expression')") == (
+        "cannot open café.dmn — invalid expression"
+    )
+    # Escapes in the repr are decoded; whitespace runs collapse.
+    assert summary("RuntimeError('a\\nb\\tc')") == "a b c"
+    assert summary('ValueError("it\'s broken")') == "it's broken"
+    # Not a parseable literal: the original message is kept.
+    assert summary("RuntimeError('unterminated)") == "RuntimeError('unterminated)"
+    assert summary("plain failure") == "plain failure"
+
+
+def test_errors_table_escapes_pipes_but_json_keeps_raw_message():
+    msg = "command failed: a | b"
+    cells = aggregate(collect_runs(_log([_sample("a", 1, error=NS(message=msg))])))
+    assert cells[0]["error_counts"] == {msg: 1}
+    md = render_markdown(cells, ["claude-sonnet-5.5"])
+    row = next(line for line in md.splitlines() if "command failed" in line)
+    assert "command failed: a \\| b" in row
+    # Model / errored / message: the escaped pipe doesn't add a column.
+    assert len(row.replace("\\|", "").strip("|").split("|")) == 3

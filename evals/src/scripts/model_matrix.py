@@ -29,9 +29,13 @@ Informational only: no gate, no baseline. Emits Markdown (stdout or
 from __future__ import annotations
 
 import argparse
+import ast
 import json
+import os
+import re
 import sys
 from datetime import datetime, timezone
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
 from statistics import median
@@ -78,6 +82,30 @@ def _inspect_tokens(sample, model: str | None) -> dict[str, float]:
 def _log_metadata(log) -> dict:
     eval_meta = getattr(log, "eval", None)
     return (getattr(eval_meta, "metadata", None) or {}) if eval_meta else {}
+
+
+# `SomeError('…')` — the repr Inspect stores; group 1 is the quoted literal.
+_ERROR_WRAPPER = re.compile(r"^\w+(?:Error|Exception)\((['\"].*['\"])\)$", re.DOTALL)
+
+
+def error_summary(sample) -> str | None:
+    """A short, groupable form of a sample's error (``None`` if it didn't error)."""
+    err = getattr(sample, "error", None)
+    if not err:
+        return None
+    msg = str(getattr(err, "message", err)).strip()
+    m = _ERROR_WRAPPER.match(msg)
+    if m:
+        # Parse the Python string literal (handles escapes, keeps non-ASCII);
+        # keep the original message if it isn't one.
+        try:
+            literal = ast.literal_eval(m.group(1))
+        except (ValueError, SyntaxError):
+            literal = None
+        if isinstance(literal, str):
+            msg = literal
+    msg = " ".join(msg.split())
+    return msg[:200] + ("…" if len(msg) > 200 else "")
 
 
 def log_key(log) -> tuple[str, str, str]:
@@ -142,6 +170,7 @@ def collect_runs(log) -> list[dict]:
                 "epoch": getattr(sample, "epoch", 1),
                 "passed": _sample_passed(sample, gating),
                 "errored": bool(getattr(sample, "error", None)),
+                "error": error_summary(sample),
                 "skill_loaded": (
                     None if skill is None else score_to_float(skill.value) >= 1.0
                 ),
@@ -207,6 +236,11 @@ def aggregate(runs: list[dict]) -> list[dict]:
                 "samples": len({r["sample_id"] for r in rs}),
                 "passed": sum(r["passed"] for r in rs),
                 "errored": sum(r["errored"] for r in rs),
+                # Full counts, so per-model rollups rank errors correctly;
+                # truncate only for display.
+                "error_counts": dict(
+                    Counter(r["error"] for r in rs if r["error"]).most_common()
+                ),
                 # Interrupted runs: credits from usage checkpoints, tokens unknown.
                 "partial_usage_runs": sum(r["partial_usage"] for r in rs),
                 "pass_rate": sum(r["passed"] for r in rs) / len(rs),
@@ -340,6 +374,67 @@ def _overall(cells: list[dict], models: list[str]) -> list[str]:
     )
 
 
+def _error_banner(cells: list[dict]) -> list[str]:
+    runs = sum(c["runs"] for c in cells)
+    errored = sum(c["errored"] for c in cells)
+    if not errored:
+        return []
+    if errored == runs:
+        return [
+            f"> [!CAUTION]\n> **Every run errored ({errored}/{runs})** — the tables "
+            "below carry no signal. See **Errors**.",
+            "",
+        ]
+    return [
+        f"> [!WARNING]\n> **{errored} of {runs} runs errored** (counted as "
+        "fails). See **Errors**.",
+        "",
+    ]
+
+
+def model_errors(cells: list[dict], models: list[str]) -> dict[str, dict]:
+    """Per model: errored/total runs and its most common error messages."""
+    out: dict[str, dict] = {}
+    for m in models:
+        cs = [c for c in cells if c["model"] == m]
+        counts: Counter = Counter()
+        for c in cs:
+            for msg, n in c["error_counts"].items():
+                counts[msg] += n
+        out[m] = {
+            "runs": sum(c["runs"] for c in cs),
+            "errored": sum(c["errored"] for c in cs),
+            "top": counts.most_common(1),
+        }
+    return out
+
+
+def _md_cell(text: str) -> str:
+    """Escape a value for a Markdown table cell (display only; JSON keeps the
+    raw message). A bare `|` would otherwise start a new column."""
+    return text.replace("\\", "\\\\").replace("|", "\\|")
+
+
+def _errors_section(cells: list[dict], models: list[str]) -> list[str]:
+    per_model = model_errors(cells, models)
+    rows = [
+        [m, f"{e['errored']}/{e['runs']}", _md_cell(e["top"][0][0]) if e["top"] else ""]
+        for m, e in per_model.items()
+        if e["errored"]
+    ]
+    if not rows:
+        return []
+    return [
+        "### Errors",
+        "",
+        "Runs that errored (an agent or sandbox failure, not a wrong answer). "
+        "Per-eval messages are in `model-matrix.json` (`error_counts`).",
+        "",
+        *summarize_table(["model", "errored", "most common error"], rows),
+        "",
+    ]
+
+
 def _partial_note(cells: list[dict]) -> list[str]:
     n = sum(c["partial_usage_runs"] for c in cells)
     if not n:
@@ -364,11 +459,13 @@ def render_markdown(cells: list[dict], models: list[str]) -> str:
         "medians are per run. Small n — read differences as indicative, not "
         "significant.",
         "",
+        *_error_banner(cells),
         "### Overall",
         "",
         *_overall(cells, models),
         "",
         *_partial_note(cells),
+        *_errors_section(cells, models),
         "### Pass rate",
         "",
         "Runs where every gating scorer passed (errors count as fails). The "
@@ -474,6 +571,11 @@ def main() -> None:
     )
     parser.add_argument("--out-md", type=Path, default=None)
     parser.add_argument("--out-json", type=Path, default=None)
+    parser.add_argument(
+        "--fail-if-all-errored",
+        action="store_true",
+        help="exit 2 (after writing outputs) when every run errored",
+    )
     args = parser.parse_args()
 
     named_logs: list[tuple[str, object]] = []
@@ -506,6 +608,20 @@ def main() -> None:
                 indent=2,
             )
         )
+
+    errors = model_errors(cells, models)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for m, e in errors.items():
+            if e["runs"] and e["errored"] == e["runs"]:
+                top = e["top"][0][0] if e["top"] else "unknown error"
+                print(f"::warning title=All {m} runs errored::{top}")
+    total = sum(e["runs"] for e in errors.values())
+    if (
+        args.fail_if_all_errored
+        and total
+        and total == sum(e["errored"] for e in errors.values())
+    ):
+        sys.exit(2)
 
 
 if __name__ == "__main__":

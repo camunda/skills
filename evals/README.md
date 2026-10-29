@@ -34,7 +34,7 @@ evals/
     ├── core/              # paths, metadata schema, registry, metrics, agents (incl. Copilot CLI), lint attempts, trigger builder
     ├── scorers/           # cluster, cpt, feel, bpmn_lint, transcript
     ├── solvers/           # collect_artifacts
-    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regenerate-baseline, evals-extract-artifacts, evals-model-matrix
+    └── scripts/           # CLIs: evals-list, evals-summarize, evals-pass-fail, evals-regenerate-baseline, evals-extract-artifacts, evals-model-matrix, evals-copilot-models
 ```
 
 ## Docs
