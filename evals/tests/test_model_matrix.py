@@ -611,3 +611,31 @@ class TestCliExitCodes:
         logs = [_log([_sample("a", 1, error=self._err())])]
         code, _, _ = self._main(monkeypatch, tmp_path, logs)
         assert code == 0
+
+
+def test_error_summary_preserves_non_ascii_and_escapes():
+    from scripts.model_matrix import error_summary
+
+    def summary(message):
+        return error_summary(NS(error=NS(message=message)))
+
+    assert summary("RuntimeError('cannot open café.dmn — invalid expression')") == (
+        "cannot open café.dmn — invalid expression"
+    )
+    # Escapes in the repr are decoded; whitespace runs collapse.
+    assert summary("RuntimeError('a\\nb\\tc')") == "a b c"
+    assert summary('ValueError("it\'s broken")') == "it's broken"
+    # Not a parseable literal: the original message is kept.
+    assert summary("RuntimeError('unterminated)") == "RuntimeError('unterminated)"
+    assert summary("plain failure") == "plain failure"
+
+
+def test_errors_table_escapes_pipes_but_json_keeps_raw_message():
+    msg = "command failed: a | b"
+    cells = aggregate(collect_runs(_log([_sample("a", 1, error=NS(message=msg))])))
+    assert cells[0]["error_counts"] == {msg: 1}
+    md = render_markdown(cells, ["claude-sonnet-5.5"])
+    row = next(line for line in md.splitlines() if "command failed" in line)
+    assert "command failed: a \\| b" in row
+    # Model / errored / message: the escaped pipe doesn't add a column.
+    assert len(row.replace("\\|", "").strip("|").split("|")) == 3

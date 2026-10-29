@@ -29,6 +29,7 @@ Informational only: no gate, no baseline. Emits Markdown (stdout or
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -83,7 +84,8 @@ def _log_metadata(log) -> dict:
     return (getattr(eval_meta, "metadata", None) or {}) if eval_meta else {}
 
 
-_ERROR_WRAPPER = re.compile(r"^\w+(?:Error|Exception)\((['\"])(.*)\1\)$", re.DOTALL)
+# `SomeError('…')` — the repr Inspect stores; group 1 is the quoted literal.
+_ERROR_WRAPPER = re.compile(r"^\w+(?:Error|Exception)\((['\"].*['\"])\)$", re.DOTALL)
 
 
 def error_summary(sample) -> str | None:
@@ -94,7 +96,14 @@ def error_summary(sample) -> str | None:
     msg = str(getattr(err, "message", err)).strip()
     m = _ERROR_WRAPPER.match(msg)
     if m:
-        msg = m.group(2).encode().decode("unicode_escape", errors="ignore")
+        # Parse the Python string literal (handles escapes, keeps non-ASCII);
+        # keep the original message if it isn't one.
+        try:
+            literal = ast.literal_eval(m.group(1))
+        except (ValueError, SyntaxError):
+            literal = None
+        if isinstance(literal, str):
+            msg = literal
     msg = " ".join(msg.split())
     return msg[:200] + ("…" if len(msg) > 200 else "")
 
@@ -400,10 +409,16 @@ def model_errors(cells: list[dict], models: list[str]) -> dict[str, dict]:
     return out
 
 
+def _md_cell(text: str) -> str:
+    """Escape a value for a Markdown table cell (display only; JSON keeps the
+    raw message). A bare `|` would otherwise start a new column."""
+    return text.replace("\\", "\\\\").replace("|", "\\|")
+
+
 def _errors_section(cells: list[dict], models: list[str]) -> list[str]:
     per_model = model_errors(cells, models)
     rows = [
-        [m, f"{e['errored']}/{e['runs']}", e["top"][0][0] if e["top"] else ""]
+        [m, f"{e['errored']}/{e['runs']}", _md_cell(e["top"][0][0]) if e["top"] else ""]
         for m, e in per_model.items()
         if e["errored"]
     ]

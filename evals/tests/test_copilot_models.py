@@ -39,3 +39,27 @@ def test_render_marks_requested_and_shows_policy():
     assert "| `claude-sonnet-5.5` | Anthropic | enabled | ✅ |" in md
     assert "| `gemini-4-argon` | Google | disabled |  |" in md
     assert "gpt-4o" not in md and "text-embedding" not in md
+
+
+def test_unreadable_catalogue_exits_3(monkeypatch):
+    import sys
+
+    import pytest
+
+    from scripts import copilot_models
+
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "t")
+    monkeypatch.setattr(sys, "argv", ["evals-copilot-models", "--check", "x"])
+    for exc in (
+        ConnectionResetError("reset by peer"),
+        TimeoutError("timed out"),
+        ValueError("bad json"),
+    ):
+
+        def boom(token, exc=exc):
+            raise exc
+
+        monkeypatch.setattr(copilot_models, "fetch_models", boom)
+        with pytest.raises(SystemExit) as e:
+            copilot_models.main()
+        assert e.value.code == 3, exc

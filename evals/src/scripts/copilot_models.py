@@ -100,7 +100,9 @@ def main() -> None:
         sys.exit(3)
     try:
         models = fetch_models(token)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+    # OSError covers URLError, timeouts, and connection resets while reading
+    # the response; ValueError covers malformed JSON. All mean "unverified".
+    except (OSError, ValueError) as e:
         print(f"could not read the Copilot model catalogue: {e}", file=sys.stderr)
         sys.exit(3)
 
