@@ -227,8 +227,10 @@ def aggregate(runs: list[dict]) -> list[dict]:
                 "samples": len({r["sample_id"] for r in rs}),
                 "passed": sum(r["passed"] for r in rs),
                 "errored": sum(r["errored"] for r in rs),
-                "top_errors": Counter(r["error"] for r in rs if r["error"]).most_common(
-                    3
+                # Full counts, so per-model rollups rank errors correctly;
+                # truncate only for display.
+                "error_counts": dict(
+                    Counter(r["error"] for r in rs if r["error"]).most_common()
                 ),
                 # Interrupted runs: credits from usage checkpoints, tokens unknown.
                 "partial_usage_runs": sum(r["partial_usage"] for r in rs),
@@ -388,7 +390,7 @@ def model_errors(cells: list[dict], models: list[str]) -> dict[str, dict]:
         cs = [c for c in cells if c["model"] == m]
         counts: Counter = Counter()
         for c in cs:
-            for msg, n in c["top_errors"]:
+            for msg, n in c["error_counts"].items():
                 counts[msg] += n
         out[m] = {
             "runs": sum(c["runs"] for c in cs),
@@ -411,7 +413,7 @@ def _errors_section(cells: list[dict], models: list[str]) -> list[str]:
         "### Errors",
         "",
         "Runs that errored (an agent or sandbox failure, not a wrong answer). "
-        "Per-eval messages are in `model-matrix.json` (`top_errors`).",
+        "Per-eval messages are in `model-matrix.json` (`error_counts`).",
         "",
         *summarize_table(["model", "errored", "most common error"], rows),
         "",
