@@ -38,13 +38,7 @@ from inspect_swe import claude_code
 from scorers.transcript import assert_skill_loaded
 from solvers.collect_artifacts import with_artifact_collection
 
-METADATA = EvalMetadata(
-    skills=["camunda-ai-agents"],
-    max_sandboxes=1,
-    # Most samples gate on the host-side `request_configuration` tool, which
-    # the Copilot CLI agent can't see — scores would measure the harness.
-    model_matrix=False,
-)
+METADATA = EvalMetadata(skills=["camunda-ai-agents"], max_sandboxes=1)
 
 BPMN_PATH = "/workspace/process.bpmn"
 
@@ -113,6 +107,24 @@ def _build_evaluator_agent(
             ),
             cwd="/workspace",
             disallowed_tools=["ExitPlanMode"],
+        )
+    if agent == "copilot_cli":
+        # The tool reaches Copilot as an MCP server via Inspect's sandbox
+        # bridge, as it does for Claude Code above.
+        from core.copilot_cli import copilot_cli
+
+        return copilot_cli(
+            skill_dirs=list(skill_dirs),
+            system_prompt=WORKSPACE_RULES,
+            bridged_tools=(
+                [
+                    BridgedToolsSpec(
+                        name="configuration", tools=[request_configuration()]
+                    )
+                ]
+                if include_configuration_tool
+                else None
+            ),
         )
     if agent != "react":
         return build_agent(agent, skill_dirs, submit=False)
@@ -318,6 +330,18 @@ def ai_agent_shape_valid(path: str = BPMN_PATH) -> Scorer:
     return score
 
 
+def _is_configuration_request(name: str) -> bool:
+    """The tool under each harness's name: react calls it directly; bridged
+    MCP tools are prefixed with the server name — Claude Code as
+    ``mcp__configuration__request_configuration``, Copilot CLI as
+    ``configuration-request_configuration``."""
+    return name in {
+        "request_configuration",
+        "mcp__configuration__request_configuration",
+        "configuration-request_configuration",
+    }
+
+
 @scorer(metrics=[mean(), stderr()])
 def configuration_requested() -> Scorer:
     """Verify that incomplete provider configuration stops BPMN authoring."""
@@ -337,11 +361,7 @@ def configuration_requested() -> Scorer:
         requested = [
             (index, arguments)
             for index, (name, arguments) in enumerate(calls)
-            if name
-            in {
-                "request_configuration",
-                "mcp__configuration__request_configuration",
-            }
+            if _is_configuration_request(name)
         ]
         pre_request_calls = calls[: requested[0][0]] if len(requested) == 1 else []
         performed_work = any(name.lower() != "skill" for name, _ in pre_request_calls)

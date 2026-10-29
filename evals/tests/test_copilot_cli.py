@@ -268,3 +268,30 @@ def test_usage_survives_a_failing_transcript_replay(monkeypatch):
     assert record["ai_credits"] == USAGE["totalNanoAiu"] / 1e9
     assert record["transcript_messages"] == 5
     assert state.output.completion == "DONE"
+
+
+def test_bridged_tools_become_copilot_mcp_config():
+    from inspect_ai.tool import MCPServerConfigHTTP
+
+    from core.copilot_cli import MCP_CONFIG_FILE, mcp_config
+
+    server = MCPServerConfigHTTP(
+        name="configuration",
+        type="http",
+        url="http://localhost:13131/mcp/configuration",
+        headers={"Authorization": "Bearer x"},
+    )
+    assert mcp_config([server]) == {
+        "mcpServers": {
+            "configuration": {
+                "type": "http",
+                "url": "http://localhost:13131/mcp/configuration",
+                "headers": {"Authorization": "Bearer x"},
+                "tools": ["*"],
+            }
+        }
+    }
+    assert f"--additional-mcp-config @{MCP_CONFIG_FILE}" in _copilot_command(
+        "m", MCP_CONFIG_FILE
+    )
+    assert "--additional-mcp-config" not in _copilot_command("m")

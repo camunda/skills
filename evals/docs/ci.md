@@ -236,15 +236,18 @@ No pass/fail gate and no baselines (both are model-specific); failing samples
 are data. There's no automatic recommendation — read the matrix. Samples are
 few, so treat small differences as noise.
 
-**Excluded evals.** An eval opts out of the matrix with
-`EvalMetadata(model_matrix=False)` when its scores would measure the harness
-rather than the model. `camunda-ai-agents` does: most of its samples gate on a
-host-side `request_configuration` tool that the Copilot CLI agent can't see.
+**Eval-defined tools.** Host-side Inspect tools reach Copilot as MCP servers
+via Inspect's sandbox agent bridge (`copilot_cli(bridged_tools=...)`, passed to
+the CLI with `--additional-mcp-config`) — the same mechanism the Claude Code
+agent uses. `camunda-ai-agents` relies on this for its `request_configuration`
+tool, which Copilot names `configuration-request_configuration`. An eval whose
+scores would still measure the harness rather than the model can opt out with
+`EvalMetadata(model_matrix=False)`.
 
 **Cost of a run.** Copilot starts one session per dataset sample per epoch, so a
 run is *Σ samples of the selected targets × models × epochs* sessions — not
-targets. The matrix's outcome evals hold ~29 samples today (camunda-development
-alone has 7), so a full default run is ~29 × 4 × 3 ≈ 350 sessions. Start with `target` and
+targets. The matrix's outcome evals hold ~33 samples today (camunda-development
+alone has 7), so a full default run is ~33 × 4 × 3 ≈ 400 sessions. Start with `target` and
 fewer models/epochs.
 
 **Re-runs.** Re-running failed jobs is safe: the matrix keeps only the newest log

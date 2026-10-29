@@ -313,14 +313,6 @@ class TestModelSpecs:
         specs = build_model_specs([*self._targets(), opted_out], ["m"], epochs=1)
         assert [s["label"] for s in specs] == ["skill:camunda-bpmn [m]"]
 
-    def test_real_registry_excludes_ai_agents(self):
-        from core.registry import discover
-
-        specs = build_model_specs(discover(), ["m"], epochs=1)
-        labels = {s["label"] for s in specs}
-        assert "skill:camunda-ai-agents [m]" not in labels
-        assert "skill:camunda-bpmn [m]" in labels
-
     def test_parse_models(self):
         assert parse_models(" a/x, b/y ,a/x\nc/z ") == ["a/x", "b/y", "c/z"]
         assert parse_models("") == []

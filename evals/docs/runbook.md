@@ -172,8 +172,9 @@ def camunda_feel(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
   sandbox. Keep 1 for cluster-backed evals (concurrent JVMs starve each other);
   raise it for a no-cluster eval.
 - **`model_matrix`** (default `True`) — set `False` if the eval depends on
-  something the Copilot CLI agent in `eval-models.yml` can't reproduce (e.g. a
-  host-side Inspect tool); it's then left out of the model comparison.
+  something the Copilot CLI agent in `eval-models.yml` can't reproduce; it's
+  then left out of the model comparison. Host-side Inspect tools are *not* a
+  reason: pass them to `copilot_cli(bridged_tools=...)` (see camunda-ai-agents).
 - **Agent stop (`submit`)** — leave the default (`submit=True`) for multi-step
   tasks with no single fixed deliverable (install → configure → verify, model →
   deploy → test); the agent works through the sequence and ends with an explicit
