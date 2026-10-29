@@ -479,3 +479,42 @@ def test_overall_lint_median_is_pooled_across_evals():
     row = next(line for line in overall.splitlines() if line.startswith("| claude"))
     # Pooled runs [1, 1, 1, 9] -> median 1; a median of medians would give 5.
     assert row.split("|")[3].strip() == "1"
+
+
+def test_errors_are_summarised_and_flagged():
+    from scripts.model_matrix import error_summary, model_errors
+
+    err = NS(
+        message='RuntimeError(\'copilot exited 1: Error: Model "x" from --model '
+        "flag is not available.\\n')"
+    )
+    assert error_summary(NS(error=err)) == (
+        'copilot exited 1: Error: Model "x" from --model flag is not available.'
+    )
+    assert error_summary(NS(error=None)) is None
+
+    bad = [_sample("a", e, error=err) for e in (1, 2)]
+    cells = aggregate(collect_runs(_log(bad)))
+    md = render_markdown(cells, ["claude-sonnet-5.5"])
+    assert "Every run errored (2/2)" in md
+    assert "### Errors" in md and "not available" in md
+    assert (
+        model_errors(cells, ["claude-sonnet-5.5"])["claude-sonnet-5.5"]["errored"] == 2
+    )
+
+    mixed = cells + aggregate(
+        collect_runs(
+            _log(
+                [_sample("a", 1, copilot=_copilot("gpt-6.1-sol"))],
+                copilot_model="gpt-6.1-sol",
+            )
+        )
+    )
+    md = render_markdown(mixed, ["claude-sonnet-5.5", "gpt-6.1-sol"])
+    assert "2 of 3 runs errored" in md
+
+
+def test_no_error_section_when_nothing_errored():
+    cells = aggregate(collect_runs(_log([_sample("a", 1, copilot=_copilot())])))
+    md = render_markdown(cells, ["claude-sonnet-5.5"])
+    assert "### Errors" not in md and "errored (" not in md

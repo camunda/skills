@@ -157,9 +157,22 @@ comparison matrix → Run workflow**):
 | `epochs` | `3` | repeat runs per sample, for steadier medians |
 | `target` | _(all)_ | substring of the target path, e.g. `camunda-bpmn`, for a partial run |
 
-Copilot retires model ids; a stale id fails that column's jobs immediately
-(`Model "…" from --model flag is not available`) without spending credits.
-Check the current ids with `/models` in an interactive `copilot` session.
+**Model ids are per token.** The job token is billed to the org and governed
+by the org's Copilot model policy, so its catalogue can differ from a personal
+sign-in — ids that work in your own `copilot` session may be *not available*
+in Actions. The *Check Copilot models* step (`evals-copilot-models --check`)
+lists the models the job token can use in the job summary and fails the run
+before any agent job starts if a requested id isn't among them (Copilot only
+rejects a bad `--model` once a session starts, which would otherwise fan out
+into jobs that each fail in seconds). If the catalogue can't be read it warns
+and continues unverified. `auto` is always accepted. To check locally with
+your own token: `COPILOT_GITHUB_TOKEN=$(gh auth token) uv run
+evals-copilot-models --check <ids>`.
+
+**Failures are loud.** If runs error (an agent or sandbox failure rather than a
+wrong answer), the summary opens with a banner and an **Errors** table of the
+most common message per model, fully errored models get a warning annotation,
+and *Build model matrix* fails when every run errored.
 
 **How it runs.** `evals-build-matrix --models … --epochs …` emits one job per
 outcome target × model with `-T agent=copilot_cli` (`evals/src/core/copilot_cli.py`).
