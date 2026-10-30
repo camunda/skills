@@ -16,7 +16,15 @@ runs:
     - name: Resolve Copilot CLI version
       id: copilot
       shell: bash
-      run: echo "version=$(npm view @github/copilot version)" >> "$GITHUB_OUTPUT"
+      run: |
+        # Separate assignment: inside `echo "$(...)"` a failed lookup is
+        # masked and would pass an empty version (no cache key) to the build.
+        version="$(npm view @github/copilot version)"
+        if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+          echo "::error::Couldn't resolve the Copilot CLI version from npm (got '${version}')."
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: Build images (GHA layer cache)
       uses: docker/bake-action@6614cfa25eff9a0b2b2697efb0b6159e7680d584 # v7.2.0
