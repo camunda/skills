@@ -50,4 +50,13 @@ WORKDIR /workspace
 # Non-root user for the agent's shell — c8ctl install also runs as this user.
 RUN useradd --create-home --shell /bin/bash agent \
     && chown -R agent:agent /workspace
+
+# A user-writable npm global prefix, as on a typical developer machine
+# (nvm/volta/user prefix): `npm install -g` works without root, and installed
+# CLIs are on PATH for every shell, `docker exec`, and scorer. Without it, a
+# skill's documented `npm install -g` fails with EACCES and evals end up
+# measuring permission workarounds instead of the skill.
+ENV NPM_CONFIG_PREFIX=/home/agent/.npm-global
+ENV PATH=/home/agent/.npm-global/bin:$PATH
 USER agent
+RUN mkdir -p /home/agent/.npm-global

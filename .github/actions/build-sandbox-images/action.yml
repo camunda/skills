@@ -10,6 +10,22 @@ runs:
   steps:
     - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
+    # Pin the image's Copilot CLI to the current release: the version is the
+    # layer's cache key, so a new release rebuilds just that layer instead of
+    # serving a stale `latest` from the GHA cache.
+    - name: Resolve Copilot CLI version
+      id: copilot
+      shell: bash
+      run: |
+        # Separate assignment: inside `echo "$(...)"` a failed lookup is
+        # masked and would pass an empty version (no cache key) to the build.
+        version="$(npm view @github/copilot version)"
+        if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+          echo "::error::Couldn't resolve the Copilot CLI version from npm (got '${version}')."
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
     - name: Build images (GHA layer cache)
       uses: docker/bake-action@6614cfa25eff9a0b2b2697efb0b6159e7680d584 # v7.2.0
       with:
@@ -21,5 +37,6 @@ runs:
           base.cache-to=type=gha,scope=evals-base,mode=max
           with-c8ctl.cache-from=type=gha,scope=evals-with-c8ctl
           with-c8ctl.cache-to=type=gha,scope=evals-with-c8ctl,mode=max
+          with-c8ctl.args.COPILOT_CLI_VERSION=${{ steps.copilot.outputs.version }}
           verifier.cache-from=type=gha,scope=evals-verifier
           verifier.cache-to=type=gha,scope=evals-verifier,mode=max

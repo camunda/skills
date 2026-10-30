@@ -188,8 +188,10 @@ and *Build model matrix* fails when every run errored.
 
 **How it runs.** `evals-build-matrix --models … --epochs …` emits one job per
 outcome target × model with `-T agent=copilot_cli` (`evals/src/core/copilot_cli.py`).
-Per sample, that agent installs Copilot CLI in the sandbox (`COPILOT_CLI_VERSION`
-repo variable, default `latest`), copies in the arm's skills
+Per sample, that agent uses the Copilot CLI baked into the `with-c8ctl` sandbox
+image (the current release, resolved when the images are built), or installs it
+at run time where an image lacks it (`base`; `COPILOT_CLI_VERSION` repo
+variable, default `latest`), copies in the arm's skills
 (`COPILOT_SKILLS_DIRS`), runs `copilot -p --model <id> --allow-all --no-ask-user
 --output-format json`, and replays its event stream into the Inspect transcript —
 so the existing scorers and verifier phase are unchanged. Inspect runs with

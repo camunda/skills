@@ -225,6 +225,12 @@ def _copilot_command(model: str, mcp_config_file: str | None = None) -> str:
 
 
 async def _ensure_cli(sb: SandboxEnvironment) -> str:
+    """Use the image's Copilot CLI (with-c8ctl bakes it in), else install it.
+
+    Installs as the sandbox's default user into its npm prefix (see
+    base.Dockerfile) — not as root, which would leave root-owned directories
+    in that prefix and break the agent's own ``npm install -g``.
+    """
     probe = await sb.exec(["bash", "-lc", "copilot --version"], timeout=60)
     if probe.returncode != 0:
         version = os.environ.get(VERSION_ENV) or "latest"
@@ -237,7 +243,6 @@ async def _ensure_cli(sb: SandboxEnvironment) -> str:
                 "--no-audit",
                 f"@github/copilot@{version}",
             ],
-            user="root",
             timeout=600,
         )
         if install.returncode != 0:

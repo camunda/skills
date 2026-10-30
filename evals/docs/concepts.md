@@ -97,6 +97,11 @@ The agent container shares the orchestration service's network namespace, so
 agent's `/workspace` read-only and walks it for `*.bpmn` / `*.form` / `*.dmn`,
 so it picks up the artifacts whatever they're named.
 
+The agent runs as a non-root `agent` user with its own npm global prefix
+(`~/.npm-global`, on `PATH` for every shell and `exec`), so a skill's
+documented `npm install -g` works as it would on a developer machine, and
+scorers find globally installed CLIs by name.
+
 ## Scorers: gating vs diagnostic
 
 An outcome eval declares its scorers in `outcomes.py`. Each is one of:
