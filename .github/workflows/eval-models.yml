@@ -157,8 +157,9 @@ jobs:
         run: zstd -dc /tmp/sandbox-images/sandbox-images.tar.zst | docker load
 
       - name: Run eval
-        # The copilot_cli agent installs Copilot CLI in the sandbox and runs it
-        # there; Inspect itself makes no model call (`--model none`) except the
+        # The copilot_cli agent runs Copilot CLI in the sandbox (baked into the
+        # with-c8ctl image; COPILOT_CLI_VERSION only applies where an image
+        # lacks it); Inspect itself makes no model call (`--model none`) except the
         # pinned grader. The job token is handed to the sandbox outside Inspect's
         # event log and stripped from the agent's shell (see core/copilot_cli.py).
         # A failed or errored sample is data for the matrix: --no-fail-on-error
