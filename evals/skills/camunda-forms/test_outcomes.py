@@ -329,6 +329,20 @@ def test_fix_loop_counts_a_json_parse_failure() -> None:
     assert score.value == 1.0, score.explanation
 
 
+def test_fix_loop_accepts_quoted_validator_arguments() -> None:
+    quoted = 'node "validate-form.cjs" "form.form"'
+    score = _fix_loop_score(_shell(quoted, _AJV_FAILURE), _shell(quoted, _PASS))
+
+    assert score.value == 1.0, score.explanation
+
+
+def test_fix_loop_accepts_a_recovery_inside_one_shell_call() -> None:
+    command = f"{_VALIDATE}; sed -i 's/\"18\"/18/' form.form; {_VALIDATE}"
+    score = _fix_loop_score(_shell(command, f"{_AJV_FAILURE}\n{_PASS}"))
+
+    assert score.value == 1.0, score.explanation
+
+
 @pytest.mark.parametrize(
     ("outputs", "reason"),
     [

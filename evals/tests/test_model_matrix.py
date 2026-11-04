@@ -7,7 +7,7 @@ import json
 
 from types import SimpleNamespace as NS
 
-from core.lint_attempts import lint_attempts
+from core.lint_attempts import form_results, lint_attempts
 from core.registry import EvalTarget
 from scripts.build_matrix import build_model_specs, parse_models
 from scripts.model_matrix import aggregate, collect_runs, render_markdown
@@ -293,6 +293,23 @@ class TestLintMatchingReviewCases:
         assert self._runs(cmd, parse)[0].verdict == "dirty"
         assert self._runs(cmd, shape)[0].verdict == "dirty"
         assert self._runs(cmd, missing)[0].verdict == "unknown"
+
+    def test_quoted_single_word_arguments_still_match(self):
+        for cmd in (
+            'node "validate-form.cjs" "form.form"',
+            "node './validate-form.cjs' form.form",
+            'c8ctl bpmn lint --json "process.bpmn"',
+        ):
+            assert len(self._runs(cmd, "Valid ✓")) == 1, cmd
+        assert self._runs('echo "node validate-form.cjs form.form"') == []
+
+    def test_form_results_keep_invocation_order(self):
+        out = (
+            '[{"instancePath": "/schemaVersion"}]\nCannot read/parse a: ENOENT\nValid ✓'
+        )
+        assert form_results(out) == ["dirty", "unknown", "clean"]
+        [run] = self._runs("node validate-form.cjs a; node validate-form.cjs a", out)
+        assert run.verdict == "dirty" and run.output == out
 
 
 class TestModelSpecs:

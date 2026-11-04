@@ -27,7 +27,7 @@ from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 from core.agents import AgentKind, build_agent
-from core.lint_attempts import lint_attempts
+from core.lint_attempts import form_results, lint_attempts
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
@@ -532,8 +532,16 @@ def form_outcome() -> Scorer:
 
 
 def form_validator_verdicts(messages: list[ChatMessage]) -> list[str]:
-    """Verdicts of executed form-validator runs, in transcript order."""
-    return [r.verdict for r in lint_attempts(messages).runs if "form" in r.validators]
+    """Results of executed form-validator invocations, in order.
+
+    Within one tool call, results follow output order (this sample has a single
+    form, so a later `Valid ✓` there is the re-validation, not another file).
+    """
+    verdicts: list[str] = []
+    for run in lint_attempts(messages).runs:
+        if "form" in run.validators:
+            verdicts.extend(form_results(run.output) or [run.verdict])
+    return verdicts
 
 
 @scorer(metrics=[mean(), stderr()])

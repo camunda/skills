@@ -53,6 +53,8 @@ _HEREDOC = re.compile(
     r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.DOTALL
 )
 _QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+# A quoted single word (`node "validate-form.cjs" "a.form"`) is just an argument.
+_QUOTED_WORD = re.compile(r"[\w./@:+%=,-]+")
 _SEPARATORS = re.compile(r"&&|\|\||[;&|\n]")
 _ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
 # Leading words that run the next word as the command.
@@ -88,6 +90,7 @@ class ValidatorRun:
     validators: tuple[Validator, ...]
     verdict: Verdict
     command: str
+    output: str = ""
 
 
 @dataclass
@@ -200,12 +203,17 @@ def _validators_in_segment(segment: str, inline_form: bool) -> list[Validator]:
     return []
 
 
+def _unquote_word(match: re.Match) -> str:
+    inner = match.group(0)[1:-1]
+    return inner if _QUOTED_WORD.fullmatch(inner) else "''"
+
+
 def _match_validators(command: str) -> tuple[Validator, ...]:
     """Every validator the command executes, in order, de-duplicated."""
     text = _HEREDOC.sub("<<HEREDOC", command)
     inline_form = bool(_INLINE_FORM.search(text))
     found: list[Validator] = []
-    for segment in _SEPARATORS.split(_QUOTED.sub("''", text)):
+    for segment in _SEPARATORS.split(_QUOTED.sub(_unquote_word, text)):
         for v in _validators_in_segment(segment, inline_form):
             if v not in found:
                 found.append(v)
@@ -328,6 +336,27 @@ def _classify_form(output: str) -> Verdict:
 
 _CLASSIFIERS = {"bpmn": _classify_bpmn, "dmn": _classify_dmn, "form": _classify_form}
 
+_FORM_RESULT = re.compile(
+    r'FAILED|"instancePath"|"components\[\d+\]|Cannot read/parse[^\n]*|Valid ✓'
+)
+
+
+def form_results(output: str) -> list[Verdict]:
+    """Per-invocation validate-form.cjs results in output order, so a
+    fail-fix-revalidate sequence inside one tool call isn't collapsed."""
+    results: list[Verdict] = []
+    for m in _FORM_RESULT.finditer(output):
+        text = m.group(0)
+        if text == "Valid ✓":
+            results.append("clean")
+        elif text.startswith("Cannot read/parse") and (
+            _TOOL_FAILURE.search(text) or _GENERIC_FAILURE.search(text)
+        ):
+            results.append("unknown")  # missing file, not a validation failure
+        else:
+            results.append("dirty")
+    return results
+
 
 _SHELL_ID = re.compile(r"shellId:\s*([\w.-]+)")
 
@@ -388,12 +417,12 @@ def lint_attempts(messages) -> LintAttempts:
 
     runs = []
     for validators, cmd, outs in pending:
+        output = "\n".join(o for o in outs if o is not None)
         if outs[0] is None:
             verdict: Verdict = "unknown"
         else:
-            output = "\n".join(o for o in outs if o is not None)
             verdict = _combine([_CLASSIFIERS[v](output) for v in validators])
-        runs.append(ValidatorRun(validators, verdict, cmd))
+        runs.append(ValidatorRun(validators, verdict, cmd, output))
     return LintAttempts(runs=runs)
 
 
