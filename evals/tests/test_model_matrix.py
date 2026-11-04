@@ -7,7 +7,7 @@ import json
 
 from types import SimpleNamespace as NS
 
-from core.lint_attempts import lint_attempts
+from core.lint_attempts import form_results, lint_attempts
 from core.registry import EvalTarget
 from scripts.build_matrix import build_model_specs, parse_models
 from scripts.model_matrix import aggregate, collect_runs, render_markdown
@@ -282,6 +282,45 @@ class TestLintMatchingReviewCases:
         out = 'Valid ✓\n[{"instancePath": "/components/0", "keyword": "required"}]'
         cmd = "node validate-form.cjs a.form; node validate-form.cjs b.form"
         assert self._runs(cmd, out)[0].verdict == "dirty"
+
+    def test_form_helper_parse_and_shape_failures_are_dirty(self):
+        cmd = "node validate-form.cjs form.form"
+        parse = "Cannot read/parse form.form: Unexpected token '}' is not valid JSON"
+        shape = (
+            '[\n  "components[0]: use defaultValue instead of value on a component"\n]'
+        )
+        missing = "Cannot read/parse form.form: ENOENT: no such file or directory"
+        assert self._runs(cmd, parse)[0].verdict == "dirty"
+        assert self._runs(cmd, shape)[0].verdict == "dirty"
+        assert self._runs(cmd, missing)[0].verdict == "unknown"
+
+    def test_quoted_single_word_arguments_still_match(self):
+        for cmd in (
+            'node "validate-form.cjs" "form.form"',
+            "node './validate-form.cjs' form.form",
+            'c8ctl bpmn lint --json "process.bpmn"',
+        ):
+            assert len(self._runs(cmd, "Valid ✓")) == 1, cmd
+        assert self._runs('echo "node validate-form.cjs form.form"') == []
+
+    def test_form_results_keep_invocation_order(self):
+        out = (
+            '[{"instancePath": "/schemaVersion"}]\nCannot read/parse a: ENOENT\nValid ✓'
+        )
+        assert form_results(out) == ["dirty", "unknown", "clean"]
+        [run] = self._runs("node validate-form.cjs a; node validate-form.cjs a", out)
+        assert run.verdict == "dirty" and run.output == out
+
+    def test_form_results_read_result_lines_only(self):
+        prompt = "> > root@x:/workspace# Valid ✓\nroot@x:/workspace# "
+        assert form_results(prompt) == ["clean"]
+        source = (
+            "catch (e) { console.error(`Cannot read/parse ${file}: ${e.message}`); }\n"
+            "console.log('Valid ✓');\n"
+            '  node validate-form.cjs "$f" || { echo "FAILED: $f"; failed=1; }\n'
+        )
+        assert form_results(source) == []
+        assert form_results(source + "Valid ✓") == ["clean"]
 
 
 class TestModelSpecs:

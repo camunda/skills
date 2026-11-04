@@ -6,6 +6,10 @@ Deterministic, machine-checkable scoring. Each sample asks for a single
 - valid JSON structure (`components` list)
 - unique component ids / variable keys
 - sample-specific field requirements (types, keys, validation, options, layout)
+
+`fix-invalid-existing-form` plants an invalid form and asks only for an
+extension. Besides the final form, `form_fix_loop` requires the transcript to
+show a failed validator run followed by a passing one.
 """
 
 from __future__ import annotations
@@ -17,11 +21,13 @@ from typing import Any
 from jsonschema import Draft7Validator
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
+from inspect_ai.model import ChatMessage
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 from core.agents import AgentKind, build_agent
+from core.lint_attempts import form_results, lint_attempts
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
@@ -83,6 +89,33 @@ _REQUIRED_COMPONENT_FIELDS = {
     "spacer": ("id", "layout"),
     "table": ("id", "dataSource", "layout"),
     "text": ("id", "text", "layout"),
+}
+
+# Invalid in both validator phases: schema (schemaVersion type, `submit` type),
+# then the shape check (`value`), which only surfaces once the schema passes.
+INVALID_EXISTING_FORM = {
+    "components": [
+        {
+            "type": "textfield",
+            "id": "Field_ReviewerName",
+            "key": "reviewerName",
+            "label": "Reviewer name",
+            "value": "Ada",
+            "layout": {"row": "row_0", "columns": None},
+        },
+        {
+            "type": "submit",
+            "id": "Button_Submit",
+            "label": "Submit",
+            "layout": {"row": "row_1", "columns": None},
+        },
+    ],
+    "executionPlatform": "Camunda Cloud",
+    "executionPlatformVersion": "8.8.0",
+    "exporter": {"name": "Camunda Modeler", "version": "5.34.0"},
+    "schemaVersion": "18",
+    "id": "review-form",
+    "type": "default",
 }
 
 SAMPLES = [
@@ -190,6 +223,44 @@ SAMPLES = [
                     "type": "button",
                     "label": "Submit",
                     "layout_row": "row_1",
+                    "properties": {"action": "submit"},
+                    "absent_properties": ["key"],
+                },
+            ],
+        },
+    ),
+    Sample(
+        id="fix-invalid-existing-form",
+        input=(
+            "Extend the existing Camunda form at /workspace/form.form (id `review-form`):\n"
+            "1. add a textarea id `Field_Comments`, key `comments`, label `Comments`, layout.row `row_1`\n"
+            "2. move the submit button `Button_Submit` to layout.row `row_2`" + SAVE
+        ),
+        files={"/workspace/form.form": json.dumps(INVALID_EXISTING_FORM, indent=2)},
+        metadata={
+            "requires_fix_loop": True,
+            "form_id": "review-form",
+            "required_components": [
+                {
+                    "id": "Field_ReviewerName",
+                    "type": "textfield",
+                    "key": "reviewerName",
+                    "label": "Reviewer name",
+                    "layout_row": "row_0",
+                    "properties": {"defaultValue": "Ada"},
+                },
+                {
+                    "id": "Field_Comments",
+                    "type": "textarea",
+                    "key": "comments",
+                    "label": "Comments",
+                    "layout_row": "row_1",
+                },
+                {
+                    "id": "Button_Submit",
+                    "type": "button",
+                    "label": "Submit",
+                    "layout_row": "row_2",
                     "properties": {"action": "submit"},
                     "absent_properties": ["key"],
                 },
@@ -460,6 +531,40 @@ def form_outcome() -> Scorer:
     return score
 
 
+def form_validator_verdicts(messages: list[ChatMessage]) -> list[str]:
+    """Results of executed form-validator invocations, in order.
+
+    Within one tool call, results follow output order (this sample has a single
+    form, so a later `Valid ✓` there is the re-validation, not another file).
+    """
+    verdicts: list[str] = []
+    for run in lint_attempts(messages).runs:
+        if "form" in run.validators:
+            verdicts.extend(form_results(run.output) or [run.verdict])
+    return verdicts
+
+
+@scorer(metrics=[mean(), stderr()])
+def form_fix_loop() -> Scorer:
+    """On ``requires_fix_loop`` samples: a validator run failed, and the last passed."""
+
+    async def score(state: TaskState, target: Target) -> Score | None:
+        if not (state.metadata or {}).get("requires_fix_loop"):
+            return None
+        verdicts = form_validator_verdicts(state.messages)
+        if not verdicts:
+            explanation = "validator never ran"
+        elif verdicts[-1] != "clean":
+            explanation = "last validator run did not pass"
+        elif "dirty" not in verdicts:
+            explanation = "validator never reported a failure; no fix loop observed"
+        else:
+            return Score(value=1.0, explanation=f"validator runs: {verdicts}")
+        return Score(value=0.0, explanation=f"{explanation}: {verdicts}")
+
+    return score
+
+
 @task
 def camunda_forms(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
@@ -468,6 +573,7 @@ def camunda_forms(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             form_outcome(),
+            form_fix_loop(),
             assert_skill_loaded("camunda-forms", gating=False),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),

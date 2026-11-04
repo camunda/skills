@@ -53,6 +53,8 @@ _HEREDOC = re.compile(
     r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.DOTALL
 )
 _QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+# A quoted single word (`node "validate-form.cjs" "a.form"`) is just an argument.
+_QUOTED_WORD = re.compile(r"[\w./@:+%=,-]+")
 _SEPARATORS = re.compile(r"&&|\|\||[;&|\n]")
 _ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
 # Leading words that run the next word as the command.
@@ -88,6 +90,7 @@ class ValidatorRun:
     validators: tuple[Validator, ...]
     verdict: Verdict
     command: str
+    output: str = ""
 
 
 @dataclass
@@ -200,12 +203,17 @@ def _validators_in_segment(segment: str, inline_form: bool) -> list[Validator]:
     return []
 
 
+def _unquote_word(match: re.Match) -> str:
+    inner = match.group(0)[1:-1]
+    return inner if _QUOTED_WORD.fullmatch(inner) else "''"
+
+
 def _match_validators(command: str) -> tuple[Validator, ...]:
     """Every validator the command executes, in order, de-duplicated."""
     text = _HEREDOC.sub("<<HEREDOC", command)
     inline_form = bool(_INLINE_FORM.search(text))
     found: list[Validator] = []
-    for segment in _SEPARATORS.split(_QUOTED.sub("''", text)):
+    for segment in _SEPARATORS.split(_QUOTED.sub(_unquote_word, text)):
         for v in _validators_in_segment(segment, inline_form):
             if v not in found:
                 found.append(v)
@@ -299,6 +307,15 @@ def _classify_dmn(output: str) -> Verdict:
     return "clean" if not _body(output) else "unknown"
 
 
+# validate-form.cjs result lines. Anchored to a line start (after an optional
+# heredoc `> ` / shell prompt) so printed helper source or skill text, where
+# the same strings appear mid-line, isn't read as a result.
+_FORM_LINE = r"(?m)^(?:> )*(?:\S*[#$] )?[ \t\[{]*"
+_FORM_HELPER_FAILURE = re.compile(
+    _FORM_LINE + r'(?:"components\[\d+\]|Cannot read/parse)'
+)
+
+
 def _classify_form(output: str) -> Verdict:
     # Failure signals before the success marker: a multi-file call can print
     # `Valid ✓` for one file and Ajv errors for the next.
@@ -306,6 +323,9 @@ def _classify_form(output: str) -> Verdict:
         return "dirty"
     if _TOOL_FAILURE.search(output) or _GENERIC_FAILURE.search(output):
         return "unknown"
+    # validate-form.cjs: unparseable JSON, then its own component-shape errors.
+    if _FORM_HELPER_FAILURE.search(output):
+        return "dirty"
     code = _exit_code(output)
     if code not in (None, 0):
         return "dirty" if code == 1 else "unknown"
@@ -321,6 +341,27 @@ def _classify_form(output: str) -> Verdict:
 
 
 _CLASSIFIERS = {"bpmn": _classify_bpmn, "dmn": _classify_dmn, "form": _classify_form}
+
+_FORM_RESULT = re.compile(
+    _FORM_LINE
+    + r'(?:(?P<clean>Valid ✓)[ \t]*$|FAILED: |"instancePath"|"components\[\d+\]'
+    + r"|(?P<parse>Cannot read/parse[^\n]*))"
+)
+
+
+def form_results(output: str) -> list[Verdict]:
+    """Per-invocation validate-form.cjs results in output order, so a
+    fail-fix-revalidate sequence inside one tool call isn't collapsed."""
+    results: list[Verdict] = []
+    for m in _FORM_RESULT.finditer(output):
+        parse = m.group("parse")
+        if m.group("clean"):
+            results.append("clean")
+        elif parse and (_TOOL_FAILURE.search(parse) or _GENERIC_FAILURE.search(parse)):
+            results.append("unknown")  # missing file, not a validation failure
+        else:
+            results.append("dirty")
+    return results
 
 
 _SHELL_ID = re.compile(r"shellId:\s*([\w.-]+)")
@@ -382,12 +423,12 @@ def lint_attempts(messages) -> LintAttempts:
 
     runs = []
     for validators, cmd, outs in pending:
+        output = "\n".join(o for o in outs if o is not None)
         if outs[0] is None:
             verdict: Verdict = "unknown"
         else:
-            output = "\n".join(o for o in outs if o is not None)
             verdict = _combine([_CLASSIFIERS[v](output) for v in validators])
-        runs.append(ValidatorRun(validators, verdict, cmd))
+        runs.append(ValidatorRun(validators, verdict, cmd, output))
     return LintAttempts(runs=runs)
 
 
