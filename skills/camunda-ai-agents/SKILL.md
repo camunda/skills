@@ -241,8 +241,8 @@ Non-obvious failure modes the lint loop will not catch.
 Run the BPMN lint loop (see **camunda-bpmn**) until the process is lint-clean before declaring the agent process done:
 
 ```bash
-c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
-c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
+# One command: lints only once the Camunda ruleset is confirmed. Fix and re-run until errorCount and warningCount are 0.
+if c8ctl --dry-run bpmn lint --json process.bpmn | grep -q 'camunda-compat/camunda-cloud-'; then c8ctl bpmn lint --json process.bpmn; else echo "Camunda ruleset not applied: set modeler:executionPlatformVersion, or upgrade c8ctl to >= 3.1.0"; false; fi
 ```
 
 Lint now catches `fromAi()` misplacement on sub-flow tools — the `agent-fromai-contract` rule in `bpmnlint-plugin-camunda-compat` flags a `fromAi()` call declared on a descendant activity instead of the tool's entry element (for a sub-flow tool, the `bpmn:subProcess` root's own `zeebe:ioMapping`). Run lint first; if it's clean but a sub-flow tool's params still come back `null`, re-check against "Defining Tools" above.

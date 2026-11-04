@@ -60,8 +60,8 @@ Pick the pair that matches the element's current `zeebe:modelerTemplate`. Hybrid
 6. Run the BPMN lint loop (see **camunda-bpmn**) until the process is lint-clean, then the post-upgrade steps below:
 
    ```bash
-   c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
-   c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
+   # One command: lints only once the Camunda ruleset is confirmed. Fix and re-run until errorCount and warningCount are 0.
+   if c8ctl --dry-run bpmn lint --json process.bpmn | grep -q 'camunda-compat/camunda-cloud-'; then c8ctl bpmn lint --json process.bpmn; else echo "Camunda ruleset not applied: set modeler:executionPlatformVersion, or upgrade c8ctl to >= 3.1.0"; false; fi
    ```
 
 ### Recipe present or not

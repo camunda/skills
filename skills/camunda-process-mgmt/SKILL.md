@@ -61,8 +61,8 @@ Pre-deploy checks:
 1. Every BPMN resource must be lint-clean before deployment — Camunda ruleset applied, zero errors, zero warnings. Run the full BPMN lint loop (see **camunda-bpmn**) on each one, including existing files you didn't edit. A zero-issue `c8ctl bpmn lint` report alone is not enough: without `modeler:executionPlatformVersion` it skips the Camunda rules.
 
    ```bash
-   c8ctl --dry-run bpmn lint --json process.bpmn   # config.extends must include plugin:camunda-compat/camunda-cloud-*
-   c8ctl bpmn lint --json process.bpmn             # fix and re-run until errorCount and warningCount are 0
+   # One command: lints only once the Camunda ruleset is confirmed. Fix and re-run until errorCount and warningCount are 0.
+   if c8ctl --dry-run bpmn lint --json process.bpmn | grep -q 'camunda-compat/camunda-cloud-'; then c8ctl bpmn lint --json process.bpmn; else echo "Camunda ruleset not applied: set modeler:executionPlatformVersion, or upgrade c8ctl to >= 3.1.0"; false; fi
    ```
 
 2. Validate DMN and form files if present (see **camunda-dmn** and **camunda-forms** workflows), then deploy only the resources that are ready.
