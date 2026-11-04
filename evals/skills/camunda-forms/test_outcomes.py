@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import copy
 import importlib.util
+import json
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -178,3 +181,83 @@ def test_rejects_incomplete_component_schema(
 
 def test_accepts_complete_form_schema() -> None:
     assert _outcomes._validate_form_schema(_valid_form()) is None
+
+
+def _score_fix_invalid_sample(
+    monkeypatch: pytest.MonkeyPatch, form: dict[str, object]
+) -> SimpleNamespace:
+    sample = next(s for s in _outcomes.SAMPLES if s.id == "fix-invalid-existing-form")
+
+    class _Sandbox:
+        async def exec(self, cmd: list[str], **_: object) -> SimpleNamespace:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(form))
+
+    monkeypatch.setattr(_outcomes, "sandbox", lambda: _Sandbox())
+    state = SimpleNamespace(metadata=sample.metadata)
+    return asyncio.run(_outcomes.form_outcome()(state, None))
+
+
+def test_fix_invalid_sample_plants_the_invalid_form() -> None:
+    sample = next(s for s in _outcomes.SAMPLES if s.id == "fix-invalid-existing-form")
+
+    assert (
+        json.loads(sample.files["/workspace/form.form"])
+        == _outcomes.INVALID_EXISTING_FORM
+    )
+    assert _outcomes._validate_form_schema(_outcomes.INVALID_EXISTING_FORM) is not None
+
+
+def test_fix_invalid_sample_fails_when_only_extended(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    form = copy.deepcopy(_outcomes.INVALID_EXISTING_FORM)
+    form["components"][1]["layout"]["row"] = "row_2"
+    form["components"].insert(
+        1,
+        {
+            "type": "textarea",
+            "id": "Field_Comments",
+            "key": "comments",
+            "label": "Comments",
+            "layout": {"row": "row_1", "columns": None},
+        },
+    )
+
+    score = _score_fix_invalid_sample(monkeypatch, form)
+
+    assert score.value == 0.0
+    assert "schema validation failed" in score.explanation
+
+
+def test_fix_invalid_sample_passes_when_fixed_and_extended(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    form = _valid_form()
+    form["components"] = [
+        {
+            "type": "textfield",
+            "id": "Field_ReviewerName",
+            "key": "reviewerName",
+            "label": "Reviewer name",
+            "defaultValue": "Ada",
+            "layout": {"row": "row_0", "columns": None},
+        },
+        {
+            "type": "textarea",
+            "id": "Field_Comments",
+            "key": "comments",
+            "label": "Comments",
+            "layout": {"row": "row_1", "columns": None},
+        },
+        {
+            "type": "button",
+            "id": "Button_Submit",
+            "label": "Submit",
+            "action": "submit",
+            "layout": {"row": "row_2", "columns": None},
+        },
+    ]
+
+    score = _score_fix_invalid_sample(monkeypatch, form)
+
+    assert score.value == 1.0, score.explanation

@@ -6,6 +6,9 @@ Deterministic, machine-checkable scoring. Each sample asks for a single
 - valid JSON structure (`components` list)
 - unique component ids / variable keys
 - sample-specific field requirements (types, keys, validation, options, layout)
+
+`fix-invalid-existing-form` plants an invalid form and asks only for an
+extension, so it passes only if the agent validates, fixes and re-validates.
 """
 
 from __future__ import annotations
@@ -83,6 +86,33 @@ _REQUIRED_COMPONENT_FIELDS = {
     "spacer": ("id", "layout"),
     "table": ("id", "dataSource", "layout"),
     "text": ("id", "text", "layout"),
+}
+
+# Invalid in both validator phases: schema (schemaVersion type, `submit` type),
+# then the shape check (`value`), which only surfaces once the schema passes.
+INVALID_EXISTING_FORM = {
+    "components": [
+        {
+            "type": "textfield",
+            "id": "Field_ReviewerName",
+            "key": "reviewerName",
+            "label": "Reviewer name",
+            "value": "Ada",
+            "layout": {"row": "row_0", "columns": None},
+        },
+        {
+            "type": "submit",
+            "id": "Button_Submit",
+            "label": "Submit",
+            "layout": {"row": "row_1", "columns": None},
+        },
+    ],
+    "executionPlatform": "Camunda Cloud",
+    "executionPlatformVersion": "8.8.0",
+    "exporter": {"name": "Camunda Modeler", "version": "5.34.0"},
+    "schemaVersion": "18",
+    "id": "review-form",
+    "type": "default",
 }
 
 SAMPLES = [
@@ -190,6 +220,43 @@ SAMPLES = [
                     "type": "button",
                     "label": "Submit",
                     "layout_row": "row_1",
+                    "properties": {"action": "submit"},
+                    "absent_properties": ["key"],
+                },
+            ],
+        },
+    ),
+    Sample(
+        id="fix-invalid-existing-form",
+        input=(
+            "Extend the existing Camunda form at /workspace/form.form (id `review-form`):\n"
+            "1. add a textarea id `Field_Comments`, key `comments`, label `Comments`, layout.row `row_1`\n"
+            "2. move the submit button `Button_Submit` to layout.row `row_2`" + SAVE
+        ),
+        files={"/workspace/form.form": json.dumps(INVALID_EXISTING_FORM, indent=2)},
+        metadata={
+            "form_id": "review-form",
+            "required_components": [
+                {
+                    "id": "Field_ReviewerName",
+                    "type": "textfield",
+                    "key": "reviewerName",
+                    "label": "Reviewer name",
+                    "layout_row": "row_0",
+                    "properties": {"defaultValue": "Ada"},
+                },
+                {
+                    "id": "Field_Comments",
+                    "type": "textarea",
+                    "key": "comments",
+                    "label": "Comments",
+                    "layout_row": "row_1",
+                },
+                {
+                    "id": "Button_Submit",
+                    "type": "button",
+                    "label": "Submit",
+                    "layout_row": "row_2",
                     "properties": {"action": "submit"},
                     "absent_properties": ["key"],
                 },
