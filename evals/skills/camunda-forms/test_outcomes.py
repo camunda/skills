@@ -8,6 +8,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+from inspect_ai.model import ChatMessageTool
 
 
 def _load_outcomes() -> ModuleType:
@@ -261,3 +262,70 @@ def test_fix_invalid_sample_passes_when_fixed_and_extended(
     score = _score_fix_invalid_sample(monkeypatch, form)
 
     assert score.value == 1.0, score.explanation
+
+
+_AJV_FAILURE = '[\n  {\n    "instancePath": "/schemaVersion",\n    "message": "must be integer"\n  }\n]'
+_SHAPE_FAILURE = (
+    '[\n  "components[0]: use defaultValue instead of value on a component"\n]'
+)
+_PASS = "Valid ✓\nroot@sandbox:/workspace# "
+
+
+def _shell(output: str, function: str = "bash_session") -> ChatMessageTool:
+    return ChatMessageTool(content=output, function=function, tool_call_id=output[:8])
+
+
+def _fix_loop_score(*messages: object, requires: bool = True) -> object:
+    state = SimpleNamespace(
+        metadata={"requires_fix_loop": requires}, messages=list(messages)
+    )
+    return asyncio.run(_outcomes.form_fix_loop()(state, None))
+
+
+def test_fix_invalid_sample_requires_the_fix_loop() -> None:
+    sample = next(s for s in _outcomes.SAMPLES if s.id == "fix-invalid-existing-form")
+
+    assert sample.metadata["requires_fix_loop"] is True
+
+
+@pytest.mark.parametrize("function", ["bash_session", "bash", "Bash"])
+def test_fix_loop_passes_on_failed_then_passing_validation(function: str) -> None:
+    score = _fix_loop_score(
+        _shell(_AJV_FAILURE, function),
+        _shell(_SHAPE_FAILURE, function),
+        _shell(_PASS, function),
+    )
+
+    assert score.value == 1.0, score.explanation
+
+
+@pytest.mark.parametrize(
+    ("messages", "reason"),
+    [
+        ((), "validator never ran"),
+        ((_PASS,), "only ever passed"),
+        ((_AJV_FAILURE,), "did not pass"),
+        ((_AJV_FAILURE, _PASS, _SHAPE_FAILURE), "did not pass"),
+    ],
+    ids=["no-validation", "success-only", "failure-only", "ends-failing"],
+)
+def test_fix_loop_fails_without_a_completed_loop(
+    messages: tuple[str, ...], reason: str
+) -> None:
+    score = _fix_loop_score(*(_shell(m) for m in messages))
+
+    assert score.value == 0.0
+    assert reason in score.explanation
+
+
+def test_fix_loop_ignores_validator_text_outside_shell_output() -> None:
+    score = _fix_loop_score(
+        ChatMessageTool(content=_AJV_FAILURE, function="text_editor", tool_call_id="v"),
+        _shell(_PASS),
+    )
+
+    assert score.value == 0.0
+
+
+def test_fix_loop_does_not_apply_to_other_samples() -> None:
+    assert _fix_loop_score(_shell(_PASS), requires=False) is None

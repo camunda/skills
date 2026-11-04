@@ -8,18 +8,21 @@ Deterministic, machine-checkable scoring. Each sample asks for a single
 - sample-specific field requirements (types, keys, validation, options, layout)
 
 `fix-invalid-existing-form` plants an invalid form and asks only for an
-extension, so it passes only if the agent validates, fixes and re-validates.
+extension. Besides the final form, `form_fix_loop` requires the transcript to
+show a failed validator run followed by a passing one.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft7Validator
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
+from inspect_ai.model import ChatMessage, ChatMessageTool
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
@@ -235,6 +238,7 @@ SAMPLES = [
         ),
         files={"/workspace/form.form": json.dumps(INVALID_EXISTING_FORM, indent=2)},
         metadata={
+            "requires_fix_loop": True,
             "form_id": "review-form",
             "required_components": [
                 {
@@ -527,6 +531,48 @@ def form_outcome() -> Scorer:
     return score
 
 
+# Output markers of the skill's validate-form.cjs: ajv errors, shape errors,
+# the batch loop's FAILED line, and the success line.
+_VALIDATOR_FAILED = re.compile(r'"instancePath"|components\[\d+\]|FAILED: ')
+_VALIDATOR_PASSED = re.compile(re.escape("Valid ✓"))
+
+
+def validator_outcomes(messages: list[ChatMessage]) -> list[str]:
+    """Validator results in transcript order, read from shell tool output."""
+    outcomes: list[str] = []
+    for message in messages:
+        if not isinstance(message, ChatMessageTool):
+            continue
+        function = (message.function or "").lower()
+        if "bash" not in function and "shell" not in function:
+            continue
+        hits = [(m.start(), "fail") for m in _VALIDATOR_FAILED.finditer(message.text)]
+        hits += [(m.start(), "pass") for m in _VALIDATOR_PASSED.finditer(message.text)]
+        outcomes.extend(kind for _, kind in sorted(hits))
+    return outcomes
+
+
+@scorer(metrics=[mean(), stderr()])
+def form_fix_loop() -> Scorer:
+    """On ``requires_fix_loop`` samples: the validator failed, then passed last."""
+
+    async def score(state: TaskState, target: Target) -> Score | None:
+        if not (state.metadata or {}).get("requires_fix_loop"):
+            return None
+        outcomes = validator_outcomes(state.messages)
+        if not outcomes:
+            explanation = "validator never ran"
+        elif outcomes[-1] != "pass":
+            explanation = "last validator run did not pass"
+        elif "fail" not in outcomes:
+            explanation = "validator only ever passed; no fix loop observed"
+        else:
+            return Score(value=1.0, explanation=f"validator outcomes: {outcomes}")
+        return Score(value=0.0, explanation=f"{explanation}: {outcomes}")
+
+    return score
+
+
 @task
 def camunda_forms(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
     skill_dirs = skill_dirs_for_arm(arm, METADATA.excluded_skills)
@@ -535,6 +581,7 @@ def camunda_forms(arm: Arm = "with_skill", agent: AgentKind = "react") -> Task:
         solver=with_artifact_collection(build_agent(agent, skill_dirs, submit=False)),
         scorer=[
             form_outcome(),
+            form_fix_loop(),
             assert_skill_loaded("camunda-forms", gating=False),
         ],
         sandbox=("docker", str(SANDBOXES_DIR / "compose-advisory.yaml")),
