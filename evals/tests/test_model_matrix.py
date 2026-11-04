@@ -311,6 +311,17 @@ class TestLintMatchingReviewCases:
         [run] = self._runs("node validate-form.cjs a; node validate-form.cjs a", out)
         assert run.verdict == "dirty" and run.output == out
 
+    def test_form_results_read_result_lines_only(self):
+        prompt = "> > root@x:/workspace# Valid ✓\nroot@x:/workspace# "
+        assert form_results(prompt) == ["clean"]
+        source = (
+            "catch (e) { console.error(`Cannot read/parse ${file}: ${e.message}`); }\n"
+            "console.log('Valid ✓');\n"
+            '  node validate-form.cjs "$f" || { echo "FAILED: $f"; failed=1; }\n'
+        )
+        assert form_results(source) == []
+        assert form_results(source + "Valid ✓") == ["clean"]
+
 
 class TestModelSpecs:
     def _targets(self):

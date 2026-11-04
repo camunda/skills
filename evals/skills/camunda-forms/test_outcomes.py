@@ -369,24 +369,26 @@ def test_fix_loop_fails_without_a_completed_loop(
     assert reason in score.explanation
 
 
-@pytest.mark.parametrize(
-    ("command", "path"),
-    [
-        ("cat skills/camunda-forms/SKILL.md", "skills/camunda-forms/SKILL.md"),
-        ("cat validate-form.cjs", "skills/camunda-forms/SKILL.md"),
-    ],
-    ids=["read-skill", "read-helper"],
-)
-def test_fix_loop_ignores_shell_reads_of_validator_text(
-    command: str, path: str
-) -> None:
-    text = (_REPO / path).read_text(encoding="utf-8")
-    assert "Valid \u2713" in text and "FAILED: " in text
+def _validator_texts() -> dict[str, str]:
+    skill = (_REPO / "skills/camunda-forms/SKILL.md").read_text(encoding="utf-8")
+    helper = skill.split("cat > validate-form.cjs << 'EOF'\n", 1)[1].split("\nEOF", 1)[
+        0
+    ]
+    assert "Valid \u2713" in helper and "Cannot read/parse" in helper
+    assert "Valid \u2713" in skill and "FAILED: " in skill
+    return {"cat skills/camunda-forms/SKILL.md": skill, "cat validate-form.cjs": helper}
 
-    score = _fix_loop_score(_shell(command, text), _shell(_VALIDATE, _PASS))
 
-    assert score.value == 0.0
-    assert "never reported a failure" in score.explanation
+@pytest.mark.parametrize("command", list(_validator_texts()), ids=["skill", "helper"])
+def test_fix_loop_ignores_shell_reads_of_validator_text(command: str) -> None:
+    text = _validator_texts()[command]
+
+    separate = _fix_loop_score(_shell(command, text), _shell(_VALIDATE, _PASS))
+    combined = _fix_loop_score(_shell(f"{command}; {_VALIDATE}", f"{text}\n{_PASS}"))
+
+    for score in (separate, combined):
+        assert score.value == 0.0
+        assert "never reported a failure" in score.explanation
 
 
 def test_fix_loop_does_not_apply_to_other_samples() -> None:

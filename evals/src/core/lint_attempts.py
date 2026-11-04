@@ -307,7 +307,13 @@ def _classify_dmn(output: str) -> Verdict:
     return "clean" if not _body(output) else "unknown"
 
 
-_FORM_SHAPE_ERROR = re.compile(r'"components\[\d+\]')
+# validate-form.cjs result lines. Anchored to a line start (after an optional
+# heredoc `> ` / shell prompt) so printed helper source or skill text, where
+# the same strings appear mid-line, isn't read as a result.
+_FORM_LINE = r"(?m)^(?:> )*(?:\S*[#$] )?[ \t\[{]*"
+_FORM_HELPER_FAILURE = re.compile(
+    _FORM_LINE + r'(?:"components\[\d+\]|Cannot read/parse)'
+)
 
 
 def _classify_form(output: str) -> Verdict:
@@ -318,7 +324,7 @@ def _classify_form(output: str) -> Verdict:
     if _TOOL_FAILURE.search(output) or _GENERIC_FAILURE.search(output):
         return "unknown"
     # validate-form.cjs: unparseable JSON, then its own component-shape errors.
-    if "Cannot read/parse" in output or _FORM_SHAPE_ERROR.search(output):
+    if _FORM_HELPER_FAILURE.search(output):
         return "dirty"
     code = _exit_code(output)
     if code not in (None, 0):
@@ -337,7 +343,9 @@ def _classify_form(output: str) -> Verdict:
 _CLASSIFIERS = {"bpmn": _classify_bpmn, "dmn": _classify_dmn, "form": _classify_form}
 
 _FORM_RESULT = re.compile(
-    r'FAILED|"instancePath"|"components\[\d+\]|Cannot read/parse[^\n]*|Valid ✓'
+    _FORM_LINE
+    + r'(?:(?P<clean>Valid ✓)[ \t]*$|FAILED: |"instancePath"|"components\[\d+\]'
+    + r"|(?P<parse>Cannot read/parse[^\n]*))"
 )
 
 
@@ -346,12 +354,10 @@ def form_results(output: str) -> list[Verdict]:
     fail-fix-revalidate sequence inside one tool call isn't collapsed."""
     results: list[Verdict] = []
     for m in _FORM_RESULT.finditer(output):
-        text = m.group(0)
-        if text == "Valid ✓":
+        parse = m.group("parse")
+        if m.group("clean"):
             results.append("clean")
-        elif text.startswith("Cannot read/parse") and (
-            _TOOL_FAILURE.search(text) or _GENERIC_FAILURE.search(text)
-        ):
+        elif parse and (_TOOL_FAILURE.search(parse) or _GENERIC_FAILURE.search(parse)):
             results.append("unknown")  # missing file, not a validation failure
         else:
             results.append("dirty")
