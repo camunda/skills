@@ -15,19 +15,19 @@ show a failed validator run followed by a passing one.
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft7Validator
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessage, ChatMessageTool
+from inspect_ai.model import ChatMessage
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
 from core.agents import AgentKind, build_agent
+from core.lint_attempts import lint_attempts
 from core.metadata import EvalMetadata
 from core.paths import SANDBOXES_DIR, Arm, skill_dirs_for_arm
 from scorers.transcript import assert_skill_loaded
@@ -531,44 +531,28 @@ def form_outcome() -> Scorer:
     return score
 
 
-# Output markers of the skill's validate-form.cjs: ajv errors, shape errors,
-# the batch loop's FAILED line, and the success line.
-_VALIDATOR_FAILED = re.compile(r'"instancePath"|components\[\d+\]|FAILED: ')
-_VALIDATOR_PASSED = re.compile(re.escape("Valid ✓"))
-
-
-def validator_outcomes(messages: list[ChatMessage]) -> list[str]:
-    """Validator results in transcript order, read from shell tool output."""
-    outcomes: list[str] = []
-    for message in messages:
-        if not isinstance(message, ChatMessageTool):
-            continue
-        function = (message.function or "").lower()
-        if "bash" not in function and "shell" not in function:
-            continue
-        hits = [(m.start(), "fail") for m in _VALIDATOR_FAILED.finditer(message.text)]
-        hits += [(m.start(), "pass") for m in _VALIDATOR_PASSED.finditer(message.text)]
-        outcomes.extend(kind for _, kind in sorted(hits))
-    return outcomes
+def form_validator_verdicts(messages: list[ChatMessage]) -> list[str]:
+    """Verdicts of executed form-validator runs, in transcript order."""
+    return [r.verdict for r in lint_attempts(messages).runs if "form" in r.validators]
 
 
 @scorer(metrics=[mean(), stderr()])
 def form_fix_loop() -> Scorer:
-    """On ``requires_fix_loop`` samples: the validator failed, then passed last."""
+    """On ``requires_fix_loop`` samples: a validator run failed, and the last passed."""
 
     async def score(state: TaskState, target: Target) -> Score | None:
         if not (state.metadata or {}).get("requires_fix_loop"):
             return None
-        outcomes = validator_outcomes(state.messages)
-        if not outcomes:
+        verdicts = form_validator_verdicts(state.messages)
+        if not verdicts:
             explanation = "validator never ran"
-        elif outcomes[-1] != "pass":
+        elif verdicts[-1] != "clean":
             explanation = "last validator run did not pass"
-        elif "fail" not in outcomes:
-            explanation = "validator only ever passed; no fix loop observed"
+        elif "dirty" not in verdicts:
+            explanation = "validator never reported a failure; no fix loop observed"
         else:
-            return Score(value=1.0, explanation=f"validator outcomes: {outcomes}")
-        return Score(value=0.0, explanation=f"{explanation}: {outcomes}")
+            return Score(value=1.0, explanation=f"validator runs: {verdicts}")
+        return Score(value=0.0, explanation=f"{explanation}: {verdicts}")
 
     return score
 

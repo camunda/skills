@@ -8,7 +8,8 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
-from inspect_ai.model import ChatMessageTool
+from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.tool import ToolCall
 
 
 def _load_outcomes() -> ModuleType:
@@ -264,21 +265,44 @@ def test_fix_invalid_sample_passes_when_fixed_and_extended(
     assert score.value == 1.0, score.explanation
 
 
+_REPO = Path(__file__).resolve().parents[3]
+_VALIDATE = "node validate-form.cjs form.form"
+# Real validate-form.cjs output for the planted form, step by step.
 _AJV_FAILURE = '[\n  {\n    "instancePath": "/schemaVersion",\n    "message": "must be integer"\n  }\n]'
 _SHAPE_FAILURE = (
     '[\n  "components[0]: use defaultValue instead of value on a component"\n]'
 )
-_PASS = "Valid ✓\nroot@sandbox:/workspace# "
+_PARSE_FAILURE = (
+    'Cannot read/parse form.form: Unexpected token \'}\', "{"components": [}" '
+    "is not valid JSON"
+)
+_MISSING_FILE = (
+    "Cannot read/parse form.form: ENOENT: no such file or directory, open 'form.form'"
+)
+_PASS = "Valid \u2713\nroot@sandbox:/workspace# "
+
+_call_ids = iter(range(10_000))
 
 
-def _shell(output: str, function: str = "bash_session") -> ChatMessageTool:
-    return ChatMessageTool(content=output, function=function, tool_call_id=output[:8])
-
-
-def _fix_loop_score(*messages: object, requires: bool = True) -> object:
-    state = SimpleNamespace(
-        metadata={"requires_fix_loop": requires}, messages=list(messages)
+def _shell(command: str, output: str, function: str = "bash_session") -> list:
+    call_id = f"call{next(_call_ids)}"
+    arguments = (
+        {"action": "type_submit", "input": command}
+        if function == "bash_session"
+        else {"command": command}
     )
+    return [
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[ToolCall(id=call_id, function=function, arguments=arguments)],
+        ),
+        ChatMessageTool(content=output, tool_call_id=call_id, function=function),
+    ]
+
+
+def _fix_loop_score(*turns: list, requires: bool = True) -> object:
+    messages = [m for turn in turns for m in turn]
+    state = SimpleNamespace(metadata={"requires_fix_loop": requires}, messages=messages)
     return asyncio.run(_outcomes.form_fix_loop()(state, None))
 
 
@@ -291,41 +315,65 @@ def test_fix_invalid_sample_requires_the_fix_loop() -> None:
 @pytest.mark.parametrize("function", ["bash_session", "bash", "Bash"])
 def test_fix_loop_passes_on_failed_then_passing_validation(function: str) -> None:
     score = _fix_loop_score(
-        _shell(_AJV_FAILURE, function),
-        _shell(_SHAPE_FAILURE, function),
-        _shell(_PASS, function),
+        _shell(_VALIDATE, _AJV_FAILURE, function),
+        _shell(_VALIDATE, _SHAPE_FAILURE, function),
+        _shell(_VALIDATE, _PASS, function),
     )
 
     assert score.value == 1.0, score.explanation
 
 
+def test_fix_loop_counts_a_json_parse_failure() -> None:
+    score = _fix_loop_score(_shell(_VALIDATE, _PARSE_FAILURE), _shell(_VALIDATE, _PASS))
+
+    assert score.value == 1.0, score.explanation
+
+
 @pytest.mark.parametrize(
-    ("messages", "reason"),
+    ("outputs", "reason"),
     [
         ((), "validator never ran"),
-        ((_PASS,), "only ever passed"),
+        ((_PASS,), "never reported a failure"),
+        ((_MISSING_FILE, _PASS), "never reported a failure"),
         ((_AJV_FAILURE,), "did not pass"),
         ((_AJV_FAILURE, _PASS, _SHAPE_FAILURE), "did not pass"),
     ],
-    ids=["no-validation", "success-only", "failure-only", "ends-failing"],
+    ids=[
+        "no-validation",
+        "success-only",
+        "missing-file",
+        "failure-only",
+        "ends-failing",
+    ],
 )
 def test_fix_loop_fails_without_a_completed_loop(
-    messages: tuple[str, ...], reason: str
+    outputs: tuple[str, ...], reason: str
 ) -> None:
-    score = _fix_loop_score(*(_shell(m) for m in messages))
+    score = _fix_loop_score(*(_shell(_VALIDATE, o) for o in outputs))
 
     assert score.value == 0.0
     assert reason in score.explanation
 
 
-def test_fix_loop_ignores_validator_text_outside_shell_output() -> None:
-    score = _fix_loop_score(
-        ChatMessageTool(content=_AJV_FAILURE, function="text_editor", tool_call_id="v"),
-        _shell(_PASS),
-    )
+@pytest.mark.parametrize(
+    ("command", "path"),
+    [
+        ("cat skills/camunda-forms/SKILL.md", "skills/camunda-forms/SKILL.md"),
+        ("cat validate-form.cjs", "skills/camunda-forms/SKILL.md"),
+    ],
+    ids=["read-skill", "read-helper"],
+)
+def test_fix_loop_ignores_shell_reads_of_validator_text(
+    command: str, path: str
+) -> None:
+    text = (_REPO / path).read_text(encoding="utf-8")
+    assert "Valid \u2713" in text and "FAILED: " in text
+
+    score = _fix_loop_score(_shell(command, text), _shell(_VALIDATE, _PASS))
 
     assert score.value == 0.0
+    assert "never reported a failure" in score.explanation
 
 
 def test_fix_loop_does_not_apply_to_other_samples() -> None:
-    assert _fix_loop_score(_shell(_PASS), requires=False) is None
+    assert _fix_loop_score(_shell(_VALIDATE, _PASS), requires=False) is None

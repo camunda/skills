@@ -299,6 +299,9 @@ def _classify_dmn(output: str) -> Verdict:
     return "clean" if not _body(output) else "unknown"
 
 
+_FORM_SHAPE_ERROR = re.compile(r'"components\[\d+\]')
+
+
 def _classify_form(output: str) -> Verdict:
     # Failure signals before the success marker: a multi-file call can print
     # `Valid ✓` for one file and Ajv errors for the next.
@@ -306,6 +309,9 @@ def _classify_form(output: str) -> Verdict:
         return "dirty"
     if _TOOL_FAILURE.search(output) or _GENERIC_FAILURE.search(output):
         return "unknown"
+    # validate-form.cjs: unparseable JSON, then its own component-shape errors.
+    if "Cannot read/parse" in output or _FORM_SHAPE_ERROR.search(output):
+        return "dirty"
     code = _exit_code(output)
     if code not in (None, 0):
         return "dirty" if code == 1 else "unknown"

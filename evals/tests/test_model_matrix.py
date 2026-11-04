@@ -283,6 +283,17 @@ class TestLintMatchingReviewCases:
         cmd = "node validate-form.cjs a.form; node validate-form.cjs b.form"
         assert self._runs(cmd, out)[0].verdict == "dirty"
 
+    def test_form_helper_parse_and_shape_failures_are_dirty(self):
+        cmd = "node validate-form.cjs form.form"
+        parse = "Cannot read/parse form.form: Unexpected token '}' is not valid JSON"
+        shape = (
+            '[\n  "components[0]: use defaultValue instead of value on a component"\n]'
+        )
+        missing = "Cannot read/parse form.form: ENOENT: no such file or directory"
+        assert self._runs(cmd, parse)[0].verdict == "dirty"
+        assert self._runs(cmd, shape)[0].verdict == "dirty"
+        assert self._runs(cmd, missing)[0].verdict == "unknown"
+
 
 class TestModelSpecs:
     def _targets(self):
