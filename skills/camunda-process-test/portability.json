@@ -27,6 +27,12 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8",
+    "java": ">=21",
+    "maven": "*",
+    "docker": "*"
+  },
   "limitations": [
     "Process tests require Camunda Process Test 8.8+, Java 21+, Maven, Docker, and a test project with the referenced resources; the instruction-based .test.json workflow requires 8.9+."
   ],

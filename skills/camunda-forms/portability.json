@@ -27,6 +27,9 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8"
+  },
   "limitations": [
     "Form validation requires a JSON-aware editor or validator and a Camunda 8.8+ BPMN project for live linking."
   ],

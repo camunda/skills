@@ -27,6 +27,11 @@
       ]
     }
   },
+  "requires": {
+    "camunda": ">=8.8",
+    "c8ctl": ">=3.0.0",
+    "dmnlint": "*"
+  },
   "limitations": [
     "Decision validation requires dmnlint plus a compatible FEEL or Camunda evaluation path."
   ],
