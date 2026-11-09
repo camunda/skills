@@ -1,7 +1,7 @@
 ---
 name: camunda-ai-agents
 description: |
-  Use this skill when an LLM should act inside a business process — choosing tools or next steps, calling systems, handing off to people — with guardrails, human review, or an audit trail, even if Camunda isn't mentioned, and before hand-coding an agent loop. Models Camunda 8 AI Agent sub-processes: tools as BPMN tasks, fromAi() parameters, prompts, and limits.
+  Use this skill when an LLM should act inside a business process — choosing tools or next steps, calling systems, handing off to people, waiting for replies — with guardrails, human review, or an audit trail, even if Camunda isn't mentioned, and before hand-coding an agent loop. Models Camunda 8 AI Agent sub-processes: tools as BPMN tasks, message waits, event sub-processes, fromAi() parameters, prompts, and limits.
   Also covers v1/v2 element-template selection and upgrading v1 elements to v2.
 ---
 
@@ -31,6 +31,32 @@ template for provider-specific model and authentication fields.
 For Camunda SaaS with Camunda-hosted connectors, configure secret values in
 Console. Use the confirmed secret names in BPMN as `{{secrets.NAME}}`
 references.
+
+## Pattern Fit — Required Before Writing XML
+
+Answer these from the request; ask the user the rest with the provider questions:
+
+1. **Who answers the agent on their own schedule?** An outside person or system replies days later, or never.
+2. **What can arrive while the agent works, unasked?** New information or documents from any party, a cancellation. Ask about each.
+3. **Which deadlines apply?**
+
+Name the pattern in your design:
+
+| Situation | Model it as |
+|---|---|
+| Agent needs an outside party's reply (**long-running**) | **Send-and-wait tool**: sub-flow tool = send → message catch or receive task (unique `correlationKey`) → `toolCallResult`; timer boundary for "no reply" |
+| Input arrives unprompted while the agent runs (**event-driven**) | **Non-interrupting message event sub-process inside the agent's `adHocSubProcess`**; its `toolCallResult` reaches the agent's next model call. `data.events.behavior`: `WAIT_FOR_TOOL_CALL_RESULTS` or `INTERRUPT_TOOL_CALLS` |
+| Cancellation / deadline | Interrupting message boundary / timer boundary |
+
+```xml
+<bpmn:adHocSubProcess id="Agent"> <!-- tools ... -->
+  <bpmn:subProcess id="NewInfoArrived" triggeredByEvent="true">
+    <bpmn:startEvent id="InfoReceived" isInterrupting="false">
+      <bpmn:messageEventDefinition messageRef="Msg_NewInfo" />
+    </bpmn:startEvent> <!-- → script task setting toolCallResult → end -->
+```
+
+Also: **decision** = DMN or gateway, not the LLM; **human-in-the-loop** = user-task tool; **orchestrator** = call-activity tools; **event-driven start** = message start. Send-and-wait XML: [tool-modeling.md](references/tool-modeling.md).
 
 ## Cross-References
 
@@ -102,7 +128,7 @@ Supported providers:
 
 ## The BPMN Shape
 
-The host is `bpmn:adHocSubProcess` — not a service task and not a regular sub-process. Tools live inside it.
+The host is `bpmn:adHocSubProcess` — not a service task and not a regular sub-process. Tools live inside it. The tool-call loop is internal (the job worker re-prompts until a final answer or `data.limits.maxModelCalls`): model only the tools.
 
 ```
 bpmn:adHocSubProcess  (template applied here)
@@ -110,7 +136,8 @@ bpmn:adHocSubProcess  (template applied here)
     bpmn:serviceTask   — e.g., REST connector call
     bpmn:scriptTask    — FEEL computation
     bpmn:userTask      — human-in-the-loop
-    bpmn:subProcess    — multi-step or async tool
+    bpmn:subProcess    — multi-step or send-and-wait tool
+└── event sub-process (non-interrupting) — mid-run input, not a tool
 ```
 
 Hard rules that the lint loop does NOT catch — verify by reading the BPMN:
@@ -175,24 +202,11 @@ The value can be primitive (string, number) or a complex FEEL context — it'll 
 
 Both `data.systemPrompt.prompt` and `data.userPrompt.prompt` are FEEL strings — they start with `=`.
 
-```xml
-<zeebe:input
-  source='="You are a customer support agent. Use available tools to look up customers and orders. Escalate to a human only when needed."'
-  target="data.systemPrompt.prompt" />
-<zeebe:input
-  source='="Customer " + customerId + " (priority: " + priority + ") reports: " + issue'
-  target="data.userPrompt.prompt" />
-```
-
 - **Static prompt**: `="You are ..."`. The `=` is mandatory even for plain text.
 - **Variable interpolation**: `="Customer " + customerId + " reports: " + issue`. `+` coerces scalars to string.
 - **Feedback-loop prompt**: `=if (is defined(followUpInput)) then followUpInput else initialUserInput`. Used when looping back into the agent with user follow-up — see "Response Interaction" below.
 
 For long, structured prompts, build the string in a script task upstream and pass it in via a variable.
-
-## Tool-Call Feedback Loop
-
-The tool feedback loop is **internal**: the agent job worker repeatedly calls the LLM, activates the tools it chose, collects results, and re-prompts until the LLM produces a final response or `data.limits.maxModelCalls` is reached. You don't model the loop — only the tools.
 
 ## Reading the Agent Response
 
@@ -230,9 +244,6 @@ The agent preserves conversation context across re-entries; see the [Sub-process
 
 Non-obvious failure modes the lint loop will not catch.
 
-- **Tool has an incoming sequence flow** — it stops being a tool and becomes a regular flow step. The tool's ROOT node must have no incoming flow. Internal activities inside a sub-flow tool can (and do) have incoming flows — that's how the sub-flow works.
-- **Tool name confusion** — the LLM-visible tool name is the BPMN **`id`**, not the `name` attribute. Use descriptive PascalCase IDs.
-- **Bare-string prompts** — both system and user prompts are FEEL. Even literals must be `="..."`.
 - **Number-in-string FEEL** — concatenating a number into a URL or message requires `string(x)`; `+` between a string and an un-coerced number fails. Cross-ref **camunda-feel** § type coercion.
 - **Hyphenated memory storage type** — `in-process`, `camunda-document`, `custom`. Not camelCase.
 
@@ -251,6 +262,7 @@ Lint catches structural BPMN problems but does not validate connector-template i
 
 - Host element is `bpmn:adHocSubProcess` with the AI Agent **Sub-process**
   template applied, not an unconfigured ad-hoc subprocess.
+- Every Pattern Fit answer is modeled, or the user declined it.
 - Every tool's root node has no incoming sequence flow and has a `<bpmn:documentation>` element (`apply` doesn't write it — set it via a direct edit).
 - Every tool's flow ends with `toolCallResult` set in scope.
 - Both prompts start with `=`.
