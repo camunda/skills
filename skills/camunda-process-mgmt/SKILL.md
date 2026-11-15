@@ -24,6 +24,8 @@ Runtime operations for Camunda 8.8+ clusters via c8ctl: deploy resources, start 
 - **camunda-feel**: Use for diagnosing FEEL evaluation errors (EXTRACT_VALUE_ERROR, CONDITION_ERROR) in incidents
 - **camunda-process-test**: Use for testing processes against an embedded Zeebe engine
 
+If the `camunda-cluster` MCP tools are available (`searchIncidents`, `searchProcessInstances`, `searchUserTasks`, `resolveIncident`, `completeUserTask`, …; from the `camunda-cluster` plugin), you can use them instead of the matching c8ctl commands for inspecting and acting on instances, incidents and user tasks. They connect with the same c8ctl profile. Deploying, cancelling and publishing messages still use c8ctl.
+
 ## Instructions
 
 ### Deploying Resources
