@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bpmn-studio": {
+      "command": "npx",
+      "args": ["-y", "@camunda8/bpmn-studio@0", "--stdio"]
+    }
+  }
+}

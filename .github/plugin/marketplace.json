@@ -14,6 +14,12 @@
       "description": "Official Camunda 8 development skills for AI coding agents.",
       "version": "1.0.0",
       "source": "./"
+    },
+    {
+      "name": "bpmn-studio",
+      "source": "./plugins/bpmn-studio",
+      "description": "Design, lint, view and test Camunda 8 BPMN processes in the chat: interactive bpmn.io modeler (MCP App), Camunda lint rules and an in-memory test engine. Runs @camunda8/bpmn-studio via npx (Node 20+).",
+      "version": "0.1.0"
     }
   ]
 }

@@ -1,0 +1,70 @@
+{
+  "name": "@camunda8/bpmn-studio",
+  "version": "0.1.0",
+  "description": "BPMN Studio MCP server: Camunda 8 BPMN lint, interactive bpmn.io modeler (MCP App) and an in-memory test engine for AI agents.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/camunda/skills.git",
+    "directory": "packages/bpmn-studio"
+  },
+  "homepage": "https://github.com/camunda/skills/tree/main/plugins/bpmn-studio",
+  "keywords": [
+    "camunda",
+    "bpmn",
+    "mcp",
+    "mcp-app",
+    "bpmn-js"
+  ],
+  "bin": {
+    "bpmn-studio": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build:ui": "cross-env INPUT=mcp-app.html vite build",
+    "build:server": "node scripts/build-server.mjs",
+    "build": "node scripts/gen-lint-rules.mjs && tsc --noEmit && npm run build:ui && npm run build:server",
+    "start": "node dist/index.js",
+    "start:stdio": "node dist/index.js --stdio",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@bpmn-io/properties-panel": "^3.58.1",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/express": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.4",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@nanobpm/engine-wasm": "^0.11.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "bpmn-js": "^17.11.1",
+    "bpmn-js-properties-panel": "^5.65.3",
+    "bpmn-moddle": "^10.3.1",
+    "bpmnlint": "^12.0.0",
+    "bpmnlint-plugin-camunda-compat": "^2.63.0",
+    "camunda-bpmn-js-behaviors": "^1.18.0",
+    "cors": "^2.8.6",
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.28.2",
+    "express": "^5.3.0",
+    "modeler-moddle": "^0.2.0",
+    "typescript": "5.9",
+    "vite": "^6.4.5",
+    "vite-plugin-singlefile": "^2.3.4",
+    "zeebe-bpmn-moddle": "^2.0.0",
+    "zod": "^4.6.7"
+  }
+}
