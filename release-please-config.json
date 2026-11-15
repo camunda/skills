@@ -8,9 +8,43 @@
       "package-name": "@camunda8/bpmn-studio",
       "release-as": "0.1.0",
       "extra-files": [
-        { "type": "json", "path": "/plugins/bpmn-studio/.claude-plugin/plugin.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "/.claude-plugin/marketplace.json", "jsonpath": "$.plugins[?(@.name=='bpmn-studio')].version" },
-        { "type": "json", "path": "/.github/plugin/marketplace.json", "jsonpath": "$.plugins[?(@.name=='bpmn-studio')].version" }
+        {
+          "type": "json",
+          "path": "/plugins/bpmn-studio/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='bpmn-studio')].version"
+        },
+        {
+          "type": "json",
+          "path": "/.github/plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='bpmn-studio')].version"
+        }
+      ]
+    },
+    "plugins/camunda-cluster": {
+      "release-type": "simple",
+      "component": "camunda-cluster",
+      "release-as": "0.1.0",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "/plugins/camunda-cluster/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='camunda-cluster')].version"
+        },
+        {
+          "type": "json",
+          "path": "/.github/plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='camunda-cluster')].version"
+        }
       ]
     }
   }

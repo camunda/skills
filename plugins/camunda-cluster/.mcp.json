@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "camunda-cluster": {
+      "command": "npx",
+      "args": ["-y", "@camunda8/cli@^4.6.0", "mcp-proxy", "/mcp/cluster"]
+    },
+    "camunda-processes": {
+      "command": "npx",
+      "args": ["-y", "@camunda8/cli@^4.6.0", "mcp-proxy", "/mcp/processes"]
+    }
+  }
+}

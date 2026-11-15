@@ -1,0 +1,14 @@
+{
+  "name": "camunda-cluster",
+  "version": "0.1.0",
+  "description": "Work with a running Camunda 8 cluster from the chat: incidents, process instances, user tasks and variables through the Orchestration Cluster MCP Server, and your deployed processes as tools through the Processes MCP Server. Connects with c8ctl mcp-proxy, which handles OAuth/basic auth from your c8ctl profile.",
+  "author": {
+    "name": "Camunda",
+    "url": "https://camunda.com"
+  },
+  "homepage": "https://github.com/camunda/skills/tree/main/plugins/camunda-cluster",
+  "repository": "https://github.com/camunda/skills",
+  "license": "Apache-2.0",
+  "keywords": ["camunda", "camunda-8", "mcp", "operations", "incidents", "user-tasks"],
+  "mcpServers": "./.mcp.json"
+}

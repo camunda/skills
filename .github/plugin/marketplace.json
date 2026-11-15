@@ -20,6 +20,12 @@
       "source": "./plugins/bpmn-studio",
       "description": "Design, lint, view and test Camunda 8 BPMN processes in the chat: interactive bpmn.io modeler (MCP App), Camunda lint rules and an in-memory test engine. Runs @camunda8/bpmn-studio via npx (Node 20+).",
       "version": "0.1.0"
+    },
+    {
+      "name": "camunda-cluster",
+      "source": "./plugins/camunda-cluster",
+      "description": "Work with a running Camunda 8 cluster from the chat: incidents, process instances, user tasks and variables (Orchestration Cluster MCP Server), and deployed processes as tools (Processes MCP Server). Runs c8ctl mcp-proxy via npx (Node 20+); uses your c8ctl profile.",
+      "version": "0.1.0"
     }
   ]
 }
