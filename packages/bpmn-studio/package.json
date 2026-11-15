@@ -37,7 +37,8 @@
     "build": "node scripts/gen-lint-rules.mjs && tsc --noEmit && npm run build:ui && npm run build:server",
     "start": "node dist/index.js",
     "start:stdio": "node dist/index.js --stdio",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "pack:mcpb": "node scripts/package-mcpb.mjs"
   },
   "devDependencies": {
     "@bpmn-io/properties-panel": "^3.58.1",

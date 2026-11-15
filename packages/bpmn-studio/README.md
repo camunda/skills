@@ -19,6 +19,8 @@ It ships as the `bpmn-studio` plugin in the [camunda/skills](https://github.com/
 /plugin install bpmn-studio@camunda-skills
 ```
 
+**Claude Desktop.** Download `bpmn-studio-<version>.mcpb` from the [releases](https://github.com/camunda/skills/releases) and open it. Desktop runs it with its built-in Node.js; the install form asks for the folder `save_bpmn` may write to (default: Documents).
+
 **Any MCP host (stdio).** Requires Node.js 20+.
 
 ```json
@@ -58,6 +60,7 @@ The engine is a fast in-memory test engine, not a Camunda cluster: connectors, r
 npm ci
 npm run build        # generates the lint rule table, type-checks, builds view + server into dist/
 npm run smoke        # MCP client smoke test over stdio
+npm run pack:mcpb    # Claude Desktop extension -> release/bpmn-studio-<version>.mcpb
 ```
 
 `dist/index.js` is self-contained (all dependencies bundled, engine `.wasm` copied next to it), so the published package has no runtime dependencies.

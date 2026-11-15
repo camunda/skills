@@ -44,3 +44,5 @@ jobs:
         run: npm run smoke
       - name: Package contents
         run: npm pack --dry-run
+      - name: Claude Desktop extension (.mcpb) validates and packs
+        run: npm run pack:mcpb
