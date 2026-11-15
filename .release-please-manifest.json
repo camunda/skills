@@ -1,4 +1,5 @@
 {
   "packages/bpmn-studio": "0.0.0",
+  "packages/cluster-mcp": "0.0.0",
   "plugins/camunda-cluster": "0.0.0"
 }

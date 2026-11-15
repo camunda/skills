@@ -25,6 +25,12 @@
         }
       ]
     },
+    "packages/cluster-mcp": {
+      "release-type": "node",
+      "component": "cluster-mcp",
+      "package-name": "@camunda8/cluster-mcp",
+      "release-as": "0.1.0"
+    },
     "plugins/camunda-cluster": {
       "release-type": "simple",
       "component": "camunda-cluster",
