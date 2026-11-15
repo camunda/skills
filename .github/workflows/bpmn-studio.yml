@@ -1,0 +1,46 @@
+name: bpmn-studio
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/bpmn-studio/**"
+      - "plugins/bpmn-studio/**"
+      - ".claude-plugin/**"
+      - ".github/plugin/**"
+      - "release-please-config.json"
+      - ".release-please-manifest.json"
+      - ".github/workflows/bpmn-studio.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/bpmn-studio/**"
+      - "plugins/bpmn-studio/**"
+      - ".github/workflows/bpmn-studio.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: bpmn-studio build and smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/bpmn-studio
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: packages/bpmn-studio/package-lock.json
+      - name: Plugin manifests agree with the package
+        run: node scripts/check-plugin.mjs
+      - run: npm ci
+      - name: Build (lint rule table, type-check, view, server)
+        run: npm run build
+      - name: MCP smoke test over stdio
+        run: npm run smoke
+      - name: Package contents
+        run: npm pack --dry-run

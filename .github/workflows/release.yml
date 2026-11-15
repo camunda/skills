@@ -1,0 +1,69 @@
+name: Release
+
+# release-please (manifest mode) opens a release PR per package from conventional commits
+# under its path. Merging it tags <component>-v<version>, creates the GitHub release and
+# bumps the version in package.json, the plugin manifest and both marketplace entries
+# (release-please-config.json). The publish job then publishes the npm package.
+#
+# npm publishing uses trusted publishing (OIDC): configure @camunda8/bpmn-studio on
+# npmjs.com with repository camunda/skills and workflow release.yml. No token secret.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      bpmn-studio-released: ${{ steps.rp.outputs['packages/bpmn-studio--release_created'] }}
+      bpmn-studio-tag: ${{ steps.rp.outputs['packages/bpmn-studio--tag_name'] }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-bpmn-studio:
+    needs: release-please
+    if: needs.release-please.outputs.bpmn-studio-released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/bpmn-studio
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ needs.release-please.outputs.bpmn-studio-tag }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: node scripts/check-plugin.mjs
+      - run: npm ci
+      - run: npm run build
+      - run: npm run smoke
+      - name: Publish (skipped if this version is already on npm)
+        run: |
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published"
+          else
+            npm publish --provenance --access public
+          fi
