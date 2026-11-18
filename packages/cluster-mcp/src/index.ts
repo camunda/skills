@@ -20,6 +20,8 @@ import { resolveConfig } from "./config.js";
 declare const __VERSION__: string;
 const VERSION = typeof __VERSION__ === "string" ? __VERSION__ : "0.0.0-dev";
 const STATUS_TOOL = "camunda_connection_status";
+const LIST_PROCESS_TOOLS = "camunda_process_tools";
+const CALL_PROCESS_TOOL = "camunda_call_process_tool";
 const CONNECT_TIMEOUT_MS = 10_000;
 
 const log = (...args: unknown[]) => console.error("[camunda-cluster-mcp]", ...args);
@@ -76,6 +78,8 @@ function instructions(): string {
     `Tools for the Camunda 8 cluster at ${config.baseUrl}. ` +
       `Process tools (from /mcp/processes) appear as processes with an MCP start event are deployed; ` +
       `the list refreshes ${config.pollSeconds > 0 ? `every ${config.pollSeconds}s` : "on reconnect"}. ` +
+      `Some hosts only read the tool list once per session: if a process tool you expect isn't in your tool list, ` +
+      `call ${LIST_PROCESS_TOOLS} to see what is deployed now and ${CALL_PROCESS_TOOL} to run it. ` +
       `If tools are missing or failing, call ${STATUS_TOOL}.`,
   ];
   for (const b of backends) if (b.instructions) parts.push(`## ${b.endpoint.path}\n${b.instructions.trim()}`);
@@ -89,6 +93,65 @@ const statusTool = {
   inputSchema: { type: "object" as const, properties: {} },
   annotations: { readOnlyHint: true },
 };
+
+// Hosts like Claude Desktop take the tool list once per connection and ignore
+// tools/list_changed, so processes deployed later would be unreachable. These two fixed
+// tools always see the live list.
+const listProcessToolsTool = {
+  name: LIST_PROCESS_TOOLS,
+  description:
+    "List the processes on the Camunda cluster that can be started as tools right now (deployed processes with an MCP start event), with their purpose and input schema. Use it when a process tool you expect is not in your tool list, e.g. one deployed during this conversation; then start it with " +
+    CALL_PROCESS_TOOL +
+    ".",
+  inputSchema: { type: "object" as const, properties: {} },
+  annotations: { readOnlyHint: true },
+};
+
+const callProcessToolTool = {
+  name: CALL_PROCESS_TOOL,
+  description:
+    "Start a process tool on the Camunda cluster by name, for process tools not in your tool list (see " +
+    LIST_PROCESS_TOOLS +
+    "). This starts a process instance.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      name: { type: "string", description: `Tool name as listed by ${LIST_PROCESS_TOOLS}, e.g. "greet".` },
+      arguments: { type: "object", description: "Arguments matching the tool's input schema.", additionalProperties: true },
+    },
+    required: ["name"],
+  },
+};
+
+const localTools = [listProcessToolsTool, callProcessToolTool, statusTool];
+
+async function latest() {
+  await refreshAll();
+  current = mergeTools(backends);
+  lastPrint = fingerprint(current.tools);
+  return current;
+}
+
+async function callRemote(name: string, args: Record<string, unknown> | undefined) {
+  let route = current.owner.get(name);
+  // Unknown (deployed since the last refresh), or a process tool: its key changes on every
+  // deploy, so resolve it against the live list.
+  if (!route || route.remote !== name) route = (await latest()).owner.get(name);
+  if (!route) {
+    return {
+      isError: true,
+      content: [{ type: "text" as const, text: `Unknown tool "${name}". It may have been undeployed, or the cluster is unreachable; call ${LIST_PROCESS_TOOLS} or ${STATUS_TOOL}.` }],
+    };
+  }
+  try {
+    return (await route.backend.callTool(route.remote, args)) as never;
+  } catch (err) {
+    return {
+      isError: true,
+      content: [{ type: "text" as const, text: `${route.backend.endpoint.path} failed: ${err instanceof Error ? err.message : String(err)}` }],
+    };
+  }
+}
 
 function status() {
   return {
@@ -117,10 +180,7 @@ let lastPrint = fingerprint(current.tools);
 
 server.setRequestHandler("tools/list", async () => {
   // Serve live data; the poll only exists to tell clients when to ask again.
-  await refreshAll();
-  current = mergeTools(backends);
-  lastPrint = fingerprint(current.tools);
-  return { tools: [...current.tools, statusTool] as never };
+  return { tools: [...(await latest()).tools, ...localTools] as never };
 });
 
 server.setRequestHandler("tools/call", async (request) => {
@@ -128,27 +188,27 @@ server.setRequestHandler("tools/call", async (request) => {
   if (name === STATUS_TOOL) {
     return { content: [{ type: "text", text: JSON.stringify(status(), null, 2) }] };
   }
-  let backend = current.owner.get(name);
-  if (!backend) {
-    // Maybe deployed since the last refresh.
-    await refreshAll();
-    current = mergeTools(backends);
-    backend = current.owner.get(name);
+  if (name === LIST_PROCESS_TOOLS) {
+    const { processTools } = await latest();
+    const list = processTools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+    const text = list.length
+      ? JSON.stringify(list, null, 2)
+      : `No process tools are deployed. A process becomes a tool when its start event is a message start event with the zeebe property io.camunda.tool:name.${backends.some((b) => b.state === "error") ? ` Some cluster servers are unreachable; call ${STATUS_TOOL}.` : ""}`;
+    return { content: [{ type: "text", text }] };
   }
-  if (!backend) {
-    return {
-      isError: true,
-      content: [{ type: "text", text: `Unknown tool "${name}". It may have been undeployed, or the cluster is unreachable; call ${STATUS_TOOL}.` }],
-    };
+  if (name === CALL_PROCESS_TOOL) {
+    const target = typeof args?.name === "string" ? args.name : "";
+    const { processTools } = await latest();
+    if (!processTools.some((t) => t.name === target)) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: `No process tool "${target}". Available: ${processTools.map((t) => t.name).join(", ") || "none"}.` }],
+      };
+    }
+    const inner = args?.arguments;
+    return callRemote(target, inner && typeof inner === "object" ? (inner as Record<string, unknown>) : {});
   }
-  try {
-    return (await backend.callTool(name, args)) as never;
-  } catch (err) {
-    return {
-      isError: true,
-      content: [{ type: "text", text: `${backend.endpoint.path} failed: ${err instanceof Error ? err.message : String(err)}` }],
-    };
-  }
+  return callRemote(name, args);
 });
 
 let initialized = false;

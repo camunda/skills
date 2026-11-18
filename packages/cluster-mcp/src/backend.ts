@@ -10,11 +10,18 @@ export interface AuthSource {
 }
 
 /** fetch that adds Camunda auth headers and retries once with a fresh token on 401. */
-export function authFetch(auth: AuthSource): FetchLike {
+/** Per-request timeout for MCP calls (POST), so a hung cluster can't stall polling forever. */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+export function authFetch(auth: AuthSource, timeoutMs = REQUEST_TIMEOUT_MS): FetchLike {
   const withAuth = async (init: RequestInit | undefined) => {
     const headers = new Headers(init?.headers);
     for (const [k, v] of Object.entries(await auth.getAuthHeaders())) headers.set(k, v);
-    return { ...init, headers };
+    // Only requests get a deadline; the client's GET event stream is meant to stay open.
+    const method = (init?.method ?? "GET").toUpperCase();
+    if (method === "GET" || timeoutMs <= 0) return { ...init, headers };
+    const timeout = AbortSignal.timeout(timeoutMs);
+    return { ...init, headers, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout };
   };
   return async (input, init) => {
     const res = await fetch(input, await withAuth(init));
@@ -137,21 +144,53 @@ export function describeError(err: unknown, endpoint: Endpoint): string {
   return `${endpoint.url}: ${chain.join(": ") || "unknown error"}`;
 }
 
+/** Where a tool we offer really lives: which backend, and its name there. */
+export interface Route {
+  backend: Backend;
+  remote: string;
+}
+
+export interface Merged {
+  tools: Tool[];
+  owner: Map<string, Route>;
+  /** Tools from /mcp/processes, under the names we offer them as. */
+  processTools: Tool[];
+}
+
+/**
+ * The cluster names a process tool `<io.camunda.tool:name>_<start event subscription key>`,
+ * and the key changes on every deploy. Offer it as the plain `<name>` so a redeployed
+ * process keeps its tool name (hosts that cache the tool list keep working).
+ */
+export function stableName(name: string): string {
+  return name.replace(/_\d{6,}$/, "") || name;
+}
+
 /**
  * Merge the tool lists: earlier backends win on name clashes (/mcp/cluster before
- * /mcp/processes), so a process named like an ops tool can't shadow it.
+ * /mcp/processes), so a process named like an ops tool can't shadow it. Process tools get
+ * stable names unless that would clash.
  */
-export function mergeTools(backends: Backend[]): { tools: Tool[]; owner: Map<string, Backend> } {
-  const owner = new Map<string, Backend>();
+export function mergeTools(backends: Backend[]): Merged {
+  const owner = new Map<string, Route>();
   const tools: Tool[] = [];
+  const processTools: Tool[] = [];
   for (const b of backends) {
+    const isProcesses = b.endpoint.path.endsWith("/processes");
+    const stableCount = new Map<string, number>();
+    if (isProcesses) for (const t of b.tools) stableCount.set(stableName(t.name), (stableCount.get(stableName(t.name)) ?? 0) + 1);
     for (const t of b.tools) {
-      if (owner.has(t.name)) continue;
-      owner.set(t.name, b);
-      tools.push(t);
+      if (owner.has(t.name)) continue; // e.g. searchIncidents is offered by both servers
+      const stable = stableName(t.name);
+      const name = isProcesses && stable !== t.name && stableCount.get(stable) === 1 && !owner.has(stable) ? stable : t.name;
+      if (owner.has(name)) continue;
+      owner.set(name, { backend: b, remote: t.name });
+      const offered = name === t.name ? t : { ...t, name };
+      tools.push(offered);
+      if (isProcesses && /_\d{6,}$/.test(t.name)) processTools.push(offered);
     }
   }
-  return { tools, owner };
+  return { tools, owner, processTools };
 }
 
 /** Stable fingerprint of a tool list, to detect changes between polls. */

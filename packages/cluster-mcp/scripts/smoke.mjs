@@ -20,7 +20,7 @@ const ok = (m) => console.log("✓", m);
 const tool = (name, description) => ({ name, description, inputSchema: { type: "object", properties: {} } });
 const remote = {
   cluster: { tools: [tool("searchIncidents", "cluster: search incidents"), tool("getTopology", "cluster: topology")], instructions: "CLUSTER-INSTRUCTIONS" },
-  processes: { tools: [tool("searchIncidents", "processes: search incidents"), tool("greet_1", "Start greet")], instructions: "PROCESSES-INSTRUCTIONS" },
+  processes: { tools: [tool("searchIncidents", "processes: search incidents"), tool("greet_2251799813685249", "Start greet")], instructions: "PROCESSES-INSTRUCTIONS" },
 };
 const auth = { mode: "oauth", validToken: "", issued: 0, basic: "Basic " + Buffer.from("demo:secret").toString("base64"), seen: [] };
 
@@ -109,15 +109,22 @@ try {
     ok("capabilities + forwarded instructions");
 
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    assert.deepEqual(names, ["camunda_connection_status", "getTopology", "greet_1", "searchIncidents"]);
+    assert.deepEqual(names, ["camunda_call_process_tool", "camunda_connection_status", "camunda_process_tools", "getTopology", "greet", "searchIncidents"]);
     assert(auth.seen.some((h) => h.startsWith("Bearer tok-")), "bearer token sent");
     ok(`OAuth bearer + merged tools: ${names.join(", ")}`);
 
     const r = await client.callTool({ name: "searchIncidents", arguments: {} });
     assert.equal(r.content[0].text, "cluster ran searchIncidents");
-    const g = await client.callTool({ name: "greet_1", arguments: {} });
-    assert.equal(g.content[0].text, "processes ran greet_1");
-    ok("routing: duplicate goes to /mcp/cluster, process tool to /mcp/processes");
+    const g = await client.callTool({ name: "greet", arguments: {} });
+    assert.equal(g.content[0].text, "processes ran greet_2251799813685249");
+    ok("routing: duplicate goes to /mcp/cluster, process tool (stable name) to /mcp/processes");
+
+    // Redeploy: the cluster renames the tool (new subscription key). The stable name a host
+    // cached at startup must still work, without a tools/list in between.
+    remote.processes.tools[1] = tool("greet_2251799813690001", "Start greet v2");
+    const g2 = await client.callTool({ name: "greet", arguments: {} });
+    assert.equal(g2.content[0].text, "processes ran greet_2251799813690001");
+    ok("redeployed process keeps its tool name");
 
     // Revoke the token: the next call gets 401 and must succeed after one refresh.
     const before = auth.issued;
@@ -128,11 +135,20 @@ try {
     ok("401 -> token refresh -> retry");
 
     // "Deploy" a process tool: the poll must notify the client.
-    remote.processes.tools.push(tool("approve_2", "Start approval"));
+    remote.processes.tools.push(tool("approve_2251799813690002", "Start approval"));
     await waitFor(() => events.listChanged > 0);
     const after = (await client.listTools()).tools.map((t) => t.name);
-    assert(after.includes("approve_2"));
+    assert(after.includes("approve"));
     ok("tools/list_changed after deploy, new tool listed");
+
+    // Hosts that never re-read the list (Claude Desktop) reach new processes via the fixed tools.
+    const listed = JSON.parse((await client.callTool({ name: "camunda_process_tools", arguments: {} })).content[0].text);
+    assert.deepEqual(listed.map((t) => t.name).sort(), ["approve", "greet"]);
+    const viaCall = await client.callTool({ name: "camunda_call_process_tool", arguments: { name: "approve", arguments: { who: "x" } } });
+    assert.equal(viaCall.content[0].text, "processes ran approve_2251799813690002");
+    const missing = await client.callTool({ name: "camunda_call_process_tool", arguments: { name: "nope" } });
+    assert(missing.isError && /Available: .*approve/.test(missing.content[0].text));
+    ok("camunda_process_tools + camunda_call_process_tool");
 
     const status = JSON.parse((await client.callTool({ name: "camunda_connection_status", arguments: {} })).content[0].text);
     assert.equal(status.auth, "OAUTH");
@@ -154,7 +170,7 @@ try {
       CAMUNDA_MCP_SERVERS: "cluster",
     });
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    assert.deepEqual(names, ["camunda_connection_status", "getTopology", "searchIncidents"]);
+    assert.deepEqual(names, ["camunda_call_process_tool", "camunda_connection_status", "camunda_process_tools", "getTopology", "searchIncidents"]);
     assert(auth.seen.every((h) => h === auth.basic), "basic header on every request");
     ok("basic auth (placeholders ignored), CAMUNDA_MCP_SERVERS=cluster");
     await client.close();
@@ -163,8 +179,8 @@ try {
   // ---- Unreachable endpoint ---------------------------------------------------------
   {
     const { client } = await connect({ CAMUNDA_REST_ADDRESS: `${base}/nope`, CAMUNDA_AUTH_STRATEGY: "NONE" });
-    const names = (await client.listTools()).tools.map((t) => t.name);
-    assert.deepEqual(names, ["camunda_connection_status"]);
+    const names = (await client.listTools()).tools.map((t) => t.name).sort();
+    assert.deepEqual(names, ["camunda_call_process_tool", "camunda_connection_status", "camunda_process_tools"]);
     const status = JSON.parse((await client.callTool({ name: "camunda_connection_status", arguments: {} })).content[0].text);
     assert.match(status.servers[0].error, /404: the MCP gateway is disabled/);
     ok("404 reported by the status tool, server stays up");
