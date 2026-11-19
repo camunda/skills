@@ -125,10 +125,21 @@ const callProcessToolTool = {
 
 const localTools = [listProcessToolsTool, callProcessToolTool, statusTool];
 
-async function latest() {
+/**
+ * Refresh from the cluster and, if the tool list changed, tell the client. Every refresh
+ * path goes through here: if a tool call noticed a deploy and only updated the fingerprint,
+ * the next poll would see nothing new and the host's cached tool list would stay stale.
+ * tools/list passes notify=false, since that client is receiving the fresh list right now.
+ */
+async function latest(notify = true) {
   await refreshAll();
-  current = mergeTools(backends);
-  lastPrint = fingerprint(current.tools);
+  const next = mergeTools(backends);
+  const print = fingerprint(next.tools);
+  current = next;
+  if (print === lastPrint) return current;
+  lastPrint = print;
+  log(`tool list changed (${next.tools.length} tools)`);
+  if (notify && initialized) await server.sendToolListChanged().catch((err: unknown) => log("list_changed failed:", err));
   return current;
 }
 
@@ -180,7 +191,7 @@ let lastPrint = fingerprint(current.tools);
 
 server.setRequestHandler("tools/list", async () => {
   // Serve live data; the poll only exists to tell clients when to ask again.
-  return { tools: [...(await latest()).tools, ...localTools] as never };
+  return { tools: [...(await latest(false)).tools, ...localTools] as never };
 });
 
 server.setRequestHandler("tools/call", async (request) => {
@@ -217,16 +228,7 @@ server.oninitialized = () => {
 };
 
 if (config.pollSeconds > 0) {
-  const timer = setInterval(async () => {
-    await refreshAll();
-    const next = mergeTools(backends);
-    const print = fingerprint(next.tools);
-    if (print === lastPrint) return;
-    current = next;
-    lastPrint = print;
-    log(`tool list changed (${next.tools.length} tools)`);
-    if (initialized) await server.sendToolListChanged().catch((err: unknown) => log("list_changed failed:", err));
-  }, config.pollSeconds * 1000);
+  const timer = setInterval(() => void latest(), config.pollSeconds * 1000);
   timer.unref();
 }
 

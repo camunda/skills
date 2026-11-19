@@ -135,8 +135,9 @@ try {
     ok("401 -> token refresh -> retry");
 
     // "Deploy" a process tool: the poll must notify the client.
+    const beforeDeploy = events.listChanged;
     remote.processes.tools.push(tool("approve_2251799813690002", "Start approval"));
-    await waitFor(() => events.listChanged > 0);
+    await waitFor(() => events.listChanged > beforeDeploy);
     const after = (await client.listTools()).tools.map((t) => t.name);
     assert(after.includes("approve"));
     ok("tools/list_changed after deploy, new tool listed");
@@ -149,6 +150,15 @@ try {
     const missing = await client.callTool({ name: "camunda_call_process_tool", arguments: { name: "nope" } });
     assert(missing.isError && /Available: .*approve/.test(missing.content[0].text));
     ok("camunda_process_tools + camunda_call_process_tool");
+
+    // A tool call that sees a deploy before the poll does must still notify the client;
+    // otherwise the poll finds nothing new and the host's cached list stays stale.
+    const beforeCallSeen = events.listChanged;
+    remote.processes.tools.push(tool("reject_2251799813690003", "Start rejection"));
+    const seen = JSON.parse((await client.callTool({ name: "camunda_process_tools", arguments: {} })).content[0].text);
+    assert(seen.some((t) => t.name === "reject"), "tool call sees the new process");
+    await waitFor(() => events.listChanged > beforeCallSeen);
+    ok("tools/list_changed when a tool call notices the deploy first");
 
     const status = JSON.parse((await client.callTool({ name: "camunda_connection_status", arguments: {} })).content[0].text);
     assert.equal(status.auth, "OAUTH");
