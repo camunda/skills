@@ -160,6 +160,8 @@ When the task targets a directory (not a single file), use the directory workflo
 
 Lint catches structure, not runtime behaviour (FEEL errors, missing workers, unreachable end events). After lint is clean, validate by **running the process**: prefer **camunda-process-test** for embedded-engine feedback without a cluster, or fall back to **camunda-process-mgmt** to deploy and run an instance.
 
+If the `bpmn-studio` MCP tools are available (`show_bpmn`, `test_bpmn`; from the `bpmn-studio` plugin), you can also show the diagram to the user in the chat and click through each branch on its in-memory test engine before any cluster is involved. That engine doesn't run connectors or workers, so it doesn't replace the checks above.
+
 ### Runtime compatibility gate
 
 Before a BPMN change moves to deployment/testing, every file you intend to deploy (single file or full directory set) must be lint-clean per the loop above — Camunda ruleset applied, zero errors, zero warnings. This is a required runtime-compatibility check, but it is not by itself a deployment-success guarantee.

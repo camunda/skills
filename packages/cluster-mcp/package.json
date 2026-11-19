@@ -1,0 +1,49 @@
+{
+  "name": "@camunda8/cluster-mcp",
+  "version": "0.1.0",
+  "description": "Local MCP server for a Camunda 8 Orchestration Cluster: connects to the cluster's built-in MCP servers (/mcp/cluster and /mcp/processes) with Camunda SDK authentication, and refreshes the tool list when processes are deployed.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/camunda/skills.git",
+    "directory": "packages/cluster-mcp"
+  },
+  "homepage": "https://github.com/camunda/skills/tree/main/plugins/camunda-cluster",
+  "keywords": [
+    "camunda",
+    "camunda8",
+    "zeebe",
+    "mcp",
+    "bpmn"
+  ],
+  "bin": {
+    "camunda-cluster-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "start": "node dist/index.js",
+    "smoke": "node scripts/smoke.mjs",
+    "pack:mcpb": "node scripts/package-mcpb.mjs"
+  },
+  "devDependencies": {
+    "@camunda8/orchestration-cluster-api": "^10.0.1",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "typescript": "5.9"
+  }
+}

@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Built Claude Desktop extensions (packages/*/scripts/package-mcpb.mjs)
+packages/*/release/
+
 # Element templates cache
 element-templates/
 

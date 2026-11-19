@@ -1,0 +1,6 @@
+node_modules/
+src/server/lint-rules.gen.ts
+*.log
+.DS_Store
+fixtures/out/
+dist/

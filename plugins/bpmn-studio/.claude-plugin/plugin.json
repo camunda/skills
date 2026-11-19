@@ -1,0 +1,14 @@
+{
+  "name": "bpmn-studio",
+  "version": "0.1.0",
+  "description": "Design, lint, view and test Camunda 8 BPMN processes in the chat: an interactive bpmn.io modeler (MCP App), Camunda lint rules and an in-memory test engine. Pairs with the camunda-skills plugin.",
+  "author": {
+    "name": "Camunda",
+    "url": "https://camunda.com"
+  },
+  "homepage": "https://github.com/camunda/skills/tree/main/plugins/bpmn-studio",
+  "repository": "https://github.com/camunda/skills",
+  "license": "Apache-2.0",
+  "keywords": ["camunda", "camunda-8", "bpmn", "mcp-app", "bpmn-js"],
+  "mcpServers": "./.mcp.json"
+}

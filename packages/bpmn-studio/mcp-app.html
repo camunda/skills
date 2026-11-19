@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>BPMN Studio</title>
+</head>
+<body>
+  <div id="app">
+    <header class="bar">
+      <strong id="title">BPMN</strong>
+      <span id="dirty" class="pill hidden">edited</span>
+      <span id="lint-badge" class="pill">lint …</span>
+      <span class="spacer"></span>
+      <div class="tabs">
+        <button data-tab="model" class="tab active" title="Inspect and edit the diagram">Model</button>
+        <button data-tab="test" class="tab" title="Run the process in the nanobpmn engine">Test</button>
+      </div>
+      <button id="btn-props" title="Toggle properties panel">Properties</button>
+      <button id="btn-save" title="Save to the .bpmn file">Save</button>
+      <button id="btn-fit" title="Fit diagram">Fit</button>
+      <button id="btn-full" title="Toggle fullscreen">⤢</button>
+    </header>
+    <main class="body">
+      <div id="canvas"></div>
+      <aside id="side" class="hidden">
+        <div id="props"></div>
+        <div id="studio" class="hidden"></div>
+      </aside>
+    </main>
+    <footer class="foot">
+      <div id="lint-list"></div>
+      <form id="ask" class="ask">
+        <input id="ask-text" placeholder="Tell Claude about your change…" autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+    </footer>
+    <div id="toast" class="hidden"></div>
+  </div>
+  <script type="module" src="/src/ui/main.ts"></script>
+</body>
+</html>
