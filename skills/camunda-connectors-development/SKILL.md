@@ -1,7 +1,7 @@
 ---
 name: camunda-connectors-development
 description: |
-  Use this skill when no pre-built connector fits and processes need a reusable integration — a proprietary or internal API, custom auth, a shared retry policy, or an inbound webhook, subscription, or poller that starts processes. Builds custom Camunda 8 connectors as a JSON template on a protocol connector or in Java with the Connectors SDK.
+  Use this skill when no pre-built connector fits and processes need a reusable integration — a proprietary or internal API, custom auth, a shared retry policy, or an inbound webhook, subscription, or poller that starts processes. Builds Camunda 8 connectors as a JSON template on a protocol connector or in Java with the Connectors SDK, and designs element-template migration instructions.
 ---
 
 # Camunda Connectors Development
@@ -10,7 +10,7 @@ Build a custom Camunda 8 connector when the OOTB catalog doesn't cover the integ
 
 ## Prerequisites
 
-- Camunda 8.8+ cluster reachable for testing (local c8run, SaaS, or Self-Managed — see **camunda-c8ctl**)
+- Camunda 8.8+ cluster reachable for connector testing (local c8run, SaaS, or Self-Managed — see **camunda-c8ctl**). For migration-only work, use the reference's best-effort validation when a cluster or credentials are unavailable.
 - Path A: none beyond the cluster — the JSON template is hand-authored, using `c8ctl element-template get <id>` to fetch the base OOTB template as a starting point
 - Path B: Java 17+, Maven 3.8+ (or Gradle equivalent), and a JVM hosting option for the resulting connector JAR — see **camunda-development** for installing the JDK / Maven toolchain locally
 
@@ -78,6 +78,8 @@ Use `c8ctl element-template get <id>` to pull the base template, then hide / har
 
 `references/element-template-json.md` is the schema reference for both — property types, binding types, FEEL/constraints/condition/generatedValue features, and the template variants for each BPMN attachment.
 
+Before finalizing a new version of an existing element template or a template intended to replace another, read and follow `references/element-template-migration.md`, even if migration instructions were not explicitly requested. Inventory changes, prepare a migration plan, get user feedback, then implement and verify it.
+
 > **Field-ordering rule:** any property used in another property's FEEL `value` must appear earlier in the `properties` array. Out-of-order references silently evaluate to `null`. The same rule applies to Path A customisation and to hand-authored Path B templates.
 
 ## Shared facilities (Path A and Path B)
@@ -119,5 +121,6 @@ For detail, read from `references/`:
 - [connector-sdk-outbound.md](references/connector-sdk-outbound.md) — `OutboundConnectorProvider` + `@Operation` (modern), `OutboundConnectorFunction` (legacy), `@Variable` / `@Header`, `ConnectorException`, Jakarta Validation
 - [connector-sdk-inbound.md](references/connector-sdk-inbound.md) — `InboundConnectorExecutable`, three flavours, lifecycle, `correlateWithResult` / `CorrelationResult`
 - [element-template-json.md](references/element-template-json.md) — schema reference: top-level fields, property types, binding types, property features, template variants per BPMN attachment
+- [element-template-migration.md](references/element-template-migration.md) — plan and validate low-risk migrations with minimal user action
 - [element-template-generator.md](references/element-template-generator.md) — Maven plugin configuration, `@ElementTemplate` annotation, `generateHybridTemplates`, `versionHistoryEnabled`, `writeMetaInfFileGeneration`
 - [registration-and-hosting.md](references/registration-and-hosting.md) — SPI vs Spring Bean registration; SaaS / SM standalone / SM embedded / Hybrid hosting models
